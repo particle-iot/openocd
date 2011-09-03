@@ -32,6 +32,13 @@ struct dsp5680xx_common dsp5680xx_context;
 
 #define err_check(retval,dsp5680xx_error_code,err_msg) if(retval != ERROR_OK){LOG_ERROR("DSP5680XX_ERROR:%d\nAt:%s:%d:%s",dsp5680xx_error_code,__FUNCTION__,__LINE__,err_msg);return retval;}
 #define err_check_propagate(retval) if(retval!=ERROR_OK){return retval;}
+#define check_halt_and_debug(target)\
+  if(target->state != TARGET_HALTED){					\
+    err_check(ERROR_FAIL,DSP5680XX_ERROR_TARGET_RUNNING,"Target must be halted.") \
+      };								\
+  if(!dsp5680xx_context.debug_mode_enabled){				\
+    err_check(ERROR_FAIL,DSP5680XX_ERROR_NOT_IN_DEBUG,"Debug mode be enabled to read mem.") \
+      };
 
 int dsp5680xx_execute_queue(void){
   int retval;
@@ -404,10 +411,7 @@ static int core_rx_lower_data(struct target * target,uint8_t * data_read)
 #define core_move_long_to_y(target,value) dsp5680xx_exe_generic(target,3,0xe417,value&0xffff,value>>16)
 
 static int core_move_value_to_pc(struct target * target, uint32_t value){
-  if (!(target->state == TARGET_HALTED)){
-    LOG_ERROR("Target must be halted to move PC. Target state = %d.",target->state);
-    return ERROR_TARGET_NOT_HALTED;
-  };
+  check_halt_and_debug(target);
   int retval;
   retval = dsp5680xx_exe_generic(target,3,0xE71E,value&0xffff,value>>16);
   err_check_propagate(retval);
@@ -537,15 +541,21 @@ static int eonce_enter_debug_mode_without_reset(struct target * target, uint16_t
   err_check_propagate(retval);
   retval =  dsp5680xx_irscan(target, & instr, & ir_out,DSP5680XX_JTAG_CORE_TAP_IRLEN);
   err_check_propagate(retval);
+  if((ir_out&JTAG_STATUS_MASK) == JTAG_STATUS_DEBUG)
+    target->state = TARGET_HALTED;
+  else{
+    retval = ERROR_FAIL;
+  }
   // Verify that debug mode is enabled
   uint16_t data_read_from_dr;
   retval = eonce_read_status_reg(target,&data_read_from_dr);
   err_check_propagate(retval);
   if((data_read_from_dr&0x30) == 0x30){
     LOG_DEBUG("EOnCE successfully entered debug mode.");
-    target->state = TARGET_HALTED;
+    dsp5680xx_context.debug_mode_enabled = true;
     retval = ERROR_OK;
   }else{
+    dsp5680xx_context.debug_mode_enabled = false;
     retval = ERROR_TARGET_FAILURE;
     err_check_propagate(retval);// No error msg here, since there is still hope with full halting sequence
   }
@@ -632,6 +642,12 @@ static int eonce_enter_debug_mode(struct target * target, uint16_t * eonce_statu
     retval =  dsp5680xx_irscan(target, & instr, & ir_out,DSP5680XX_JTAG_CORE_TAP_IRLEN);
     err_check_propagate(retval);
   }
+  if((ir_out&JTAG_STATUS_MASK) == JTAG_STATUS_DEBUG)
+    target->state = TARGET_HALTED;
+  else{
+    retval = ERROR_FAIL;
+    err_check(retval,DSP5680XX_ERROR_HALT,"Failed to halt target.");
+  }
 
   for(int i = 0; i<3; i++){
     instr_16 = 0x86;
@@ -646,10 +662,11 @@ static int eonce_enter_debug_mode(struct target * target, uint16_t * eonce_statu
   err_check_propagate(retval);
   if((data_read_from_dr&0x30) == 0x30){
     LOG_DEBUG("EOnCE successfully entered debug mode.");
-    target->state = TARGET_HALTED;
+    dsp5680xx_context.debug_mode_enabled = true;
     retval = ERROR_OK;
   }else{
     retval = ERROR_TARGET_FAILURE;
+    dsp5680xx_context.debug_mode_enabled = false;
     err_check(retval,DSP5680XX_ERROR_ENTER_DEBUG_MODE,"Failed to set EOnCE module to debug mode");
   }
   if(eonce_status!=NULL)
@@ -691,6 +708,7 @@ static int dsp5680xx_target_create(struct target *target, Jim_Interp * interp){
 static int dsp5680xx_init_target(struct command_context *cmd_ctx, struct target *target){
   dsp5680xx_context.stored_pc = 0;
   dsp5680xx_context.flush = 1;
+  dsp5680xx_context.debug_mode_enabled = false;
   LOG_DEBUG("target initiated!");
   //TODO core tap must be enabled before running these commands, currently this is done in the .cfg tcl script.
   return ERROR_OK;
@@ -718,15 +736,19 @@ static int dsp5680xx_deassert_reset(struct target *target){
 static int dsp5680xx_halt(struct target *target){
   int retval;
   uint16_t eonce_status = 0xbeef;
-  if(target->state == TARGET_HALTED){
-    LOG_USER("Target already halted.");
+  if((target->state == TARGET_HALTED) && (dsp5680xx_context.debug_mode_enabled)){
+    LOG_USER("Target already halted and in debug mode.");
     return ERROR_OK;
+  }else{
+    if(target->state == TARGET_HALTED)
+      LOG_USER("Target already halted, re attempting to enter debug mode.");
   }
   retval = eonce_enter_debug_mode(target,&eonce_status);
   err_check_propagate(retval);
-  retval = eonce_pc_store(target);
-  err_check_propagate(retval);
-  //TODO is it useful to store the pc?
+  if(dsp5680xx_context.debug_mode_enabled){
+    retval = eonce_pc_store(target);
+    err_check_propagate(retval);
+  }
   return retval;
 }
 
@@ -795,25 +817,50 @@ static int dsp5680xx_resume(struct target *target, int current, uint32_t address
   }
   int retval;
   uint8_t eonce_status;
-  if(!current){
-    retval = core_move_value_to_pc(target,address);
-    err_check_propagate(retval);
-  }
+  uint8_t jtag_status;
+  if(dsp5680xx_context.debug_mode_enabled){
+    if(!current){
+      retval = core_move_value_to_pc(target,address);
+      err_check_propagate(retval);
+    }
 
-  int retry = 20;
-  while(retry-- > 1){
-    retval = eonce_exit_debug_mode(target,&eonce_status );
-	err_check_propagate(retval);
-    if(eonce_status == DSP5680XX_ONCE_OSCR_NORMAL_M)
-      break;
-  }
-  if(retry == 0){
-    retval = ERROR_TARGET_FAILURE;
-    err_check(retval,DSP5680XX_ERROR_RESUME,"Failed to resume...");
+    int retry = 20;
+    while(retry-- > 1){
+      retval = eonce_exit_debug_mode(target,&eonce_status );
+      err_check_propagate(retval);
+      if(eonce_status == DSP5680XX_ONCE_OSCR_NORMAL_M)
+	break;
+    }
+    if(retry == 0){
+      retval = ERROR_TARGET_FAILURE;
+      err_check(retval,DSP5680XX_ERROR_EXIT_DEBUG_MODE,"Failed to exit debug mode...");
+    }else{
+      target->state = TARGET_RUNNING;
+      dsp5680xx_context.debug_mode_enabled = false;
+    }
+    LOG_DEBUG("EOnCE status: 0x%02X.",eonce_status);
   }else{
-    target->state = TARGET_RUNNING;
+    // If debug mode was not enabled but target was halted, then it is most likely that 
+    //access to eonce registers is locked.
+    // Reset target to make it run again.
+    jtag_add_reset(0,1);
+    jtag_add_sleep(TIME_DIV_FREESCALE*200*1000);
+
+    retval = reset_jtag();
+    err_check(retval,DSP5680XX_ERROR_JTAG_RESET,"Failed to reset JTAG state machine");
+    jtag_add_sleep(TIME_DIV_FREESCALE*100*1000);
+    jtag_add_reset(0,0);
+    jtag_add_sleep(TIME_DIV_FREESCALE*300*1000);
+    retval = dsp5680xx_jtag_status(target,&jtag_status);
+    err_check_propagate(retval);
+    if((jtag_status&JTAG_STATUS_MASK) == JTAG_STATUS_NORMAL){
+      target->state = TARGET_RUNNING;
+      dsp5680xx_context.debug_mode_enabled = false;
+    }else{
+      retval = ERROR_TARGET_FAILURE;
+      err_check(retval,DSP5680XX_ERROR_RESUME,"Failed to resume target");
+    }
   }
-  LOG_DEBUG("EOnCE status: 0x%02X.",eonce_status);
   return ERROR_OK;
 }
 
@@ -896,10 +943,8 @@ static int dsp5680xx_read_32_single(struct target * target, uint32_t address, ui
 }
 
 static int dsp5680xx_read(struct target * target, uint32_t address, unsigned size, unsigned count, uint8_t * buffer){
-  if(target->state != TARGET_HALTED){
-    LOG_USER("Target must be halted.");
-    return ERROR_FAIL;
-  }
+  check_halt_and_debug(target);
+
   int retval = ERROR_OK;
   int pmem = 1;
 
@@ -977,10 +1022,6 @@ static int dsp5680xx_write_32_single(struct target *target, uint32_t address, ui
 }
 
 static int dsp5680xx_write_8(struct target * target, uint32_t address, uint32_t count, const uint8_t * data, int pmem){
-  if(target->state != TARGET_HALTED){
-    LOG_ERROR("%s: Target must be halted.",__FUNCTION__);
-    return ERROR_OK;
-  };
   int retval = 0;
   uint16_t data_16;
   uint32_t iter;
@@ -1020,10 +1061,6 @@ static int dsp5680xx_write_8(struct target * target, uint32_t address, uint32_t 
 
 static int dsp5680xx_write_16(struct target * target, uint32_t address, uint32_t count, const uint8_t * data, int pmem){
   int retval = ERROR_OK;
-  if(target->state != TARGET_HALTED){
-	retval = ERROR_TARGET_NOT_HALTED;
-	err_check(retval,DSP5680XX_ERROR_WRITE_WITH_TARGET_RUNNING,"Target must be halted.");
-  };
   uint32_t iter;
   int counter = FLUSH_COUNT_READ_WRITE;
 
@@ -1046,10 +1083,6 @@ static int dsp5680xx_write_16(struct target * target, uint32_t address, uint32_t
 
 static int dsp5680xx_write_32(struct target * target, uint32_t address, uint32_t count, const uint8_t * data, int pmem){
   int retval = ERROR_OK;
-  if(target->state != TARGET_HALTED){
-	retval = ERROR_TARGET_NOT_HALTED;
-	err_check(retval,DSP5680XX_ERROR_WRITE_WITH_TARGET_RUNNING,"Target must be halted.");
-  };
   uint32_t iter;
   int counter = FLUSH_COUNT_READ_WRITE;
 
@@ -1084,9 +1117,8 @@ static int dsp5680xx_write_32(struct target * target, uint32_t address, uint32_t
  */
 static int dsp5680xx_write(struct target *target, uint32_t address, uint32_t size, uint32_t count, const uint8_t * buffer){
   //TODO Cannot write 32bit to odd address, will write 0x12345678  as 0x5678 0x0012
-  if(target->state != TARGET_HALTED){
-    err_check(ERROR_FAIL,DSP5680XX_ERROR_WRITE_WITH_TARGET_RUNNING,"Target must be halted.");
-  }
+  check_halt_and_debug(target);
+
   int retval = 0;
   int p_mem = 1;
   retval = dsp5680xx_convert_address(&address, &p_mem);
@@ -1116,10 +1148,7 @@ static int dsp5680xx_bulk_write_memory(struct target * target,uint32_t address, 
 }
 
 static int dsp5680xx_write_buffer(struct target * target, uint32_t address, uint32_t size, const uint8_t * buffer){
-  if(target->state != TARGET_HALTED){
-    LOG_USER("Target must be halted.");
-    return ERROR_OK;
-  }
+  check_halt_and_debug(target);
   return dsp5680xx_write(target, address, 1, size, buffer);
 }
 
@@ -1134,10 +1163,7 @@ static int dsp5680xx_write_buffer(struct target * target, uint32_t address, uint
  * @return
  */
 static int dsp5680xx_read_buffer(struct target * target, uint32_t address, uint32_t size, uint8_t * buffer){
-  if(target->state != TARGET_HALTED){
-    LOG_USER("Target must be halted.");
-    return ERROR_OK;
-  }
+  check_halt_and_debug(target);
   // The "/2" solves the byte/word addressing issue.
   return dsp5680xx_read(target,address,2,size/2,buffer);
 }
@@ -1222,10 +1248,7 @@ static int dsp5680xx_soft_reset_halt(struct target *target){
 
 int dsp5680xx_f_protect_check(struct target * target, uint16_t * protected) {
   int retval;
-  if (dsp5680xx_target_status(target,NULL,NULL) != TARGET_HALTED){
-    retval = dsp5680xx_halt(target);
-	err_check_propagate(retval);
-  }
+  check_halt_and_debug(target);
   if(protected == NULL){
     err_check(ERROR_FAIL,DSP5680XX_ERROR_PROTECT_CHECK_INVALID_ARGS,"NULL pointer not valid.");
   }
@@ -1380,9 +1403,10 @@ static int set_fm_ck_div(struct target * target){
 static int dsp5680xx_f_signature(struct target * target, uint32_t address, uint32_t words, uint16_t * signature){
   int retval;
   uint16_t hfm_ustat;
-  if (dsp5680xx_target_status(target,NULL,NULL) != TARGET_HALTED){
+  if (!dsp5680xx_context.debug_mode_enabled){
     retval = eonce_enter_debug_mode_without_reset(target,NULL);
-    err_check_propagate(retval);
+    // Generate error here, since it is not done in eonce_enter_debug_mode_without_reset
+    err_check(retval,DSP5680XX_ERROR_HALT,"Failed to halt target.");
   }
   retval = dsp5680xx_f_execute_command(target,HFM_CALCULATE_DATA_SIGNATURE,address,words,&hfm_ustat,1);
   err_check_propagate(retval);
@@ -1393,7 +1417,7 @@ static int dsp5680xx_f_signature(struct target * target, uint32_t address, uint3
 int dsp5680xx_f_erase_check(struct target * target, uint8_t * erased,uint32_t sector){
   int retval;
   uint16_t hfm_ustat;
-  if (dsp5680xx_target_status(target,NULL,NULL) != TARGET_HALTED){
+  if (!dsp5680xx_context.debug_mode_enabled){
     retval = dsp5680xx_halt(target);
     err_check_propagate(retval);
   }
@@ -1439,7 +1463,7 @@ static int mass_erase(struct target * target, uint16_t * hfm_ustat){
 
 int dsp5680xx_f_erase(struct target * target, int first, int last){
   int retval;
-  if (dsp5680xx_target_status(target,NULL,NULL) != TARGET_HALTED){
+  if (!dsp5680xx_context.debug_mode_enabled){
     retval = dsp5680xx_halt(target);
     err_check_propagate(retval);
   }
@@ -1519,7 +1543,7 @@ const uint32_t pgm_write_pflash_length = 31;
 
 int dsp5680xx_f_wr(struct target * target, uint8_t *buffer, uint32_t address, uint32_t count, int is_flash_lock){
   int retval = ERROR_OK;
-  if (dsp5680xx_target_status(target,NULL,NULL) != TARGET_HALTED){
+  if (!dsp5680xx_context.debug_mode_enabled){
     retval = eonce_enter_debug_mode(target,NULL);
     err_check_propagate(retval);
   }
@@ -1622,8 +1646,6 @@ int dsp5680xx_f_unlock(struct target * target){
   uint16_t eonce_status;
   uint32_t instr;
   uint32_t ir_out;
-  uint16_t instr_16;
-  uint16_t read_16;
   struct jtag_tap * tap_chp;
   struct jtag_tap * tap_cpu;
   tap_chp = jtag_tap_by_string("dsp568013.chp");
@@ -1637,7 +1659,7 @@ int dsp5680xx_f_unlock(struct target * target){
     err_check(retval,DSP5680XX_ERROR_JTAG_TAP_ENABLE_CORE,"Failed to get master tap.");
   }
 
-  retval = eonce_enter_debug_mode(target,&eonce_status);
+  retval = eonce_enter_debug_mode_without_reset(target,&eonce_status);
   if(retval == ERROR_OK){
     LOG_WARNING("Memory was not locked.");
   }
@@ -1697,28 +1719,15 @@ int dsp5680xx_f_unlock(struct target * target){
 
   tap_cpu->enabled = true;
   tap_chp->enabled = false;
-
-  instr = JTAG_INSTR_ENABLE_ONCE;
-  //Two rounds of jtag 0x6  (enable eonce) to enable EOnCE.
-  retval =  dsp5680xx_irscan(target, & instr, & ir_out,DSP5680XX_JTAG_CORE_TAP_IRLEN);
-  err_check_propagate(retval);
-  instr = JTAG_INSTR_DEBUG_REQUEST;
-  retval =  dsp5680xx_irscan(target, & instr, & ir_out,DSP5680XX_JTAG_CORE_TAP_IRLEN);
-  err_check_propagate(retval);
-  instr_16 = 0x1;
-  retval = dsp5680xx_drscan(target,(uint8_t *) & instr_16,(uint8_t *) & read_16,8);
-	err_check_propagate(retval);
-  instr_16 = 0x20;
-  retval = dsp5680xx_drscan(target,(uint8_t *) & instr_16,(uint8_t *) & read_16,8);
-	err_check_propagate(retval);
-  jtag_add_sleep(TIME_DIV_FREESCALE*100*1000);
-  jtag_add_reset(0,0);
-  jtag_add_sleep(TIME_DIV_FREESCALE*300*1000);
+  target->state = TARGET_RUNNING;
+  dsp5680xx_context.debug_mode_enabled = false;
   return retval;
 }
 
 int dsp5680xx_f_lock(struct target * target){
   int retval;
+  struct jtag_tap * tap_chp;
+  struct jtag_tap * tap_cpu;
   uint16_t lock_word[] = {HFM_LOCK_FLASH};
   retval = dsp5680xx_f_wr(target,(uint8_t *)(lock_word),HFM_LOCK_ADDR_L,2,1);
   err_check_propagate(retval);
@@ -1732,6 +1741,21 @@ int dsp5680xx_f_lock(struct target * target){
   jtag_add_reset(0,0);
   jtag_add_sleep(TIME_DIV_FREESCALE*300*1000);
 
+  tap_chp = jtag_tap_by_string("dsp568013.chp");
+  if(tap_chp == NULL){
+    retval = ERROR_FAIL;
+    err_check(retval,DSP5680XX_ERROR_JTAG_TAP_ENABLE_MASTER,"Failed to get master tap.");
+  }
+  tap_cpu = jtag_tap_by_string("dsp568013.cpu");
+  if(tap_cpu == NULL){
+    retval = ERROR_FAIL;
+    err_check(retval,DSP5680XX_ERROR_JTAG_TAP_ENABLE_CORE,"Failed to get master tap.");
+  }
+  target->state = TARGET_RUNNING;
+  dsp5680xx_context.debug_mode_enabled = false;
+  tap_cpu->enabled = false;
+  tap_chp->enabled = true;
+  retval = switch_tap(target,tap_chp,tap_cpu);
   return retval;
 }
 
