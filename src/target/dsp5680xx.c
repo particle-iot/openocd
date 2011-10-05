@@ -545,6 +545,7 @@ static int eonce_enter_debug_mode_without_reset(struct target * target, uint16_t
     target->state = TARGET_HALTED;
   else{
     retval = ERROR_FAIL;
+    err_check_propagate(retval);
   }
   // Verify that debug mode is enabled
   uint16_t data_read_from_dr;
