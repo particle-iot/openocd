@@ -30,7 +30,7 @@
 
 #include <jtag/interface.h>
 #include <jtag/commands.h>
-#include "usb_common.h"
+#include "libusb_common.h"
 
 /* See Segger's public documentation:
  *	Reference manual for J-Link USB Protocol
@@ -50,7 +50,7 @@ http://www.segger.com/cms/admin/uploads/productDocs/RM08001_JLinkUSBProtocol.pdf
 #define PID 0x0101, 0x0102, 0x0103, 0x0104
 
 #define JLINK_WRITE_ENDPOINT	0x02
-#define JLINK_READ_ENDPOINT		0x81
+#define JLINK_READ_ENDPOINT	0x81
 
 static unsigned int jlink_write_ep = JLINK_WRITE_ENDPOINT;
 static unsigned int jlink_read_ep = JLINK_READ_ENDPOINT;
@@ -199,7 +199,7 @@ static void jlink_tap_append_scan(int length, uint8_t *buffer,
 
 /* Jlink lowlevel functions */
 struct jlink {
-	struct usb_dev_handle* usb_handle;
+	struct libusb_device_handle* usb_handle;
 };
 
 static struct jlink *jlink_usb_open(void);
@@ -1407,10 +1407,11 @@ static int jlink_tap_execute(void)
 
 static struct jlink* jlink_usb_open()
 {
-	usb_init();
-
-	struct usb_dev_handle *dev;
-	if (jtag_usb_open(vids, pids, &dev) != ERROR_OK)
+	libusb_device_handle *devh;
+	libusb_device *dev;
+	struct libusb_config_descriptor *config;
+	
+	if (jtag_libusb_open(vids, pids, &devh) != ERROR_OK)
 		return NULL;
 
 	/* BE ***VERY CAREFUL*** ABOUT MAKING CHANGES IN THIS
@@ -1426,7 +1427,7 @@ static struct jlink* jlink_usb_open()
 
 #if IS_WIN32 == 0
 
-	usb_reset(dev);
+	libusb_reset_device(devh);
 
 #if IS_DARWIN == 0
 
@@ -1434,7 +1435,7 @@ static struct jlink* jlink_usb_open()
 	/* reopen jlink after usb_reset
 	 * on win32 this may take a second or two to re-enumerate */
 	int retval;
-	while ((retval = jtag_usb_open(vids, pids, &dev)) != ERROR_OK)
+	while ((retval = jtag_libusb_open(vids, pids, &devh)) != ERROR_OK)
 	{
 		usleep(1000);
 		timeout--;
@@ -1449,9 +1450,10 @@ static struct jlink* jlink_usb_open()
 #endif
 
 	/* usb_set_configuration required under win32 */
-	struct usb_device *udev = usb_device(dev);
-	usb_set_configuration(dev, udev->config[0].bConfigurationValue);
-	usb_claim_interface(dev, 0);
+	dev = libusb_get_device(devh);
+	libusb_get_config_descriptor(dev, 0, &config);
+	libusb_set_configuration(devh, config->bConfigurationValue);
+	libusb_claim_interface(devh, 0);
 
 #if 0
 	/*
@@ -1460,27 +1462,43 @@ static struct jlink* jlink_usb_open()
 	 */
 	usb_set_altinterface(result->usb_handle, 0);
 #endif
-	struct usb_interface *iface = udev->config->interface;
-	struct usb_interface_descriptor *desc = iface->altsetting;
-	for (int i = 0; i < desc->bNumEndpoints; i++)
+	const struct libusb_interface *inter;
+	const struct libusb_interface_descriptor *interdesc;
+	const struct libusb_endpoint_descriptor *epdesc;
+		
+	for(int i=0; i<(int)config->bNumInterfaces; i++) 
 	{
-		uint8_t epnum = desc->endpoint[i].bEndpointAddress;
-		bool is_input = epnum & 0x80;
-		LOG_DEBUG("usb ep %s %02x", is_input ? "in" : "out", epnum);
-		if (is_input)
-			jlink_read_ep = epnum;
-		else
-			jlink_write_ep = epnum;
+		inter = &config->interface[i];
+
+		for(int j=0; j<inter->num_altsetting; j++) 
+		{
+			interdesc = &inter->altsetting[j];
+			for(int k=0; k<(int)interdesc->bNumEndpoints; k++) 
+			{
+			    epdesc = &interdesc->endpoint[k];
+			    
+			    uint8_t epnum = epdesc->bEndpointAddress;
+			    bool is_input = epnum & 0x80;
+			    LOG_DEBUG("usb ep %s %02x", is_input ? "in" : "out", epnum);
+  
+			    if (is_input)
+				jlink_read_ep = epnum;
+			    else
+				jlink_write_ep = epnum;
+			}
+	        }
 	}
 
+	libusb_free_config_descriptor(config);
+
 	struct jlink *result = malloc(sizeof(struct jlink));
-	result->usb_handle = dev;
+	result->usb_handle = devh;
 	return result;
 }
 
 static void jlink_usb_close(struct jlink *jlink)
 {
-	usb_close(jlink->usb_handle);
+	jtag_libusb_close(jlink->usb_handle);
 	free(jlink);
 }
 
@@ -1548,8 +1566,8 @@ static int jlink_usb_message(struct jlink *jlink, int out_length, int in_length)
 /* calls the given usb_bulk_* function, allowing for the data to
  * trickle in with some timeouts  */
 static int usb_bulk_with_retries(
-		int (*f)(usb_dev_handle *, int, char *, int, int),
-		usb_dev_handle *dev, int ep,
+		int (*f)(libusb_device_handle *, int, char *, int, int),
+		libusb_device_handle *dev, int ep,
 		char *bytes, int size, int timeout)
 {
 	int tries = 3, count = 0;
@@ -1565,24 +1583,26 @@ static int usb_bulk_with_retries(
 	return count;
 }
 
-static int wrap_usb_bulk_write(usb_dev_handle *dev, int ep,
+static int wrap_usb_bulk_write(libusb_device_handle *dev, int ep,
 			       char *buff, int size, int timeout)
 {
+	int transferred;
 	/* usb_bulk_write() takes const char *buff */
-	return usb_bulk_write(dev, ep, buff, size, timeout);
+	libusb_bulk_transfer(dev, ep, (unsigned char *)buff, size, &transferred, timeout);
+	return transferred;
 }
 
-static inline int usb_bulk_write_ex(usb_dev_handle *dev, int ep,
+static inline int usb_bulk_write_ex(libusb_device_handle *dev, int ep,
 		char *bytes, int size, int timeout)
 {
 	return usb_bulk_with_retries(&wrap_usb_bulk_write,
 			dev, ep, bytes, size, timeout);
 }
 
-static inline int usb_bulk_read_ex(usb_dev_handle *dev, int ep,
+static inline int usb_bulk_read_ex(libusb_device_handle *dev, int ep,
 		char *bytes, int size, int timeout)
 {
-	return usb_bulk_with_retries(&usb_bulk_read,
+	return usb_bulk_with_retries(&wrap_usb_bulk_write,
 			dev, ep, bytes, size, timeout);
 }
 
