@@ -1052,13 +1052,23 @@ fi
 
 # check for usb.h when a driver will require it
 build_usb=no
-if test $build_jlink = yes -o $build_vsllink = yes -o $build_usbprog = yes -o \
+if test $build_vsllink = yes -o $build_usbprog = yes -o \
   $build_rlink = yes -o $build_ulink = yes -o $build_armjtagew = yes
 then
   AC_CHECK_HEADERS([usb.h],[],
   [AC_MSG_ERROR([usb.h is required to build some OpenOCD driver(s)])])
   build_usb=yes
 fi
+
+# check for libusb.h when a driver will require it
+build_libusb=no
+if test $build_jlink = yes
+then
+  AC_CHECK_HEADERS([libusb-1.0/libusb.h],[],
+  [AC_MSG_ERROR([libusb.h is required to build some OpenOCD driver(s)])])
+  build_libusb=yes
+fi
+
 
 AM_CONDITIONAL(RELEASE, test $build_release = yes)
 AM_CONDITIONAL(PARPORT, test $build_parport = yes)
@@ -1089,6 +1099,7 @@ AM_CONDITIONAL(ARMJTAGEW, test $build_armjtagew = yes)
 AM_CONDITIONAL(REMOTE_BITBANG, test $build_remote_bitbang = yes)
 AM_CONDITIONAL(BUSPIRATE, test $build_buspirate = yes)
 AM_CONDITIONAL(USB, test $build_usb = yes)
+AM_CONDITIONAL(USB1, test $build_libusb = yes)
 AM_CONDITIONAL(IS_CYGWIN, test $is_cygwin = yes)
 AM_CONDITIONAL(IS_MINGW, test $is_mingw = yes)
 AM_CONDITIONAL(IS_WIN32, test $is_win32 = yes)

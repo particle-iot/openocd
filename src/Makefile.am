@@ -84,9 +84,6 @@ endif
 if USBPROG
 LIBUSB = -lusb
 else
-if JLINK
-LIBUSB = -lusb
-else
 if RLINK
 LIBUSB = -lusb
 else
@@ -101,6 +98,11 @@ endif
 endif
 endif
 endif
+
+if JLINK
+LIBUSB1 = -lusb-1.0
+else
+LIBUSB1 =
 endif
 
 libopenocd_la_LIBADD = \
@@ -114,7 +116,7 @@ libopenocd_la_LIBADD = \
 	$(top_builddir)/src/server/libserver.la \
 	$(top_builddir)/src/rtos/librtos.la \
 	$(top_builddir)/src/helper/libhelper.la \
-	$(FTDI2232LIB) $(MINGWLDADD) $(LIBUSB)
+	$(FTDI2232LIB) $(MINGWLDADD) $(LIBUSB) $(LIBUSB1)
 
 STARTUP_TCL_SRCS = \
 	$(srcdir)/helper/startup.tcl \
