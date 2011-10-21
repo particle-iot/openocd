@@ -53,9 +53,9 @@ proc find {filename} {
 add_usage_text find "<file>"
 add_help_text find "print full path to file according to OpenOCD search rules"
 
-# Find and run a script
+# Run script
 proc script {filename} {
-	uplevel #0 source [find $filename]
+	source [find $filename]
 }
 add_help_text script "filename of OpenOCD script (tcl) to run"
 add_usage_text script "<file>"
