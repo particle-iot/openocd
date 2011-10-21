@@ -1248,9 +1248,7 @@ static int get_tms470_info(struct flash_bank *bank, char *buf, int buf_size)
 	buf += used;
 	buf_size -= used;
 
-	used += snprintf(buf, buf_size, "Flash protection level 2 is %s\n", tms470_check_flash_unlocked(bank->target) == ERROR_OK ? "disabled" : "enabled");
-	buf += used;
-	buf_size -= used;
+	snprintf(buf, buf_size, "Flash protection level 2 is %s\n", tms470_check_flash_unlocked(bank->target) == ERROR_OK ? "disabled" : "enabled");
 
 	return ERROR_OK;
 }
