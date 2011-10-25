@@ -22,6 +22,20 @@
  *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
 ****************************************************************************/
 
+/*
+ * Quirks ...
+ *
+ *	AT91SAM3N Series Silicon (SILICON BUG - AT91SAM3N - flash wait state)
+ *		The datasheet errate (04-Oct-2010) states for flash writes the
+ *		flash wait state (FWS) must be set to a value of 6. It also appears
+ *		the wait state should be set for reads as well!
+ *
+ *	AT91SAM3S Series Silicon (SILICON BUG - AT91SAM3S - flash wait state)
+ *		The datasheet errate (09-Feb-2011) states for flash writes the
+ *		flash wait state (FWS) must be set to a value of 6. It also appears
+ *		the wait state should be set for reads as well!
+ */
+
 /* Some of the the lower level code was based on code supplied by
  * ATMEL under this copyright. */
 
@@ -100,6 +114,11 @@
 #define  offset_EFC_FSR   8
 #define  offset_EFC_FRR   12
 
+typedef enum {
+	AT91SAM3N,
+	AT91SAM3S,
+	AT91SAM3U
+} sam3_series;
 
 extern struct flash_driver at91sam3_flash;
 
@@ -200,6 +219,7 @@ struct sam3_chip_details {
 	// 'runtime' copy of this structure
 	uint32_t chipid_cidr;
 	const char *name;
+	sam3_series series;
 
 	unsigned n_gpnvms;
 #define SAM3_N_NVM_BITS 3
@@ -207,6 +227,7 @@ struct sam3_chip_details {
 	unsigned  total_flash_size;
 	unsigned  total_sram_size;
 	unsigned  n_banks;
+	uint8_t   flash_wait;
 #define SAM3_MAX_FLASH_BANKS 2
 	// these are "initialized" from the global const data
 	struct sam3_bank_private bank[SAM3_MAX_FLASH_BANKS];
@@ -269,10 +290,12 @@ static const struct sam3_chip_details all_sam3_details[] = {
 	{
 		.chipid_cidr    = 0x28100960,
 		.name           = "at91sam3u4e",
+		.series			= AT91SAM3U,
 		.total_flash_size     = 256 * 1024,
 		.total_sram_size      = 52 * 1024,
 		.n_gpnvms       = 3,
 		.n_banks        = 2,
+		.flash_wait		= 0,
 
 		// System boots at address 0x0
 		// gpnvm[1] = selects boot code
@@ -325,10 +348,12 @@ static const struct sam3_chip_details all_sam3_details[] = {
 	{
 		.chipid_cidr    = 0x281a0760,
 		.name           = "at91sam3u2e",
+		.series			= AT91SAM3U,
 		.total_flash_size     = 128 * 1024,
 		.total_sram_size      =  36 * 1024,
 		.n_gpnvms       = 2,
 		.n_banks        = 1,
+		.flash_wait		= 0,
 
 		// System boots at address 0x0
 		// gpnvm[1] = selects boot code
@@ -364,10 +389,12 @@ static const struct sam3_chip_details all_sam3_details[] = {
 	{
 		.chipid_cidr    = 0x28190560,
 		.name           = "at91sam3u1e",
+		.series			= AT91SAM3U,
 		.total_flash_size     = 64 * 1024,
 		.total_sram_size      = 20 * 1024,
 		.n_gpnvms       = 2,
 		.n_banks        = 1,
+		.flash_wait		= 0,
 
 		// System boots at address 0x0
 		// gpnvm[1] = selects boot code
@@ -407,10 +434,12 @@ static const struct sam3_chip_details all_sam3_details[] = {
 	{
 		.chipid_cidr    = 0x28000960,
 		.name           = "at91sam3u4c",
+		.series			= AT91SAM3U,
 		.total_flash_size     = 256 * 1024,
 		.total_sram_size      = 52 * 1024,
 		.n_gpnvms       = 3,
 		.n_banks        = 2,
+		.flash_wait		= 0,
 
 		// System boots at address 0x0
 		// gpnvm[1] = selects boot code
@@ -462,10 +491,12 @@ static const struct sam3_chip_details all_sam3_details[] = {
 	{
 		.chipid_cidr    = 0x280a0760,
 		.name           = "at91sam3u2c",
+		.series			= AT91SAM3U,
 		.total_flash_size     = 128 * 1024,
 		.total_sram_size      = 36 * 1024,
 		.n_gpnvms       = 2,
 		.n_banks        = 1,
+		.flash_wait		= 0,
 
 		// System boots at address 0x0
 		// gpnvm[1] = selects boot code
@@ -501,10 +532,12 @@ static const struct sam3_chip_details all_sam3_details[] = {
 	{
 		.chipid_cidr    = 0x28090560,
 		.name           = "at91sam3u1c",
+		.series			= AT91SAM3U,
 		.total_flash_size     = 64 * 1024,
 		.total_sram_size      = 20 * 1024,
 		.n_gpnvms       = 2,
 		.n_banks        = 1,
+		.flash_wait		= 0,
 
 		// System boots at address 0x0
 		// gpnvm[1] = selects boot code
@@ -549,10 +582,12 @@ static const struct sam3_chip_details all_sam3_details[] = {
 	{
 		.chipid_cidr    = 0x28A00960,
 		.name           = "at91sam3s4c",
+		.series			= AT91SAM3S,
 		.total_flash_size     = 256 * 1024,
 		.total_sram_size      = 48 * 1024,
 		.n_gpnvms       = 2,
 		.n_banks        = 1,
+		.flash_wait		= 4,
 		{
 //		.bank[0] = {
 		  {
@@ -582,10 +617,12 @@ static const struct sam3_chip_details all_sam3_details[] = {
 	{
 		.chipid_cidr    = 0x28900960,
 		.name           = "at91sam3s4b",
+		.series			= AT91SAM3S,
 		.total_flash_size     = 256 * 1024,
 		.total_sram_size      = 48 * 1024,
 		.n_gpnvms       = 2,
 		.n_banks        = 1,
+		.flash_wait		= 4,
 		{
 //		.bank[0] = {
 		  {
@@ -614,10 +651,12 @@ static const struct sam3_chip_details all_sam3_details[] = {
 	{
 		.chipid_cidr    = 0x28800960,
 		.name           = "at91sam3s4a",
+		.series			= AT91SAM3S,
 		.total_flash_size     = 256 * 1024,
 		.total_sram_size      = 48 * 1024,
 		.n_gpnvms       = 2,
 		.n_banks        = 1,
+		.flash_wait		= 4,
 		{
 //		.bank[0] = {
 		  {
@@ -646,10 +685,12 @@ static const struct sam3_chip_details all_sam3_details[] = {
 	{
 		.chipid_cidr    = 0x28AA0760,
 		.name           = "at91sam3s2c",
+		.series			= AT91SAM3S,
 		.total_flash_size     = 128 * 1024,
 		.total_sram_size      = 32 * 1024,
 		.n_gpnvms       = 2,
 		.n_banks        = 1,
+		.flash_wait		= 4,
 		{
 //		.bank[0] = {
 		  {
@@ -677,11 +718,13 @@ static const struct sam3_chip_details all_sam3_details[] = {
 	},
 	{
 		.chipid_cidr    = 0x289A0760,
+		.series			= AT91SAM3S,
 		.name           = "at91sam3s2b",
 		.total_flash_size     = 128 * 1024,
 		.total_sram_size      = 32 * 1024,
 		.n_gpnvms       = 2,
 		.n_banks        = 1,
+		.flash_wait		= 4,
 		{
 //		.bank[0] = {
 		  {
@@ -710,10 +753,12 @@ static const struct sam3_chip_details all_sam3_details[] = {
 	{
 		.chipid_cidr    = 0x288A0760,
 		.name           = "at91sam3s2a",
+		.series			= AT91SAM3S,
 		.total_flash_size     = 128 * 1024,
 		.total_sram_size      = 32 * 1024,
 		.n_gpnvms       = 2,
 		.n_banks        = 1,
+		.flash_wait		= 4,
 		{
 //		.bank[0] = {
 		  {
@@ -742,10 +787,12 @@ static const struct sam3_chip_details all_sam3_details[] = {
 	{
 		.chipid_cidr    = 0x28A90560,
 		.name           = "at91sam3s1c",
+		.series			= AT91SAM3S,
 		.total_flash_size     = 64 * 1024,
 		.total_sram_size      = 16 * 1024,
 		.n_gpnvms       = 2,
 		.n_banks        = 1,
+		.flash_wait		= 4,
 		{
 //		.bank[0] = {
 		  {
@@ -774,10 +821,12 @@ static const struct sam3_chip_details all_sam3_details[] = {
 	{
 		.chipid_cidr    = 0x28990560,
 		.name           = "at91sam3s1b",
+		.series			= AT91SAM3S,
 		.total_flash_size     = 64 * 1024,
 		.total_sram_size      = 16 * 1024,
 		.n_gpnvms       = 2,
 		.n_banks        = 1,
+		.flash_wait		= 4,
 		{
 //		.bank[0] = {
 		  {
@@ -806,10 +855,12 @@ static const struct sam3_chip_details all_sam3_details[] = {
 	{
 		.chipid_cidr    = 0x28890560,
 		.name           = "at91sam3s1a",
+		.series			= AT91SAM3S,
 		.total_flash_size     = 64 * 1024,
 		.total_sram_size      = 16 * 1024,
 		.n_gpnvms       = 2,
 		.n_banks        = 1,
+		.flash_wait		= 4,
 		{
 //		.bank[0] = {
 		  {
@@ -840,10 +891,12 @@ static const struct sam3_chip_details all_sam3_details[] = {
 	{
 		.chipid_cidr    = 0x29540960,
 		.name           = "at91sam3n4c",
+		.series			= AT91SAM3N,
 		.total_flash_size     = 256 * 1024,
 		.total_sram_size      = 24 * 1024,
 		.n_gpnvms       = 3,
 		.n_banks        = 1,
+		.flash_wait		= 2,
 
 		// System boots at address 0x0
 		// gpnvm[1] = selects boot code
@@ -871,7 +924,7 @@ static const struct sam3_chip_details all_sam3_details[] = {
 			.controller_address = 0x400e0A00,
 			.present = 1,
 			.size_bytes = 256 * 1024,
-			.nsectors   = 16,
+			.nsectors   = 32,
 			.sector_size = 16384,
 			.page_size   = 256,
 		  },
@@ -888,10 +941,12 @@ static const struct sam3_chip_details all_sam3_details[] = {
 	{
 		.chipid_cidr    = 0x29440960,
 		.name           = "at91sam3n4b",
+		.series			= AT91SAM3N,
 		.total_flash_size     = 256 * 1024,
 		.total_sram_size      = 24 * 1024,
 		.n_gpnvms       = 3,
 		.n_banks        = 1,
+		.flash_wait		= 2,
 
 		// System boots at address 0x0
 		// gpnvm[1] = selects boot code
@@ -919,7 +974,7 @@ static const struct sam3_chip_details all_sam3_details[] = {
 			.controller_address = 0x400e0A00,
 			.present = 1,
 			.size_bytes = 256 * 1024,
-			.nsectors   = 16,
+			.nsectors   = 32,
 			.sector_size = 16384,
 			.page_size   = 256,
 		  },
@@ -936,10 +991,12 @@ static const struct sam3_chip_details all_sam3_details[] = {
 	{
 		.chipid_cidr    = 0x29340960,
 		.name           = "at91sam3n4a",
+		.series			= AT91SAM3N,
 		.total_flash_size     = 256 * 1024,
 		.total_sram_size      = 24 * 1024,
 		.n_gpnvms       = 3,
 		.n_banks        = 1,
+		.flash_wait		= 2,
 
 		// System boots at address 0x0
 		// gpnvm[1] = selects boot code
@@ -967,7 +1024,7 @@ static const struct sam3_chip_details all_sam3_details[] = {
 			.controller_address = 0x400e0A00,
 			.present = 1,
 			.size_bytes = 256 * 1024,
-			.nsectors   = 16,
+			.nsectors   = 32,
 			.sector_size = 16384,
 			.page_size   = 256,
 		  },
@@ -984,10 +1041,12 @@ static const struct sam3_chip_details all_sam3_details[] = {
 	{
 		.chipid_cidr    = 0x29590760,
 		.name           = "at91sam3n2c",
+		.series			= AT91SAM3N,
 		.total_flash_size     = 128 * 1024,
 		.total_sram_size      = 16 * 1024,
 		.n_gpnvms       = 3,
 		.n_banks        = 1,
+		.flash_wait		= 2,
 
 		// System boots at address 0x0
 		// gpnvm[1] = selects boot code
@@ -1015,7 +1074,7 @@ static const struct sam3_chip_details all_sam3_details[] = {
 			.controller_address = 0x400e0A00,
 			.present = 1,
 			.size_bytes = 128 * 1024,
-			.nsectors   = 8,
+			.nsectors   = 16,
 			.sector_size = 16384,
 			.page_size   = 256,
 		  },
@@ -1032,10 +1091,12 @@ static const struct sam3_chip_details all_sam3_details[] = {
 	{
 		.chipid_cidr    = 0x29490760,
 		.name           = "at91sam3n2b",
+		.series			= AT91SAM3N,
 		.total_flash_size     = 128 * 1024,
 		.total_sram_size      = 16 * 1024,
 		.n_gpnvms       = 3,
 		.n_banks        = 1,
+		.flash_wait		= 2,
 
 		// System boots at address 0x0
 		// gpnvm[1] = selects boot code
@@ -1063,7 +1124,7 @@ static const struct sam3_chip_details all_sam3_details[] = {
 			.controller_address = 0x400e0A00,
 			.present = 1,
 			.size_bytes = 128 * 1024,
-			.nsectors   = 8,
+			.nsectors   = 16,
 			.sector_size = 16384,
 			.page_size   = 256,
 		  },
@@ -1080,10 +1141,12 @@ static const struct sam3_chip_details all_sam3_details[] = {
 	{
 		.chipid_cidr    = 0x29390760,
 		.name           = "at91sam3n2a",
+		.series			= AT91SAM3N,
 		.total_flash_size     = 128 * 1024,
 		.total_sram_size      = 16 * 1024,
 		.n_gpnvms       = 3,
 		.n_banks        = 1,
+		.flash_wait		= 2,
 
 		// System boots at address 0x0
 		// gpnvm[1] = selects boot code
@@ -1111,7 +1174,7 @@ static const struct sam3_chip_details all_sam3_details[] = {
 			.controller_address = 0x400e0A00,
 			.present = 1,
 			.size_bytes = 128 * 1024,
-			.nsectors   = 8,
+			.nsectors   = 16,
 			.sector_size = 16384,
 			.page_size   = 256,
 		  },
@@ -1128,10 +1191,12 @@ static const struct sam3_chip_details all_sam3_details[] = {
 	{
 		.chipid_cidr    = 0x29580560,
 		.name           = "at91sam3n1c",
+		.series			= AT91SAM3N,
 		.total_flash_size     = 64 * 1024,
 		.total_sram_size      = 8 * 1024,
 		.n_gpnvms       = 3,
 		.n_banks        = 1,
+		.flash_wait		= 2,
 
 		// System boots at address 0x0
 		// gpnvm[1] = selects boot code
@@ -1159,7 +1224,7 @@ static const struct sam3_chip_details all_sam3_details[] = {
 			.controller_address = 0x400e0A00,
 			.present = 1,
 			.size_bytes = 64 * 1024,
-			.nsectors   = 4,
+			.nsectors   = 8,
 			.sector_size = 16384,
 			.page_size   = 256,
 		  },
@@ -1176,10 +1241,12 @@ static const struct sam3_chip_details all_sam3_details[] = {
 	{
 		.chipid_cidr    = 0x29480560,
 		.name           = "at91sam3n1b",
+		.series			= AT91SAM3N,
 		.total_flash_size     = 64 * 1024,
 		.total_sram_size      = 8 * 1024,
 		.n_gpnvms       = 3,
 		.n_banks        = 1,
+		.flash_wait		= 2,
 
 		// System boots at address 0x0
 		// gpnvm[1] = selects boot code
@@ -1207,7 +1274,7 @@ static const struct sam3_chip_details all_sam3_details[] = {
 			.controller_address = 0x400e0A00,
 			.present = 1,
 			.size_bytes = 64 * 1024,
-			.nsectors   = 4,
+			.nsectors   = 8,
 			.sector_size = 16384,
 			.page_size   = 256,
 		  },
@@ -1224,10 +1291,12 @@ static const struct sam3_chip_details all_sam3_details[] = {
 	{
 		.chipid_cidr    = 0x29380560,
 		.name           = "at91sam3n1a",
+		.series			= AT91SAM3N,
 		.total_flash_size     = 64 * 1024,
 		.total_sram_size      = 8 * 1024,
 		.n_gpnvms       = 3,
 		.n_banks        = 1,
+		.flash_wait		= 2,
 
 		// System boots at address 0x0
 		// gpnvm[1] = selects boot code
@@ -1255,7 +1324,7 @@ static const struct sam3_chip_details all_sam3_details[] = {
 			.controller_address = 0x400e0A00,
 			.present = 1,
 			.size_bytes = 64 * 1024,
-			.nsectors   = 4,
+			.nsectors   = 8,
 			.sector_size = 16384,
 			.page_size   = 256,
 		  },
@@ -1402,6 +1471,34 @@ EFC_StartCommand(struct sam3_bank_private *pPrivate,
 				goto do_retry;
 			}
 		}
+	}
+
+	// Get flash mode register value
+	r = target_read_u32(pPrivate->pChip->target,
+							pPrivate->controller_address + offset_EFC_FMR, &v);
+	if (r != ERROR_OK) {
+		LOG_DEBUG("Error Read failed: read flash mode register");
+	}
+
+	// Clear flash wait state field
+	v &= 0xfffff0ff;
+
+	// SILICON BUG - SAM3N - wait state
+	// SILICON BUG - SAM3S - wait state
+	if (((pPrivate->pChip->details.series == AT91SAM3N) ||
+		 (pPrivate->pChip->details.series == AT91SAM3S))) {
+		v |= 6 << 8;	// set FWS = 6
+	}
+	else
+	{
+		v |= pPrivate->pChip->details.flash_wait << 8; 
+	}
+
+	LOG_DEBUG("Flash Mode: 0x%08x", ((unsigned int)(v)));
+	r = target_write_u32(pPrivate->pBank->target,
+							pPrivate->controller_address + offset_EFC_FMR, v);
+	if (r != ERROR_OK) {
+		LOG_DEBUG("Error Write failed: set flash mode register");
 	}
 
 	v = (0x5A << 24) | (argument << 8) | command;
