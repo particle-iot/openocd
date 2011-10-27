@@ -1861,26 +1861,36 @@ int target_write_u8(struct target *target, uint32_t address, uint8_t value)
 	return retval;
 }
 
+static int find_target(struct command_context *cmd_ctx, const char *name)
+{
+	struct target *target = get_target(name);
+	if (target == NULL) {
+		LOG_ERROR("Target: %s is unknown, try one of:\n", name);
+		return ERROR_FAIL;
+    	}
+	if (!target->tap->enabled) {
+		LOG_USER("Target: TAP %s is disabled, "
+			 "can't be the current target\n",
+			 target->tap->dotted_name);
+		return ERROR_FAIL;
+	}
+
+	cmd_ctx->current_target = target->target_number;
+	return ERROR_OK;
+}
+
+
 COMMAND_HANDLER(handle_targets_command)
 {
+	int retval = ERROR_OK;
 	if (CMD_ARGC == 1)
 	{
-		struct target *target = get_target(CMD_ARGV[0]);
-		if (target == NULL) {
-			command_print(CMD_CTX,"Target: %s is unknown, try one of:\n", CMD_ARGV[0]);
-			goto DumpTargets;
-		}
-		if (!target->tap->enabled) {
-			command_print(CMD_CTX,"Target: TAP %s is disabled, "
-					"can't be the current target\n",
-					target->tap->dotted_name);
-			return ERROR_FAIL;
-		}
-
-		CMD_CTX->current_target = target->target_number;
-		return ERROR_OK;
+	    retval = find_target(CMD_CTX, CMD_ARGV[0]);
+	    if (retval == ERROR_OK) {
+		/* we're done! */
+		return retval;
+	    }
 	}
-DumpTargets:;
 
 	struct target *target = all_targets;
 	command_print(CMD_CTX, "    TargetName         Type       Endian TapName            State       ");
@@ -1911,7 +1921,7 @@ DumpTargets:;
 		target = target->next;
 	}
 
-	return ERROR_OK;
+	return ERROR_FAIL;
 }
 
 /* every 300ms we check for reset & powerdropout and issue a "reset halt" if so. */
