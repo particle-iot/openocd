@@ -199,7 +199,7 @@ static void jlink_tap_append_scan(int length, uint8_t *buffer,
 
 /* Jlink lowlevel functions */
 struct jlink {
-	struct usb_dev_handle* usb_handle;
+	struct jtag_usb_device_handle* usb_handle;
 };
 
 static struct jlink *jlink_usb_open(void);
@@ -1407,10 +1407,8 @@ static int jlink_tap_execute(void)
 
 static struct jlink* jlink_usb_open()
 {
-	usb_init();
-
-	struct usb_dev_handle *dev;
-	if (jtag_usb_open(vids, pids, &dev) != ERROR_OK)
+	struct jtag_usb_device_handle *devh;
+	if (jtag_usb_open(vids, pids, &devh) != ERROR_OK)
 		return NULL;
 
 	/* BE ***VERY CAREFUL*** ABOUT MAKING CHANGES IN THIS
@@ -1426,7 +1424,7 @@ static struct jlink* jlink_usb_open()
 
 #if IS_WIN32 == 0
 
-	usb_reset(dev);
+	jtag_usb_reset_device(devh);
 
 #if IS_DARWIN == 0
 
@@ -1434,7 +1432,7 @@ static struct jlink* jlink_usb_open()
 	/* reopen jlink after usb_reset
 	 * on win32 this may take a second or two to re-enumerate */
 	int retval;
-	while ((retval = jtag_usb_open(vids, pids, &dev)) != ERROR_OK)
+	while ((retval = jtag_usb_open(vids, pids, &devh)) != ERROR_OK)
 	{
 		usleep(1000);
 		timeout--;
@@ -1449,9 +1447,9 @@ static struct jlink* jlink_usb_open()
 #endif
 
 	/* usb_set_configuration required under win32 */
-	struct usb_device *udev = usb_device(dev);
-	usb_set_configuration(dev, udev->config[0].bConfigurationValue);
-	usb_claim_interface(dev, 0);
+	struct jtag_usb_device *udev = jtag_usb_get_device(devh);
+	jtag_usb_set_configuration(devh, 0);
+	jtag_usb_claim_interface(devh, 0);
 
 #if 0
 	/*
@@ -1460,27 +1458,17 @@ static struct jlink* jlink_usb_open()
 	 */
 	usb_set_altinterface(result->usb_handle, 0);
 #endif
-	struct usb_interface *iface = udev->config->interface;
-	struct usb_interface_descriptor *desc = iface->altsetting;
-	for (int i = 0; i < desc->bNumEndpoints; i++)
-	{
-		uint8_t epnum = desc->endpoint[i].bEndpointAddress;
-		bool is_input = epnum & 0x80;
-		LOG_DEBUG("usb ep %s %02x", is_input ? "in" : "out", epnum);
-		if (is_input)
-			jlink_read_ep = epnum;
-		else
-			jlink_write_ep = epnum;
-	}
+
+	jtag_usb_get_endpoints(udev,&jlink_read_ep,&jlink_write_ep);
 
 	struct jlink *result = malloc(sizeof(struct jlink));
-	result->usb_handle = dev;
+	result->usb_handle = devh;
 	return result;
 }
 
 static void jlink_usb_close(struct jlink *jlink)
 {
-	usb_close(jlink->usb_handle);
+	jtag_usb_close(jlink->usb_handle);
 	free(jlink);
 }
 
@@ -1548,8 +1536,8 @@ static int jlink_usb_message(struct jlink *jlink, int out_length, int in_length)
 /* calls the given usb_bulk_* function, allowing for the data to
  * trickle in with some timeouts  */
 static int usb_bulk_with_retries(
-		int (*f)(usb_dev_handle *, int, char *, int, int),
-		usb_dev_handle *dev, int ep,
+		int (*f)(jtag_usb_device_handle *, int, char *, int, int),
+		jtag_usb_device_handle *dev, int ep,
 		char *bytes, int size, int timeout)
 {
 	int tries = 3, count = 0;
@@ -1565,24 +1553,24 @@ static int usb_bulk_with_retries(
 	return count;
 }
 
-static int wrap_usb_bulk_write(usb_dev_handle *dev, int ep,
+static int wrap_usb_bulk_write(jtag_usb_device_handle *dev, int ep,
 			       char *buff, int size, int timeout)
 {
 	/* usb_bulk_write() takes const char *buff */
-	return usb_bulk_write(dev, ep, buff, size, timeout);
+	return jtag_usb_bulk_write(dev, ep, buff, size, timeout);
 }
 
-static inline int usb_bulk_write_ex(usb_dev_handle *dev, int ep,
+static inline int usb_bulk_write_ex(jtag_usb_device_handle *dev, int ep,
 		char *bytes, int size, int timeout)
 {
 	return usb_bulk_with_retries(&wrap_usb_bulk_write,
 			dev, ep, bytes, size, timeout);
 }
 
-static inline int usb_bulk_read_ex(usb_dev_handle *dev, int ep,
+static inline int usb_bulk_read_ex(jtag_usb_device_handle *dev, int ep,
 		char *bytes, int size, int timeout)
 {
-	return usb_bulk_with_retries(&usb_bulk_read,
+	return usb_bulk_with_retries(&jtag_usb_bulk_read,
 			dev, ep, bytes, size, timeout);
 }
 

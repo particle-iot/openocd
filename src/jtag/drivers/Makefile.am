@@ -18,6 +18,7 @@ DRIVERFILES += driver.c
 
 if USB
 DRIVERFILES += usb_common.c
+AM_CFLAGS=$(LIBUSB_CFLAGS)
 endif
 
 if BITBANG

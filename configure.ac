@@ -8,6 +8,8 @@ m4_include(config_subdir.m4)dnl
 AM_INIT_AUTOMAKE([-Wall -Wno-portability dist-bzip2 dist-zip])
 AM_MAINTAINER_MODE
 
+PKG_PROG_PKG_CONFIG
+
 AM_CONFIG_HEADER(config.h)
 AH_BOTTOM([
 #include <helper/system.h>
@@ -485,6 +487,10 @@ AC_ARG_ENABLE(minidriver_dummy,
 AC_ARG_ENABLE(internal-jimtcl,
   AS_HELP_STRING([--disable-internal-jimtcl], [Disable building internal jimtcl]),
   [use_internal_jimtcl=$enableval], [use_internal_jimtcl=yes])
+
+AC_ARG_ENABLE(libusb0,
+  AS_HELP_STRING([--enable-libusb0], [Use libusb-0.1 library for USB JTAG devices]),
+  [use_libusb0=$enableval], [use_libusb0=no])
 
 build_minidriver=no
 AC_MSG_CHECKING([whether to enable ZY1000 minidriver])
@@ -1055,9 +1061,18 @@ build_usb=no
 if test $build_jlink = yes -o $build_vsllink = yes -o $build_usbprog = yes -o \
   $build_rlink = yes -o $build_ulink = yes -o $build_armjtagew = yes
 then
-  AC_CHECK_HEADERS([usb.h],[],
-  [AC_MSG_ERROR([usb.h is required to build some OpenOCD driver(s)])])
   build_usb=yes
+fi
+
+# check for libusb library if necessary
+if test $build_usb = yes; then
+  if test $use_libusb0 = no; then
+	PKG_CHECK_MODULES([LIBUSB], [libusb-1.0 >= 1.0.8], [AC_DEFINE(HAVE_LIBUSB1, 1, [Define if you have libusb-1.0]) use_libusb0=no], [use_libusb0=yes])
+  fi
+
+  if test $use_libusb0 = yes; then
+	PKG_CHECK_MODULES([LIBUSB], [libusb >= 0.1.12], , [AC_MSG_ERROR([libusb or libusb-1.0 are required to build some OpenOCD driver(s)])])
+  fi
 fi
 
 AM_CONDITIONAL(RELEASE, test $build_release = yes)
