@@ -198,6 +198,8 @@ int gdb_thread_packet(struct connection *connection, char *packet, int packet_si
 				tmp_str_ptr += sprintf( tmp_str_ptr, " : %s", detail->extra_info_str );
 			}
 
+			assert(tmp_str + strlen(tmp_str) == tmp_str_ptr);
+
 			char * hex_str = (char*) malloc( strlen(tmp_str)*2 +1 );
 			str_to_hex( hex_str, tmp_str );
 
