@@ -56,7 +56,7 @@ libopenocd_la_CPPFLAGS += -DGITVERSION=\"`cd $(top_srcdir) && git describe`\"
 endif
 
 # add default CPPFLAGS
-libopenocd_la_CPPFLAGS += $(AM_CPPFLAGS) $(CPPFLAGS)
+libopenocd_la_CPPFLAGS += $(AM_CPPFLAGS) $(CPPFLAGS) $(LIBUSB_CFLAGS)
 
 # the library search path.
 libopenocd_la_LDFLAGS = $(all_libraries)
@@ -81,28 +81,6 @@ endif
 endif
 endif
 
-if USBPROG
-LIBUSB = -lusb
-else
-if JLINK
-LIBUSB = -lusb
-else
-if RLINK
-LIBUSB = -lusb
-else
-if ULINK
-LIBUSB = -lusb
-else
-if VSLLINK
-LIBUSB = -lusb
-else
-LIBUSB =
-endif
-endif
-endif
-endif
-endif
-
 libopenocd_la_LIBADD = \
 	$(top_builddir)/src/xsvf/libxsvf.la \
 	$(top_builddir)/src/svf/libsvf.la \
@@ -114,7 +92,7 @@ libopenocd_la_LIBADD = \
 	$(top_builddir)/src/server/libserver.la \
 	$(top_builddir)/src/rtos/librtos.la \
 	$(top_builddir)/src/helper/libhelper.la \
-	$(FTDI2232LIB) $(MINGWLDADD) $(LIBUSB)
+	$(FTDI2232LIB) $(MINGWLDADD) $(LIBUSB0_LIBS) $(LIBUSB1_LIBS)
 
 STARTUP_TCL_SRCS = \
 	$(srcdir)/helper/startup.tcl \
