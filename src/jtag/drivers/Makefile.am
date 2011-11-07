@@ -15,9 +15,20 @@ DRIVERFILES =
 
 # Standard Driver: common files
 DRIVERFILES += driver.c
+AM_CFLAGS=
 
 if USB
 DRIVERFILES += usb_common.c
+endif
+
+if USE_LIBUSB0
+DRIVERFILES += libusb0_common.c
+AM_CFLAGS+=$(LIBUSB0_CFLAGS)
+endif
+
+if USE_LIBUSB1
+DRIVERFILES += libusb1_common.c
+AM_CFLAGS+=$(LIBUSB1_CFLAGS)
 endif
 
 if BITBANG
