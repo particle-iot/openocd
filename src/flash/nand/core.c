@@ -412,6 +412,8 @@ int nand_probe(struct nand_device *nand)
 	if (nand->device->page_size == 0 ||
 	    nand->device->erase_size == 0)
 	{
+		/* tell compiler that this variable will be set */
+		id_buff[4] = 0;
 		if (nand->bus_width == 8)
 		{
 			nand->controller->read_data(nand, id_buff + 3);
