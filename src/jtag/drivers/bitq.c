@@ -100,6 +100,8 @@ void bitq_in_proc(void)
 						}
 					}
 
+					assert(in_buff != NULL);
+
 					/* field scanning */
 					while (bitq_in_state.bit_pos < field->num_bits)
 					{
