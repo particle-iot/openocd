@@ -1058,12 +1058,12 @@ static int gdb_get_registers_packet(struct connection *connection,
 
 	for (i = 0; i < reg_list_size; i++)
 	{
-		reg_packet_size += reg_list[i]->size;
+		reg_packet_size += DIV_ROUND_UP(reg_list[i]->size, 8) * 2;
 	}
 
 	assert(reg_packet_size > 0);
 
-	reg_packet = malloc(DIV_ROUND_UP(reg_packet_size, 8) * 2);
+	reg_packet = malloc(reg_packet_size);
 	reg_packet_p = reg_packet;
 
 	for (i = 0; i < reg_list_size; i++)
@@ -1077,13 +1077,13 @@ static int gdb_get_registers_packet(struct connection *connection,
 #ifdef _DEBUG_GDB_IO_
 	{
 		char *reg_packet_p;
-		reg_packet_p = strndup(reg_packet, DIV_ROUND_UP(reg_packet_size, 8) * 2);
+		reg_packet_p = strndup(reg_packet, reg_packet_size);
 		LOG_DEBUG("reg_packet: %s", reg_packet_p);
 		free(reg_packet_p);
 	}
 #endif
 
-	gdb_put_packet(connection, reg_packet, DIV_ROUND_UP(reg_packet_size, 8) * 2);
+	gdb_put_packet(connection, reg_packet, reg_packet_size);
 	free(reg_packet);
 
 	free(reg_list);
@@ -2451,7 +2451,7 @@ static int gdb_target_start(struct target *target, const char *port)
 		{
 			curr = head->target;
 			if (curr != target) curr->gdb_service = gdb_service;
-			head = head->next;	
+			head = head->next;
 		}
 	}
 	return ret;
@@ -2462,7 +2462,7 @@ static int gdb_target_add_one(struct target *target)
 	/*  one gdb instance per smp list */
 	if ((target->smp) && (target->gdb_service)) return ERROR_OK;
 	int retval = gdb_target_start(target, gdb_port_next);
-	if (retval == ERROR_OK) 
+	if (retval == ERROR_OK)
 	{
 		long portnumber;
 		/* If we can parse the port number
