@@ -132,8 +132,14 @@ static int dsp5680xx_flash_protect(struct flash_bank *bank, int set, int first, 
   int retval;
   if(set)
     retval = dsp5680xx_f_lock(bank->target);
-  else
+  else{
     retval = dsp5680xx_f_unlock(bank->target);
+    if(retval==ERROR_OK){
+      // mark all as erased
+      for(int i = 0;i<=(HFM_SECTOR_COUNT-1);i++)
+	bank->sectors[i].is_erased=1;// FM does not recognize it as erased if erased via JTAG.
+    }
+  }
   return retval;
 }
 
