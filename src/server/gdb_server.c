@@ -112,6 +112,11 @@ static int gdb_flash_program = 1;
  */
 static int gdb_report_data_abort;
 
+/* if set, when gdb_new_connection is invoked will automaticly send halt command.
+ * Disabled by default.
+ */
+static int gdb_halt_upon_connection;
+
 static int gdb_last_signal(struct target *target)
 {
 	switch (target->debug_reason)
@@ -834,6 +839,9 @@ static int gdb_new_connection(struct connection *connection)
 
 	/* output goes through gdb connection */
 	command_set_output_handler(connection->cmd_ctx, gdb_output, connection);
+
+	if (gdb_halt_upon_connection)
+		command_run_line(connection->cmd_ctx, "halt");
 
 	/* we must remove all breakpoints registered to the target as a previous
 	 * GDB session could leave dangling breakpoints if e.g. communication
@@ -2593,6 +2601,14 @@ COMMAND_HANDLER(handle_gdb_breakpoint_override_command)
 	return ERROR_OK;
 }
 
+COMMAND_HANDLER(handle_gdb_halt_upon_connection_command) {
+	if (CMD_ARGC != 1)
+		return ERROR_COMMAND_SYNTAX_ERROR;
+
+	COMMAND_PARSE_ENABLE(CMD_ARGV[0], gdb_halt_upon_connection);
+	return ERROR_OK;
+}
+
 static const struct command_registration gdb_command_handlers[] = {
 	{
 		.name = "gdb_sync",
@@ -2643,6 +2659,13 @@ static const struct command_registration gdb_command_handlers[] = {
 		.help = "Display or specify type of breakpoint "
 			"to be used by gdb 'break' commands.",
 		.usage = "('hard'|'soft'|'disable')"
+	},
+	{
+		.name = "gdb_halt_upon_connection",
+		.handler = handle_gdb_halt_upon_connection_command,
+		.mode = COMMAND_CONFIG,
+		.help = "enable or disable auto halt device upon gdb connection",
+		.usage = "('enable'|'disable')"
 	},
 	COMMAND_REGISTRATION_DONE
 };
