@@ -2358,6 +2358,7 @@ static int ft2232_purge_ftd2xx(void)
 static int ft2232_init_libftdi(uint16_t vid, uint16_t pid, int more, int* try_more, int channel)
 {
 	uint8_t latency_timer;
+	int curr_channel = channel;
 
 	if (layout == NULL) {
 		LOG_WARNING("No ft2232 layout specified'");
@@ -2370,25 +2371,29 @@ static int ft2232_init_libftdi(uint16_t vid, uint16_t pid, int more, int* try_mo
 	if (ftdi_init(&ftdic) < 0)
 		return ERROR_JTAG_INIT_FAILED;
 
-	/* default to INTERFACE_A */
-	if(channel == INTERFACE_ANY) { channel = INTERFACE_A; }
+	 /* default to INTERFACE_A */
+	if (channel == INTERFACE_ANY)
+		curr_channel = INTERFACE_A;
 
-	if (ftdi_set_interface(&ftdic, channel) < 0)
-	{
-		LOG_ERROR("unable to select FT2232 channel A: %s", ftdic.error_str);
-		return ERROR_JTAG_INIT_FAILED;
+	while (((channel == INTERFACE_ANY) && (curr_channel <= INTERFACE_D)) ||
+		((channel != INTERFACE_ANY) && (curr_channel == channel))) {
+
+		if (ftdi_set_interface(&ftdic, curr_channel) < 0) {
+			curr_channel++;
+			continue;
+		}
+
+		/* context, vendor id, product id */
+		if (ftdi_usb_open_desc(&ftdic, vid, pid, ft2232_device_desc,
+					ft2232_serial) >= 0) {
+			break;
+		}
+		curr_channel++;
 	}
 
-	/* context, vendor id, product id */
-	if (ftdi_usb_open_desc(&ftdic, vid, pid, ft2232_device_desc,
-				ft2232_serial) < 0)
-	{
-		if (more)
-			LOG_WARNING("unable to open ftdi device (trying more): %s",
-					ftdic.error_str);
-		else
-			LOG_ERROR("unable to open ftdi device: %s", ftdic.error_str);
-		*try_more = 1;
+	if (((channel == INTERFACE_ANY) && (curr_channel > INTERFACE_D)) ||
+		((channel != INTERFACE_ANY) && (curr_channel == channel))) {
+		LOG_ERROR("unable to select FT2232 channel: %s", ftdic.error_str);
 		return ERROR_JTAG_INIT_FAILED;
 	}
 
