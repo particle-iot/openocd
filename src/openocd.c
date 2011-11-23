@@ -62,15 +62,15 @@ static int jim_version_command(Jim_Interp *interp, int argc,
 	const char *str = "";
 	char * version_str;
 	version_str = OPENOCD_VERSION;
-	
+
 	if (argc == 2)
 		str = Jim_GetString(argv[1], NULL);
 
 	if (strcmp("git", str) == 0)
 	{
 		version_str = GITVERSION;
-	} 
-	
+	}
+
 	Jim_SetResult(interp, Jim_NewStringObj(interp, version_str, -1));
 
 	return JIM_OK;
@@ -291,10 +291,6 @@ static int openocd_thread(int argc, char *argv[], struct command_context *cmd_ct
 	ret = server_init(cmd_ctx);
 	if (ERROR_OK != ret)
 		return EXIT_FAILURE;
-
-	ret = command_run_line(cmd_ctx, "init_targets");
-	if (ERROR_OK != ret)
-		ret = EXIT_FAILURE;
 
 	if (init_at_startup)
 	{
