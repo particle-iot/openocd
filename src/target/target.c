@@ -940,6 +940,12 @@ static int target_init_one(struct command_context *cmd_ctx,
 	if (type->check_reset== NULL)
 		type->check_reset = default_check_reset;
 
+	if ( type->init_target == NULL )
+	{
+		LOG_ERROR("target '%s' init not available", target_name(target));
+		return ERROR_FAIL;
+	}
+
 	int retval = type->init_target(cmd_ctx, target);
 	if (ERROR_OK != retval)
 	{
