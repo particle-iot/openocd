@@ -1285,6 +1285,8 @@ static int callbackqueue_pos = 0;
 
 void zy1000_jtag_add_callback4(jtag_callback_t callback, jtag_callback_data_t data0, jtag_callback_data_t data1, jtag_callback_data_t data2, jtag_callback_data_t data3)
 {
+	zy1000_flush_readqueue();
+
 	if (callbackqueue_pos >= callbackqueue_size)
 	{
 		zy1000_flush_callbackqueue();
