@@ -758,7 +758,7 @@ static bool jtag_tap_disable(struct jtag_tap *t)
 	return true;
 }
 
-static int jim_jtag_tap_enabler(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
+int jim_jtag_tap_enabler(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
 {
 	const char *cmd_name = Jim_GetString(argv[0], NULL);
 	Jim_GetOptInfo goi;
@@ -795,7 +795,7 @@ static int jim_jtag_tap_enabler(Jim_Interp *interp, int argc, Jim_Obj *const *ar
 	return JIM_OK;
 }
 
-static int jim_jtag_configure(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
+int jim_jtag_configure(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
 {
 	const char *cmd_name = Jim_GetString(argv[0], NULL);
 	Jim_GetOptInfo goi;
