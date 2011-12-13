@@ -100,6 +100,9 @@ extern struct jtag_interface buspirate_interface;
 #if BUILD_REMOTE_BITBANG == 1
 extern struct jtag_interface remote_bitbang_interface;
 #endif
+
+extern struct jtag_interface stlink_interface;
+
 #endif // standard drivers
 
 /**
@@ -169,6 +172,7 @@ struct jtag_interface *jtag_interfaces[] = {
 #if BUILD_REMOTE_BITBANG == 1
 		&remote_bitbang_interface,
 #endif
+		&stlink_interface,
 #endif // standard drivers
 		NULL,
 	};
