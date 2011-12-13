@@ -411,6 +411,7 @@ static int jtag_check_value_mask_callback(jtag_callback_data_t data0, jtag_callb
 	return jtag_check_value_inner((uint8_t *)data0, (uint8_t *)data1, (uint8_t *)data2, (int)data3);
 }
 
+/** anachronism */
 static void jtag_add_scan_check(struct jtag_tap *active, void (*jtag_add_scan)(struct jtag_tap *active, int in_num_fields, const struct scan_field *in_fields, tap_state_t state),
 		int in_num_fields, struct scan_field *in_fields, tap_state_t state)
 {
@@ -419,8 +420,14 @@ static void jtag_add_scan_check(struct jtag_tap *active, void (*jtag_add_scan)(s
 		struct scan_field *field = &in_fields[i];
 		field->allocated = 0;
 		field->modified = 0;
+		/* FIX!!!! is this check broken????
+		Should it be field->check_value == NULL?
+		*/
 		if (field->check_value || field->in_value)
 			continue;
+		/* caller must provide in_buffer. xscale must be fixed.
+		 */
+		assert(false);
 		interface_jtag_add_scan_check_alloc(field);
 		field->modified = 1;
 	}

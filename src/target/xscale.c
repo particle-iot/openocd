@@ -273,12 +273,14 @@ static int xscale_receive(struct target *target, uint32_t *buffer, int num_words
 	memset(&fields, 0, sizeof fields);
 
 	fields[0].num_bits = 3;
+	/* FIX! provide in_value buffer here! */
 	fields[0].check_value = &field0_check_value;
 	fields[0].check_mask = &field0_check_mask;
 
 	fields[1].num_bits = 32;
 
 	fields[2].num_bits = 1;
+	/* FIX! provide in_value buffer here! */
 	fields[2].check_value = &field2_check_value;
 	fields[2].check_mask = &field2_check_mask;
 
