@@ -34,7 +34,8 @@ libtarget_la_SOURCES = \
 	avrt.c \
 	dsp563xx.c \
 	dsp563xx_once.c \
-	dsp5680xx.c
+	dsp5680xx.c \
+	stm32_stlink.c
 
 TARGET_CORE_SRC = \
 	algorithm.c \
@@ -161,7 +162,8 @@ noinst_HEADERS = \
 	avr32_ap7k.h \
 	avr32_jtag.h \
 	avr32_mem.h \
-	avr32_regs.h
+	avr32_regs.h \
+	stm32_stlink.h
 
 nobase_dist_pkglib_DATA =
 nobase_dist_pkglib_DATA += ecos/at91eb40a.elf
