@@ -109,6 +109,9 @@ extern struct jtag_interface buspirate_interface;
 #if BUILD_REMOTE_BITBANG == 1
 extern struct jtag_interface remote_bitbang_interface;
 #endif
+#if BUILD_STLINK == 1
+extern struct jtag_interface stlink_interface;
+#endif
 #endif /* standard drivers */
 
 #endif /* OPENOCD_JTAG_INTERFACES_H */
