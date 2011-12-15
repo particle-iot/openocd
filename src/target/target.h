@@ -64,6 +64,7 @@ extern struct target_type dsp563xx_target;
 extern struct target_type dsp5680xx_target;
 extern struct target_type testee_target;
 extern struct target_type avr32_ap7k_target;
+extern struct target_type stm32_stlink_target;
 
 /*
  * TARGET_UNKNOWN = 0: we don't know anything about the target yet
