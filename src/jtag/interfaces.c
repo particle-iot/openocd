@@ -100,6 +100,9 @@ struct jtag_interface *jtag_interfaces[] = {
 #if BUILD_REMOTE_BITBANG == 1
 		&remote_bitbang_interface,
 #endif
+#if BUILD_STLINK == 1
+		&stlink_interface,
+#endif
 #endif // standard drivers
 		NULL,
 	};
