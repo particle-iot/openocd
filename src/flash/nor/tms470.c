@@ -313,8 +313,7 @@ COMMAND_HANDLER(tms470_handle_flash_keyset_command)
 {
 	if (CMD_ARGC > 4)
 	{
-		command_print(CMD_CTX, "tms470 flash_keyset <key0> <key1> <key2> <key3>");
-		return ERROR_INVALID_ARGUMENTS;
+		return ERROR_COMMAND_SYNTAX_ERROR;
 	}
 	else if (CMD_ARGC == 4)
 	{
@@ -328,7 +327,7 @@ COMMAND_HANDLER(tms470_handle_flash_keyset_command)
 			{
 				command_print(CMD_CTX, "could not process flash key %s", CMD_ARGV[i]);
 				LOG_ERROR("could not process flash key %s", CMD_ARGV[i]);
-				return ERROR_INVALID_ARGUMENTS;
+				return ERROR_COMMAND_SYNTAX_ERROR;
 			}
 		}
 
@@ -337,7 +336,7 @@ COMMAND_HANDLER(tms470_handle_flash_keyset_command)
 	else if (CMD_ARGC != 0)
 	{
 		command_print(CMD_CTX, "tms470 flash_keyset <key0> <key1> <key2> <key3>");
-		return ERROR_INVALID_ARGUMENTS;
+		return ERROR_COMMAND_SYNTAX_ERROR;
 	}
 
 	if (keysSet)
@@ -377,8 +376,7 @@ COMMAND_HANDLER(tms470_handle_osc_megahertz_command)
 {
 	if (CMD_ARGC > 1)
 	{
-		command_print(CMD_CTX, "tms470 osc_megahertz <MHz>");
-		return ERROR_INVALID_ARGUMENTS;
+		return ERROR_COMMAND_SYNTAX_ERROR;
 	}
 	else if (CMD_ARGC == 1)
 	{
@@ -390,7 +388,7 @@ COMMAND_HANDLER(tms470_handle_osc_megahertz_command)
 		LOG_ERROR("osc_megahertz must be positive and non-zero!");
 		command_print(CMD_CTX, "osc_megahertz must be positive and non-zero!");
 		oscMHz = 12;
-		return ERROR_INVALID_ARGUMENTS;
+		return ERROR_COMMAND_SYNTAX_ERROR;
 	}
 
 	command_print(CMD_CTX, "osc_megahertz=%d", oscMHz);
@@ -406,8 +404,7 @@ COMMAND_HANDLER(tms470_handle_plldis_command)
 {
 	if (CMD_ARGC > 1)
 	{
-		command_print(CMD_CTX, "tms470 plldis <0 | 1>");
-		return ERROR_INVALID_ARGUMENTS;
+		return ERROR_COMMAND_SYNTAX_ERROR;
 	}
 	else if (CMD_ARGC == 1)
 	{
@@ -840,18 +837,21 @@ static int tms470_erase_sector(struct flash_bank *bank, int sector)
 static const struct command_registration tms470_any_command_handlers[] = {
 	{
 		.name = "flash_keyset",
+		.usage = "<key0> <key1> <key2> <key3>",
 		.handler = tms470_handle_flash_keyset_command,
 		.mode = COMMAND_ANY,
 		.help = "tms470 flash_keyset <key0> <key1> <key2> <key3>",
 	},
 	{
 		.name = "osc_megahertz",
+		.usage = "<MHz>",
 		.handler = tms470_handle_osc_megahertz_command,
 		.mode = COMMAND_ANY,
 		.help = "tms470 osc_megahertz <MHz>",
 	},
 	{
 		.name = "plldis",
+		.usage = "<0 | 1>",
 		.handler = tms470_handle_plldis_command,
 		.mode = COMMAND_ANY,
 		.help = "tms470 plldis <0/1>",

@@ -499,7 +499,7 @@ static int etm_read_reg_w_check(struct reg *reg,
 
 	if (etm_reg->reg_info->mode == WO) {
 		LOG_ERROR("BUG: can't read write-only register %s", r->name);
-		return ERROR_INVALID_ARGUMENTS;
+		return ERROR_COMMAND_SYNTAX_ERROR;
 	}
 
 	LOG_DEBUG("%s (%u)", r->name, reg_addr);
@@ -585,7 +585,7 @@ static int etm_write_reg(struct reg *reg, uint32_t value)
 
 	if (etm_reg->reg_info->mode == RO) {
 		LOG_ERROR("BUG: can't write read--only register %s", r->name);
-		return ERROR_INVALID_ARGUMENTS;
+		return ERROR_COMMAND_SYNTAX_ERROR;
 	}
 
 	LOG_DEBUG("%s (%u): 0x%8.8" PRIx32 "", r->name, reg_addr, value);
@@ -1196,7 +1196,7 @@ static COMMAND_HELPER(handle_etm_tracemode_command_update,
 	else
 	{
 		command_print(CMD_CTX, "invalid option '%s'", CMD_ARGV[0]);
-		return ERROR_INVALID_ARGUMENTS;
+		return ERROR_COMMAND_SYNTAX_ERROR;
 	}
 
 	uint8_t context_id;
@@ -1217,7 +1217,7 @@ static COMMAND_HELPER(handle_etm_tracemode_command_update,
 		break;
 	default:
 		command_print(CMD_CTX, "invalid option '%s'", CMD_ARGV[1]);
-		return ERROR_INVALID_ARGUMENTS;
+		return ERROR_COMMAND_SYNTAX_ERROR;
 	}
 
 	bool etmv1_cycle_accurate;
@@ -1268,13 +1268,7 @@ COMMAND_HANDLER(handle_etm_tracemode_command)
 				&tracemode);
 		break;
 	default:
-		command_print(CMD_CTX, "usage: tracemode "
-				"('none'|'data'|'address'|'all') "
-				"context_id_bits "
-				"('enable'|'disable') "
-				"('enable'|'disable')"
-				);
-		return ERROR_FAIL;
+		return ERROR_COMMAND_SYNTAX_ERROR;
 	}
 
 	/**
@@ -1738,8 +1732,7 @@ COMMAND_HANDLER(handle_etm_image_command)
 
 	if (CMD_ARGC < 1)
 	{
-		command_print(CMD_CTX, "usage: etm image <file> [base address] [type]");
-		return ERROR_FAIL;
+		return ERROR_COMMAND_SYNTAX_ERROR;
 	}
 
 	target = get_current_target(CMD_CTX);
@@ -1799,8 +1792,7 @@ COMMAND_HANDLER(handle_etm_dump_command)
 
 	if (CMD_ARGC != 1)
 	{
-		command_print(CMD_CTX, "usage: etm dump <file>");
-		return ERROR_FAIL;
+		return ERROR_COMMAND_SYNTAX_ERROR;
 	}
 
 	target = get_current_target(CMD_CTX);
@@ -1866,8 +1858,7 @@ COMMAND_HANDLER(handle_etm_load_command)
 
 	if (CMD_ARGC != 1)
 	{
-		command_print(CMD_CTX, "usage: etm load <file>");
-		return ERROR_FAIL;
+		return ERROR_COMMAND_SYNTAX_ERROR;
 	}
 
 	target = get_current_target(CMD_CTX);
@@ -2206,7 +2197,7 @@ static const struct command_registration etm_exec_command_handlers[] = {
 		.handler = handle_etm_image_command,
 		.mode = COMMAND_EXEC,
 		.help = "load image from file with optional offset",
-		.usage = "filename [offset]",
+		.usage = "<file> [base address] [type]",
 	},
 	{
 		.name = "dump",

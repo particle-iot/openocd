@@ -250,7 +250,7 @@ static void xscale_getbuf(jtag_callback_data_t arg)
 static int xscale_receive(struct target *target, uint32_t *buffer, int num_words)
 {
 	if (num_words == 0)
-		return ERROR_INVALID_ARGUMENTS;
+		return ERROR_COMMAND_SYNTAX_ERROR;
 
 	struct xscale_common *xscale = target_to_xscale(target);
 	int retval = ERROR_OK;
@@ -573,7 +573,7 @@ static int xscale_send(struct target *target, const uint8_t *buffer, int count, 
 			break;
 		default:
 			LOG_ERROR("BUG: size neither 4, 2 nor 1");
-			return ERROR_INVALID_ARGUMENTS;
+			return ERROR_COMMAND_SYNTAX_ERROR;
 		}
 		jtag_add_dr_out(target->tap,
 				3,
@@ -836,7 +836,7 @@ static int xscale_arch_state(struct target *target)
 	if (armv4_5->common_magic != ARM_COMMON_MAGIC)
 	{
 		LOG_ERROR("BUG: called for a non-ARMv4/5 target");
-		return ERROR_INVALID_ARGUMENTS;
+		return ERROR_COMMAND_SYNTAX_ERROR;
 	}
 
 	arm_arch_state(target);
@@ -1867,7 +1867,7 @@ static int xscale_read_memory(struct target *target, uint32_t address,
 
 	/* sanitize arguments */
 	if (((size != 4) && (size != 2) && (size != 1)) || (count == 0) || !(buffer))
-		return ERROR_INVALID_ARGUMENTS;
+		return ERROR_COMMAND_SYNTAX_ERROR;
 
 	if (((size == 4) && (address & 0x3u)) || ((size == 2) && (address & 0x1u)))
 		return ERROR_TARGET_UNALIGNED_ACCESS;
@@ -1907,7 +1907,7 @@ static int xscale_read_memory(struct target *target, uint32_t address,
 				break;
 			default:
 				LOG_ERROR("invalid read size");
-				return ERROR_INVALID_ARGUMENTS;
+				return ERROR_COMMAND_SYNTAX_ERROR;
 		}
 	}
 
@@ -1959,7 +1959,7 @@ static int xscale_write_memory(struct target *target, uint32_t address,
 
 	/* sanitize arguments */
 	if (((size != 4) && (size != 2) && (size != 1)) || (count == 0) || !(buffer))
-		return ERROR_INVALID_ARGUMENTS;
+		return ERROR_COMMAND_SYNTAX_ERROR;
 
 	if (((size == 4) && (address & 0x3u)) || ((size == 2) && (address & 0x1u)))
 		return ERROR_TARGET_UNALIGNED_ACCESS;
@@ -3208,8 +3208,7 @@ COMMAND_HANDLER(xscale_handle_debug_handler_command)
 
 	if (CMD_ARGC < 2)
 	{
-		LOG_ERROR("'xscale debug_handler <target#> <address>' command takes two required operands");
-		return ERROR_OK;
+		return ERROR_COMMAND_SYNTAX_ERROR;
 	}
 
 	if ((target = get_target(CMD_ARGV[0])) == NULL)
@@ -3412,7 +3411,7 @@ COMMAND_HANDLER(xscale_handle_vector_catch_command)
 
 	if (CMD_ARGC < 1)
 	{
-		command_print(CMD_CTX, "usage: xscale vector_catch [mask]");
+	    return ERROR_COMMAND_SYNTAX_ERROR;
 	}
 	else
 	{
@@ -3479,7 +3478,7 @@ COMMAND_HANDLER(xscale_handle_vector_table_command)
 	}
 
 	if (err)
-		command_print(CMD_CTX, "usage: xscale vector_table <high|low> <index> <code>");
+		return ERROR_COMMAND_SYNTAX_ERROR;
 
 	return ERROR_OK;
 }
@@ -3509,7 +3508,7 @@ COMMAND_HANDLER(xscale_handle_trace_buffer_command)
 	   else if (strcmp("disable", CMD_ARGV[0]) == 0)
 		  xscale->trace.mode = XSCALE_TRACE_DISABLED;
 	   else
-		  return ERROR_INVALID_ARGUMENTS;
+		  return ERROR_COMMAND_SYNTAX_ERROR;
 	}
 
 	if (CMD_ARGC >= 2 && xscale->trace.mode != XSCALE_TRACE_DISABLED)
@@ -3523,7 +3522,7 @@ COMMAND_HANDLER(xscale_handle_trace_buffer_command)
 		  {
 			 command_print(CMD_CTX, "fill buffer count must be > 0");
 			 xscale->trace.mode = XSCALE_TRACE_DISABLED;
-			 return ERROR_INVALID_ARGUMENTS;
+			 return ERROR_COMMAND_SYNTAX_ERROR;
 		  }
 		  xscale->trace.buffer_fill = buffcount;
 		  xscale->trace.mode = XSCALE_TRACE_FILL;
@@ -3533,7 +3532,7 @@ COMMAND_HANDLER(xscale_handle_trace_buffer_command)
 	   else
 	   {
 		  xscale->trace.mode = XSCALE_TRACE_DISABLED;
-		  return ERROR_INVALID_ARGUMENTS;
+		  return ERROR_COMMAND_SYNTAX_ERROR;
 	   }
 	}
 	
@@ -3565,8 +3564,7 @@ COMMAND_HANDLER(xscale_handle_trace_image_command)
 
 	if (CMD_ARGC < 1)
 	{
-		command_print(CMD_CTX, "usage: xscale trace_image <file> [base address] [type]");
-		return ERROR_OK;
+		return ERROR_COMMAND_SYNTAX_ERROR;
 	}
 
 	retval = xscale_verify_pointer(CMD_CTX, xscale);
@@ -3625,8 +3623,7 @@ COMMAND_HANDLER(xscale_handle_dump_trace_command)
 
 	if (CMD_ARGC < 1)
 	{
-		command_print(CMD_CTX, "usage: xscale dump_trace <file>");
-		return ERROR_OK;
+		return ERROR_COMMAND_SYNTAX_ERROR;
 	}
 
 	trace_data = xscale->trace.data;
@@ -3726,7 +3723,7 @@ COMMAND_HANDLER(xscale_handle_cp15)
 			break;
 		default:
 			command_print(CMD_CTX, "invalid register number");
-			return ERROR_INVALID_ARGUMENTS;
+			return ERROR_COMMAND_SYNTAX_ERROR;
 		}
 		reg = &xscale->reg_cache->reg_list[reg_no];
 
@@ -3759,7 +3756,7 @@ COMMAND_HANDLER(xscale_handle_cp15)
 	}
 	else
 	{
-		command_print(CMD_CTX, "usage: cp15 [register]<, [value]>");
+	    return ERROR_COMMAND_SYNTAX_ERROR;
 	}
 
 	return ERROR_OK;
@@ -3855,7 +3852,7 @@ static const struct command_registration xscale_any_command_handlers[] = {
 		.handler = xscale_handle_debug_handler_command,
 		.mode = COMMAND_ANY,
 		.help = "Change address used for debug handler.",
-		.usage = "target address",
+		.usage = "<target> <address>",
 	},
 	{
 		.name = "cache_clean_address",
