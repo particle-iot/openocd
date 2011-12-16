@@ -313,8 +313,7 @@ COMMAND_HANDLER(tms470_handle_flash_keyset_command)
 {
 	if (CMD_ARGC > 4)
 	{
-		command_print(CMD_CTX, "tms470 flash_keyset <key0> <key1> <key2> <key3>");
-		return ERROR_INVALID_ARGUMENTS;
+		return ERROR_COMMAND_SYNTAX_ERROR;
 	}
 	else if (CMD_ARGC == 4)
 	{
@@ -377,8 +376,7 @@ COMMAND_HANDLER(tms470_handle_osc_megahertz_command)
 {
 	if (CMD_ARGC > 1)
 	{
-		command_print(CMD_CTX, "tms470 osc_megahertz <MHz>");
-		return ERROR_INVALID_ARGUMENTS;
+		return ERROR_COMMAND_SYNTAX_ERROR;
 	}
 	else if (CMD_ARGC == 1)
 	{
@@ -406,8 +404,7 @@ COMMAND_HANDLER(tms470_handle_plldis_command)
 {
 	if (CMD_ARGC > 1)
 	{
-		command_print(CMD_CTX, "tms470 plldis <0 | 1>");
-		return ERROR_INVALID_ARGUMENTS;
+		return ERROR_COMMAND_SYNTAX_ERROR;
 	}
 	else if (CMD_ARGC == 1)
 	{

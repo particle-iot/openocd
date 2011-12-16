@@ -87,8 +87,7 @@ NAND_DEVICE_COMMAND_HANDLER(imx27_nand_device_command)
 
 	nand->controller_priv = mx2_nf_info;
 	if (CMD_ARGC < 3) {
-		LOG_ERROR("use \"nand device imx27 target noecc|hwecc\"");
-		return ERROR_FAIL;
+		return ERROR_COMMAND_SYNTAX_ERROR;
 	}
 	/*
 	 * check hwecc requirements
