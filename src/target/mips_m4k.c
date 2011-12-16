@@ -865,7 +865,7 @@ static int mips_m4k_read_memory(struct target *target, uint32_t address,
 
 	/* sanitize arguments */
 	if (((size != 4) && (size != 2) && (size != 1)) || (count == 0) || !(buffer))
-		return ERROR_INVALID_ARGUMENTS;
+		return ERROR_COMMAND_SYNTAX_ERROR;
 
 	if (((size == 4) && (address & 0x3u)) || ((size == 2) && (address & 0x1u)))
 		return ERROR_TARGET_UNALIGNED_ACCESS;
@@ -932,7 +932,7 @@ static int mips_m4k_write_memory(struct target *target, uint32_t address,
 
 	/* sanitize arguments */
 	if (((size != 4) && (size != 2) && (size != 1)) || (count == 0) || !(buffer))
-		return ERROR_INVALID_ARGUMENTS;
+		return ERROR_COMMAND_SYNTAX_ERROR;
 
 	if (((size == 4) && (address & 0x3u)) || ((size == 2) && (address & 0x1u)))
 		return ERROR_TARGET_UNALIGNED_ACCESS;
@@ -1140,7 +1140,7 @@ COMMAND_HANDLER(mips_m4k_handle_cp0_command)
 	/* two or more argument, access a single register/select (write if third argument is given) */
 	if (CMD_ARGC < 2)
 	{
-		command_print(CMD_CTX, "command requires more arguments.");
+	    return ERROR_COMMAND_SYNTAX_ERROR;
 	}
 	else
 	{

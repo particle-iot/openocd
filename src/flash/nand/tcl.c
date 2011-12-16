@@ -177,12 +177,12 @@ COMMAND_HANDLER(handle_nand_erase_command)
 
 		COMMAND_PARSE_NUMBER(ulong, CMD_ARGV[1], offset);
 		if ((offset % p->erase_size) != 0 || offset >= size)
-			return ERROR_INVALID_ARGUMENTS;
+			return ERROR_COMMAND_SYNTAX_ERROR;
 
 		COMMAND_PARSE_NUMBER(ulong, CMD_ARGV[2], length);
 		if ((length == 0) || (length % p->erase_size) != 0
 				|| (length + offset) > size)
-			return ERROR_INVALID_ARGUMENTS;
+			return ERROR_COMMAND_SYNTAX_ERROR;
 
 		offset /= p->erase_size;
 		length /= p->erase_size;
@@ -226,12 +226,12 @@ COMMAND_HANDLER(handle_nand_check_bad_blocks_command)
 
 		COMMAND_PARSE_NUMBER(ulong, CMD_ARGV[1], offset);
 		if (offset % p->erase_size)
-			return ERROR_INVALID_ARGUMENTS;
+			return ERROR_COMMAND_SYNTAX_ERROR;
 		offset /= p->erase_size;
 
 		COMMAND_PARSE_NUMBER(ulong, CMD_ARGV[2], length);
 		if (length % p->erase_size)
-			return ERROR_INVALID_ARGUMENTS;
+			return ERROR_COMMAND_SYNTAX_ERROR;
 
 		length -= 1;
 		length /= p->erase_size;
@@ -544,8 +544,7 @@ static COMMAND_HELPER(create_nand_device, const char *bank_name,
 
 	if (CMD_ARGC < 2)
 	{
-		LOG_ERROR("missing target");
-		return ERROR_COMMAND_ARGUMENT_INVALID;
+		return ERROR_COMMAND_SYNTAX_ERROR;
 	}
 	target = get_target(CMD_ARGV[1]);
 	if (!target) {
@@ -596,8 +595,7 @@ COMMAND_HANDLER(handle_nand_device_command)
 {
 	if (CMD_ARGC < 2)
 	{
-		LOG_ERROR("incomplete nand device configuration");
-		return ERROR_FLASH_BANK_INVALID;
+		return ERROR_COMMAND_SYNTAX_ERROR;
 	}
 
 	// save name and increment (for compatibility) with drivers
