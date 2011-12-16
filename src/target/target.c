@@ -2244,9 +2244,7 @@ COMMAND_HANDLER(handle_reg_command)
 		return ERROR_OK;
 	}
 
-	command_print(CMD_CTX, "usage: reg <#|name> [value]");
-
-	return ERROR_OK;
+	return ERROR_COMMAND_SYNTAX_ERROR;
 }
 
 COMMAND_HANDLER(handle_poll_command)
@@ -2293,7 +2291,6 @@ COMMAND_HANDLER(handle_wait_halt_command)
 		int retval = parse_uint(CMD_ARGV[0], &ms);
 		if (ERROR_OK != retval)
 		{
-			command_print(CMD_CTX, "usage: %s [seconds]", CMD_NAME);
 			return ERROR_COMMAND_SYNTAX_ERROR;
 		}
 		// convert seconds (given) to milliseconds (needed)
@@ -3153,7 +3150,6 @@ COMMAND_HANDLER(handle_bp_command)
 			return handle_bp_command_set(CMD_CTX, addr, asid, length, hw);
 
 		default:
-			command_print(CMD_CTX, "usage: bp <address> [<asid>]<length> ['hw'|'hw_ctx']");
 			return ERROR_COMMAND_SYNTAX_ERROR;
 	}
 }
@@ -3233,8 +3229,6 @@ COMMAND_HANDLER(handle_wp_command)
 		break;
 
 	default:
-		command_print(CMD_CTX, "usage: wp [address length "
-				"[(r|w|a) [value [mask]]]]");
 		return ERROR_COMMAND_SYNTAX_ERROR;
 	}
 
@@ -5653,7 +5647,7 @@ static const struct command_registration target_exec_command_handlers[] = {
 		.handler = handle_bp_command,
 		.mode = COMMAND_EXEC,
 		.help = "list or set hardware or software breakpoint",
-		.usage = "usage: bp <address> [<asid>]<length> ['hw'|'hw_ctx']",
+		.usage = "bp <address> [<asid>]<length> ['hw'|'hw_ctx']",
 	},
 	{
 		.name = "rbp",
