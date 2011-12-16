@@ -1351,8 +1351,7 @@ COMMAND_HANDLER(stellaris_handle_mass_erase_command)
 
 	if (CMD_ARGC < 1)
 	{
-		command_print(CMD_CTX, "stellaris mass_erase <bank>");
-		return ERROR_OK;
+		return ERROR_COMMAND_SYNTAX_ERROR;
 	}
 
 	struct flash_bank *bank;

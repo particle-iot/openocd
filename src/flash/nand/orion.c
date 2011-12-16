@@ -121,8 +121,7 @@ NAND_DEVICE_COMMAND_HANDLER(orion_nand_device_command)
 	uint8_t ale, cle;
 
 	if (CMD_ARGC != 3) {
-		LOG_ERROR("arguments must be: <target_id> <NAND_address>");
-		return ERROR_NAND_DEVICE_INVALID;
+		return ERROR_COMMAND_SYNTAX_ERROR;
 	}
 
 	hw = calloc(1, sizeof(*hw));

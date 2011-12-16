@@ -69,8 +69,7 @@ FLASH_BANK_COMMAND_HANDLER(fm3_flash_bank_command)
 
 	if (CMD_ARGC < 6)
 	{
-		LOG_WARNING("incomplete flash_bank fm3 configuration");
-		return ERROR_FLASH_BANK_INVALID;
+		return ERROR_COMMAND_SYNTAX_ERROR;
 	}
 
 	fm3_info = malloc(sizeof(struct fm3_flash_bank));
@@ -847,8 +846,7 @@ COMMAND_HANDLER(fm3_handle_chip_erase_command)
 
 	if (CMD_ARGC < 1)
 	{
-		command_print(CMD_CTX, "fm3 chip_erase <bank>");
-		return ERROR_OK;
+		return ERROR_COMMAND_SYNTAX_ERROR;
 	}
 
 	struct flash_bank *bank;
