@@ -1,4 +1,4 @@
-/***************************************************************************
+/>***************************************************************************
  *   Copyright (C) 2005 by Dominic Rath                                    *
  *   Dominic.Rath@gmx.de                                                   *
  *                                                                         *
@@ -928,8 +928,8 @@ static COMMAND_HELPER(command_help_show, struct command *c, unsigned n,
 	}
 
 	if (++n > 5) {
-		LOG_ERROR("command recursion exceeded");
-		return ERROR_FAIL;
+		LOG_DEBUG("command recursion exceeded");
+		return ERROR_OK;
 	}
 
 	return CALL_COMMAND_HANDLER(command_help_show_list,
