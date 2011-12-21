@@ -131,6 +131,27 @@ Further reading:
 
 http://www.coreboot.org/Git
 
+8. You fixed a problem with another patch which was not accepted
+   and has already commited the patch to the local tree.
+
+Before you push, you should "squash" the patches = merge them into a single patch
+
+Patches can be squashed  using interactive rebase.
+
+$ git rebase -i origin/master
+
+reorder the patches so that the both patches are adjacent, the original patch first
+probably a good idea to put them last in your series of patches.
+
+mark the correcting patch (the second of the two) as "squash"
+
+save and exit
+
+A commit message editor opens.
+Edit the commit message, keeping the first Change-Id
+
+$ git push review
+
 
 When can I expect my contribution to be committed?
 ==================================================
