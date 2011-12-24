@@ -323,6 +323,12 @@ static struct command *command_new(struct command_context *cmd_ctx,
 {
 	assert(cr->name);
 
+	if ((cr->jim_handler == NULL) &&
+	    ((cr->usage == NULL) || strlen(cr->usage) == 0)) {
+		LOG_ERROR("BUG: command '%s' does not have the "
+			"'.usage' field filled out", cr->name);
+	}
+
 	struct command *c = calloc(1, sizeof(struct command));
 	if (NULL == c)
 		return NULL;
