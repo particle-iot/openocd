@@ -4,7 +4,31 @@ AC_INIT([openocd], [0.6.0-dev],
 AC_CONFIG_SRCDIR([src/openocd.c])
 
 m4_include([config_subdir.m4])dnl
+#
+# this test check if the pkg-config tool not disabled
+# and available and initialize it
+#
+with_pkg_config=yes
 
+AC_ARG_ENABLE([pkg_config],
+  AS_HELP_STRING([--disable-pkg-config],
+  [Disable pkg-config usage]),
+  [with_pkg_config=$enableval], [])
+
+if test "x$with_pkg_config" = "xyes";
+then
+  AC_CHECK_PROG(HAVE_PKG_CONFIG, pkg-config, yes)
+  
+  if test "x$HAVE_PKG_CONFIG" = "xyes";
+  then
+    PKG_PROG_PKG_CONFIG
+  fi
+else
+  HAVE_PKG_CONFIG=no
+fi
+#
+#
+#
 AM_INIT_AUTOMAKE([-Wall -Wno-portability dist-bzip2 dist-zip])
 AM_MAINTAINER_MODE
 
