@@ -1456,6 +1456,7 @@ static const struct command_registration stellaris_command_handlers[] = {
 		.name = "stellaris",
 		.mode = COMMAND_EXEC,
 		.help = "Stellaris flash command group",
+		.usage = "",
 		.chain = stellaris_exec_command_handlers,
 	},
 	COMMAND_REGISTRATION_DONE
