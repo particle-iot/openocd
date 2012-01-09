@@ -101,6 +101,9 @@
 #define KEY1			0x45670123
 #define KEY2			0xCDEF89AB
 
+/* DBGMCU_IDCODE mask bits */
+#define DEV_ID_MASK		0xFFF
+
 struct stm32x_options
 {
 	uint16_t RDP;
@@ -977,8 +980,7 @@ static int stm32x_probe(struct flash_bank *bank)
 		flash_size_in_kb = 0xffff;
 	}
 
-	if ((device_id & 0x7ff) == 0x410)
-	{
+	if ((device_id & DEV_ID_MASK) == 0x410) {
 		/* medium density - we have 1k pages
 		 * 4 pages for a protection area */
 		page_size = 1024;
@@ -991,9 +993,7 @@ static int stm32x_probe(struct flash_bank *bank)
 			LOG_WARNING("STM32 flash size failed, probe inaccurate - assuming 128k flash");
 			flash_size_in_kb = 128;
 		}
-	}
-	else if ((device_id & 0x7ff) == 0x412)
-	{
+	} else if ((device_id & DEV_ID_MASK) == 0x412) {
 		/* low density - we have 1k pages
 		 * 4 pages for a protection area */
 		page_size = 1024;
@@ -1006,9 +1006,7 @@ static int stm32x_probe(struct flash_bank *bank)
 			LOG_WARNING("STM32 flash size failed, probe inaccurate - assuming 32k flash");
 			flash_size_in_kb = 32;
 		}
-	}
-	else if ((device_id & 0x7ff) == 0x414)
-	{
+	} else if ((device_id & DEV_ID_MASK) == 0x414) {
 		/* high density - we have 2k pages
 		 * 2 pages for a protection area */
 		page_size = 2048;
@@ -1021,9 +1019,7 @@ static int stm32x_probe(struct flash_bank *bank)
 			LOG_WARNING("STM32 flash size failed, probe inaccurate - assuming 512k flash");
 			flash_size_in_kb = 512;
 		}
-	}
-	else if ((device_id & 0x7ff) == 0x418)
-	{
+	} else if ((device_id & DEV_ID_MASK) == 0x418) {
 		/* connectivity line density - we have 2k pages
 		 * 2 pages for a protection area */
 		page_size = 2048;
@@ -1036,9 +1032,7 @@ static int stm32x_probe(struct flash_bank *bank)
 			LOG_WARNING("STM32 flash size failed, probe inaccurate - assuming 256k flash");
 			flash_size_in_kb = 256;
 		}
-	}
-	else if ((device_id & 0x7ff) == 0x420)
-	{
+	} else if ((device_id & DEV_ID_MASK) == 0x420) {
 		/* value line density - we have 1k pages
 		 * 4 pages for a protection area */
 		page_size = 1024;
@@ -1051,9 +1045,7 @@ static int stm32x_probe(struct flash_bank *bank)
 			LOG_WARNING("STM32 flash size failed, probe inaccurate - assuming 128k flash");
 			flash_size_in_kb = 128;
 		}
-	}
-	else if ((device_id & 0x7ff) == 0x428)
-	{
+	} else if ((device_id & DEV_ID_MASK) == 0x428) {
 		/* value line High density - we have 2k pages
 		 * 4 pages for a protection area */
 		page_size = 2048;
@@ -1066,10 +1058,7 @@ static int stm32x_probe(struct flash_bank *bank)
 			LOG_WARNING("STM32 flash size failed, probe inaccurate - assuming 128k flash");
 			flash_size_in_kb = 128;
 		}
-	}
-
-	else if ((device_id & 0x7ff) == 0x430)
-	{
+	} else if ((device_id & DEV_ID_MASK) == 0x430) {
 		/* xl line density - we have 2k pages
 		 * 2 pages for a protection area */
 		page_size = 2048;
@@ -1165,8 +1154,7 @@ static int get_stm32x_info(struct flash_bank *bank, char *buf, int buf_size)
 	if (retval != ERROR_OK)
 		return retval;
 
-	if ((device_id & 0x7ff) == 0x410)
-	{
+	if ((device_id & DEV_ID_MASK) == 0x410) {
 		printed = snprintf(buf, buf_size, "stm32x (Medium Density) - Rev: ");
 		buf += printed;
 		buf_size -= printed;
@@ -1193,9 +1181,7 @@ static int get_stm32x_info(struct flash_bank *bank, char *buf, int buf_size)
 				snprintf(buf, buf_size, "unknown");
 				break;
 		}
-	}
-	else if ((device_id & 0x7ff) == 0x412)
-	{
+	} else if ((device_id & DEV_ID_MASK) == 0x412) {
 		printed = snprintf(buf, buf_size, "stm32x (Low Density) - Rev: ");
 		buf += printed;
 		buf_size -= printed;
@@ -1210,9 +1196,7 @@ static int get_stm32x_info(struct flash_bank *bank, char *buf, int buf_size)
 				snprintf(buf, buf_size, "unknown");
 				break;
 		}
-	}
-	else if ((device_id & 0x7ff) == 0x414)
-	{
+	} else if ((device_id & DEV_ID_MASK) == 0x414) {
 		printed = snprintf(buf, buf_size, "stm32x (High Density) - Rev: ");
 		buf += printed;
 		buf_size -= printed;
@@ -1231,9 +1215,7 @@ static int get_stm32x_info(struct flash_bank *bank, char *buf, int buf_size)
 				snprintf(buf, buf_size, "unknown");
 				break;
 		}
-	}
-	else if ((device_id & 0x7ff) == 0x418)
-	{
+	} else if ((device_id & DEV_ID_MASK) == 0x418) {
 		printed = snprintf(buf, buf_size, "stm32x (Connectivity) - Rev: ");
 		buf += printed;
 		buf_size -= printed;
@@ -1252,9 +1234,7 @@ static int get_stm32x_info(struct flash_bank *bank, char *buf, int buf_size)
 				snprintf(buf, buf_size, "unknown");
 				break;
 		}
-	}
-	else if ((device_id & 0x7ff) == 0x420)
-	{
+	} else if ((device_id & DEV_ID_MASK) == 0x420) {
 		printed = snprintf(buf, buf_size, "stm32x (Value) - Rev: ");
 		buf += printed;
 		buf_size -= printed;
@@ -1273,9 +1253,7 @@ static int get_stm32x_info(struct flash_bank *bank, char *buf, int buf_size)
 				snprintf(buf, buf_size, "unknown");
 				break;
 		}
-	}
-	else if ((device_id & 0x7ff) == 0x428)
-	{
+	} else if ((device_id & DEV_ID_MASK) == 0x428) {
 		printed = snprintf(buf, buf_size, "stm32x (Value HD) - Rev: ");
 		buf += printed;
 		buf_size -= printed;
@@ -1294,9 +1272,7 @@ static int get_stm32x_info(struct flash_bank *bank, char *buf, int buf_size)
 				snprintf(buf, buf_size, "unknown");
 				break;
 		}
-	}
-	else if ((device_id & 0x7ff) == 0x430)
-	{
+	} else if ((device_id & DEV_ID_MASK) == 0x430) {
 		printed = snprintf(buf, buf_size, "stm32x (XL) - Rev: ");
 		buf += printed;
 		buf_size -= printed;

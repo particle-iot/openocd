@@ -111,6 +111,9 @@
 /* RCC_ICSCR bits */
 #define RCC_ICSCR__MSIRANGE_MASK	(7<<13)
 
+/* DBGMCU_IDCODE mask bits */
+#define DEV_ID_MASK		0xFFF
+
 static int stm32lx_unlock_program_memory(struct flash_bank *bank);
 static int stm32lx_lock_program_memory(struct flash_bank *bank);
 static int stm32lx_enable_write_half_page(struct flash_bank *bank);
@@ -508,8 +511,7 @@ static int stm32lx_probe(struct flash_bank *bank)
 
 	LOG_DEBUG("device id = 0x%08" PRIx32 "", device_id);
 
-	if ((device_id & 0x7ff) != 0x416)
-	{
+	if ((device_id & DEV_ID_MASK) != 0x416) {
 		LOG_WARNING("Cannot identify target as a STM32L family.");
 		return ERROR_FAIL;
 	}
@@ -707,8 +709,7 @@ static int stm32lx_get_info(struct flash_bank *bank, char *buf, int buf_size)
 	if (retval != ERROR_OK)
 		return retval;
 
-	if ((device_id & 0x7ff) == 0x416)
-	{
+	if ((device_id & DEV_ID_MASK) == 0x416) {
 		printed = snprintf(buf, buf_size, "stm32lx - Rev: ");
 		buf += printed;
 		buf_size -= printed;
