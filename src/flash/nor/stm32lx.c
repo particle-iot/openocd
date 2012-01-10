@@ -464,6 +464,9 @@ static int stm32lx_write(struct flash_bank *bank, uint8_t *buffer,
 
 	if (bytes_remaining)
 	{
+		/* TODO: not used bytes are zero and not 0xff
+		 * this should be fixed and tested
+		 */
 		uint32_t value = 0;
 		for (int i = 0; i < 4; i++)
 		{
