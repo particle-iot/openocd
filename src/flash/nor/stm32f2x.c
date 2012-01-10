@@ -244,7 +244,7 @@ static int stm32x_unlock_reg(struct target *target)
 	if ((ctrl & FLASH_LOCK) == 0)
 		return ERROR_OK;
 
- 	/* unlock flash registers */
+	/* unlock flash registers */
 	retval = target_write_u32(target, STM32_FLASH_KEYR, KEY1);
 	if (retval != ERROR_OK)
 		return retval;
