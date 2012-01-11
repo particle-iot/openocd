@@ -160,7 +160,7 @@ static __inline void outb(unsigned char value, unsigned short int port)
 {
 	__asm__ __volatile__ ("outb %b0,%w1": :"a" (value), "Nd" (port));
 }
-
+koq
 /* mingw does not have ffs, so use gcc builtin types */
 #define ffs __builtin_ffs
 
