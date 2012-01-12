@@ -561,31 +561,29 @@ static int stm32_stlink_read_memory(struct target *target, uint32_t address,
 				    uint8_t *buffer)
 {
 	int res;
-	uint32_t *dst = (uint32_t *) buffer;
+	uint8_t *dst = buffer;
 	uint32_t c;
 	struct stlink_interface_s *stlink_if = target_to_stlink(target);
 
 	if (!count || !buffer)
 		return ERROR_COMMAND_SYNTAX_ERROR;
-	if (size != 4) {
-		LOG_DEBUG("%s %x %d %d", __func__, address, size, count);
-		return ERROR_COMMAND_SYNTAX_ERROR;
-	}
+	count *= size;
+
+	LOG_DEBUG("%s %x %d %d", __func__, address, size, count);
 
 	while (count) {
-		if (count > 128)
-			c = 128;
+		if (count > 64)
+			c = 64;
 		else
 			c = count;
 
 		res =
-		    stlink_if->layout->api->read_mem32(stlink_if->fd, address,
+			stlink_if->layout->api->read_mem8(stlink_if->fd, address,
 						       c, dst);
-
 		if (res != ERROR_OK)
 			return res;
+		address += c;
 		dst += c;
-		address += (c * 4);
 		count -= c;
 	}
 
@@ -597,31 +595,30 @@ static int stm32_stlink_write_memory(struct target *target, uint32_t address,
 				     const uint8_t *buffer)
 {
 	int res;
-	uint32_t *dst = (uint32_t *) buffer;
+	const uint8_t *dst = buffer;
 	uint32_t c;
 	struct stlink_interface_s *stlink_if = target_to_stlink(target);
 
 	if (!count || !buffer)
 		return ERROR_COMMAND_SYNTAX_ERROR;
-	if (size != 4) {
-		LOG_DEBUG("%s %x %d %d", __func__, address, size, count);
-		return ERROR_COMMAND_SYNTAX_ERROR;
-	}
+	count *= size;
+
+	LOG_DEBUG("%s %x %d %d", __func__, address, size, count);
 
 	while (count) {
-		if (count > 128)
-			c = 128;
+		if (count > 64)
+			c = 64;
 		else
 			c = count;
 
 		res =
-		    stlink_if->layout->api->write_mem32(stlink_if->fd, address,
+		    stlink_if->layout->api->write_mem8(stlink_if->fd, address,
 							c, dst);
 
 		if (res != ERROR_OK)
 			return res;
 		dst += c;
-		address += (c * 4);
+		address += c;
 		count -= c;
 	}
 
