@@ -206,7 +206,7 @@ static int stm32x_wait_status_busy(struct flash_bank *bank, int timeout)
 	return retval;
 }
 
-int stm32x_check_operation_supported(struct flash_bank *bank)
+static int stm32x_check_operation_supported(struct flash_bank *bank)
 {
 	struct stm32x_flash_bank *stm32x_info = bank->driver_priv;
 
