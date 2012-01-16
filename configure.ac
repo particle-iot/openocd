@@ -684,14 +684,12 @@ else
 fi
 
 if test $build_usb_blaster_libftdi = yes; then
-  build_bitbang=yes
   AC_DEFINE([BUILD_USB_BLASTER_LIBFTDI], [1], [1 if you want libftdi usb_blaster.])
 else
   AC_DEFINE([BUILD_USB_BLASTER_LIBFTDI], [0], [0 if you don't want libftdi usb_blaster.])
 fi
 
 if test $build_usb_blaster_ftd2xx = yes; then
-  build_bitbang=yes
   AC_DEFINE([BUILD_USB_BLASTER_FTD2XX], [1], [1 if you want ftd2xx usb_blaster.])
 else
   AC_DEFINE([BUILD_USB_BLASTER_FTD2XX], [0], [0 if you don't want ftd2xx usb_blaster.])
@@ -855,7 +853,7 @@ then
    AC_MSG_ERROR([The option: with_ftd2xx_linux_tardir is for LINUX only.])
 fi
 
-if test $build_ft2232_ftd2xx = yes -o $build_presto_ftd2xx = yes ; then
+if test $build_ft2232_ftd2xx = yes -o $build_presto_ftd2xx = yes -o $build_usb_blaster_ftd2xx = yes; then
    AC_MSG_CHECKING([for libftd2xx.a (darwin)])
 
    if test ! -f /usr/local/include/ftd2xx.h ; then
@@ -876,7 +874,7 @@ then
    AC_MSG_ERROR([The option: --with-ftd2xx-win32-zipdir is for win32 only])
 fi
 
-if test $build_ft2232_ftd2xx = yes -o $build_presto_ftd2xx = yes ; then
+if test $build_ft2232_ftd2xx = yes -o $build_presto_ftd2xx = yes -o $build_usb_blaster_ftd2xx = yes; then
    # Must be linux
    if test $host_os != linux-gnu && test $host_os != linux ; then
       AC_MSG_ERROR([The (linux) ftd2xx library from FTDICHIP.com is linux only. Try --enable-ft2232-libftdi instead])
@@ -926,7 +924,7 @@ if test $build_ft2232_ftd2xx = yes -o $build_presto_ftd2xx = yes ; then
       fi
     fi
     LDFLAGS="${LDFLAGS} ${FTD2XX_LDFLAGS}"
-    LIBS="${LIBS} ${FTD2XX_LIB}"
+    LIBS="${FTD2XX_LIB} ${LIBS}"
     AC_MSG_RESULT([${FTD2XX_LDFLAGS} ${FTD2XX_LIB}])
   else
     AC_CHECK_HEADER([ftd2xx.h],[],[
@@ -939,7 +937,7 @@ if test $build_ft2232_ftd2xx = yes -o $build_presto_ftd2xx = yes ; then
 fi
 fi # linux
 
-if test $build_ft2232_ftd2xx = yes -o $build_presto_ftd2xx = yes; then
+if test $build_ft2232_ftd2xx = yes -o $build_presto_ftd2xx = yes -o $build_usb_blaster_ftd2xx = yes; then
 
 # Before we go any further - make sure we can *BUILD* and *RUN*
 # a simple app with the "ftd2xx.lib" file - in what ever form we where given
