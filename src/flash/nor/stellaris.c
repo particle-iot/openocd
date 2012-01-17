@@ -101,6 +101,7 @@ struct stellaris_flash_bank
 	uint32_t dc1;
 
 	const char * target_name;
+	uint8_t target_class;
 
 	uint32_t sramsiz;
 	uint32_t flshsz;
@@ -536,6 +537,10 @@ static void stellaris_set_flash_timing(struct flash_bank *bank)
 	struct target *target = bank->target;
 	uint32_t usecrl = (stellaris_info->mck_freq/1000000ul-1);
 
+	/* only valid for Sandstorm and Fury class devices */
+	if (stellaris_info->target_class < 2)
+		return;
+
 	LOG_DEBUG("usecrl = %i",(int)(usecrl));
 	target_write_u32(target, SCB_BASE | USECRL, usecrl);
 }
@@ -749,6 +754,7 @@ static int stellaris_read_part_info(struct flash_bank *bank)
 	}
 
 	stellaris_info->target_name = StellarisParts[i].partname;
+	stellaris_info->target_class = StellarisParts[i].class;
 
 	stellaris_info->did0 = did0;
 	stellaris_info->did1 = did1;
