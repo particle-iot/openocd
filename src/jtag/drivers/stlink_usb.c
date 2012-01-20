@@ -44,6 +44,16 @@
 #define STLINK_RX_SIZE	(4*128)
 
 /** */
+struct stlink_usb_version {
+	/** */
+	int stlink;
+	/** */
+	int jtag;
+	/** */
+	int swim;
+};
+
+/** */
 struct stlink_usb_handle_s {
 	/** */
 	struct jtag_libusb_device_handle *fd;
@@ -55,6 +65,12 @@ struct stlink_usb_handle_s {
 	uint8_t rxbuf[STLINK_RX_SIZE];
 	/** */
 	enum eSTLinkTransports transport;
+	/** */
+	struct stlink_usb_version version;
+	/** */
+	uint16_t vid;
+	/** */
+	uint16_t pid;
 };
 
 #define STLINK_OK			0x80
@@ -171,11 +187,18 @@ static int stlink_usb_version(void *handle)
 
 	v = (h->rxbuf[0] << 8) | h->rxbuf[1];
 
-	LOG_DEBUG("STLINK v%d", (v >> 12) & 0x0f);
-	LOG_DEBUG("JTAG   v%d", (v >> 6) & 0x3f);
-	LOG_DEBUG("SWIM   v%d", v & 0x3f);
-	LOG_DEBUG("VID    %04X", buf_get_u32(h->rxbuf, 16, 16));
-	LOG_DEBUG("PID    %04X", buf_get_u32(h->rxbuf, 32, 16));
+	h->version.stlink = (v >> 12) & 0x0f;
+	h->version.jtag = (v >> 6) & 0x3f;
+	h->version.swim = v & 0x3f;
+	h->vid = buf_get_u32(h->rxbuf, 16, 16);
+	h->pid = buf_get_u32(h->rxbuf, 32, 16);
+
+	LOG_DEBUG("STLINK v%d JTAG v%d SWIM v%d VID %04X PID %04X",
+		h->version.stlink,
+		h->version.jtag,
+		h->version.swim,
+		h->vid,
+		h->pid);
 
 	return ERROR_OK;
 }
@@ -311,6 +334,7 @@ static int stlink_usb_init_mode(void *handle)
 			break;
 		case STLINK_DEV_SWIM_MODE:
 			emode = eSTLinkModeDebugSWIM;
+			break;
 		default:
 			emode = eSTLinkModeUNKNOWN;
 			break;
@@ -724,7 +748,7 @@ static int stlink_usb_open(struct stlink_interface_param_s *param, void **fd)
 	h = malloc(sizeof(struct stlink_usb_handle_s));
 
 	if (h == 0) {
-		LOG_DEBUG("stlink_open_usb: malloc failed");
+		LOG_DEBUG("malloc failed");
 		return ERROR_FAIL;
 	}
 
@@ -733,30 +757,70 @@ static int stlink_usb_open(struct stlink_interface_param_s *param, void **fd)
 	const uint16_t vids[] = { param->vid, 0 };
 	const uint16_t pids[] = { param->pid, 0 };
 
-	LOG_DEBUG("stlink_open_usb: vid: %04x pid: %04x", param->vid,
+	LOG_DEBUG("vid: %04x pid: %04x", param->vid,
 		  param->pid);
 
 	if (jtag_libusb_open(vids, pids, &h->fd) != ERROR_OK) {
-		LOG_ERROR("stlink_open_usb: open failed");
+		LOG_ERROR("open failed");
 		return ERROR_FAIL;
 	}
 
 	jtag_libusb_set_configuration(h->fd, 0);
 
 	if (jtag_libusb_claim_interface(h->fd, 0) != ERROR_OK) {
-		LOG_DEBUG("stlink_open_usb: claim failed");
+		LOG_DEBUG("claim interface failed");
 		return ERROR_FAIL;
 	}
 
-	err = stlink_usb_init_mode(h);
+	/* get the device version */
+	err = stlink_usb_version(h);
 
 	if (err != ERROR_OK) {
+		LOG_ERROR("read version failed");
 		jtag_libusb_close(h->fd);
 		free(h);
 		return err;
 	}
 
-	stlink_usb_version(h);
+	/* compare usb vid/pid */
+	if ((param->vid != h->vid) || (param->pid != h->pid))
+		LOG_INFO("vid/pid are not identical: %04X/%04X %04X/%04X",
+			param->vid, param->pid,
+			h->vid, h->pid);
+
+	/* check if mode is supported */
+	err = ERROR_OK;
+
+	switch (h->transport) {
+		case eSTLinkTransportSWD:
+		case eSTLinkTransportJTAG:
+			if (h->version.jtag == 0)
+				err = ERROR_FAIL;
+			break;
+		case eSTLinkTransportSWIM:
+			if (h->version.swim == 0)
+				err = ERROR_FAIL;
+			break;
+		default:
+			err = ERROR_FAIL;
+			break;
+	}
+
+	if (err != ERROR_OK) {
+		LOG_ERROR("mode (transport) not supported by device");
+		jtag_libusb_close(h->fd);
+		free(h);
+		return err;
+	}
+
+	err = stlink_usb_init_mode(h);
+
+	if (err != ERROR_OK) {
+		LOG_ERROR("init mode failed");
+		jtag_libusb_close(h->fd);
+		free(h);
+		return err;
+	}
 
 	*fd = h;
 
