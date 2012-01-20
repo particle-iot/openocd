@@ -131,7 +131,7 @@ enum eSTLinkMode {
 };
 
 /** */
-static int stlink_usb_recv(void *handle, const uint8_t *txbuf, int txsize, uint8_t *rxbuf,
+static int stlink_usb_recv_v2(void *handle, const uint8_t *txbuf, int txsize, uint8_t *rxbuf,
 		    int rxsize)
 {
 	struct stlink_usb_handle_s *h;
@@ -151,6 +151,23 @@ static int stlink_usb_recv(void *handle, const uint8_t *txbuf, int txsize, uint8
 		}
 	}
 	return ERROR_OK;
+}
+
+/** */
+static int stlink_usb_recv(void *handle, const uint8_t *txbuf, int txsize, uint8_t *rxbuf,
+		    int rxsize)
+{
+	struct stlink_usb_handle_s *h;
+
+	assert(handle != NULL);
+
+	h = (struct stlink_usb_handle_s *)handle;
+
+	if (h->version.stlink == 1) {
+		return ERROR_FAIL;
+	} else {
+		return stlink_usb_recv_v2(handle, txbuf, txsize, rxbuf, rxsize);
+	}
 }
 
 /** */
