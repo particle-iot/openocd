@@ -166,7 +166,7 @@ static int stlink_transport_init(struct command_context *cmd_ctx)
 	else if (strcmp(transport->name, "stlink_swim") == 0)
 		tr = eSTLinkTransportSWIM;
 
-	int retval = stlink_interface_open();
+	int retval = stlink_interface_open(tr);
 
 	if (retval != ERROR_OK)
 		return retval;
