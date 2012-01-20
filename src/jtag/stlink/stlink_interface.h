@@ -22,6 +22,7 @@
 
 /** */
 struct target;
+enum eSTLinkTransports;
 /** */
 extern const char *stlink_transports[];
 
@@ -34,6 +35,8 @@ struct stlink_interface_param_s {
 	uint16_t vid;
 	/** */
 	uint16_t pid;
+	/** */
+	enum eSTLinkTransports transport;
 };
 
 struct stlink_interface_s {
@@ -46,7 +49,7 @@ struct stlink_interface_s {
 };
 
 /** */
-int stlink_interface_open(void);
+int stlink_interface_open(enum eSTLinkTransports tr);
 /** */
 int stlink_interface_init_target(struct target *t);
 

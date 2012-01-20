@@ -28,6 +28,7 @@
 #include <helper/binarybuffer.h>
 #include <jtag/interface.h>
 #include <jtag/stlink/stlink_layout.h>
+#include <jtag/stlink/stlink_transport.h>
 #include <jtag/stlink/stlink_interface.h>
 #include <target/target.h>
 
@@ -52,6 +53,8 @@ struct stlink_usb_handle_s {
 	uint8_t txbuf[STLINK_TX_SIZE];
 	/** */
 	uint8_t rxbuf[STLINK_RX_SIZE];
+	/** */
+	enum eSTLinkTransports transport;
 };
 
 #define STLINK_OK			0x80
@@ -60,22 +63,24 @@ struct stlink_usb_handle_s {
 #define STLINK_CORE_HALTED		0x81
 #define STLINK_CORE_STAT_UNKNOWN	-1
 
-#define STLINK_GET_VERSION		0xf1
-#define STLINK_GET_CURRENT_MODE		0xf5
-
+#define STLINK_GET_VERSION		0xF1
 #define STLINK_DEBUG_COMMAND		0xF2
 #define STLINK_DFU_COMMAND		0xF3
-#define STLINK_DFU_EXIT			0x07
+#define STLINK_SWIM_COMMAND		0xF4
+#define STLINK_GET_CURRENT_MODE		0xF5
 
 #define STLINK_DEV_DFU_MODE		0x00
 #define STLINK_DEV_MASS_MODE		0x01
 #define STLINK_DEV_DEBUG_MODE		0x02
+#define STLINK_DEV_SWIM_MODE		0x03
 #define STLINK_DEV_UNKNOWN_MODE		-1
 
-#define STLINK_DEBUG_ENTER		0x20
-#define STLINK_DEBUG_EXIT		0x21
-#define STLINK_DEBUG_READCOREID		0x22
+#define STLINK_DFU_EXIT			0x07
 
+#define STLINK_SWIM_ENTER		0x00
+#define STLINK_SWIM_EXIT		0x01
+
+#define STLINK_DEBUG_ENTER_JTAG		0x00
 #define STLINK_DEBUG_GETSTATUS		0x01
 #define STLINK_DEBUG_FORCEDEBUG		0x02
 #define STLINK_DEBUG_RESETSYS		0x03
@@ -91,14 +96,26 @@ struct stlink_usb_handle_s {
 #define STLINK_DEBUG_WRITEMEM_8BIT	0x0d
 #define STLINK_DEBUG_CLEARFP		0x0e
 #define STLINK_DEBUG_WRITEDEBUGREG	0x0f
-#define STLINK_DEBUG_ENTER_SWD		0xa3
-#define STLINK_DEBUG_ENTER_JTAG		0x00
 
-#define STLINK_SWD_ENTER		0x30
-#define STLINK_SWD_READCOREID		0x32
+#define STLINK_DEBUG_ENTER_JTAG		0x00
+#define STLINK_DEBUG_ENTER_SWD		0xa3
+
+#define STLINK_DEBUG_ENTER		0x20
+#define STLINK_DEBUG_EXIT		0x21
+#define STLINK_DEBUG_READCOREID		0x22
 
 /** */
-int stlink_usb_recv(void *handle, const uint8_t *txbuf, int txsize, uint8_t *rxbuf,
+enum eSTLinkMode {
+	eSTLinkModeUNKNOWN = 0,
+	eSTLinkModeDFU,
+	eSTLinkModeMASS,
+	eSTLinkModeDebugJTAG,
+	eSTLinkModeDebugSWD,
+	eSTLinkModeDebugSWIM
+};
+
+/** */
+static int stlink_usb_recv(void *handle, const uint8_t *txbuf, int txsize, uint8_t *rxbuf,
 		    int rxsize)
 {
 	struct stlink_usb_handle_s *h;
@@ -121,7 +138,7 @@ int stlink_usb_recv(void *handle, const uint8_t *txbuf, int txsize, uint8_t *rxb
 }
 
 /** */
-void stlink_usb_init_buffer(void *handle)
+static void stlink_usb_init_buffer(void *handle)
 {
 	struct stlink_usb_handle_s *h;
 
@@ -133,7 +150,7 @@ void stlink_usb_init_buffer(void *handle)
 }
 
 /** */
-int stlink_usb_version(void *handle)
+static int stlink_usb_version(void *handle)
 {
 	int res;
 	uint16_t v;
@@ -164,7 +181,7 @@ int stlink_usb_version(void *handle)
 }
 
 /** */
-int stlink_usb_current_mode(void *handle, uint8_t *mode)
+static int stlink_usb_current_mode(void *handle, uint8_t *mode)
 {
 	int res;
 	struct stlink_usb_handle_s *h;
@@ -188,7 +205,7 @@ int stlink_usb_current_mode(void *handle, uint8_t *mode)
 }
 
 /** */
-int stlink_usb_dfu_mode_leave(void *handle)
+static int stlink_usb_mode_enter(void *handle, enum eSTLinkMode type)
 {
 	int res;
 	struct stlink_usb_handle_s *h;
@@ -199,11 +216,28 @@ int stlink_usb_dfu_mode_leave(void *handle)
 
 	stlink_usb_init_buffer(handle);
 
-	h->txbuf[0] = STLINK_DFU_COMMAND;
-	h->txbuf[1] = STLINK_DFU_EXIT;
+	switch (type) {
+		case eSTLinkModeDebugJTAG:
+			h->txbuf[0] = STLINK_DEBUG_COMMAND;
+			h->txbuf[1] = STLINK_DEBUG_ENTER;
+			h->txbuf[2] = STLINK_DEBUG_ENTER_JTAG;
+			break;
+		case eSTLinkModeDebugSWD:
+			h->txbuf[0] = STLINK_DEBUG_COMMAND;
+			h->txbuf[1] = STLINK_DEBUG_ENTER;
+			h->txbuf[2] = STLINK_DEBUG_ENTER_SWD;
+			break;
+		case eSTLinkModeDebugSWIM:
+			h->txbuf[0] = STLINK_SWIM_COMMAND;
+			h->txbuf[1] = STLINK_SWIM_ENTER;
+			break;
+		case eSTLinkModeDFU:
+		case eSTLinkModeMASS:
+		default:
+			return ERROR_FAIL;
+	}
 
 	res = stlink_usb_recv(handle, h->txbuf, STLINK_CMD_SIZE, 0, 0);
-
 	if (res != ERROR_OK)
 		return res;
 
@@ -211,7 +245,7 @@ int stlink_usb_dfu_mode_leave(void *handle)
 }
 
 /** */
-int stlink_usb_swd_mode_enter(void *handle)
+static int stlink_usb_mode_leave(void *handle, enum eSTLinkMode type)
 {
 	int res;
 	struct stlink_usb_handle_s *h;
@@ -222,9 +256,24 @@ int stlink_usb_swd_mode_enter(void *handle)
 
 	stlink_usb_init_buffer(handle);
 
-	h->txbuf[0] = STLINK_DEBUG_COMMAND;
-	h->txbuf[1] = STLINK_DEBUG_ENTER;
-	h->txbuf[2] = STLINK_DEBUG_ENTER_SWD;
+	switch (type) {
+		case eSTLinkModeDebugJTAG:
+		case eSTLinkModeDebugSWD:
+			h->txbuf[0] = STLINK_DEBUG_COMMAND;
+			h->txbuf[1] = STLINK_DEBUG_EXIT;
+			break;
+		case eSTLinkModeDebugSWIM:
+			h->txbuf[0] = STLINK_SWIM_COMMAND;
+			h->txbuf[1] = STLINK_SWIM_EXIT;
+			break;
+		case eSTLinkModeDFU:
+			h->txbuf[0] = STLINK_DFU_COMMAND;
+			h->txbuf[1] = STLINK_DFU_EXIT;
+			break;
+		case eSTLinkModeMASS:
+		default:
+			return ERROR_FAIL;
+	}
 
 	res = stlink_usb_recv(handle, h->txbuf, STLINK_CMD_SIZE, 0, 0);
 	if (res != ERROR_OK)
@@ -234,35 +283,17 @@ int stlink_usb_swd_mode_enter(void *handle)
 }
 
 /** */
-int stlink_usb_debug_mode_leave(void *handle)
-{
-	int res;
-	struct stlink_usb_handle_s *h;
-
-	assert(handle != NULL);
-
-	h = (struct stlink_usb_handle_s *)handle;
-
-	stlink_usb_init_buffer(handle);
-
-	h->txbuf[0] = STLINK_DEBUG_COMMAND;
-	h->txbuf[1] = STLINK_DEBUG_EXIT;
-
-	res = stlink_usb_recv(handle, h->txbuf, STLINK_CMD_SIZE, 0, 0);
-	if (res != ERROR_OK)
-		return res;
-
-	return ERROR_OK;
-}
-
-/** */
-int stlink_usb_init_mode(void *handle)
+static int stlink_usb_init_mode(void *handle)
 {
 	int res;
 	uint8_t mode;
+	enum eSTLinkMode emode;
+	struct stlink_usb_handle_s *h;
 
 	assert(handle != NULL);
 
+	h = (struct stlink_usb_handle_s *)handle;
+
 	res = stlink_usb_current_mode(handle, &mode);
 
 	if (res != ERROR_OK)
@@ -270,8 +301,23 @@ int stlink_usb_init_mode(void *handle)
 
 	LOG_DEBUG("MODE: %02X", mode);
 
-	if (mode == STLINK_DEV_DFU_MODE) {
-		res = stlink_usb_dfu_mode_leave(handle);
+	/* try to exit current mode */
+	switch (mode) {
+		case STLINK_DEV_DFU_MODE:
+			emode = eSTLinkModeDFU;
+			break;
+		case STLINK_DEV_DEBUG_MODE:
+			emode = eSTLinkModeDebugSWD;
+			break;
+		case STLINK_DEV_SWIM_MODE:
+			emode = eSTLinkModeDebugSWIM;
+		default:
+			emode = eSTLinkModeUNKNOWN;
+			break;
+	}
+
+	if (emode != eSTLinkModeUNKNOWN) {
+		res = stlink_usb_mode_leave(handle, emode);
 
 		if (res != ERROR_OK)
 			return res;
@@ -284,12 +330,28 @@ int stlink_usb_init_mode(void *handle)
 
 	LOG_DEBUG("MODE: %02X", mode);
 
-	if (mode != STLINK_DEV_DEBUG_MODE) {
-		res = stlink_usb_swd_mode_enter(handle);
-
-		if (res != ERROR_OK)
-			return res;
+	/* set selected mode */
+	switch (h->transport) {
+		case eSTLinkTransportSWD:
+			emode = eSTLinkModeDebugSWD;
+			break;
+		case eSTLinkTransportJTAG:
+			emode = eSTLinkModeDebugJTAG;
+			break;
+		case eSTLinkTransportSWIM:
+		default:
+			break;
 	}
+
+	if (emode == eSTLinkModeUNKNOWN) {
+		LOG_ERROR("selected mode (transport) not supported");
+		return ERROR_FAIL;
+	}
+
+	res = stlink_usb_mode_enter(handle, emode);
+
+	if (res != ERROR_OK)
+		return res;
 
 	res = stlink_usb_current_mode(handle, &mode);
 
@@ -302,7 +364,7 @@ int stlink_usb_init_mode(void *handle)
 }
 
 /** */
-int stlink_usb_idcode(void *handle, uint32_t *idcode)
+static int stlink_usb_idcode(void *handle, uint32_t *idcode)
 {
 	int res;
 	struct stlink_usb_handle_s *h;
@@ -329,7 +391,7 @@ int stlink_usb_idcode(void *handle, uint32_t *idcode)
 }
 
 /** */
-enum target_state stlink_usb_state(void *handle)
+static enum target_state stlink_usb_state(void *handle)
 {
 	int res;
 	struct stlink_usb_handle_s *h;
@@ -357,7 +419,7 @@ enum target_state stlink_usb_state(void *handle)
 }
 
 /** */
-int stlink_usb_reset(void *handle)
+static int stlink_usb_reset(void *handle)
 {
 	int res;
 	struct stlink_usb_handle_s *h;
@@ -382,7 +444,7 @@ int stlink_usb_reset(void *handle)
 }
 
 /** */
-int stlink_usb_run(void *handle)
+static int stlink_usb_run(void *handle)
 {
 	int res;
 	struct stlink_usb_handle_s *h;
@@ -405,7 +467,7 @@ int stlink_usb_run(void *handle)
 }
 
 /** */
-int stlink_usb_halt(void *handle)
+static int stlink_usb_halt(void *handle)
 {
 	int res;
 	struct stlink_usb_handle_s *h;
@@ -428,7 +490,7 @@ int stlink_usb_halt(void *handle)
 }
 
 /** */
-int stlink_usb_step(void *handle)
+static int stlink_usb_step(void *handle)
 {
 	int res;
 	struct stlink_usb_handle_s *h;
@@ -451,7 +513,7 @@ int stlink_usb_step(void *handle)
 }
 
 /** */
-int stlink_usb_read_regs(void *handle)
+static int stlink_usb_read_regs(void *handle)
 {
 	int res;
 	struct stlink_usb_handle_s *h;
@@ -474,7 +536,7 @@ int stlink_usb_read_regs(void *handle)
 }
 
 /** */
-int stlink_usb_read_reg(void *handle, int num, uint32_t *val)
+static int stlink_usb_read_reg(void *handle, int num, uint32_t *val)
 {
 	int res;
 	struct stlink_usb_handle_s *h;
@@ -500,7 +562,7 @@ int stlink_usb_read_reg(void *handle, int num, uint32_t *val)
 }
 
 /** */
-int stlink_usb_write_reg(void *handle, int num, uint32_t val)
+static int stlink_usb_write_reg(void *handle, int num, uint32_t val)
 {
 	int res;
 	struct stlink_usb_handle_s *h;
@@ -525,7 +587,7 @@ int stlink_usb_write_reg(void *handle, int num, uint32_t val)
 }
 
 /** */
-int stlink_usb_read_mem8(void *handle, uint32_t addr, uint16_t len,
+static int stlink_usb_read_mem8(void *handle, uint32_t addr, uint16_t len,
 			  uint8_t *buffer)
 {
 	int res;
@@ -558,7 +620,7 @@ int stlink_usb_read_mem8(void *handle, uint32_t addr, uint16_t len,
 }
 
 /** */
-int stlink_usb_write_mem8(void *handle, uint32_t addr, uint16_t len,
+static int stlink_usb_write_mem8(void *handle, uint32_t addr, uint16_t len,
 			   const uint8_t *buffer)
 {
 	int res;
@@ -589,7 +651,7 @@ int stlink_usb_write_mem8(void *handle, uint32_t addr, uint16_t len,
 }
 
 /** */
-int stlink_usb_read_mem32(void *handle, uint32_t addr, uint16_t len,
+static int stlink_usb_read_mem32(void *handle, uint32_t addr, uint16_t len,
 			  uint32_t *buffer)
 {
 	int res;
@@ -619,7 +681,7 @@ int stlink_usb_read_mem32(void *handle, uint32_t addr, uint16_t len,
 }
 
 /** */
-int stlink_usb_write_mem32(void *handle, uint32_t addr, uint16_t len,
+static int stlink_usb_write_mem32(void *handle, uint32_t addr, uint16_t len,
 			   const uint32_t *buffer)
 {
 	int res;
@@ -652,8 +714,9 @@ int stlink_usb_write_mem32(void *handle, uint32_t addr, uint16_t len,
 }
 
 /** */
-int stlink_usb_open(struct stlink_interface_param_s *param, void **fd)
+static int stlink_usb_open(struct stlink_interface_param_s *param, void **fd)
 {
+	int err;
 	struct stlink_usb_handle_s *h;
 
 	LOG_DEBUG("stlink_usb_open");
@@ -664,6 +727,8 @@ int stlink_usb_open(struct stlink_interface_param_s *param, void **fd)
 		LOG_DEBUG("stlink_open_usb: malloc failed");
 		return ERROR_FAIL;
 	}
+
+	h->transport = param->transport;
 
 	const uint16_t vids[] = { param->vid, 0 };
 	const uint16_t pids[] = { param->pid, 0 };
@@ -683,7 +748,13 @@ int stlink_usb_open(struct stlink_interface_param_s *param, void **fd)
 		return ERROR_FAIL;
 	}
 
-	stlink_usb_init_mode(h);
+	err = stlink_usb_init_mode(h);
+
+	if (err != ERROR_OK) {
+		jtag_libusb_close(h->fd);
+		free(h);
+		return err;
+	}
 
 	stlink_usb_version(h);
 
@@ -693,9 +764,17 @@ int stlink_usb_open(struct stlink_interface_param_s *param, void **fd)
 }
 
 /** */
-struct stlink_layout_api_s stlink_layout_api = {
+static int stlink_usb_close(void *fd)
+{
+	return ERROR_OK;
+}
+
+/** */
+struct stlink_layout_api_s stlink_usb_layout_api = {
 	/** */
 	.open = stlink_usb_open,
+	/** */
+	.close = stlink_usb_close,
 	/** */
 	.idcode = stlink_usb_idcode,
 	/** */
