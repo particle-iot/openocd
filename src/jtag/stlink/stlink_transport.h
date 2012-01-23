@@ -20,4 +20,11 @@
 #ifndef _STLINK_TRANSPORT_
 #define _STLINK_TRANSPORT_
 
+enum e_stlink_transports {
+	e_stlink_transport_unknown = 0,
+	e_stlink_transport_swd,
+	e_stlink_transport_jtag,
+	e_stlink_transport_swim
+};
+
 #endif
