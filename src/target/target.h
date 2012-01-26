@@ -105,7 +105,7 @@ struct working_area
 	struct working_area **user;
 	struct working_area *next;
 };
- 
+
 struct gdb_service
 {
 	struct target *target;
@@ -451,6 +451,18 @@ int target_wait_algorithm(struct target *target,
 		int num_mem_params, struct mem_param *mem_params,
 		int num_reg_params, struct reg_param *reg_params,
 		uint32_t exit_point, int timeout_ms,
+		void *arch_info);
+
+/**
+ * This routine is a wrapper for asynchronous algorithms.
+ *
+ */
+int target_run_flash_async_algorithm(struct target *target,
+		uint8_t *buffer, uint32_t count, int block_size,
+		int num_mem_params, struct mem_param *mem_params,
+		int num_reg_params, struct reg_param *reg_params,
+		uint32_t buffer_start, uint32_t buffer_size,
+		uint32_t entry_point, uint32_t exit_point,
 		void *arch_info);
 
 /**
