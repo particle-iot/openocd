@@ -43,6 +43,11 @@
 #define STLINK_TX_SIZE	(4*128)
 #define STLINK_RX_SIZE	(4*128)
 
+enum stlink_jtag_api_version {
+	STLINK_JTAG_API_V1 = 0,
+	STLINK_JTAG_API_V2,
+};
+
 /** */
 struct stlink_usb_version {
 	/** */
@@ -51,6 +56,8 @@ struct stlink_usb_version {
 	int jtag;
 	/** */
 	int swim;
+	/** highest supported jtag api version */
+	enum stlink_jtag_api_version jtag_api_max;
 };
 
 /** */
@@ -73,6 +80,8 @@ struct stlink_usb_handle_s {
 	uint16_t pid;
 	/** */
 	uint32_t sg_tag;
+	/** this is the currently used jtag api */
+	enum stlink_jtag_api_version jtag_api;
 };
 
 #define STLINK_OK			0x80
@@ -365,9 +374,19 @@ static int stlink_usb_version(void *handle)
 	h->vid = buf_get_u32(h->rxbuf, 16, 16);
 	h->pid = buf_get_u32(h->rxbuf, 32, 16);
 
-	LOG_DEBUG("STLINK v%d JTAG v%d SWIM v%d VID %04X PID %04X",
+	/* set the supported jtag api version
+	 * V1 doesn't support API V2 at all
+	 * V2 support API V2 since JTAG V13
+	 */
+	if ((h->version.stlink == 2) && (h->version.jtag > 12))
+		h->version.jtag_api_max = STLINK_JTAG_API_V2;
+	else
+		h->version.jtag_api_max = STLINK_JTAG_API_V1;
+
+	LOG_DEBUG("STLINK v%d JTAG v%d API v%d SWIM v%d VID %04X PID %04X",
 		h->version.stlink,
 		h->version.jtag,
+		(h->version.jtag_api_max == STLINK_JTAG_API_V1) ? 1 : 2,
 		h->version.swim,
 		h->vid,
 		h->pid);
@@ -413,9 +432,12 @@ static int stlink_usb_mode_enter(void *handle, enum stlink_mode type)
 
 	switch (type) {
 		case STLINK_MODE_DEBUG_JTAG:
-			h->txbuf[0] = STLINK_DEBUG_COMMAND;
-			h->txbuf[1] = STLINK_DEBUG_ENTER;
-			h->txbuf[2] = STLINK_DEBUG_ENTER_JTAG;
+			if (h->jtag_api == STLINK_JTAG_API_V1) {
+				h->txbuf[0] = STLINK_DEBUG_COMMAND;
+				h->txbuf[1] = STLINK_DEBUG_ENTER;
+				h->txbuf[2] = STLINK_DEBUG_ENTER_JTAG;
+			} else
+				return ERROR_FAIL;
 			break;
 		case STLINK_MODE_DEBUG_SWD:
 			h->txbuf[0] = STLINK_DEBUG_COMMAND;
@@ -998,6 +1020,10 @@ static int stlink_usb_open(struct stlink_interface_param_s *param, void **fd)
 		return err;
 	}
 
+	/* set the used jtag api */
+	h->jtag_api = STLINK_JTAG_API_V1;
+
+	/* initialize the debug hardware */
 	err = stlink_usb_init_mode(h);
 
 	if (err != ERROR_OK) {
