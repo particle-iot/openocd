@@ -43,6 +43,11 @@
 #define STLINK_TX_SIZE	(4*128)
 #define STLINK_RX_SIZE	(4*128)
 
+enum stlink_jtag_api_version {
+	STLINK_JTAG_API_V1 = 0,
+	STLINK_JTAG_API_V2,
+};
+
 /** */
 struct stlink_usb_version {
 	/** */
@@ -73,6 +78,8 @@ struct stlink_usb_handle_s {
 	uint16_t pid;
 	/** */
 	uint32_t sg_tag;
+	/** */
+	enum stlink_jtag_api_version jtag_api;
 };
 
 #define STLINK_OK			0x80
@@ -365,9 +372,19 @@ static int stlink_usb_version(void *handle)
 	h->vid = buf_get_u32(h->rxbuf, 16, 16);
 	h->pid = buf_get_u32(h->rxbuf, 32, 16);
 
-	LOG_DEBUG("STLINK v%d JTAG v%d SWIM v%d VID %04X PID %04X",
+	/* set the supported jtag api version
+	 * V1 doesn't support API V2 at all
+	 * V2 support API V2 since JTAG V13
+	 */
+	if ((h->version.stlink == 2) && (h->version.jtag > 12))
+		h->jtag_api = STLINK_JTAG_API_V2;
+	else
+		h->jtag_api = STLINK_JTAG_API_V1;
+
+	LOG_DEBUG("STLINK v%d JTAG v%d API v%d SWIM v%d VID %04X PID %04X",
 		h->version.stlink,
 		h->version.jtag,
+		(h->jtag_api == STLINK_JTAG_API_V1) ? 1 : 2,
 		h->version.swim,
 		h->vid,
 		h->pid);
