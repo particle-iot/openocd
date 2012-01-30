@@ -84,17 +84,11 @@
 /* FTDI access library includes */
 #include "mpsse.h"
 
-/* max TCK for the full speed devices 6000 kHz */
-#define FTDI_2232C_MAX_TCK 6000
-/* this speed value tells that RTCK is requested */
-#define RTCK_SPEED -1
-
 #define JTAG_MODE (LSB_FIRST | POS_EDGE_IN | NEG_EDGE_OUT)
 
 static char *ftdi_device_desc;
 static char *ftdi_serial;
 static uint8_t ftdi_latency = 255;
-static unsigned ftdi_max_tck = FTDI_2232C_MAX_TCK;
 
 #define MAX_USB_IDS 8
 /* vid = pid = 0 marks the end of the list */
@@ -184,19 +178,9 @@ static int move_to_state(tap_state_t goal_state)
 static int ftdi_speed(int speed)
 {
 	int retval;
+	retval = mpsse_set_frequency(mpsse_ctx, speed);
 
-	retval = ERROR_OK;
-	bool enable_adaptive_clocking = (RTCK_SPEED == speed);
-	/* TODO: just try to set it through mpsse, if it fails it's not supported */
-	if (enable_adaptive_clocking) {
-		LOG_ERROR("BUG: RTCK is not implemented");
-		return ERROR_FAIL;
-	}
-
-	/* TODO: automatically set/clear divide-by-5 on H-chips to satisfy speed */
-	retval = mpsse_set_divisor(mpsse_ctx, speed);
-
-	if (retval != ERROR_OK) {
+	if (retval < 0) {
 		LOG_ERROR("couldn't set FTDI TCK speed");
 		return retval;
 	}
@@ -206,49 +190,13 @@ static int ftdi_speed(int speed)
 
 static int ftdi_speed_div(int speed, int *khz)
 {
-	/* Take a look in the FTDI manual,
-	 * AN2232C-01 Command Processor for
-	 * MPSSE and MCU Host Bus. Chapter 3.8 */
-
-	*khz = (RTCK_SPEED == speed) ? 0 : ftdi_max_tck / (1 + speed);
-
-
+	*khz = speed / 1000;
 	return ERROR_OK;
 }
 
 static int ftdi_khz(int khz, int *jtag_speed)
 {
-	/* TODO: Let MPSSE handle this */
-	if (khz == 0) {
-		LOG_ERROR("BUG: RTCK is not implemented");
-		return ERROR_FAIL;
-	}
-
-	/* Take a look in the FT2232 manual,
-	 * AN2232C-01 Command Processor for
-	 * MPSSE and MCU Host Bus. Chapter 3.8
-	 *
-	 * We will calc here with a multiplier
-	 * of 10 for better rounding later. */
-
-	/* Calc speed, (ftdi_max_tck / khz) - 1
-	 * Use 65000 for better rounding */
-	*jtag_speed = ((ftdi_max_tck*10) / khz) - 10;
-
-	/* Add 0.9 for rounding */
-	*jtag_speed += 9;
-
-	/* Calc real speed */
-	*jtag_speed = *jtag_speed / 10;
-
-	/* Check if speed is greater than 0 */
-	if (*jtag_speed < 0)
-		*jtag_speed = 0;
-
-	/* Check max value */
-	if (*jtag_speed > 0xFFFF)
-		*jtag_speed = 0xFFFF;
-
+	*jtag_speed = khz * 1000;
 	return ERROR_OK;
 }
 
