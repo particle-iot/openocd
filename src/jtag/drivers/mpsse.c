@@ -341,6 +341,11 @@ void mpsse_close(struct mpsse_ctx *ctx)
 	free(ctx);
 }
 
+bool mpsse_is_high_speed(struct mpsse_ctx *ctx)
+{
+	return ctx->type != TYPE_FT2232C;
+}
+
 void mpsse_purge(struct mpsse_ctx *ctx)
 {
 	int err;
@@ -594,17 +599,23 @@ int mpsse_read_data_bits_high_byte(struct mpsse_ctx *ctx, uint8_t *data)
 	return retval;
 }
 
-int mpsse_loopback_config(struct mpsse_ctx *ctx, bool enable)
+static int single_byte_boolean_helper(struct mpsse_ctx *ctx, bool var, uint8_t val_if_true,
+	uint8_t val_if_false)
 {
-	LOG_DEBUG("%s", enable ? "on" : "off");
 	int retval = ERROR_OK;
 
 	if (buffer_write_space(ctx) < 1)
 		retval = mpsse_flush(ctx);
 
-	buffer_write_byte(ctx, enable ? 0x84 : 0x85);
+	buffer_write_byte(ctx, var ? val_if_true : val_if_false);
 
 	return retval;
+}
+
+int mpsse_loopback_config(struct mpsse_ctx *ctx, bool enable)
+{
+	LOG_DEBUG("%s", enable ? "on" : "off");
+	return single_byte_boolean_helper(ctx, enable, 0x84, 0x85);
 }
 
 int mpsse_set_divisor(struct mpsse_ctx *ctx, uint16_t divisor)
@@ -620,6 +631,62 @@ int mpsse_set_divisor(struct mpsse_ctx *ctx, uint16_t divisor)
 	buffer_write_byte(ctx, divisor >> 8);
 
 	return retval;
+}
+
+int mpsse_divide_by_5_config(struct mpsse_ctx *ctx, bool enable)
+{
+	if (!mpsse_is_high_speed(ctx))
+		return ERROR_FAIL;
+
+	LOG_DEBUG("%s", enable ? "on" : "off");
+
+	return single_byte_boolean_helper(ctx, enable, 0x8b, 0x8a);
+}
+
+int mpsse_rtck_config(struct mpsse_ctx *ctx, bool enable)
+{
+	if (!mpsse_is_high_speed(ctx))
+		return ERROR_FAIL;
+
+	LOG_DEBUG("%s", enable ? "on" : "off");
+
+	return single_byte_boolean_helper(ctx, enable, 0x96, 0x97);
+}
+
+int mpsse_set_frequency(struct mpsse_ctx *ctx, int frequency)
+{
+	LOG_DEBUG("target %d Hz", frequency);
+	assert(frequency >= 0);
+	int base_clock;
+
+	if (frequency == 0)
+		return mpsse_rtck_config(ctx, true);
+
+	mpsse_rtck_config(ctx, false); /* just try */
+
+	if (frequency > 60000000 / 2 / 65536 && mpsse_is_high_speed(ctx)) {
+		int retval = mpsse_divide_by_5_config(ctx, false);
+		if (retval != ERROR_OK)
+			return retval;
+		base_clock = 60000000;
+	} else {
+		mpsse_divide_by_5_config(ctx, true); /* just try */
+		base_clock = 12000000;
+	}
+
+	int divisor = (base_clock / 2 + frequency - 1) / frequency - 1;
+	if (divisor > 65535)
+		divisor = 65535;
+	assert(divisor >= 0);
+
+	int retval = mpsse_set_divisor(ctx, divisor);
+	if (retval != ERROR_OK)
+		return retval;
+
+	frequency = base_clock / 2 / (1 + divisor);
+	LOG_DEBUG("actually %d Hz", frequency);
+
+	return frequency;
 }
 
 /* Context needed by the callbacks */
