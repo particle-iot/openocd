@@ -2100,24 +2100,24 @@ sub process {
 		}
 
 # check for static const char * arrays.
-		if ($line =~ /\bstatic\s+const\s+char\s*\*\s*(\w+)\s*\[\s*\]\s*=\s*/) {
-			WARN("STATIC_CONST_CHAR_ARRAY",
-			     "static const char * array should probably be static const char * const\n" .
-				$herecurr);
-               }
+#		if ($line =~ /\bstatic\s+const\s+char\s*\*\s*(\w+)\s*\[\s*\]\s*=\s*/) {
+#			WARN("STATIC_CONST_CHAR_ARRAY",
+#			     "static const char * array should probably be static const char * const\n" .
+#				$herecurr);
+#               }
 
 # check for static char foo[] = "bar" declarations.
-		if ($line =~ /\bstatic\s+char\s+(\w+)\s*\[\s*\]\s*=\s*"/) {
-			WARN("STATIC_CONST_CHAR_ARRAY",
-			     "static char array declaration should probably be static const char\n" .
-				$herecurr);
-               }
+#		if ($line =~ /\bstatic\s+char\s+(\w+)\s*\[\s*\]\s*=\s*"/) {
+#			WARN("STATIC_CONST_CHAR_ARRAY",
+#			     "static char array declaration should probably be static const char\n" .
+#				$herecurr);
+#               }
 
 # check for declarations of struct pci_device_id
-		if ($line =~ /\bstruct\s+pci_device_id\s+\w+\s*\[\s*\]\s*\=\s*\{/) {
-			WARN("DEFINE_PCI_DEVICE_TABLE",
-			     "Use DEFINE_PCI_DEVICE_TABLE for struct pci_device_id\n" . $herecurr);
-		}
+#		if ($line =~ /\bstruct\s+pci_device_id\s+\w+\s*\[\s*\]\s*\=\s*\{/) {
+#			WARN("DEFINE_PCI_DEVICE_TABLE",
+#			     "Use DEFINE_PCI_DEVICE_TABLE for struct pci_device_id\n" . $herecurr);
+#		}
 
 # check for new typedefs, only function parameters and sparse annotations
 # make sense.
