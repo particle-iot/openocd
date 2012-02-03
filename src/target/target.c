@@ -1064,6 +1064,10 @@ COMMAND_HANDLER(handle_target_init_command)
 	if (ERROR_OK != retval)
 		return retval;
 
+	retval = command_run_line(CMD_CTX, "init_board");
+	if (ERROR_OK != retval)
+		return retval;
+
 	LOG_DEBUG("Initializing targets...");
 	return target_init(CMD_CTX);
 }
