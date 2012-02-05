@@ -2812,8 +2812,8 @@ sub process {
 				if ($rest !~ /while\s*\(/ &&
 				    $dstat !~ /$exceptions/)
 				{
-					ERROR("MULTISTATEMENT_MACRO_USE_DO_WHILE",
-					      "Macros with multiple statements should be enclosed in a do - while loop\n" . "$here\n$ctx\n");
+#					ERROR("MULTISTATEMENT_MACRO_USE_DO_WHILE",
+#					      "Macros with multiple statements should be enclosed in a do - while loop\n" . "$here\n$ctx\n");
 				}
 
 			} elsif ($ctx !~ /;/) {
