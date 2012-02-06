@@ -921,9 +921,10 @@ static int stm32x_probe(struct flash_bank *bank)
 	int retval = target_read_u32(target, 0xE0042000, &device_id);
 	if (retval != ERROR_OK)
 		return retval;
+
 	if(device_id == 0x00000000) {	// device_id is 0, then we can try the stm32f0x address
 		LOG_INFO("device id is 0x00000000 try stm32f0x address");
-		int retval = target_read_u32(target, 0x40015800, &device_id);
+		retval = target_read_u32(target, 0x40015800, &device_id);
 		if (retval != ERROR_OK)
 			return retval;
 	}
@@ -1109,6 +1110,13 @@ static int get_stm32x_info(struct flash_bank *bank, char *buf, int buf_size)
 	int retval = target_read_u32(target, 0xE0042000, &device_id);
 	if (retval != ERROR_OK)
 		return retval;
+
+	if(device_id == 0x00000000) {	// device_id is 0, then we can try the stm32f0x address
+		LOG_INFO("device id is 0x00000000 try stm32f0x address");
+		retval = target_read_u32(target, 0x40015800, &device_id);
+		if (retval != ERROR_OK)
+			return retval;
+	}
 
 	if ((device_id & 0xfff) == 0x410) {
 		printed = snprintf(buf, buf_size, "stm32x (Medium Density) - Rev: ");
