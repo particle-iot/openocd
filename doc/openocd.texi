@@ -434,6 +434,14 @@ They only works with ST Micro chips, notably STM32 and STM8.
 @* Link: @url{http://www.st.com/internet/evalboard/product/251168.jsp}
 @end itemize
 
+For info the original ST-LINK enumerates using the mass storage usb class, however
+it's implementation is completely broken. The result is this causes issues under linux.
+The simplest solution is to get linux to ignore the ST-LINK using one of the following method's:
+@itemize @bullet
+@item modprobe -r usb-storage && modprobe usb-storage quirks=483:3744:i
+@item add "options usb-storage quirks=483:3744:i" to /etc/modprobe.conf
+@end itemize
+
 @section USB Other
 @itemize @bullet
 @item @b{USBprog}
@@ -1331,7 +1339,7 @@ have only been used by the developer who created it.
 
 A separate chapter gives information about how to set these up.
 @xref{Debug Adapter Configuration}.
-Read the OpenOCD source code (and Developer's GUide)
+Read the OpenOCD source code (and Developer's Guide)
 if you have a new kind of hardware interface
 and need to provide a driver for it.
 
@@ -1540,6 +1548,47 @@ command, in case your board is used with JTAG adapter which
 also supports it.  Otherwise use @command{adapter_khz}.
 Set the slow rate at the beginning of the reset sequence,
 and the faster rate as soon as the clocks are at full speed.
+
+@anchor{The init_board procedure}
+@subsection The init_board procedure
+@cindex init_board procedure
+
+The concept of @code{init_board} procedure is very similar to @code{init_targets} (@xref{The init_targets procedure}) -
+it's a replacement of ``linear'' configuration scripts. This procedure is meant to be executed when OpenOCD enters run
+stage (@xref{Entering the Run Stage}), after @code{init_targets}. The idea to have spearate @code{init_targets} and
+@code{init_board} procedures is to allow the first one to configure everything target specific (internal flash,
+internal RAM, etc.) and the second one to configure everything board specific (reset signals, chip frequency,
+reset-init event handler, external memory, etc.). Additionally ``linear'' board config file will most likely fail when
+target config file uses @code{init_targets} scheme (``linear'' script is executed before @code{init} and
+@code{init_targets} - after), so separating these two configuration stages is very convenient, as the easiest way to
+overcome this problem is to convert board config file to use @code{init_board} procedure. Board config scripts don't
+need to override @code{init_targets} defined in target config files when they only need to to add some specifics.
+
+Just as @code{init_targets}, the @code{init_board} procedure can be overriden by ``next level'' script (which sources
+the original), allowing greater code reuse.
+
+@example
+### board_file.cfg ###
+
+# source target file that does most of the config in init_targets
+source [find target/target.cfg]
+
+proc enable_fast_clock @{@} @{
+    # enables fast on-board clock source
+    # configures the chip to use it
+@}
+
+# initialize only board specifics - reset, clock, adapter frequency
+proc init_board @{@} @{
+    reset_config trst_and_srst trst_pulls_srst
+
+    $_TARGETNAME configure -event reset-init @{
+        adapter_khz 1
+        enable_fast_clock
+        adapter_khz 10000
+    @}
+@}
+@end example
 
 @section Target Config Files
 @cindex config file, target
@@ -1802,6 +1851,47 @@ OpenOCD verifies the scan chain after reset,
 look at how you are setting up JTAG clocking.
 @end quotation
 
+@anchor{The init_targets procedure}
+@subsection The init_targets procedure
+@cindex init_targets procedure
+
+Target config files can either be ``linear'' (script executed line-by-line when parsed in configuration stage,
+@xref{Configuration Stage}) or they can contain a special procedure called @code{init_targets}, which will be executed
+when entering run stage (after parsing all config files or after @code{init} command, @xref{Entering the Run Stage}).
+Such procedure can be overriden by ``next level'' script (which sources the original). This concept faciliates code
+reuse when basic target config files provide generic configuration procedures and @code{init_targets} procedure, which
+can then be sourced and enchanced or changed in a ``more specific'' target config file. This is not possible with
+``linear'' config scripts, because sourcing them executes every initialization commands they provide.
+
+@example
+### generic_file.cfg ###
+
+proc setup_my_chip @{chip_name flash_size ram_size@} @{
+    # basic initialization procedure ...
+@}
+
+proc init_targets @{@} @{
+    # initializes generic chip with 4kB of flash and 1kB of RAM
+    setup_my_chip MY_GENERIC_CHIP 4096 1024
+@}
+
+### specific_file.cfg ###
+
+source [find target/generic_file.cfg]
+
+proc init_targets @{@} @{
+    # initializes specific chip with 128kB of flash and 64kB of RAM
+    setup_my_chip MY_CHIP_WITH_128K_FLASH_64KB_RAM 131072 65536
+@}
+@end example
+
+The easiest way to convert ``linear'' config files to @code{init_targets} version is to enclose every line of ``code''
+(i.e. not @code{source} commands, procedures, etc.) in this procedure.
+
+For an example of this scheme see LPC2000 target config files.
+
+The @code{init_boards} procedure is a similar concept concerning board config files (@xref{The init_board procedure}).
+
 @subsection ARM Core Specific Hacks
 
 If the chip has a DCC, enable it. If the chip is an ARM9 with some
@@ -1914,6 +2004,7 @@ may access or activate TAPs.
 After it leaves this stage, configuration commands may no
 longer be issued.
 
+@anchor{Entering the Run Stage}
 @section Entering the Run Stage
 
 The first thing OpenOCD does after leaving the configuration
