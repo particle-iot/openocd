@@ -115,6 +115,8 @@ struct stm32x_flash_bank {
 	int probed;
 
 	bool has_dual_banks;
+	/* device_id address is different from stm32f0x and stm32f1x mcu */
+	uint32_t device_id_register;
 	/* used to access dual flash bank stm32xl */
 	uint32_t register_base;
 };
@@ -131,8 +133,15 @@ FLASH_BANK_COMMAND_HANDLER(stm32x_flash_bank_command)
 		return ERROR_COMMAND_SYNTAX_ERROR;
 
 	stm32x_info = malloc(sizeof(struct stm32x_flash_bank));
-	bank->driver_priv = stm32x_info;
 
+	bank->driver_priv = stm32x_info;
+	if (CMD_ARGC == 7) {	/* mcu type specified */
+		/* If the mcu type is specified in flash bank command, parse it. else use default value */
+		if (strncmp(CMD_ARGV[6], "stm32f0x", 8) == 0)
+			stm32x_info->device_id_register = 0x40015800;
+
+	} else
+		stm32x_info->device_id_register = 0xE0042000;
 	stm32x_info->write_algorithm = NULL;
 	stm32x_info->probed = 0;
 	stm32x_info->has_dual_banks = false;
@@ -914,13 +923,16 @@ static int stm32x_probe(struct flash_bank *bank)
 	int page_size;
 	uint32_t base_address = 0x08000000;
 
+
 	stm32x_info->probed = 0;
 	stm32x_info->register_base = FLASH_REG_BASE_B0;
 
 	/* read stm32 device id register */
-	int retval = target_read_u32(target, 0xE0042000, &device_id);
+	int retval = target_read_u32(target, stm32x_info->device_id_register, &device_id);
+
 	if (retval != ERROR_OK)
 		return retval;
+
 	LOG_INFO("device id = 0x%08" PRIx32 "", device_id);
 
 	/* get flash size from target. */
@@ -1027,6 +1039,18 @@ static int stm32x_probe(struct flash_bank *bank)
 			stm32x_info->register_base = FLASH_REG_BASE_B1;
 			base_address = 0x08080000;
 		}
+	} else if ((device_id & 0xfff) == 0x440) {
+		/* stm32f0x - we have 1k pages
+		 * 4 pages for a protection area */
+		page_size = 1024;
+		stm32x_info->ppage_size = 4;
+
+		/* check for early silicon */
+		if (flash_size_in_kb == 0xffff) {
+			/* number of sectors incorrect on revZ */
+			LOG_WARNING("STM32 flash size failed, probe inaccurate - assuming 64k flash");
+			flash_size_in_kb = 64;
+		}
 	} else {
 		LOG_WARNING("Cannot identify target as a STM32 family.");
 		return ERROR_FAIL;
@@ -1083,11 +1107,13 @@ COMMAND_HANDLER(stm32x_handle_part_id_command)
 static int get_stm32x_info(struct flash_bank *bank, char *buf, int buf_size)
 {
 	struct target *target = bank->target;
+	struct stm32x_flash_bank *stm32x_info = bank->driver_priv;
 	uint32_t device_id;
 	int printed;
 
-	/* read stm32 device id register */
-	int retval = target_read_u32(target, 0xE0042000, &device_id);
+		/* read stm32 device id register */
+	int retval = target_read_u32(target, stm32x_info->device_id_register, &device_id);
+
 	if (retval != ERROR_OK)
 		return retval;
 
@@ -1205,6 +1231,20 @@ static int get_stm32x_info(struct flash_bank *bank, char *buf, int buf_size)
 		}
 	} else if ((device_id & 0xfff) == 0x430) {
 		printed = snprintf(buf, buf_size, "stm32x (XL) - Rev: ");
+		buf += printed;
+		buf_size -= printed;
+
+		switch (device_id >> 16) {
+			case 0x1000:
+				snprintf(buf, buf_size, "A");
+				break;
+
+			default:
+				snprintf(buf, buf_size, "unknown");
+				break;
+		}
+	} else if ((device_id & 0xfff) == 0x440) {
+		printed = snprintf(buf, buf_size, "stm32f0x - Rev: ");
 		buf += printed;
 		buf_size -= printed;
 
