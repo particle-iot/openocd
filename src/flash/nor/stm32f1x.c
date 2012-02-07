@@ -921,6 +921,14 @@ static int stm32x_probe(struct flash_bank *bank)
 	int retval = target_read_u32(target, 0xE0042000, &device_id);
 	if (retval != ERROR_OK)
 		return retval;
+
+	if(device_id == 0x00000000) {  /* device_id is 0, then we can try the stm32f0x address */
+		LOG_INFO("device id is 0x00000000 try stm32f0x address");
+		retval = target_read_u32(target, 0x40015800, &device_id);
+		if (retval != ERROR_OK)
+			return retval;
+	}
+
 	LOG_INFO("device id = 0x%08" PRIx32 "", device_id);
 
 	/* get flash size from target. */
@@ -1027,6 +1035,18 @@ static int stm32x_probe(struct flash_bank *bank)
 			stm32x_info->register_base = FLASH_REG_BASE_B1;
 			base_address = 0x08080000;
 		}
+	} else if ((device_id & 0xfff) == 0x440) {
+		/* stm32f0x - we have 1k pages
+		 * 4 pages for a protection area */
+		page_size = 1024;
+		stm32x_info->ppage_size = 4;
+
+		/* check for early silicon */
+		if (flash_size_in_kb == 0xffff) {
+			/* number of sectors incorrect on revZ */
+			LOG_WARNING("STM32 flash size failed, probe inaccurate - assuming 64k flash");
+			flash_size_in_kb = 64;
+		}
 	} else {
 		LOG_WARNING("Cannot identify target as a STM32 family.");
 		return ERROR_FAIL;
@@ -1090,6 +1110,13 @@ static int get_stm32x_info(struct flash_bank *bank, char *buf, int buf_size)
 	int retval = target_read_u32(target, 0xE0042000, &device_id);
 	if (retval != ERROR_OK)
 		return retval;
+
+	if(device_id == 0x00000000) {  /* device_id is 0, then we can try the stm32f0x address */
+		LOG_INFO("device id is 0x00000000 try stm32f0x address");
+		retval = target_read_u32(target, 0x40015800, &device_id);
+		if (retval != ERROR_OK)
+			return retval;
+	}
 
 	if ((device_id & 0xfff) == 0x410) {
 		printed = snprintf(buf, buf_size, "stm32x (Medium Density) - Rev: ");
@@ -1205,6 +1232,20 @@ static int get_stm32x_info(struct flash_bank *bank, char *buf, int buf_size)
 		}
 	} else if ((device_id & 0xfff) == 0x430) {
 		printed = snprintf(buf, buf_size, "stm32x (XL) - Rev: ");
+		buf += printed;
+		buf_size -= printed;
+
+		switch (device_id >> 16) {
+			case 0x1000:
+				snprintf(buf, buf_size, "A");
+				break;
+
+			default:
+				snprintf(buf, buf_size, "unknown");
+				break;
+		}
+	} else if ((device_id & 0xfff) == 0x440) {
+		printed = snprintf(buf, buf_size, "stm32f0x - Rev: ");
 		buf += printed;
 		buf_size -= printed;
 
