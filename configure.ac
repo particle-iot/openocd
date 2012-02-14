@@ -4,7 +4,31 @@ AC_INIT([openocd], [0.6.0-dev],
 AC_CONFIG_SRCDIR([src/openocd.c])
 
 m4_include([config_subdir.m4])dnl
+#
+# this test check if the pkg-config tool not disabled
+# and available and initialize it
+#
+with_pkg_config=yes
 
+AC_ARG_ENABLE([pkg_config],
+  AS_HELP_STRING([--disable-pkg-config],
+  [Disable pkg-config usage]),
+  [with_pkg_config=$enableval], [])
+
+if test "x$with_pkg_config" = "xyes";
+then
+  AC_CHECK_PROG(HAVE_PKG_CONFIG, pkg-config, yes)
+
+  if test "x$HAVE_PKG_CONFIG" = "xyes";
+  then
+    PKG_PROG_PKG_CONFIG
+  fi
+else
+  HAVE_PKG_CONFIG=no
+fi
+#
+#
+#
 AM_INIT_AUTOMAKE([-Wall -Wno-portability dist-bzip2 dist-zip])
 AM_MAINTAINER_MODE
 
@@ -1077,12 +1101,23 @@ fi
 use_libusb0=no
 use_libusb1=no
 if test $build_usb = yes -o $build_usb_ng = yes; then
+  # libusb 1.X test
   if test $check_libusb0 = no -a $build_usb_ng = yes; then
-	AC_CHECK_HEADER([libusb-1.0/libusb.h],
+  	# first we try PKG_CONFIG if available
+	if test "x$HAVE_PKG_CONFIG" = "xyes"; then
+		# this will set $libusb1_CFLAGS
+		PKG_CHECK_MODULES([libusb1], [libusb-1.0],
+			AC_DEFINE(HAVE_LIBUSB1, 1, [Define if you have libusb-1.0]) check_libusb0=no use_libusb1=yes,
+			[HAVE_LIBUSB1=0])
+	fi
+	# fallback to header check
+	if test x"$HAVE_LIBUSB1" = "x0"; then
+		AC_CHECK_HEADER([libusb-1.0/libusb.h],
 			[AC_DEFINE(HAVE_LIBUSB1, 1, [Define if you have libusb-1.0]) check_libusb0=no use_libusb1=yes ],
 			[ check_libusb0=yes use_libusb1=no ])
+	fi
   fi
-
+  # libusb 0.X test
   if test $check_libusb0 = yes -o $build_usb = yes; then
 	AC_CHECK_HEADERS([usb.h], [use_libusb0=yes],
 			[AC_MSG_ERROR([libusb or libusb-1.0 are required to build some OpenOCD driver(s)])])
