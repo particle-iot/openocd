@@ -622,7 +622,6 @@ static int stm32_stlink_read_memory(struct target *target, uint32_t address,
 	int res;
 	uint32_t buffer_threshold = 128;
 	uint32_t addr_increment = 4;
-	uint8_t *dst = buffer;
 	uint32_t c;
 	struct stlink_interface_s *stlink_if = target_to_stlink(target);
 
@@ -648,10 +647,10 @@ static int stm32_stlink_read_memory(struct target *target, uint32_t address,
 
 		if (size != 4)
 			res = stlink_if->layout->api->read_mem8(stlink_if->fd,
-					address, c, dst);
+					address, c, buffer);
 		else
 			res = stlink_if->layout->api->read_mem32(stlink_if->fd,
-					address, c, (uint32_t *)dst);
+					address, c, buffer);
 
 		if (res != ERROR_OK)
 			return res;
@@ -671,7 +670,6 @@ static int stm32_stlink_write_memory(struct target *target, uint32_t address,
 	int res;
 	uint32_t buffer_threshold = 128;
 	uint32_t addr_increment = 4;
-	const uint8_t *dst = buffer;
 	uint32_t c;
 	struct stlink_interface_s *stlink_if = target_to_stlink(target);
 
@@ -697,10 +695,10 @@ static int stm32_stlink_write_memory(struct target *target, uint32_t address,
 
 		if (size != 4)
 			res = stlink_if->layout->api->write_mem8(stlink_if->fd,
-					address, c, dst);
+					address, c, buffer);
 		else
 			res = stlink_if->layout->api->write_mem32(stlink_if->fd,
-					address, c, (uint32_t *)dst);
+					address, c, buffer);
 
 		if (res != ERROR_OK)
 			return res;
