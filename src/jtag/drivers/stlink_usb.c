@@ -222,13 +222,8 @@ static int stlink_usb_recv_v1_get_status(void *handle, char *sg_buffer, int len)
 				len, 1000) != len)
 		return ERROR_FAIL;
 
-	uint32_t t1, t2;
-
-	t1 = buf_get_u32(sg_buffer+0, 0, 32);
-	t2 = buf_get_u32(sg_buffer+4, 0, 32);
-
 	/* check for USBS */
-	if (t1 != 0x53425355)
+	if (buf_get_u32(sg_buffer+0, 0, 32) != 0x53425355)
 		return ERROR_FAIL;
 
 	return ERROR_OK;
