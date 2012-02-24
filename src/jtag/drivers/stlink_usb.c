@@ -968,7 +968,7 @@ static int stlink_usb_write_mem8(void *handle, uint32_t addr, uint16_t len,
 
 /** */
 static int stlink_usb_read_mem32(void *handle, uint32_t addr, uint16_t len,
-			  uint32_t *buffer)
+			  uint8_t *buffer)
 {
 	int res;
 	struct stlink_usb_handle_s *h;
@@ -998,7 +998,7 @@ static int stlink_usb_read_mem32(void *handle, uint32_t addr, uint16_t len,
 
 /** */
 static int stlink_usb_write_mem32(void *handle, uint32_t addr, uint16_t len,
-			   const uint32_t *buffer)
+			   const uint8_t *buffer)
 {
 	int res;
 	struct stlink_usb_handle_s *h;

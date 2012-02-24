@@ -651,7 +651,7 @@ static int stm32_stlink_read_memory(struct target *target, uint32_t address,
 					address, c, dst);
 		else
 			res = stlink_if->layout->api->read_mem32(stlink_if->fd,
-					address, c, (uint32_t *)dst);
+					address, c, dst);
 
 		if (res != ERROR_OK)
 			return res;
@@ -700,7 +700,7 @@ static int stm32_stlink_write_memory(struct target *target, uint32_t address,
 					address, c, dst);
 		else
 			res = stlink_if->layout->api->write_mem32(stlink_if->fd,
-					address, c, (uint32_t *)dst);
+					address, c, dst);
 
 		if (res != ERROR_OK)
 			return res;
