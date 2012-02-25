@@ -726,8 +726,6 @@ static int stm32x_write(struct flash_bank *bank, uint8_t *buffer,
 	struct target *target = bank->target;
 	uint32_t words_remaining = (count / 2);
 	uint32_t bytes_remaining = (count & 0x00000001);
-	uint32_t address = bank->base + offset;
-	uint32_t bytes_written = 0;
 	int retval;
 
 	if (bank->target->state != TARGET_HALTED) {
@@ -754,50 +752,20 @@ static int stm32x_write(struct flash_bank *bank, uint8_t *buffer,
 
 	/* multiple half words (2-byte) to be programmed? */
 	if (words_remaining > 0) {
-		/* try using a block write */
 		retval = stm32x_write_block(bank, buffer, offset, words_remaining);
-		if (retval != ERROR_OK) {
-			if (retval == ERROR_TARGET_RESOURCE_NOT_AVAILABLE) {
-				/* if block write failed (no sufficient working area),
-				 * we use normal (slow) single dword accesses */
-				LOG_WARNING("couldn't use block writes, falling back to single memory accesses");
-			}
-		} else {
-			buffer += words_remaining * 2;
-			address += words_remaining * 2;
-			words_remaining = 0;
-		}
-	}
-
-	if ((retval != ERROR_OK) && (retval != ERROR_TARGET_RESOURCE_NOT_AVAILABLE))
-		goto reset_pg_and_lock;
-
-	while (words_remaining > 0) {
-		uint16_t value;
-		memcpy(&value, buffer + bytes_written, sizeof(uint16_t));
-
-		retval = target_write_u16(target, address, value);
 		if (retval != ERROR_OK)
 			goto reset_pg_and_lock;
-
-		retval = stm32x_wait_status_busy(bank, 5);
-		if (retval != ERROR_OK)
-			goto reset_pg_and_lock;
-
-		bytes_written += 2;
-		words_remaining--;
-		address += 2;
 	}
 
+	/* single byte at the end of the buffer remaining? */
 	if (bytes_remaining) {
 		uint16_t value = 0xffff;
-		memcpy(&value, buffer + bytes_written, bytes_remaining);
+		memcpy(&value, &buffer[count - 1], bytes_remaining);
 
-		retval = target_write_u16(target, address, value);
-		if (retval != ERROR_OK)
-			goto reset_pg_and_lock;
+		offset += count - 1;
 
-		retval = stm32x_wait_status_busy(bank, 5);
+		/* this should be a corner case */
+		retval = stm32x_write_block(bank, (uint8_t *)&value, offset, 1);
 		if (retval != ERROR_OK)
 			goto reset_pg_and_lock;
 	}
