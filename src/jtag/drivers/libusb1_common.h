@@ -23,7 +23,11 @@
 #define JTAG_LIBUSB_COMMON_H
 
 #include <helper/types.h>
-#include <libusb-1.0/libusb.h>
+#if IS_FREEBSD == 1
+#	include <libusb.h>
+#else
+#	include <libusb-1.0/libusb.h>
+#endif
 
 #define jtag_libusb_device			libusb_device
 #define jtag_libusb_device_handle		libusb_device_handle

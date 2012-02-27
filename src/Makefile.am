@@ -83,7 +83,11 @@ endif
 
 LIBUSB =
 if USE_LIBUSB1
+if IS_FREEBSD
+LIBUSB += -lusb
+else
 LIBUSB += -lusb-1.0
+endif
 endif
 
 if USE_LIBUSB0

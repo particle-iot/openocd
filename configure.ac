@@ -140,6 +140,7 @@ is_cygwin=no
 is_mingw=no
 is_win32=no
 is_darwin=no
+is_freebsd=no
 
 # guess-rev.sh only exists in the repository, not in the released archives
 AC_MSG_CHECKING([whether to build a release])
@@ -563,6 +564,7 @@ case $host in
 
     AC_DEFINE([IS_WIN32], [1], [1 if building for Win32.])
     AC_DEFINE([IS_DARWIN], [0], [0 if not building for Darwin.])
+    AC_DEFINE([IS_FREEBSD], [0], [0 if not building for FreeBSD.])
     ;;
   *-mingw*)
     is_mingw=yes
@@ -583,6 +585,7 @@ case $host in
     AC_DEFINE([IS_MINGW], [1], [1 if building for MinGW.])
     AC_DEFINE([IS_WIN32], [1], [1 if building for Win32.])
     AC_DEFINE([IS_DARWIN], [0], [0 if not building for Darwin.])
+    AC_DEFINE([IS_FREEBSD], [0], [0 if not building for FreeBSD.])
     ;;
   *darwin*)
     is_darwin=yes
@@ -595,6 +598,15 @@ case $host in
     AC_DEFINE([IS_CYGWIN], [0], [0 if not building for Cygwin.])
     AC_DEFINE([IS_WIN32], [0], [0 if not building for Win32.])
     AC_DEFINE([IS_DARWIN], [1], [1 if building for Darwin.])
+    AC_DEFINE([IS_FREEBSD], [0], [0 if not building for FreeBSD.])
+    ;;
+  *freebsd*)
+    is_freebsd=yes
+
+    AC_DEFINE([IS_CYGWIN], [0], [0 if not building for Cygwin.])
+    AC_DEFINE([IS_WIN32], [0], [0 if not building for Win32.])
+    AC_DEFINE([IS_DARWIN], [0], [0 if not building for Darwin.])
+    AC_DEFINE([IS_FREEBSD], [1], [1 if building for FreeBSD.])    
     ;;
   *)
     if test x$parport_use_giveio = xyes; then
@@ -1078,9 +1090,14 @@ use_libusb0=no
 use_libusb1=no
 if test $build_usb = yes -o $build_usb_ng = yes; then
   if test $check_libusb0 = no -a $build_usb_ng = yes; then
-	AC_CHECK_HEADER([libusb-1.0/libusb.h],
+    if test $is_freebsd = yes; then
+      libusb1_header="libusb.h"      
+    else
+      libusb1_header="libusb-1.0/libusb.h"
+    fi
+    AC_CHECK_HEADER([$libusb1_header],
 			[AC_DEFINE(HAVE_LIBUSB1, 1, [Define if you have libusb-1.0]) check_libusb0=no use_libusb1=yes ],
-			[ check_libusb0=yes use_libusb1=no ])
+			[ check_libusb0=yes use_libusb1=no ])  
   fi
 
   if test $check_libusb0 = yes -o $build_usb = yes; then
@@ -1126,6 +1143,7 @@ AM_CONDITIONAL([IS_CYGWIN], [test $is_cygwin = yes])
 AM_CONDITIONAL([IS_MINGW], [test $is_mingw = ye]s)
 AM_CONDITIONAL([IS_WIN32], [test $is_win32 = ye]s)
 AM_CONDITIONAL([IS_DARWIN], [test $is_darwin = ye]s)
+AM_CONDITIONAL([IS_FREEBSD], [test $is_freebsd = yes])
 AM_CONDITIONAL([BITQ], [test $build_bitq = yes])
 
 AM_CONDITIONAL([MINIDRIVER], [test $build_minidriver = ye]s)
