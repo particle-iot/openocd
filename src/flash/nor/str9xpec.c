@@ -1050,9 +1050,13 @@ COMMAND_HANDLER(str9xpec_handle_flash_enable_turbo_command)
 
 	str9xpec_info = bank->driver_priv;
 
-	tap0 = str9xpec_info->tap;
-
 	/* remove arm core from chain - enter turbo mode */
+	tap0 = str9xpec_info->tap;
+	if (tap0 == NULL) {
+		/* things are *WRONG* */
+		command_print(CMD_CTX, "**STR9FLASH** (tap0) invalid chain?");
+		return ERROR_OK;
+	}
 	tap1 = tap0->next_tap;
 	if (tap1 == NULL) {
 		/* things are *WRONG* */
