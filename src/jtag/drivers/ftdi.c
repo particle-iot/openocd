@@ -88,57 +88,107 @@
 
 static char *ftdi_device_desc;
 static char *ftdi_serial;
+static uint8_t ftdi_channel;
 static uint8_t ftdi_latency = 255;
 
 #define MAX_USB_IDS 8
 /* vid = pid = 0 marks the end of the list */
-static uint16_t ftdi_vid[MAX_USB_IDS + 1] = { 0x0403, 0 };
-static uint16_t ftdi_pid[MAX_USB_IDS + 1] = { 0x6010, 0 };
-
-struct ftdi_layout {
-	char *name;
-	int (*init)(void);
-	void (*reset)(int trst, int srst);
-	void (*blink)(void);
-	int channel;
-};
-
-/* init procedures for supported layouts */
-static int jtagkey_init(void);
-
-/* reset procedures for supported layouts */
-static void jtagkey_reset(int trst, int srst);
-
-static const struct ftdi_layout ftdi_layouts[] = {
-	{ .name = "jtagkey",
-	  .init = jtagkey_init,
-	  .reset = jtagkey_reset,},
-	{ .name = NULL, /* END OF TABLE */ },
-};
-
-/* bitmask used to drive nTRST; usually a GPIOLx signal */
-static uint8_t nTRST;
-static uint8_t nTRSTnOE;
-/* bitmask used to drive nSRST; usually a GPIOLx signal */
-static uint8_t nSRST;
-static uint8_t nSRSTnOE;
-
-/** the layout being used with this debug session */
-static const struct ftdi_layout *layout;
-
-/** default bitmask values driven on DBUS: TCK/TDI/TDO/TMS and GPIOL(0..4) */
-static uint8_t low_output;
-
-/* note that direction bit == 1 means that signal is an output */
-
-/** default direction bitmask for DBUS: TCK/TDI/TDO/TMS and GPIOL(0..4) */
-static uint8_t low_direction;
-/** default value bitmask for CBUS GPIOH(0..4) */
-static uint8_t high_output;
-/** default direction bitmask for CBUS GPIOH(0..4) */
-static uint8_t high_direction;
+static uint16_t ftdi_vid[MAX_USB_IDS + 1] = { 0 };
+static uint16_t ftdi_pid[MAX_USB_IDS + 1] = { 0 };
 
 static struct mpsse_ctx *mpsse_ctx;
+
+struct signal {
+	const char *name;
+	uint16_t data_mask;
+	uint16_t oe_mask;
+	bool invert_data;
+	bool invert_oe;
+	struct signal *next;
+};
+
+static struct signal *signals;
+
+static uint16_t output;
+static uint16_t direction;
+
+static struct signal *find_signal_by_name(const char *name)
+{
+	for (struct signal *sig = signals; sig; sig = sig->next) {
+		if (strcmp(name, sig->name) == 0)
+			return sig;
+	}
+	return NULL;
+}
+
+static struct signal *create_signal(const char *name)
+{
+	struct signal **psig = &signals;
+	while (*psig)
+		psig = &(*psig)->next;
+
+	*psig = calloc(1, sizeof(**psig));
+	if (*psig)
+		(*psig)->name = strdup(name);
+	if ((*psig)->name == NULL)
+		return NULL;
+	return *psig;
+}
+
+static int ftdi_set_signal(const struct signal *s, char value)
+{
+	int retval;
+	bool data;
+	bool oe;
+
+	if (s->data_mask == 0 && s->oe_mask == 0) {
+		LOG_ERROR("interface doesn't provide signal '%s'", s->name);
+		return ERROR_FAIL;
+	}
+	switch (value) {
+	case '0':
+		data = s->invert_data;
+		oe = !s->invert_oe;
+		break;
+	case '1':
+		if (s->data_mask == 0) {
+			LOG_ERROR("interface can't drive '%s' high", s->name);
+			return ERROR_FAIL;
+		}
+		data = !s->invert_data;
+		oe = !s->invert_oe;
+		break;
+	case 'z':
+	case 'Z':
+		if (s->oe_mask == 0) {
+			LOG_ERROR("interface can't tri-state '%s'", s->name);
+			return ERROR_FAIL;
+		}
+		data = s->invert_data;
+		oe = s->invert_oe;
+		break;
+	default:
+		assert(0 && "invalid signal level specifier");
+		return ERROR_FAIL;
+	}
+
+	output = data ? output | s->data_mask : output & ~s->data_mask;
+	if (s->oe_mask == s->data_mask)
+		direction = oe ? output | s->oe_mask : output & ~s->oe_mask;
+	else
+		output = oe ? output | s->oe_mask : output & ~s->oe_mask;
+
+	retval = mpsse_set_data_bits_low_byte(mpsse_ctx, output & 0xff, direction & 0xff);
+	if (retval == ERROR_OK)
+		retval = mpsse_set_data_bits_high_byte(mpsse_ctx, output >> 8, direction >> 8);
+	if (retval != ERROR_OK)	{
+		LOG_ERROR("couldn't initialize FTDI GPIO");
+		return ERROR_JTAG_INIT_FAILED;
+	}
+
+	return ERROR_OK;
+}
+
 
 /**
  * Function move_to_state
@@ -208,42 +258,6 @@ static void ftdi_end_state(tap_state_t state)
 		LOG_ERROR("BUG: %s is not a stable end state", tap_state_name(state));
 		exit(-1);
 	}
-}
-
-static void jtagkey_reset(int trst, int srst)
-{
-	enum reset_types jtag_reset_config = jtag_get_reset_config();
-	if (trst == 1) {
-		if (jtag_reset_config & RESET_TRST_OPEN_DRAIN)
-			high_output &= ~nTRSTnOE;
-		else
-			high_output &= ~nTRST;
-	} else if (trst == 0)   {
-		if (jtag_reset_config & RESET_TRST_OPEN_DRAIN)
-			high_output |= nTRSTnOE;
-		else
-			high_output |= nTRST;
-	}
-
-	if (srst == 1) {
-		if (jtag_reset_config & RESET_SRST_PUSH_PULL)
-			high_output &= ~nSRST;
-		else
-			high_output &= ~nSRSTnOE;
-	} else if (srst == 0)   {
-		if (jtag_reset_config & RESET_SRST_PUSH_PULL)
-			high_output |= nSRST;
-		else
-			high_output |= nSRSTnOE;
-	}
-
-	/* command "set data bits high byte" */
-	mpsse_set_data_bits_high_byte(mpsse_ctx, high_output, high_direction);
-	LOG_DEBUG("trst: %i, srst: %i, high_output: 0x%2.2x, high_direction: 0x%2.2x",
-		trst,
-		srst,
-		high_output,
-		high_direction);
 }
 
 static int ftdi_execute_runtest(struct jtag_command *cmd)
@@ -464,7 +478,25 @@ static int ftdi_execute_reset(struct jtag_command *cmd)
 		&& (jtag_get_reset_config() & RESET_SRST_PULLS_TRST)))
 		tap_set_state(TAP_RESET);
 
-	layout->reset(cmd->cmd.reset->trst, cmd->cmd.reset->srst);
+	struct signal *trst = find_signal_by_name("nTRST");
+	if (trst && cmd->cmd.reset->trst == 1) {
+		ftdi_set_signal(trst, '0');
+	} else if (trst && cmd->cmd.reset->trst == 0) {
+		if (jtag_get_reset_config() & RESET_TRST_OPEN_DRAIN)
+			ftdi_set_signal(trst, 'z');
+		else
+			ftdi_set_signal(trst, '1');
+	}
+
+	struct signal *srst = find_signal_by_name("nSRST");
+	if (srst && cmd->cmd.reset->srst == 1) {
+		ftdi_set_signal(srst, '0');
+	} else if (srst && cmd->cmd.reset->srst == 0) {
+		if (jtag_get_reset_config() & RESET_SRST_PUSH_PULL)
+			ftdi_set_signal(srst, '1');
+		else
+			ftdi_set_signal(srst, 'z');
+	}
 
 	DEBUG_JTAG_IO("trst: %i, srst: %i",
 		cmd->cmd.reset->trst, cmd->cmd.reset->srst);
@@ -554,14 +586,18 @@ static int ftdi_execute_queue(void)
 	int retval = ERROR_OK;
 
 	/* blink, if the current layout has that feature */
-	if (layout->blink)
-		layout->blink();
+	struct signal *led = find_signal_by_name("LED");
+	if (led)
+		ftdi_set_signal(led, '1');
 
 	for (struct jtag_command *cmd = jtag_command_queue; cmd; cmd = cmd->next) {
 		/* fill the write buffer with the desired command */
 		if (ftdi_execute_command(cmd) != ERROR_OK)
 			retval = ERROR_JTAG_QUEUE_FAILED;
 	}
+
+	if (led)
+		ftdi_set_signal(led, '0');
 
 	retval = mpsse_flush(mpsse_ctx);
 	if (retval != ERROR_OK)
@@ -579,14 +615,9 @@ static int ftdi_initialize(void)
 	else
 		LOG_DEBUG("ftdi interface using shortest path jtag state transitions");
 
-	if (layout == NULL) {
-		LOG_WARNING("No ftdi layout specified'");
-		return ERROR_JTAG_INIT_FAILED;
-	}
-
 	for (int i = 0; ftdi_vid[i] || ftdi_pid[i]; i++) {
 		mpsse_ctx = mpsse_open(ftdi_vid[i], ftdi_pid[i], ftdi_device_desc,
-				ftdi_serial, layout->channel, ftdi_latency);
+				ftdi_serial, ftdi_channel, ftdi_latency);
 		if (mpsse_ctx)
 			break;
 	}
@@ -594,8 +625,13 @@ static int ftdi_initialize(void)
 	if (!mpsse_ctx)
 		return ERROR_JTAG_INIT_FAILED;
 
-	if (layout->init() != ERROR_OK)
+	retval = mpsse_set_data_bits_low_byte(mpsse_ctx, output & 0xff, direction & 0xff);
+	if (retval == ERROR_OK)
+		retval = mpsse_set_data_bits_high_byte(mpsse_ctx, output >> 8, direction >> 8);
+	if (retval != ERROR_OK)	{
+		LOG_ERROR("couldn't initialize FTDI with 'JTAGkey' layout");
 		return ERROR_JTAG_INIT_FAILED;
+	}
 
 	retval = mpsse_loopback_config(mpsse_ctx, false);
 	if (retval != ERROR_OK) {
@@ -604,62 +640,6 @@ static int ftdi_initialize(void)
 	}
 
 	return mpsse_flush(mpsse_ctx);
-}
-
-static int jtagkey_init(void)
-{
-	low_output    = 0x08;
-	low_direction = 0x1b;
-
-	/* initialize low byte for jtag */
-	if (mpsse_set_data_bits_low_byte(mpsse_ctx, low_output, low_direction) != ERROR_OK) {
-		LOG_ERROR("couldn't initialize FTDI with 'JTAGkey' layout");
-		return ERROR_JTAG_INIT_FAILED;
-	}
-
-	if (strcmp(layout->name, "jtagkey") == 0) {
-		nTRST    = 0x01;
-		nTRSTnOE = 0x4;
-		nSRST    = 0x02;
-		nSRSTnOE = 0x08;
-	} else if ((strcmp(layout->name, "jtagkey_prototype_v1") == 0)
-		   || (strcmp(layout->name, "oocdlink") == 0)) {
-		nTRST    = 0x02;
-		nTRSTnOE = 0x1;
-		nSRST    = 0x08;
-		nSRSTnOE = 0x04;
-	} else {
-		LOG_ERROR("BUG: jtagkey_init called for non jtagkey layout");
-		exit(-1);
-	}
-
-	high_output    = 0x0;
-	high_direction = 0x0f;
-
-	enum reset_types jtag_reset_config = jtag_get_reset_config();
-	if (jtag_reset_config & RESET_TRST_OPEN_DRAIN) {
-		high_output |= nTRSTnOE;
-		high_output &= ~nTRST;
-	} else {
-		high_output &= ~nTRSTnOE;
-		high_output |= nTRST;
-	}
-
-	if (jtag_reset_config & RESET_SRST_PUSH_PULL) {
-		high_output &= ~nSRSTnOE;
-		high_output |= nSRST;
-	} else {
-		high_output |= nSRSTnOE;
-		high_output &= ~nSRST;
-	}
-
-	/* initialize high byte for jtag */
-	if (mpsse_set_data_bits_high_byte(mpsse_ctx, high_output, high_direction) != ERROR_OK) {
-		LOG_ERROR("couldn't initialize FTDI with 'JTAGkey' layout");
-		return ERROR_JTAG_INIT_FAILED;
-	}
-
-	return ERROR_OK;
 }
 
 static int ftdi_quit(void)
@@ -671,46 +651,124 @@ static int ftdi_quit(void)
 
 COMMAND_HANDLER(ftdi_handle_device_desc_command)
 {
-	if (CMD_ARGC == 1)
+	if (CMD_ARGC == 1) {
+		if (ftdi_device_desc)
+			free(ftdi_device_desc);
 		ftdi_device_desc = strdup(CMD_ARGV[0]);
-	else
+	} else {
 		LOG_ERROR("expected exactly one argument to ftdi_device_desc <description>");
+	}
 
 	return ERROR_OK;
 }
 
 COMMAND_HANDLER(ftdi_handle_serial_command)
 {
-	if (CMD_ARGC == 1)
+	if (CMD_ARGC == 1) {
+		if (ftdi_serial)
+			free(ftdi_serial);
 		ftdi_serial = strdup(CMD_ARGV[0]);
+	} else {
+		return ERROR_COMMAND_SYNTAX_ERROR;
+	}
+
+	return ERROR_OK;
+}
+
+COMMAND_HANDLER(ftdi_handle_channel_command)
+{
+	if (CMD_ARGC == 1)
+		COMMAND_PARSE_NUMBER(u8, CMD_ARGV[0], ftdi_channel);
 	else
 		return ERROR_COMMAND_SYNTAX_ERROR;
 
 	return ERROR_OK;
 }
 
-COMMAND_HANDLER(ftdi_handle_layout_command)
+COMMAND_HANDLER(ftdi_handle_layout_init_command)
 {
-	if (CMD_ARGC != 1)
+	if (CMD_ARGC != 2)
 		return ERROR_COMMAND_SYNTAX_ERROR;
 
-	if (layout) {
-		LOG_ERROR("already specified ftdi_layout %s",
-			layout->name);
-		return (strcmp(layout->name, CMD_ARGV[0]) != 0)
-		       ? ERROR_FAIL
-		       : ERROR_OK;
-	}
+	COMMAND_PARSE_NUMBER(u16, CMD_ARGV[0], output);
+	COMMAND_PARSE_NUMBER(u16, CMD_ARGV[1], direction);
 
-	for (const struct ftdi_layout *l = ftdi_layouts; l->name; l++) {
-		if (strcmp(l->name, CMD_ARGV[0]) == 0) {
-			layout = l;
-			return ERROR_OK;
+	return ERROR_OK;
+}
+
+COMMAND_HANDLER(ftdi_handle_layout_signal_command)
+{
+	if (CMD_ARGC < 1)
+		return ERROR_COMMAND_SYNTAX_ERROR;
+
+	bool invert_data = false;
+	uint16_t data_mask = 0;
+	bool invert_oe = false;
+	uint16_t oe_mask = 0;
+	for (unsigned i = 1; i < CMD_ARGC; i += 2) {
+		if (strcmp("-data", CMD_ARGV[i]) == 0) {
+			invert_data = false;
+			COMMAND_PARSE_NUMBER(u16, CMD_ARGV[i + 1], data_mask);
+		} else if (strcmp("-ndata", CMD_ARGV[i]) == 0) {
+			invert_data = true;
+			COMMAND_PARSE_NUMBER(u16, CMD_ARGV[i + 1], data_mask);
+		} else if (strcmp("-oe", CMD_ARGV[i]) == 0) {
+			invert_oe = false;
+			COMMAND_PARSE_NUMBER(u16, CMD_ARGV[i + 1], oe_mask);
+		} else if (strcmp("-noe", CMD_ARGV[i]) == 0) {
+			invert_oe = true;
+			COMMAND_PARSE_NUMBER(u16, CMD_ARGV[i + 1], oe_mask);
+		} else {
+			LOG_ERROR("unknown option '%s'", CMD_ARGV[i]);
+			return ERROR_COMMAND_SYNTAX_ERROR;
 		}
 	}
 
-	LOG_ERROR("No FTDI layout '%s' found", CMD_ARGV[0]);
-	return ERROR_FAIL;
+	struct signal *sig;
+	sig = find_signal_by_name(CMD_ARGV[0]);
+	if (!sig)
+		sig = create_signal(CMD_ARGV[0]);
+	if (!sig) {
+		LOG_ERROR("failed to create signal %s", CMD_ARGV[0]);
+		return ERROR_FAIL;
+	}
+
+	sig->invert_data = invert_data;
+	sig->data_mask = data_mask;
+	sig->invert_oe = invert_oe;
+	sig->oe_mask = oe_mask;
+
+	return ERROR_OK;
+}
+
+COMMAND_HANDLER(ftdi_handle_set_signal_command)
+{
+	if (CMD_ARGC < 2)
+		return ERROR_COMMAND_SYNTAX_ERROR;
+
+	struct signal *sig;
+	sig = find_signal_by_name(CMD_ARGV[0]);
+	if (!sig) {
+		LOG_ERROR("interface configuration doesn't define signal '%s'", CMD_ARGV[0]);
+		return ERROR_FAIL;
+	}
+
+	switch (*CMD_ARGV[1]) {
+	case '0':
+	case '1':
+	case 'z':
+	case 'Z':
+		/* single character level specifier only */
+		if (CMD_ARGV[1][1] == '\0') {
+			ftdi_set_signal(sig, *CMD_ARGV[1]);
+			break;
+		}
+	default:
+		LOG_ERROR("unknown signal level '%s', use 0, 1 or z", CMD_ARGV[1]);
+		return ERROR_COMMAND_SYNTAX_ERROR;
+	}
+
+	return mpsse_flush(mpsse_ctx);
 }
 
 COMMAND_HANDLER(ftdi_handle_vid_pid_command)
@@ -769,12 +827,34 @@ static const struct command_registration ftdi_command_handlers[] = {
 		.usage = "serial_string",
 	},
 	{
-		.name = "ftdi_layout",
-		.handler = &ftdi_handle_layout_command,
+		.name = "ftdi_channel",
+		.handler = &ftdi_handle_channel_command,
 		.mode = COMMAND_CONFIG,
-		.help = "set the layout of the FTDI GPIO signals used "
+		.help = "set the channel of the FTDI device that is used as JTAG",
+		.usage = "(0-3)",
+	},
+	{
+		.name = "ftdi_layout_init",
+		.handler = &ftdi_handle_layout_init_command,
+		.mode = COMMAND_CONFIG,
+		.help = "initialize the FTDI GPIO signals used "
 			"to control output-enables and reset signals",
-		.usage = "layout_name",
+		.usage = "data direction",
+	},
+	{
+		.name = "ftdi_layout_signal",
+		.handler = &ftdi_handle_layout_signal_command,
+		.mode = COMMAND_ANY,
+		.help = "define a signal controlled by one or more FTDI GPIO as data "
+			"and/or output enable",
+		.usage = "name [-data mask|-ndata mask] [-oe mask|-noe mask]",
+	},
+	{
+		.name = "ftdi_set_signal",
+		.handler = &ftdi_handle_set_signal_command,
+		.mode = COMMAND_EXEC,
+		.help = "control a layout-specific signal",
+		.usage = "name (1|0|z)",
 	},
 	{
 		.name = "ftdi_vid_pid",
