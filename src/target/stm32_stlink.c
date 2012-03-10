@@ -269,9 +269,11 @@ static int stm32_stlink_examine(struct target *target)
 		if (retval != ERROR_OK)
 			return retval;
 
-		if (((cpuid >> 4) & 0xc3f) == 0xc23)
-			LOG_DEBUG("Cortex-M3 r%" PRId8 "p%" PRId8 " processor detected",
-				(uint8_t)((cpuid >> 20) & 0xf), (uint8_t)((cpuid >> 0) & 0xf));
+		/* Get CPU Type */
+		i = (cpuid >> 4) & 0xf;
+
+		LOG_DEBUG("Cortex-M%d r%" PRId8 "p%" PRId8 " processor detected",
+				i, (uint8_t)((cpuid >> 20) & 0xf), (uint8_t)((cpuid >> 0) & 0xf));
 		LOG_DEBUG("cpuid: 0x%8.8" PRIx32 "", cpuid);
 
 		/* Setup FPB */
