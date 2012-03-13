@@ -62,7 +62,7 @@ char *armv7m_exception_string(int number);
 /* offsets into armv7m core register cache */
 enum {
 	/* for convenience, the first set of indices match
-	 * the Cortex-M3 DCRSR selectors
+	 * the Cortex-M3/-M4 DCRSR selectors
 	 */
 	ARMV7M_R0,
 	ARMV7M_R1,
@@ -93,6 +93,41 @@ enum {
 	ARMV7M_BASEPRI,
 	ARMV7M_FAULTMASK,
 	ARMV7M_CONTROL,
+
+	/* Floating-point registers */
+	ARMV7M_FPSCR = 33,
+	ARMV7M_S0 = 64,
+	ARMV7M_S1,
+	ARMV7M_S2,
+	ARMV7M_S3,
+	ARMV7M_S4,
+	ARMV7M_S5,
+	ARMV7M_S6,
+	ARMV7M_S7,
+	ARMV7M_S8,
+	ARMV7M_S9,
+	ARMV7M_S10,
+	ARMV7M_S11,
+	ARMV7M_S12,
+	ARMV7M_S13,
+	ARMV7M_S14,
+	ARMV7M_S15,
+	ARMV7M_S16,
+	ARMV7M_S17,
+	ARMV7M_S18,
+	ARMV7M_S19,
+	ARMV7M_S20,
+	ARMV7M_S21,
+	ARMV7M_S22,
+	ARMV7M_S23,
+	ARMV7M_S24,
+	ARMV7M_S25,
+	ARMV7M_S26,
+	ARMV7M_S27,
+	ARMV7M_S28,
+	ARMV7M_S29,
+	ARMV7M_S30,
+	ARMV7M_S31
 };
 
 #define ARMV7M_COMMON_MAGIC 0x2A452A45
@@ -140,7 +175,7 @@ struct armv7m_algorithm {
 
 	enum armv7m_mode core_mode;
 
-	uint32_t context[ARMV7M_CONTROL + 1]; /* ARMV7M_NUM_REGS */
+	uint32_t context[ARMV7M_S31 + 1]; /* ARMV7M_NUM_REGS */
 };
 
 struct armv7m_core_reg {
