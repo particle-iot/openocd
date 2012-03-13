@@ -128,6 +128,27 @@ static const struct {
 	{ ARMV7M_BASEPRI, "basepri", 8 },
 	{ ARMV7M_FAULTMASK, "faultmask", 1 },
 	{ ARMV7M_CONTROL, "control", 2 },
+
+	{ ARMV7M_D0, "d0", 64 },
+	{ ARMV7M_D1, "d1", 64 },
+	{ ARMV7M_D2, "d2", 64 },
+	{ ARMV7M_D3, "d3", 64 },
+	{ ARMV7M_D4, "d4", 64 },
+	{ ARMV7M_D5, "d5", 64 },
+	{ ARMV7M_D6, "d6", 64 },
+	{ ARMV7M_D7, "d7", 64 },
+	{ ARMV7M_D8, "d8", 64 },
+	{ ARMV7M_D9, "d9", 64 },
+	{ ARMV7M_D10, "d10", 64 },
+	{ ARMV7M_D11, "d11", 64 },
+	{ ARMV7M_D12, "d12", 64 },
+	{ ARMV7M_D13, "d13", 64 },
+	{ ARMV7M_D14, "d14", 64 },
+	{ ARMV7M_D15, "d15", 64 },
+
+	{ ARMV7M_FPSID, "fpsid", 32 },
+	{ ARMV7M_FPSCR, "fpscr", 32 },
+	{ ARMV7M_FPEXC, "fpexc", 32 },
 };
 
 #define ARMV7M_NUM_REGS ARRAY_SIZE(armv7m_regs)
