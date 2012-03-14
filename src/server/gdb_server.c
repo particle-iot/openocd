@@ -88,6 +88,7 @@ static enum breakpoint_type gdb_breakpoint_override_type;
 static int gdb_error(struct connection *connection, int retval);
 static const char *gdb_port;
 static const char *gdb_port_next;
+static const char *gdb_tdesc_path;
 static const char DIGITS[16] = "0123456789abcdef";
 
 static void gdb_log_callback(void *priv, const char *file, unsigned line,
@@ -1772,9 +1773,10 @@ static int gdb_query_packet(struct connection *connection,
 			&buffer,
 			&pos,
 			&size,
-			"PacketSize=%x;qXfer:memory-map:read%c;qXfer:features:read-;QStartNoAckMode+",
+			"PacketSize=%x;qXfer:memory-map:read%c;qXfer:features:read%c;QStartNoAckMode+",
 			(GDB_BUFFER_SIZE - 1),
-			((gdb_use_memory_map == 1) && (flash_get_bank_count() > 0)) ? '+' : '-');
+			((gdb_use_memory_map == 1) && (flash_get_bank_count() > 0)) ? '+' : '-',
+			(gdb_tdesc_path) ? '+' : '-');
 
 		if (retval != ERROR_OK) {
 			gdb_send_error(connection, 01);
@@ -1793,10 +1795,13 @@ static int gdb_query_packet(struct connection *connection,
 		int size = 0;
 		int pos = 0;
 		int retval = ERROR_OK;
-
+		char *filename;
+		char *filebuffer;
 		int offset;
 		unsigned int length;
 		char *annex;
+		struct fileio fileio;
+		size_t read_bytes;
 
 		/* skip command character */
 		packet += 20;
@@ -1806,7 +1811,32 @@ static int gdb_query_packet(struct connection *connection,
 			return ERROR_OK;
 		}
 
-		if (strcmp(annex, "target.xml") != 0) {
+		/* open target xml file */
+		filename = malloc(1024);
+		memset(filename, 0, 1024);
+		strncpy(filename, gdb_tdesc_path, 1023);
+		strncat(filename, annex, 1023-strlen(filename));
+
+		retval = fileio_open(&fileio, filename, FILEIO_READ, FILEIO_BINARY);
+
+		free(filename);
+
+		if (retval != ERROR_OK) {
+			gdb_send_error(connection, 01);
+			return ERROR_OK;
+		}
+
+		filebuffer = malloc(4096);
+		memset(filebuffer, 0, 4096);
+
+		filebuffer[0] = 'l';
+
+		retval = fileio_read(&fileio, 4096-2, filebuffer+1, &read_bytes);
+
+		fileio_close(&fileio);
+
+		if (retval != ERROR_OK) {
+			free(filebuffer);
 			gdb_send_error(connection, 01);
 			return ERROR_OK;
 		}
@@ -1815,7 +1845,9 @@ static int gdb_query_packet(struct connection *connection,
 			&xml,
 			&pos,
 			&size, \
-			"l < target version=\"1.0\">\n < architecture > arm</architecture>\n</target>\n");
+			filebuffer);
+
+		free(filebuffer);
 
 		if (retval != ERROR_OK) {
 			gdb_error(connection, retval);
@@ -2402,6 +2434,19 @@ COMMAND_HANDLER(handle_gdb_breakpoint_override_command)
 	return ERROR_OK;
 }
 
+/* gdb_tdesc_path */
+COMMAND_HANDLER(handle_gdb_tdesc_path)
+{
+	if (CMD_ARGC == 0) {
+		gdb_tdesc_path = NULL;
+	} else if (CMD_ARGC == 1) {
+		if (gdb_tdesc_path)
+			free((void *)gdb_tdesc_path);
+		gdb_tdesc_path = strdup(CMD_ARGV[0]);
+	}
+	return ERROR_OK;
+}
+
 static const struct command_registration gdb_command_handlers[] = {
 	{
 		.name = "gdb_sync",
@@ -2454,6 +2499,13 @@ static const struct command_registration gdb_command_handlers[] = {
 			"to be used by gdb 'break' commands.",
 		.usage = "('hard'|'soft'|'disable')"
 	},
+	{
+		.name = "gdb_tdesc_path",
+		.handler = handle_gdb_tdesc_path,
+		.mode = COMMAND_CONFIG,
+		.help = "set or clear the path to the XML target description file(s)",
+		.usage = ""
+	},
 	COMMAND_REGISTRATION_DONE
 };
 
@@ -2461,5 +2513,6 @@ int gdb_register_commands(struct command_context *cmd_ctx)
 {
 	gdb_port = strdup("3333");
 	gdb_port_next = strdup("3333");
+	gdb_tdesc_path = NULL;
 	return register_commands(cmd_ctx, NULL, gdb_command_handlers);
 }
