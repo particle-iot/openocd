@@ -101,6 +101,8 @@
 #include <ftd2xx.h>
 #include "ftd2xx_common.h"
 
+
+/* Interface ID - defined externally by FTDI/libftdi driver */
 enum ftdi_interface {
 	INTERFACE_ANY = 0,
 	INTERFACE_A   = 1,
@@ -112,6 +114,35 @@ enum ftdi_interface {
 #elif BUILD_FT2232_LIBFTDI == 1
 #include <ftdi.h>
 #endif
+
+/* Bit field version of interface for use internally */
+typedef enum oocd_interface_enum {
+	OOCD_INTERFACE_A           = 0x10, /* Start at 0x10 to prevent accidental use as ftdi_interface */
+	OOCD_INTERFACE_B           = 0x20,
+	OOCD_INTERFACE_C           = 0x40,
+	OOCD_INTERFACE_D           = 0x80,
+	OOCD_INTERFACE_A_OR_B      = OOCD_INTERFACE_A | OOCD_INTERFACE_B,
+	OOCD_INTERFACE_A_OR_C      = OOCD_INTERFACE_A | OOCD_INTERFACE_C,
+	OOCD_INTERFACE_A_OR_D      = OOCD_INTERFACE_A | OOCD_INTERFACE_D,
+	OOCD_INTERFACE_B_OR_C      = OOCD_INTERFACE_B | OOCD_INTERFACE_C,
+	OOCD_INTERFACE_B_OR_D      = OOCD_INTERFACE_B | OOCD_INTERFACE_D,
+	OOCD_INTERFACE_C_OR_D      = OOCD_INTERFACE_C | OOCD_INTERFACE_D,
+	OOCD_INTERFACE_A_OR_B_OR_C = OOCD_INTERFACE_A | OOCD_INTERFACE_B | OOCD_INTERFACE_C,
+	OOCD_INTERFACE_A_OR_B_OR_D = OOCD_INTERFACE_A | OOCD_INTERFACE_B | OOCD_INTERFACE_D,
+	OOCD_INTERFACE_A_OR_C_OR_D = OOCD_INTERFACE_A | OOCD_INTERFACE_C | OOCD_INTERFACE_D,
+	OOCD_INTERFACE_B_OR_C_OR_D = OOCD_INTERFACE_B | OOCD_INTERFACE_C | OOCD_INTERFACE_D,
+	OOCD_INTERFACE_ANY         = OOCD_INTERFACE_A | OOCD_INTERFACE_B | OOCD_INTERFACE_C | OOCD_INTERFACE_D
+} oocd_interface_t;
+
+const oocd_interface_t interface_mapping[5] = {
+	OOCD_INTERFACE_ANY,
+	OOCD_INTERFACE_A,
+	OOCD_INTERFACE_B,
+	OOCD_INTERFACE_C,
+	OOCD_INTERFACE_D
+};
+
+
 
 /* max TCK for the high speed devices 30000 kHz */
 #define	FTDI_2232H_4232H_MAX_TCK	30000
@@ -167,7 +198,7 @@ struct ft2232_layout {
 	int (*init)(void);
 	void (*reset)(int trst, int srst);
 	void (*blink)(void);
-	int channel;
+	oocd_interface_t channel;
 };
 
 /* init procedures for supported layouts */
@@ -230,112 +261,135 @@ static const struct ft2232_layout  ft2232_layouts[] = {
 	{ .name = "usbjtag",
 		.init = usbjtag_init,
 		.reset = ftx23_reset,
+		.channel = OOCD_INTERFACE_A,
 	},
 	{ .name = "jtagkey",
 		.init = jtagkey_init,
 		.reset = jtagkey_reset,
+		.channel = OOCD_INTERFACE_A,
 	},
 	{ .name = "jtagkey_prototype_v1",
 		.init = jtagkey_init,
 		.reset = jtagkey_reset,
+		.channel = OOCD_INTERFACE_A,
 	},
 	{ .name = "oocdlink",
 		.init = jtagkey_init,
 		.reset = jtagkey_reset,
+		.channel = OOCD_INTERFACE_A,
 	},
 	{ .name = "signalyzer",
 		.init = signalyzer_init,
 		.reset = ftx23_reset,
+		.channel = OOCD_INTERFACE_A,
 	},
 	{ .name = "evb_lm3s811",
 		.init = lm3s811_jtag_init,
 		.reset = ftx23_reset,
+		.channel = OOCD_INTERFACE_A,
 	},
 	{ .name = "luminary_icdi",
 		.init = icdi_jtag_init,
 		.reset = ftx23_reset,
+		.channel = OOCD_INTERFACE_A,
 	},
 	{ .name = "olimex-jtag",
 		.init = olimex_jtag_init,
 		.reset = olimex_jtag_reset,
-		.blink = olimex_jtag_blink
+		.blink = olimex_jtag_blink,
+		.channel = OOCD_INTERFACE_A,
 	},
 	{ .name = "flyswatter",
 		.init = flyswatter1_init,
 		.reset = flyswatter1_reset,
-		.blink = flyswatter1_jtag_blink
+		.blink = flyswatter1_jtag_blink,
+		.channel = OOCD_INTERFACE_A,
 	},
 	{ .name = "flyswatter2",
 		.init = flyswatter2_init,
 		.reset = flyswatter2_reset,
-		.blink = flyswatter2_jtag_blink
+		.blink = flyswatter2_jtag_blink,
+		.channel = OOCD_INTERFACE_A,
 	},
 	{ .name = "minimodule",
 		.init = minimodule_init,
 		.reset = minimodule_reset,
+		.channel = OOCD_INTERFACE_A,
 	},
 	{ .name = "turtelizer2",
 		.init = turtle_init,
 		.reset = turtle_reset,
-		.blink = turtle_jtag_blink
+		.blink = turtle_jtag_blink,
+		.channel = OOCD_INTERFACE_A,
 	},
 	{ .name = "comstick",
 		.init = comstick_init,
 		.reset = comstick_reset,
+		.channel = OOCD_INTERFACE_A,
 	},
 	{ .name = "stm32stick",
 		.init = stm32stick_init,
 		.reset = stm32stick_reset,
+		.channel = OOCD_INTERFACE_A,
 	},
 	{ .name = "axm0432_jtag",
 		.init = axm0432_jtag_init,
 		.reset = axm0432_jtag_reset,
+		.channel = OOCD_INTERFACE_A,
 	},
 	{ .name = "sheevaplug",
 		.init = sheevaplug_init,
 		.reset = sheevaplug_reset,
+		.channel = OOCD_INTERFACE_A,
 	},
 	{ .name = "icebear",
 		.init = icebear_jtag_init,
 		.reset = icebear_jtag_reset,
+		.channel = OOCD_INTERFACE_A,
 	},
 	{ .name = "cortino",
 		.init = cortino_jtag_init,
 		.reset = comstick_reset,
+		.channel = OOCD_INTERFACE_A,
 	},
 	{ .name = "signalyzer-h",
 		.init = signalyzer_h_init,
 		.reset = signalyzer_h_reset,
-		.blink = signalyzer_h_blink
+		.blink = signalyzer_h_blink,
+		.channel = OOCD_INTERFACE_A,
 	},
 	{ .name = "ktlink",
 		.init = ktlink_init,
 		.reset = ktlink_reset,
-		.blink = ktlink_blink
+		.blink = ktlink_blink,
+		.channel = OOCD_INTERFACE_A,
 	},
 	{ .name = "redbee-econotag",
 		.init = redbee_init,
 		.reset = redbee_reset,
+		.channel = OOCD_INTERFACE_A,
 	},
 	{ .name = "redbee-usb",
 		.init = redbee_init,
 		.reset = redbee_reset,
-		.channel = INTERFACE_B,
+		.channel = OOCD_INTERFACE_B,
 	},
 	{ .name = "lisa-l",
 		.init = lisa_l_init,
 		.reset = ftx23_reset,
 		.blink = lisa_l_blink,
-		.channel = INTERFACE_B,
+		.channel = OOCD_INTERFACE_B,
 	},
 	{ .name = "flossjtag",
 		.init = flossjtag_init,
 		.reset = ftx23_reset,
 		.blink = flossjtag_blink,
+		.channel = OOCD_INTERFACE_A,
 	},
 	{ .name = "xds100v2",
 		.init = xds100v2_init,
 		.reset = xds100v2_reset,
+		.channel = OOCD_INTERFACE_A,
 	},
 	{ .name = NULL, /* END OF TABLE */ },
 };
@@ -2199,6 +2253,7 @@ static int ft2232_purge_ftd2xx(void)
 static int ft2232_init_libftdi(uint16_t vid, uint16_t pid, int more, int *try_more, int channel)
 {
 	uint8_t latency_timer;
+	enum ftdi_interface curr_ftdi_channel = INTERFACE_A;
 
 	if (layout == NULL) {
 		LOG_WARNING("No ft2232 layout specified'");
@@ -2211,22 +2266,41 @@ static int ft2232_init_libftdi(uint16_t vid, uint16_t pid, int more, int *try_mo
 	if (ftdi_init(&ftdic) < 0)
 		return ERROR_JTAG_INIT_FAILED;
 
-	/* default to INTERFACE_A */
-	if (channel == INTERFACE_ANY)
-		channel = INTERFACE_A;
-	if (ftdi_set_interface(&ftdic, channel) < 0) {
-		LOG_ERROR("unable to select FT2232 channel A: %s", ftdic.error_str);
+	/* Check if channel bit mask is valid */
+	if (((channel & 0xf0) == 0) || ((channel & (~(0xf0))) != 0)) {
+		LOG_ERROR("Invalid FTDI channel specification: %d", channel);
 		return ERROR_JTAG_INIT_FAILED;
 	}
 
-	/* context, vendor id, product id */
-	if (ftdi_usb_open_desc(&ftdic, vid, pid, ft2232_device_desc, ft2232_serial) < 0) {
-		if (more)
-			LOG_WARNING("unable to open ftdi device (trying more): %s",
-				ftdic.error_str);
-		else
-			LOG_ERROR("unable to open ftdi device: %s", ftdic.error_str);
-		*try_more = 1;
+	/* Cycle through the channels until either a channel is able to
+	   be opened or there are no more channels */
+	while (curr_ftdi_channel <= INTERFACE_D) {
+
+		if ((channel & interface_mapping[curr_ftdi_channel]) == 0) {
+			/* Channel not selected in bitmask - try next one */
+			curr_ftdi_channel++;
+			continue;
+		}
+
+		/* Channel is selected in bit mask - try accessing it */
+		if (ftdi_set_interface(&ftdic, curr_ftdi_channel) < 0) {
+			/* Could not open channel - try next one */
+			curr_ftdi_channel++;
+			continue;
+		}
+
+		/* context, vendor id, product id */
+		if (ftdi_usb_open_desc(&ftdic, vid, pid, ft2232_device_desc,
+					ft2232_serial) >= 0) {
+			/* Successfully obtained vid/pid information - exit loop */
+			break;
+		}
+		/* Could not get vid/pid - try next channel */
+		curr_ftdi_channel++;
+	}
+
+	if (curr_ftdi_channel > INTERFACE_D) {
+		LOG_ERROR("Unable to select any FT2232 channel: %s", ftdic.error_str);
 		return ERROR_JTAG_INIT_FAILED;
 	}
 
