@@ -84,6 +84,27 @@ static uint32_t max_tar_block_size(uint32_t tar_autoincr_block, uint32_t address
 	return (tar_autoincr_block - ((tar_autoincr_block - 1) & address)) >> 2;
 }
 
+void adi_v5_assert_reset(void)
+{
+	enum reset_types jtag_reset_config = jtag_get_reset_config();
+
+	if (transport_is_jtag()) {
+		if (jtag_reset_config & RESET_SRST_PULLS_TRST)
+			jtag_add_reset(1, 1);
+		else
+			jtag_add_reset(0, 1);
+	} else if (transport_is_swd())
+		swd_add_reset(1);
+}
+
+void adi_v5_deassert_reset(void)
+{
+	if (transport_is_jtag())
+		jtag_add_reset(0, 0);
+	else if (transport_is_swd())
+		swd_add_reset(0);
+}
+
 /***************************************************************************
  *                                                                         *
  * DP and MEM-AP  register access  through APACC and DPACC                 *
@@ -977,10 +998,7 @@ int dap_syssec_kinetis_mdmap(struct adiv5_dap *dap)
 			/* we need to assert reset */
 			if (jtag_reset_config & RESET_HAS_SRST) {
 				/* default to asserting srst */
-				if (jtag_reset_config & RESET_SRST_PULLS_TRST)
-					jtag_add_reset(1, 1);
-				else
-					jtag_add_reset(0, 1);
+				adi_v5_assert_reset();
 			} else {
 				LOG_DEBUG("SRST not configured");
 				dap_ap_select(dap, 0);
