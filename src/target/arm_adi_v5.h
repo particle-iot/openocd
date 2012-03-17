@@ -32,6 +32,7 @@
  */
 
 #include "arm_jtag.h"
+#include <jtag/swd.h>
 
 /* FIXME remove these JTAG-specific decls when mem_ap_read_buf_u32()
  * is no longer JTAG-specific
@@ -350,6 +351,10 @@ static inline uint8_t dap_ap_get_select(struct adiv5_dap *swjdp)
 {
 	return (uint8_t)(swjdp->ap_current >> 24);
 }
+
+/* Reset assert and deassert */
+void adi_v5_assert_reset(void);
+void adi_v5_deassert_reset(void);
 
 /* AP selection applies to future AP transactions */
 void dap_ap_select(struct adiv5_dap *dap, uint8_t ap);

@@ -606,6 +606,50 @@ void jtag_add_clocks(int num_cycles)
 	}
 }
 
+void swd_add_reset(int req_srst)
+{
+	int new_srst = 0;
+
+	if (req_srst) {
+		if (!(jtag_reset_config & RESET_HAS_SRST)) {
+			LOG_ERROR("BUG: can't assert SRST");
+			jtag_set_error(ERROR_FAIL);
+			return;
+		}
+		new_srst = 1;
+	}
+
+	/* Maybe change TRST and/or SRST signal state */
+	if (jtag_srst != new_srst) {
+		int retval;
+
+		retval = interface_jtag_add_reset(0, new_srst);
+		if (retval != ERROR_OK)
+			jtag_set_error(retval);
+		else
+			retval = jtag_execute_queue();
+
+		if (retval != ERROR_OK) {
+			LOG_ERROR("TRST/SRST error");
+			return;
+		}
+	}
+
+	/* SRST resets everything hooked up to that signal */
+	if (jtag_srst != new_srst) {
+		jtag_srst = new_srst;
+		if (jtag_srst) {
+			LOG_DEBUG("SRST line asserted");
+			if (adapter_nsrst_assert_width)
+				jtag_add_sleep(adapter_nsrst_assert_width * 1000);
+		} else {
+			LOG_DEBUG("SRST line released");
+			if (adapter_nsrst_delay)
+				jtag_add_sleep(adapter_nsrst_delay * 1000);
+		}
+	}
+}
+
 void jtag_add_reset(int req_tlr_or_trst, int req_srst)
 {
 	int trst_with_tlr = 0;
@@ -1455,6 +1499,20 @@ int adapter_quit(void)
 	return ERROR_OK;
 }
 
+int swd_init_reset(struct command_context *cmd_ctx)
+{
+	int retval = adapter_init(cmd_ctx);
+	if (retval != ERROR_OK)
+		return retval;
+
+	LOG_DEBUG("Initializing with hard SRST reset");
+
+	if (jtag_reset_config & RESET_HAS_SRST)
+		swd_add_reset(1);
+	swd_add_reset(0);
+	retval = jtag_execute_queue();
+	return retval;
+}
 
 int jtag_init_reset(struct command_context *cmd_ctx)
 {
