@@ -1330,7 +1330,7 @@ COMMAND_HANDLER(stellaris_handle_recover_command)
 		LOG_ERROR("Can't recover Stellaris flash without SRST");
 		return ERROR_FAIL;
 	}
-	jtag_add_reset(0, 1);
+	adi_v5_assert_reset();
 
 	for (int i = 0; i < 5; i++) {
 		retval = dap_to_swd(bank->target);
@@ -1343,7 +1343,7 @@ COMMAND_HANDLER(stellaris_handle_recover_command)
 	}
 
 	/* de-assert SRST */
-	jtag_add_reset(0, 0);
+	adi_v5_deassert_reset();
 	retval = jtag_execute_queue();
 
 	/* wait 400+ msec ... OK, "1+ second" is simpler */

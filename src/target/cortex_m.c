@@ -995,10 +995,7 @@ static int cortex_m3_assert_reset(struct target *target)
 
 	if (jtag_reset_config & RESET_HAS_SRST) {
 		/* default to asserting srst */
-		if (jtag_reset_config & RESET_SRST_PULLS_TRST)
-			jtag_add_reset(1, 1);
-		else
-			jtag_add_reset(0, 1);
+		adi_v5_assert_reset();
 	} else {
 		/* Use a standard Cortex-M3 software reset mechanism.
 		 * We default to using VECRESET as it is supported on all current cores.
@@ -1051,7 +1048,7 @@ static int cortex_m3_deassert_reset(struct target *target)
 		target_state_name(target));
 
 	/* deassert reset lines */
-	jtag_add_reset(0, 0);
+	adi_v5_deassert_reset();
 
 	return ERROR_OK;
 }
