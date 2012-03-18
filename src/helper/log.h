@@ -34,8 +34,28 @@
  */
 #if (defined(IS_MINGW) && (((__GNUC__ << 16) + __GNUC_MINOR__) >= 0x00040004))
 #define PRINTF_ATTRIBUTE_FORMAT gnu_printf
+#define PRIzi "zi"
+#define PRIzu "zu"
+#define PRIzx "zx"
+#define PRIzd "zd"
+#undef PRIx64
+#define PRIx64 "llx"
+#undef PRId64
+#define PRId64 "lld"
+#undef PRIu64
+#define PRIu64 "llu"
+#elif defined(IS_MINGW)
+#define PRINTF_ATTRIBUTE_FORMAT printf
+#define PRIzi "Ii"
+#define PRIzu "Iu"
+#define PRIzx "Ix"
+#define PRIzd "Id"
 #else
 #define PRINTF_ATTRIBUTE_FORMAT printf
+#define PRIzi "zi"
+#define PRIzu "zu"
+#define PRIzx "zx"
+#define PRIzd "zd"
 #endif
 
 /* logging priorities
