@@ -685,7 +685,7 @@ struct current_thread *add_current_thread(struct current_thread *currents,
 struct threads *liste_del_task(struct threads *task_list, struct threads **t,
 	struct threads *prev)
 {
-	LOG_INFO("del task %" PRId64, (*t)->threadid);
+	LOG_INFO("del task %lld", (*t)->threadid);
 	prev->next = (*t)->next;
 
 	if (prev == task_list)
