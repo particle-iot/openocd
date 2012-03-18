@@ -155,16 +155,6 @@ struct sam4_cfg {
 	uint32_t PMC_FSPR;
 };
 
-/*
- * The AT91SAM4N data sheet 04-Oct-2010, AT91SAM4U data sheet 22-Aug-2011
- * and AT91SAM4S data sheet 09-Feb-2011 state that for flash writes
- * the flash wait state (FWS) should be set to 6. It seems like that the
- * cause of the problem is not the flash itself, but the flash write
- * buffer. Ie the wait states have to be set before writing into the
- * buffer.
- * Tested and confirmed with SAM4N and SAM4U
- */
-
 struct sam4_bank_private {
 	int probed;
 	/* DANGER: THERE ARE DRAGONS HERE.. */
@@ -255,6 +245,11 @@ static struct sam4_chip *get_current_sam4(struct command_context *cmd_ctx)
 	command_print(cmd_ctx, "Cannot find SAM4 chip?");
 	return NULL;
 }
+
+/*The actual sector size of the SAM4S flash memory is 65536 bytes. 16 sectors for a 1024KB device*/
+/*The lockregions are 8KB per lock reqion, with a 1024KB device having 128 lock reqions. */
+/*For the best results, nsectors are thus set to the amount of lock regions, and the sector_size*/
+/*set to the lock region size.  Page erases are used to erase 8KB sections when programming*/
 
 /* these are used to *initialize* the "pChip->details" structure. */
 static const struct sam4_chip_details all_sam4_details[] = {
@@ -696,6 +691,42 @@ static int FLASHD_EraseEntireBank(struct sam4_bank_private *pPrivate)
 {
 	LOG_DEBUG("Here");
 	return EFC_PerformCommand(pPrivate, AT91C_EFC_FCMD_EA, 0, NULL);
+}
+
+/**
+ * Erases the entire flash.
+ * @param pPrivate - the info about the bank.
+ */
+static int FLASHD_ErasePages(struct sam4_bank_private *pPrivate,
+							 int firstPage,
+							 int numPages,
+							 uint32_t *status)
+{
+	LOG_DEBUG("Here");
+	uint8_t erasePages;
+	switch (numPages)	{
+		case 4:
+			erasePages = 0x00;
+			break;
+		case 8:
+			erasePages = 0x01;
+			break;
+		case 16:
+			erasePages = 0x02;
+			break;
+		case 32:
+			erasePages = 0x03;
+			break;
+		default:
+			erasePages = 0x00;
+			break;
+	}
+
+	return EFC_PerformCommand(pPrivate,
+		/* send Erase & Write Page */
+		AT91C_EFC_FCMD_EPA,
+		(firstPage << 2) | erasePages,
+		status);
 }
 
 /**
@@ -1416,28 +1447,6 @@ static int sam4_GetInfo(struct sam4_chip *pChip)
 	return ERROR_OK;
 }
 
-static int sam4_erase_check(struct flash_bank *bank)
-{
-	int x;
-
-	LOG_DEBUG("Here");
-	if (bank->target->state != TARGET_HALTED) {
-		LOG_ERROR("Target not halted");
-		return ERROR_TARGET_NOT_HALTED;
-	}
-	if (0 == bank->num_sectors) {
-		LOG_ERROR("Target: not supported/not probed");
-		return ERROR_FAIL;
-	}
-
-	LOG_INFO("sam4 - supports auto-erase, erase_check ignored");
-	for (x = 0; x < bank->num_sectors; x++)
-		bank->sectors[x].is_erased = 1;
-
-	LOG_DEBUG("Done");
-	return ERROR_OK;
-}
-
 static int sam4_protect_check(struct flash_bank *bank)
 {
 	int r;
@@ -1459,7 +1468,7 @@ static int sam4_protect_check(struct flash_bank *bank)
 	if (!(pPrivate->probed))
 		return ERROR_FLASH_BANK_NOT_PROBED;
 
-	r = FLASHD_GetLockBits(pPrivate, &v);
+	r = FLASHD_GetLockBits(pPrivate, v);
 	if (r != ERROR_OK) {
 		LOG_DEBUG("Failed: %d", r);
 		return r;
@@ -1669,6 +1678,8 @@ static int sam4_erase(struct flash_bank *bank, int first, int last)
 {
 	struct sam4_bank_private *pPrivate;
 	int r;
+	int i;
+	uint32_t status;
 
 	LOG_DEBUG("Here");
 	if (bank->target->state != TARGET_HALTED) {
@@ -1691,7 +1702,25 @@ static int sam4_erase(struct flash_bank *bank, int first, int last)
 		LOG_DEBUG("Here");
 		return FLASHD_EraseEntireBank(pPrivate);
 	}
-	LOG_INFO("sam4 auto-erases while programing (request ignored)");
+	LOG_INFO("sam4 does not auto-erase while programing (Erasing relevant sectors)");
+	LOG_INFO("sam4 First: 0x%08x Last: 0x%08x", (unsigned int)(first), (unsigned int)(last));
+	for (i = first; i <= last; i++) {
+		/*16 pages equals 8KB - Same size as a lock region*/
+		r = FLASHD_ErasePages(pPrivate, i, 16, &status);
+		LOG_INFO("Erasing sector: 0x%08x", (unsigned int)(i));
+		if (r != ERROR_OK)
+			LOG_ERROR("SAM4: Error performing Erase page @ lock region number %d",
+				(unsigned int)(i));
+		if (status & (1 << 2)) {
+			LOG_ERROR("SAM4: Lock Reqion %d is locked", (unsigned int)(i));
+			return ERROR_FAIL;
+		}
+		if (status & (1 << 1)) {
+			LOG_ERROR("SAM4: Flash Command error @lock region %d", (unsigned int)(i));
+			return ERROR_FAIL;
+		}
+	}
+
 	return ERROR_OK;
 }
 
@@ -1865,28 +1894,6 @@ static int sam4_page_write(struct sam4_bank_private *pPrivate, unsigned pagenum,
 	/* 1st sector 8kBytes - page 0 - 15*/
 	/* 2nd sector 8kBytes - page 16 - 30*/
 	/* 3rd sector 48kBytes - page 31 - 127*/
-#if 0
-	if ((pagenum % 4) == 0)
-	{
-		r = EFC_PerformCommand(pPrivate,
-			/* send Erase & Write Page */
-			AT91C_EFC_FCMD_EPA,
-			pagenum,
-			&status);
-		if (r != ERROR_OK)
-			LOG_ERROR("SAM4: Error performing Erase page @ phys address 0x%08x",
-				(unsigned int)(adr));
-		if (status & (1 << 2)) {
-			LOG_ERROR("SAM4: Page @ Phys address 0x%08x is locked", (unsigned int)(adr));
-			return ERROR_FAIL;
-		}
-		if (status & (1 << 1)) {
-			LOG_ERROR("SAM4: Flash Command error @phys address 0x%08x", (unsigned int)(adr));
-			return ERROR_FAIL;
-		}
-	}
-#endif
-
 	LOG_DEBUG("Wr Page %u @ phys address: 0x%08x", pagenum, (unsigned int)(adr));
 	r = target_write_memory(pPrivate->pChip->target,
 			adr,
@@ -2298,7 +2305,7 @@ struct flash_driver at91sam4_flash = {
 	.read = default_flash_read,
 	.probe = sam4_probe,
 	.auto_probe = sam4_auto_probe,
-	.erase_check = sam4_erase_check,
+	.erase_check = default_flash_blank_check,
 	.protect_check = sam4_protect_check,
 	.info = sam4_info,
 };
