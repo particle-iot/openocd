@@ -120,14 +120,68 @@ static const struct {
 	{ ARMV7M_R14, "lr", 32 },
 	{ ARMV7M_PC, "pc", 32 },
 
-	{ ARMV7M_xPSR, "xPSR", 32 },
+	{ ARMV7M_xPSR, "xPSR", 32 },		/* 16 */
 	{ ARMV7M_MSP, "msp", 32 },
 	{ ARMV7M_PSP, "psp", 32 },
 
-	{ ARMV7M_PRIMASK, "primask", 1 },
+	{ ARMV7M_PRIMASK, "primask", 1 },	/* 19 */
 	{ ARMV7M_BASEPRI, "basepri", 8 },
 	{ ARMV7M_FAULTMASK, "faultmask", 1 },
 	{ ARMV7M_CONTROL, "control", 2 },
+
+	{ ARMV7M_S0, "s0", 32 },		/* 23 */
+	{ ARMV7M_S1, "s1", 32 },
+	{ ARMV7M_S2, "s2", 32 },
+	{ ARMV7M_S3, "s3", 32 },
+	{ ARMV7M_S4, "s4", 32 },
+	{ ARMV7M_S5, "s5", 32 },
+	{ ARMV7M_S6, "s6", 32 },
+	{ ARMV7M_S7, "s7", 32 },
+	{ ARMV7M_S8, "s8", 32 },
+	{ ARMV7M_S9, "s9", 32 },
+	{ ARMV7M_S10, "s10", 32 },
+	{ ARMV7M_S11, "s11", 32 },
+	{ ARMV7M_S12, "s12", 32 },
+	{ ARMV7M_S13, "s13", 32 },
+	{ ARMV7M_S14, "s14", 32 },
+	{ ARMV7M_S15, "s15", 32 },
+	{ ARMV7M_S16, "s16", 32 },
+	{ ARMV7M_S17, "s17", 32 },
+	{ ARMV7M_S18, "s18", 32 },
+	{ ARMV7M_S19, "s19", 32 },
+	{ ARMV7M_S20, "s20", 32 },
+	{ ARMV7M_S21, "s21", 32 },
+	{ ARMV7M_S22, "s22", 32 },
+	{ ARMV7M_S23, "s23", 32 },
+	{ ARMV7M_S24, "s24", 32 },
+	{ ARMV7M_S25, "s25", 32 },
+	{ ARMV7M_S26, "s26", 32 },
+	{ ARMV7M_S27, "s27", 32 },
+	{ ARMV7M_S28, "s28", 32 },
+	{ ARMV7M_S29, "s29", 32 },
+	{ ARMV7M_S30, "s30", 32 },
+	{ ARMV7M_S31, "s31", 32 },
+
+	{ ARMV7M_D0, "d0", 64 },		/* 55 */
+	{ ARMV7M_D1, "d1", 64 },
+	{ ARMV7M_D2, "d2", 64 },
+	{ ARMV7M_D3, "d3", 64 },
+	{ ARMV7M_D4, "d4", 64 },
+	{ ARMV7M_D5, "d5", 64 },
+	{ ARMV7M_D6, "d6", 64 },
+	{ ARMV7M_D7, "d7", 64 },
+	{ ARMV7M_D8, "d8", 64 },
+	{ ARMV7M_D9, "d9", 64 },
+	{ ARMV7M_D10, "d10", 64 },
+	{ ARMV7M_D11, "d11", 64 },
+	{ ARMV7M_D12, "d12", 64 },
+	{ ARMV7M_D13, "d13", 64 },
+	{ ARMV7M_D14, "d14", 64 },
+	{ ARMV7M_D15, "d15", 64 },
+
+	{ ARMV7M_FPSID, "fpsid", 32 },
+	{ ARMV7M_FPSCR, "fpscr", 32 },
+	{ ARMV7M_FPEXC, "fpexc", 32 },
 };
 
 #define ARMV7M_NUM_REGS ARRAY_SIZE(armv7m_regs)
@@ -192,16 +246,48 @@ static int armv7m_get_core_reg(struct reg *reg)
 
 static int armv7m_set_core_reg(struct reg *reg, uint8_t *buf)
 {
+	int regidx;
 	struct armv7m_core_reg *armv7m_reg = reg->arch_info;
 	struct target *target = armv7m_reg->target;
-	uint32_t value = buf_get_u32(buf, 0, 32);
+	struct armv7m_common *armv7m = target_to_armv7m(target);
 
 	if (target->state != TARGET_HALTED)
 		return ERROR_TARGET_NOT_HALTED;
 
-	buf_set_u32(reg->value, 0, 32, value);
-	reg->dirty = 1;
-	reg->valid = 1;
+	if ((armv7m_reg->num >= ARMV7M_D0) && (armv7m_reg->num <= ARMV7M_D15)) {
+		/* map D0..D15 to S0..S31 */
+		regidx = ARMV7M_S0+(armv7m_reg->num-ARMV7M_D0)*2;
+
+		/* only copy, don't mark it as dirty */
+		buf_cpy(buf,reg->value,reg->size);
+		reg->valid = 1;
+
+		/* set S-low register */
+		buf_cpy(buf+4,armv7m->core_cache->reg_list[regidx].value,reg->size/2);
+		armv7m->core_cache->reg_list[regidx].dirty = 1;
+		armv7m->core_cache->reg_list[regidx].valid = 1;
+		/* set S-high register */
+		buf_cpy(buf,armv7m->core_cache->reg_list[regidx+1].value,reg->size/2);
+		armv7m->core_cache->reg_list[regidx+1].dirty = 1;
+		armv7m->core_cache->reg_list[regidx+1].valid = 1;
+	} else if ((armv7m_reg->num >= ARMV7M_S0) && (armv7m_reg->num <= ARMV7M_S31)) {
+		/* map S0..S31 to D0..D15 */
+		regidx = ((armv7m_reg->num - ARMV7M_S0) >> 1);
+
+		buf_cpy(buf,reg->value,reg->size);
+		reg->dirty = 1;
+		reg->valid = 1;
+
+		/* copy S-low/high to D register */
+		buf_cpy(armv7m->core_cache->reg_list[ARMV7M_S0+regidx*2+1].value,
+			armv7m->core_cache->reg_list[ARMV7M_D0+regidx].value,reg->size);
+		buf_cpy(armv7m->core_cache->reg_list[ARMV7M_S0+regidx*2].value,
+			armv7m->core_cache->reg_list[ARMV7M_D0+regidx].value+4,reg->size);
+	} else {
+		buf_cpy(buf,reg->value,reg->size);
+		reg->dirty = 1;
+		reg->valid = 1;
+	}
 
 	return ERROR_OK;
 }
@@ -209,19 +295,50 @@ static int armv7m_set_core_reg(struct reg *reg, uint8_t *buf)
 static int armv7m_read_core_reg(struct target *target, unsigned num)
 {
 	uint32_t reg_value;
-	int retval;
+	int retval = ERROR_OK, regidx;
 	struct armv7m_core_reg *armv7m_core_reg;
 	struct armv7m_common *armv7m = target_to_armv7m(target);
 
 	if (num >= ARMV7M_NUM_REGS)
 		return ERROR_COMMAND_SYNTAX_ERROR;
 
-	armv7m_core_reg = armv7m->core_cache->reg_list[num].arch_info;
-	retval = armv7m->load_core_reg_u32(target,
+	if ((num >= ARMV7M_D0) && (num <= ARMV7M_D15)) {
+		/* map D0..D15 to S0..S31 */
+		regidx = ARMV7M_S0+(num-ARMV7M_D0)*2;
+
+		/* read S-low register */
+		armv7m_core_reg = armv7m->core_cache->reg_list[regidx].arch_info;
+
+		retval = armv7m->load_core_reg_u32(target,
 			armv7m_core_reg->type,
 			armv7m_core_reg->num,
 			&reg_value);
-	buf_set_u32(armv7m->core_cache->reg_list[num].value, 0, 32, reg_value);
+		if (retval != ERROR_OK)
+			return retval;
+
+		buf_set_u32(armv7m->core_cache->reg_list[num].value+4, 0, 32, reg_value);
+
+		/* read S-high register */
+		armv7m_core_reg = armv7m->core_cache->reg_list[regidx].arch_info;
+
+		retval = armv7m->load_core_reg_u32(target,
+			armv7m_core_reg->type,
+			armv7m_core_reg->num,
+			&reg_value);
+		if (retval != ERROR_OK)
+			return retval;
+
+		buf_set_u32(armv7m->core_cache->reg_list[num].value, 0, 32, reg_value);
+
+	} else {
+		armv7m_core_reg = armv7m->core_cache->reg_list[num].arch_info;
+
+		retval = armv7m->load_core_reg_u32(target,
+			armv7m_core_reg->type,
+			armv7m_core_reg->num,
+			&reg_value);
+		buf_set_u32(armv7m->core_cache->reg_list[num].value, 0, 32, reg_value);
+	}
 	armv7m->core_cache->reg_list[num].valid = 1;
 	armv7m->core_cache->reg_list[num].dirty = 0;
 
@@ -237,6 +354,13 @@ static int armv7m_write_core_reg(struct target *target, unsigned num)
 
 	if (num >= ARMV7M_NUM_REGS)
 		return ERROR_COMMAND_SYNTAX_ERROR;
+
+	/* ignore 64bit registers */
+	if ((num >= ARMV7M_D0) && (num <= ARMV7M_D15)) {
+		armv7m->core_cache->reg_list[num].valid = 1;
+		armv7m->core_cache->reg_list[num].dirty = 0;
+		return ERROR_OK;
+	}
 
 	reg_value = buf_get_u32(armv7m->core_cache->reg_list[num].value, 0, 32);
 	armv7m_core_reg = armv7m->core_cache->reg_list[num].arch_info;
