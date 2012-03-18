@@ -84,7 +84,7 @@ static int oocd_trace_read_memory(struct oocd_trace *oocd_trace, uint8_t *data, 
 		bytes_read = read(oocd_trace->tty_fd,
 				((uint8_t *)data) + (size * 16) - bytes_to_read, bytes_to_read);
 		if (bytes_read < 0)
-			LOG_DEBUG("read() returned %zi (%s)", bytes_read, strerror(errno));
+			LOG_DEBUG("read() returned %" PRIzi " (%s)", bytes_read, strerror(errno));
 		else
 			bytes_to_read -= bytes_read;
 	}
@@ -133,7 +133,7 @@ static int oocd_trace_init(struct etm_context *etm_ctx)
 	do {
 		bytes_read = read(oocd_trace->tty_fd, trash, sizeof(trash));
 		if (bytes_read)
-			LOG_DEBUG("%zi bytes read", bytes_read);
+			LOG_DEBUG("%" PRIzi " bytes read", bytes_read);
 	} while (bytes_read > 0);
 
 	return ERROR_OK;

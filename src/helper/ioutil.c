@@ -219,7 +219,7 @@ COMMAND_HANDLER(handle_cp_command)
 		if (retval != ERROR_OK)
 			break;
 
-		command_print(CMD_CTX, "%zu", len - pos);
+		command_print(CMD_CTX, "%" PRIzu, len - pos);
 
 		pos += chunk;
 
