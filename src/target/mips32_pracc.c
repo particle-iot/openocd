@@ -442,40 +442,40 @@ static int mips32_pracc_read_mem16(struct mips_ejtag *ejtag_info, uint32_t addr,
 
 	/* TODO remove array */
 	uint32_t *param_out = malloc(count * sizeof(uint32_t));
-	if(param_out == NULL) {
+	if (param_out == NULL) {
 		LOG_ERROR("Out of memory");
 		return ERROR_FAIL;
-		}	
+		}
 
 	int retval = ERROR_OK;
 	int blocksize;
-	int hwordsread=0;
-	uint32_t param_in[2];	
-	
-	while (count > 0) 
+	int hwordsread = 0;
+	uint32_t param_in[2];
+
+	while (count > 0)
 	{
 		blocksize = count;
 		if (count > 0x400)
 			blocksize = 0x400;
-		
+
 		param_in[0] = addr;
 		param_in[1] = blocksize;
-		
+
 		retval = mips32_pracc_exec(ejtag_info, ARRAY_SIZE(code), code,
 			ARRAY_SIZE(param_in), param_in, blocksize, &param_out[hwordsread], 1);
-		
+
 		if (retval != ERROR_OK)
 			return retval;
-		
-		count -= blocksize; 
-		addr += blocksize*sizeof(uint16_t); 
-		hwordsread+=blocksize;
+
+		count -= blocksize;
+		addr += blocksize*sizeof(uint16_t);
+		hwordsread += blocksize;
 	}
-	
+
 	int i;
 	for (i = 0; i < hwordsread; i++)
 		buf[i] = param_out[i];
-	
+
 	free(param_out);
 	return retval;
 }
@@ -521,17 +521,17 @@ static int mips32_pracc_read_mem8(struct mips_ejtag *ejtag_info, uint32_t addr, 
 
 	/* TODO remove array */
 	uint32_t *param_out = malloc(count * sizeof(uint32_t));
-	if(param_out == NULL) {
+	if (param_out == NULL) {
 		LOG_ERROR("Out of memory");
 		return ERROR_FAIL;
 		}
-		
+
 	int retval = ERROR_OK;
-	int blocksize;	
+	int blocksize;
 	uint32_t param_in[2];
 	int bytesread=0;
 	
-	while (count > 0) 
+	while (count > 0)
 	{
 		blocksize = count;
 		if (count > 0x400)
@@ -539,20 +539,20 @@ static int mips32_pracc_read_mem8(struct mips_ejtag *ejtag_info, uint32_t addr, 
 
 		param_in[0] = addr;
 		param_in[1] = blocksize;
-		
+
 		retval = mips32_pracc_exec(ejtag_info, ARRAY_SIZE(code), code,
 			ARRAY_SIZE(param_in), param_in, count, &param_out[bytesread], 1);
 		
 		if (retval != ERROR_OK)
 			return retval;
 
-		count -= blocksize; 
-		addr += blocksize; 
+		count -= blocksize;
+		addr += blocksize;
 		bytesread+=blocksize;
 	}
 	int i;
 	for (i = 0; i < bytesread; i++)
-		buf[i] = param_out[i]; 
+		buf[i] = param_out[i];
 
 	free(param_out);
 	return retval;
