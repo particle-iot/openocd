@@ -193,6 +193,7 @@ static int redbee_init(void);
 static int lisa_l_init(void);
 static int flossjtag_init(void);
 static int xds100v2_init(void);
+static int digilent_hs1_init(void);
 
 /* reset procedures for supported layouts */
 static void ftx23_reset(int trst, int srst);
@@ -336,6 +337,10 @@ static const struct ft2232_layout  ft2232_layouts[] = {
 	{ .name = "xds100v2",
 		.init = xds100v2_init,
 		.reset = xds100v2_reset,
+	},
+	{ .name = "digilent-hs1",
+		.init = digilent_hs1_init,
+		.channel = INTERFACE_A,
 	},
 	{ .name = NULL, /* END OF TABLE */ },
 };
@@ -1885,7 +1890,8 @@ static int ft2232_execute_reset(struct jtag_command *cmd)
 	    (cmd->cmd.reset->srst && (jtag_get_reset_config() & RESET_SRST_PULLS_TRST)))
 		tap_set_state(TAP_RESET);
 
-	layout->reset(cmd->cmd.reset->trst, cmd->cmd.reset->srst);
+	if (layout->reset)
+		layout->reset(cmd->cmd.reset->trst, cmd->cmd.reset->srst);
 	require_send = 1;
 
 	DEBUG_JTAG_IO("trst: %i, srst: %i",
@@ -4177,6 +4183,28 @@ static void ktlink_blink(void)
 	buffer_write(0x82);	/* command "set data bits high byte" */
 	buffer_write(high_output);
 	buffer_write(high_direction);
+}
+
+/********************************************************************
+ * Support for Digilent HS-1
+ * JTAG adapter from Digilent
+ * http://www.digilent.com
+ * Author: Stephane Bonnet bonnetst@hds.utc.fr
+ *******************************************************************/
+
+static int digilent_hs1_init(void)
+{
+	/* the adapter only supports the base JTAG signals, no nTRST
+	   nor nSRST */
+	low_output	= 0x88;
+	low_direction	= 0x8b;
+
+	/* initialize low byte for jtag */
+	if (ft2232_set_data_bits_low_byte(low_output, low_direction) != ERROR_OK) {
+		LOG_ERROR("couldn't initialize FT2232 with 'digilent_hs1' layout");
+		return ERROR_JTAG_INIT_FAILED;
+	}
+	return ERROR_OK;
 }
 
 static const struct command_registration ft2232_command_handlers[] = {
