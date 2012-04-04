@@ -380,6 +380,12 @@ static int stm32lx_write(struct flash_bank *bank, uint8_t *buffer,
 	uint32_t bytes_written = 0;
 	int retval;
 
+	uint8_t  *start = buffer;
+	uint32_t start_address = address;
+	uint32_t start_count = count;
+	uint8_t  *validate;
+	uint32_t check;
+
 	if (bank->target->state != TARGET_HALTED) {
 		LOG_ERROR("Target not halted");
 		return ERROR_TARGET_NOT_HALTED;
@@ -453,7 +459,26 @@ static int stm32lx_write(struct flash_bank *bank, uint8_t *buffer,
 	if (retval != ERROR_OK)
 		return retval;
 
-	return ERROR_OK;
+	validate = malloc(start_count);
+
+	retval = target_read_buffer(target, start_address, start_count, validate);
+	if (retval != ERROR_OK) {
+		free(validate);
+		return retval;
+	}
+
+	for (check = 0; check < start_count; check++) {
+		if (validate[check] != start[check]) {
+			LOG_ERROR("flash corrupted at 0x%08x (%02x != %02x)\n",
+				   start_address + check, start[check], validate[check]);
+			retval = ERROR_FAIL;
+			break;
+		}
+	}
+
+	free(validate);
+
+	return retval;
 }
 
 static int stm32lx_probe(struct flash_bank *bank)
