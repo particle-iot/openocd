@@ -341,7 +341,7 @@ static const struct ft2232_layout  ft2232_layouts[] = {
 	},
 	{ .name = "digilent-hs1",
 		.init = digilent_hs1_init,
-		.reset = digilent_hs1_reset, 
+		.reset = digilent_hs1_reset,
 		.channel = INTERFACE_A,
 	},
 	{ .name = NULL, /* END OF TABLE */ },
