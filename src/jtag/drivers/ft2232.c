@@ -212,6 +212,7 @@ static void signalyzer_h_reset(int trst, int srst);
 static void ktlink_reset(int trst, int srst);
 static void redbee_reset(int trst, int srst);
 static void xds100v2_reset(int trst, int srst);
+static void digilent_hs1_reset(int trst, int srst);
 
 /* blink procedures for layouts that support a blinking led */
 static void olimex_jtag_blink(void);
@@ -340,6 +341,7 @@ static const struct ft2232_layout  ft2232_layouts[] = {
 	},
 	{ .name = "digilent-hs1",
 		.init = digilent_hs1_init,
+		.reset = digilent_hs1_reset, 
 		.channel = INTERFACE_A,
 	},
 	{ .name = NULL, /* END OF TABLE */ },
@@ -1890,8 +1892,7 @@ static int ft2232_execute_reset(struct jtag_command *cmd)
 	    (cmd->cmd.reset->srst && (jtag_get_reset_config() & RESET_SRST_PULLS_TRST)))
 		tap_set_state(TAP_RESET);
 
-	if (layout->reset)
-		layout->reset(cmd->cmd.reset->trst, cmd->cmd.reset->srst);
+	layout->reset(cmd->cmd.reset->trst, cmd->cmd.reset->srst);
 	require_send = 1;
 
 	DEBUG_JTAG_IO("trst: %i, srst: %i",
@@ -4205,6 +4206,10 @@ static int digilent_hs1_init(void)
 		return ERROR_JTAG_INIT_FAILED;
 	}
 	return ERROR_OK;
+}
+
+static void digilent_hs1_reset(int trst, int srst)
+{
 }
 
 static const struct command_registration ft2232_command_handlers[] = {
