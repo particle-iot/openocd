@@ -205,14 +205,14 @@ struct dap_ops {
 
 	/** DP register read. */
 	int (*queue_dp_read)(struct adiv5_dap *dap, unsigned reg,
-			uint32_t *data);
+			uint32_t *data, uint8_t post_process);
 	/** DP register write. */
 	int (*queue_dp_write)(struct adiv5_dap *dap, unsigned reg,
 			uint32_t data);
 
 	/** AP register read. */
 	int (*queue_ap_read)(struct adiv5_dap *dap, unsigned reg,
-			uint32_t *data);
+			uint32_t *data, uint8_t post_process);
 	/** AP register write. */
 	int (*queue_ap_write)(struct adiv5_dap *dap, unsigned reg,
 			uint32_t data);
@@ -255,10 +255,10 @@ static inline int dap_queue_idcode_read(struct adiv5_dap *dap,
  * @return ERROR_OK for success, else a fault code.
  */
 static inline int dap_queue_dp_read(struct adiv5_dap *dap,
-		unsigned reg, uint32_t *data)
+		unsigned reg, uint32_t *data, uint8_t post_process)
 {
 	assert(dap->ops != NULL);
-	return dap->ops->queue_dp_read(dap, reg, data);
+	return dap->ops->queue_dp_read(dap, reg, data, post_process);
 }
 
 /**
@@ -290,10 +290,10 @@ static inline int dap_queue_dp_write(struct adiv5_dap *dap,
  * @return ERROR_OK for success, else a fault code.
  */
 static inline int dap_queue_ap_read(struct adiv5_dap *dap,
-		unsigned reg, uint32_t *data)
+		unsigned reg, uint32_t *data, uint8_t post_process)
 {
 	assert(dap->ops != NULL);
-	return dap->ops->queue_ap_read(dap, reg, data);
+	return dap->ops->queue_ap_read(dap, reg, data, post_process);
 }
 
 /**

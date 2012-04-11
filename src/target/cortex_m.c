@@ -88,7 +88,7 @@ static int cortexm3_dap_read_coreregister_u32(struct adiv5_dap *swjdp,
 	retval = dap_setup_accessport(swjdp, CSW_32BIT | CSW_ADDRINC_OFF, DCB_DCRDR & 0xFFFFFFF0);
 	if (retval != ERROR_OK)
 		return retval;
-	retval = dap_queue_ap_read(swjdp, AP_REG_BD0 | (DCB_DCRDR & 0xC), value);
+	retval = dap_queue_ap_read(swjdp, AP_REG_BD0 | (DCB_DCRDR & 0xC), value, 1);
 	if (retval != ERROR_OK)
 		return retval;
 
