@@ -33,7 +33,8 @@ NOR_DRIVERS = \
 	virtual.c \
 	fm3.c \
 	dsp5680xx_flash.c \
-	kinetis.c
+	kinetis.c \
+	smartfusion_a2f200.c
 
 noinst_HEADERS = \
 	core.h \
