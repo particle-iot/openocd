@@ -56,7 +56,7 @@
 #include <jtag/swd.h>
 
 static int swd_queue_dp_read(struct adiv5_dap *dap, unsigned reg,
-		uint32_t *data)
+		uint32_t *data, uint8_t post_process)
 {
 	/* REVISIT status return vs ack ... */
 	return swd->read_reg(swd_cmd(true,  false, reg), data);
@@ -65,7 +65,7 @@ static int swd_queue_dp_read(struct adiv5_dap *dap, unsigned reg,
 static int swd_queue_idcode_read(struct adiv5_dap *dap,
 		uint8_t *ack, uint32_t *data)
 {
-	int status = swd_queue_dp_read(dap, DP_IDCODE, data);
+	int status = swd_queue_dp_read(dap, DP_IDCODE, data, 1);
 	if (status < 0)
 		return status;
 	*ack = status;
@@ -82,7 +82,7 @@ static int (swd_queue_dp_write)(struct adiv5_dap *dap, unsigned reg,
 
 
 static int (swd_queue_ap_read)(struct adiv5_dap *dap, unsigned reg,
-		uint32_t *data)
+		uint32_t *data, uint8_t post_process)
 {
 	/* REVISIT  APSEL ... */
 	/* REVISIT status return ... */
@@ -200,7 +200,7 @@ COMMAND_HANDLER(handle_swd_wcr)
 	/* no-args: just dump state */
 	case 0:
 		/*retval = swd_queue_dp_read(dap, DP_WCR, &wcr); */
-		retval = dap_queue_dp_read(dap, DP_WCR, &wcr);
+		retval = dap_queue_dp_read(dap, DP_WCR, &wcr, 1);
 		if (retval == ERROR_OK)
 			dap->ops->run(dap);
 		if (retval != ERROR_OK) {

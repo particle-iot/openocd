@@ -183,7 +183,7 @@ int mem_ap_read_u32(struct adiv5_dap *dap, uint32_t address,
 	if (retval != ERROR_OK)
 		return retval;
 
-	return dap_queue_ap_read(dap, AP_REG_BD0 | (address & 0xC), value);
+	return dap_queue_ap_read(dap, AP_REG_BD0 | (address & 0xC), value, 1);
 }
 
 /**
@@ -533,13 +533,6 @@ int mem_ap_write_buf_u8(struct adiv5_dap *dap, const uint8_t *buffer, int count,
 	return retval;
 }
 
-/* FIXME don't import ... this is a temporary workaround for the
- * mem_ap_read_buf_u32() mess, until it's no longer JTAG-specific.
- */
-extern int adi_jtag_dp_scan(struct adiv5_dap *dap,
-		uint8_t instr, uint8_t reg_addr, uint8_t RnW,
-		uint8_t *outvalue, uint8_t *invalue, uint8_t *ack);
-
 /**
  * Synchronously read a block of 32-bit words into a buffer
  * @param dap The DAP connected to the MEM-AP.
@@ -577,16 +570,8 @@ int mem_ap_read_buf_u32(struct adiv5_dap *dap, uint8_t *buffer,
 		if (retval != ERROR_OK)
 			return retval;
 
-		/* FIXME remove these three calls to adi_jtag_dp_scan(),
-		 * so this routine becomes transport-neutral.  Be careful
-		 * not to cause performance problems with JTAG; would it
-		 * suffice to loop over dap_queue_ap_read(), or would that
-		 * be slower when JTAG is the chosen transport?
-		 */
-
 		/* Scan out first read */
-		retval = adi_jtag_dp_scan(dap, JTAG_DP_APACC, AP_REG_DRW,
-				DPAP_READ, 0, NULL, NULL);
+		retval = dap_queue_ap_read(dap, AP_REG_DRW, NULL, 0);
 		if (retval != ERROR_OK)
 			return retval;
 		for (readcount = 0; readcount < blocksize - 1; readcount++) {
@@ -594,9 +579,8 @@ int mem_ap_read_buf_u32(struct adiv5_dap *dap, uint8_t *buffer,
 			 * previous one.  Assumes read is acked "OK/FAULT",
 			 * and CTRL_STAT says that meant "OK".
 			 */
-			retval = adi_jtag_dp_scan(dap, JTAG_DP_APACC, AP_REG_DRW,
-					DPAP_READ, 0, buffer + 4 * readcount,
-					&dap->ack);
+			retval = dap_queue_ap_read(dap, AP_REG_DRW,
+					(uint32_t *)(buffer + 4 * readcount), 0);
 			if (retval != ERROR_OK)
 				return retval;
 		}
@@ -604,9 +588,8 @@ int mem_ap_read_buf_u32(struct adiv5_dap *dap, uint8_t *buffer,
 		/* Scan in last posted value; RDBUFF has no other effect,
 		 * assuming ack is OK/FAULT and CTRL_STAT says "OK".
 		 */
-		retval = adi_jtag_dp_scan(dap, JTAG_DP_DPACC, DP_RDBUFF,
-				DPAP_READ, 0, buffer + 4 * readcount,
-				&dap->ack);
+		retval = dap_queue_dp_read(dap, DP_RDBUFF,
+				(uint32_t *)(buffer + 4 * readcount), 0);
 		if (retval != ERROR_OK)
 			return retval;
 
@@ -671,7 +654,7 @@ static int mem_ap_read_buf_packed_u16(struct adiv5_dap *dap,
 		readcount = blocksize;
 
 		do {
-			retval = dap_queue_ap_read(dap, AP_REG_DRW, &invalue);
+			retval = dap_queue_ap_read(dap, AP_REG_DRW, &invalue, 1);
 			if (retval != ERROR_OK)
 				return retval;
 			retval = dap_run(dap);
@@ -717,7 +700,7 @@ int mem_ap_read_buf_u16(struct adiv5_dap *dap, uint8_t *buffer,
 		retval = dap_setup_accessport(dap, CSW_16BIT | CSW_ADDRINC_SINGLE, address);
 		if (retval != ERROR_OK)
 			return retval;
-		retval = dap_queue_ap_read(dap, AP_REG_DRW, &invalue);
+		retval = dap_queue_ap_read(dap, AP_REG_DRW, &invalue, 1);
 		if (retval != ERROR_OK)
 			break;
 
@@ -773,7 +756,7 @@ static int mem_ap_read_buf_packed_u8(struct adiv5_dap *dap,
 		readcount = blocksize;
 
 		do {
-			retval = dap_queue_ap_read(dap, AP_REG_DRW, &invalue);
+			retval = dap_queue_ap_read(dap, AP_REG_DRW, &invalue, 1);
 			if (retval != ERROR_OK)
 				return retval;
 			retval = dap_run(dap);
@@ -819,7 +802,7 @@ int mem_ap_read_buf_u8(struct adiv5_dap *dap, uint8_t *buffer,
 		retval = dap_setup_accessport(dap, CSW_8BIT | CSW_ADDRINC_SINGLE, address);
 		if (retval != ERROR_OK)
 			return retval;
-		retval = dap_queue_ap_read(dap, AP_REG_DRW, &invalue);
+		retval = dap_queue_ap_read(dap, AP_REG_DRW, &invalue, 1);
 		if (retval != ERROR_OK)
 			return retval;
 		retval = dap_run(dap);
@@ -947,7 +930,7 @@ int dap_syssec_kinetis_mdmap(struct adiv5_dap *dap)
 	dap_ap_select(dap, 1);
 
 	/* first check mdm-ap id register */
-	retval = dap_queue_ap_read(dap, MDM_REG_ID, &val);
+	retval = dap_queue_ap_read(dap, MDM_REG_ID, &val, 1);
 	if (retval != ERROR_OK)
 		return retval;
 	dap_run(dap);
@@ -962,7 +945,7 @@ int dap_syssec_kinetis_mdmap(struct adiv5_dap *dap)
 	 * it's important that the device is out of
 	 * reset here
 	 */
-	retval = dap_queue_ap_read(dap, MDM_REG_STAT, &val);
+	retval = dap_queue_ap_read(dap, MDM_REG_STAT, &val, 1);
 	if (retval != ERROR_OK)
 		return retval;
 	dap_run(dap);
@@ -991,7 +974,7 @@ int dap_syssec_kinetis_mdmap(struct adiv5_dap *dap)
 					return retval;
 				dap_run(dap);
 				/* read status register and wait for ready */
-				retval = dap_queue_ap_read(dap, MDM_REG_STAT, &val);
+				retval = dap_queue_ap_read(dap, MDM_REG_STAT, &val, 1);
 				if (retval != ERROR_OK)
 					return retval;
 				dap_run(dap);
@@ -1007,13 +990,13 @@ int dap_syssec_kinetis_mdmap(struct adiv5_dap *dap)
 					return retval;
 				dap_run(dap);
 				/* read status register */
-				retval = dap_queue_ap_read(dap, MDM_REG_STAT, &val);
+				retval = dap_queue_ap_read(dap, MDM_REG_STAT, &val, 1);
 				if (retval != ERROR_OK)
 					return retval;
 				dap_run(dap);
 				LOG_DEBUG("MDM_REG_STAT %08X", val);
 				/* read control register and wait for ready */
-				retval = dap_queue_ap_read(dap, MDM_REG_CTRL, &val);
+				retval = dap_queue_ap_read(dap, MDM_REG_CTRL, &val, 1);
 				if (retval != ERROR_OK)
 					return retval;
 				dap_run(dap);
@@ -1122,7 +1105,7 @@ int ahbap_debugport_init(struct adiv5_dap *dap)
 
 	/* DP initialization */
 
-	retval = dap_queue_dp_read(dap, DP_CTRL_STAT, NULL);
+	retval = dap_queue_dp_read(dap, DP_CTRL_STAT, NULL, 1);
 	if (retval != ERROR_OK)
 		return retval;
 
@@ -1130,7 +1113,7 @@ int ahbap_debugport_init(struct adiv5_dap *dap)
 	if (retval != ERROR_OK)
 		return retval;
 
-	retval = dap_queue_dp_read(dap, DP_CTRL_STAT, NULL);
+	retval = dap_queue_dp_read(dap, DP_CTRL_STAT, NULL, 1);
 	if (retval != ERROR_OK)
 		return retval;
 
@@ -1139,7 +1122,7 @@ int ahbap_debugport_init(struct adiv5_dap *dap)
 	if (retval != ERROR_OK)
 		return retval;
 
-	retval = dap_queue_dp_read(dap, DP_CTRL_STAT, &ctrlstat);
+	retval = dap_queue_dp_read(dap, DP_CTRL_STAT, &ctrlstat, 1);
 	if (retval != ERROR_OK)
 		return retval;
 	retval = dap_run(dap);
@@ -1149,7 +1132,7 @@ int ahbap_debugport_init(struct adiv5_dap *dap)
 	/* Check that we have debug power domains activated */
 	while (!(ctrlstat & CDBGPWRUPACK) && (cnt++ < 10)) {
 		LOG_DEBUG("DAP: wait CDBGPWRUPACK");
-		retval = dap_queue_dp_read(dap, DP_CTRL_STAT, &ctrlstat);
+		retval = dap_queue_dp_read(dap, DP_CTRL_STAT, &ctrlstat, 1);
 		if (retval != ERROR_OK)
 			return retval;
 		retval = dap_run(dap);
@@ -1160,7 +1143,7 @@ int ahbap_debugport_init(struct adiv5_dap *dap)
 
 	while (!(ctrlstat & CSYSPWRUPACK) && (cnt++ < 10)) {
 		LOG_DEBUG("DAP: wait CSYSPWRUPACK");
-		retval = dap_queue_dp_read(dap, DP_CTRL_STAT, &ctrlstat);
+		retval = dap_queue_dp_read(dap, DP_CTRL_STAT, &ctrlstat, 1);
 		if (retval != ERROR_OK)
 			return retval;
 		retval = dap_run(dap);
@@ -1169,7 +1152,7 @@ int ahbap_debugport_init(struct adiv5_dap *dap)
 		alive_sleep(10);
 	}
 
-	retval = dap_queue_dp_read(dap, DP_CTRL_STAT, NULL);
+	retval = dap_queue_dp_read(dap, DP_CTRL_STAT, NULL, 1);
 	if (retval != ERROR_OK)
 		return retval;
 	/* With debug power on we can activate OVERRUN checking */
@@ -1177,7 +1160,7 @@ int ahbap_debugport_init(struct adiv5_dap *dap)
 	retval = dap_queue_dp_write(dap, DP_CTRL_STAT, dap->dp_ctrl_stat);
 	if (retval != ERROR_OK)
 		return retval;
-	retval = dap_queue_dp_read(dap, DP_CTRL_STAT, NULL);
+	retval = dap_queue_dp_read(dap, DP_CTRL_STAT, NULL, 1);
 	if (retval != ERROR_OK)
 		return retval;
 
@@ -1217,10 +1200,10 @@ int dap_get_debugbase(struct adiv5_dap *dap, int ap,
 	ap_old = dap->ap_current;
 	dap_ap_select(dap, ap);
 
-	retval = dap_queue_ap_read(dap, AP_REG_BASE, &dbgbase);
+	retval = dap_queue_ap_read(dap, AP_REG_BASE, &dbgbase, 1);
 	if (retval != ERROR_OK)
 		return retval;
-	retval = dap_queue_ap_read(dap, AP_REG_IDR, &apid);
+	retval = dap_queue_ap_read(dap, AP_REG_IDR, &apid, 1);
 	if (retval != ERROR_OK)
 		return retval;
 	retval = dap_run(dap);
@@ -1722,7 +1705,7 @@ COMMAND_HANDLER(dap_baseaddr_command)
 	 * though they're not common for now.  This should
 	 * use the ID register to verify it's a MEM-AP.
 	 */
-	retval = dap_queue_ap_read(dap, AP_REG_BASE, &baseaddr);
+	retval = dap_queue_ap_read(dap, AP_REG_BASE, &baseaddr, 1);
 	if (retval != ERROR_OK)
 		return retval;
 	retval = dap_run(dap);
@@ -1786,7 +1769,7 @@ COMMAND_HANDLER(dap_apsel_command)
 	dap->apsel = apsel;
 	dap_ap_select(dap, apsel);
 
-	retval = dap_queue_ap_read(dap, AP_REG_IDR, &apid);
+	retval = dap_queue_ap_read(dap, AP_REG_IDR, &apid, 1);
 	if (retval != ERROR_OK)
 		return retval;
 	retval = dap_run(dap);
@@ -1824,7 +1807,7 @@ COMMAND_HANDLER(dap_apid_command)
 
 	dap_ap_select(dap, apsel);
 
-	retval = dap_queue_ap_read(dap, AP_REG_IDR, &apid);
+	retval = dap_queue_ap_read(dap, AP_REG_IDR, &apid, 1);
 	if (retval != ERROR_OK)
 		return retval;
 	retval = dap_run(dap);
