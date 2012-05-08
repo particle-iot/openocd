@@ -89,7 +89,6 @@
 static char *ftdi_device_desc;
 static char *ftdi_serial;
 static uint8_t ftdi_channel;
-static uint8_t ftdi_latency = 255;
 
 #define MAX_USB_IDS 8
 /* vid = pid = 0 marks the end of the list */
@@ -617,7 +616,7 @@ static int ftdi_initialize(void)
 
 	for (int i = 0; ftdi_vid[i] || ftdi_pid[i]; i++) {
 		mpsse_ctx = mpsse_open(ftdi_vid[i], ftdi_pid[i], ftdi_device_desc,
-				ftdi_serial, ftdi_channel, ftdi_latency);
+				ftdi_serial, ftdi_channel);
 		if (mpsse_ctx)
 			break;
 	}
@@ -801,16 +800,6 @@ COMMAND_HANDLER(ftdi_handle_vid_pid_command)
 	return ERROR_OK;
 }
 
-COMMAND_HANDLER(ftdi_handle_latency_command)
-{
-	if (CMD_ARGC == 1)
-		ftdi_latency = atoi(CMD_ARGV[0]);
-	else
-		return ERROR_COMMAND_SYNTAX_ERROR;
-
-	return ERROR_OK;
-}
-
 static const struct command_registration ftdi_command_handlers[] = {
 	{
 		.name = "ftdi_device_desc",
@@ -862,13 +851,6 @@ static const struct command_registration ftdi_command_handlers[] = {
 		.mode = COMMAND_CONFIG,
 		.help = "the vendor ID and product ID of the FTDI device",
 		.usage = "(vid pid)* ",
-	},
-	{
-		.name = "ftdi_latency",
-		.handler = &ftdi_handle_latency_command,
-		.mode = COMMAND_CONFIG,
-		.help = "set the FTDI latency timer to a new value",
-		.usage = "value",
 	},
 	COMMAND_REGISTRATION_DONE
 };

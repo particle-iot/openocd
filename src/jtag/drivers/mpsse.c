@@ -258,7 +258,7 @@ error:
 }
 
 struct mpsse_ctx *mpsse_open(uint16_t vid, uint16_t pid, const char *description,
-	const char *serial, int channel, unsigned char latency)
+	const char *serial, int channel)
 {
 	struct mpsse_ctx *ctx = calloc(1, sizeof(*ctx));
 	int err;
@@ -294,23 +294,13 @@ struct mpsse_ctx *mpsse_open(uint16_t vid, uint16_t pid, const char *description
 		goto error;
 	}
 
-	assert(latency > 0);
 	err = libusb_control_transfer(ctx->usb_dev, FTDI_DEVICE_OUT_REQTYPE,
-			SIO_SET_LATENCY_TIMER_REQUEST, latency, ctx->index, NULL, 0,
+			SIO_SET_LATENCY_TIMER_REQUEST, 255, ctx->index, NULL, 0,
 			ctx->usb_write_timeout);
 	if (err < 0) {
 		LOG_ERROR("unable to set latency timer: %d", err);
 		goto error;
 	}
-
-	err = libusb_control_transfer(ctx->usb_dev, FTDI_DEVICE_IN_REQTYPE,
-			SIO_GET_LATENCY_TIMER_REQUEST, 0, ctx->index,
-			(unsigned char *)&latency, 1, ctx->usb_read_timeout);
-	if (err != 1) {
-		LOG_ERROR("unable to get latency timer: %d", err);
-		goto error;
-	} else
-		LOG_DEBUG("current latency timer: %i", latency);
 
 	err = libusb_control_transfer(ctx->usb_dev,
 			FTDI_DEVICE_OUT_REQTYPE,
