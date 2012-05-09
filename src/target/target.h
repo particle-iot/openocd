@@ -192,6 +192,12 @@ static inline const char *target_name(struct target *target)
 	return target->cmd_name;
 }
 
+/** Returns the instance-specific variant of the specified target. */
+static inline const char *target_variant(struct target *target)
+{
+	return target->variant;
+}
+
 const char *debug_reason_name(struct target *t);
 
 enum target_event {
