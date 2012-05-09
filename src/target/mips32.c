@@ -605,6 +605,9 @@ int mips32_checksum_memory(struct target *target, uint32_t address,
 		0x7000003F,		/* sdbbp */
 	};
 
+	if (count < 512) /*Please use the alternate method*/
+		return ERROR_FAIL;
+
 	/* make sure we have a working area */
 	if (target_alloc_working_area(target, sizeof(mips_crc_code), &crc_algorithm) != ERROR_OK)
 		return ERROR_TARGET_RESOURCE_NOT_AVAILABLE;
