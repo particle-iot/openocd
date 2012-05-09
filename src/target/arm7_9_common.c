@@ -2611,7 +2611,13 @@ int arm7_9_bulk_write_memory(struct target *target,
 int arm7_9_examine(struct target *target)
 {
 	struct arm7_9_common *arm7_9 = target_to_arm7_9(target);
+	struct arm_jtag *jtag_info = &arm7_9->jtag_info;
 	int retval;
+
+	/* target specific initialization */
+	if (strcmp(target_variant(target), "calypso") == 0) {
+		arm_jtag_instr_dr32(jtag_info, 0x0b, 0x02, 2, TAP_IDLE);
+	}
 
 	if (!target_was_examined(target)) {
 		struct reg_cache *t, **cache_p;
