@@ -56,16 +56,17 @@ int arm_jtag_set_instr_inner(struct arm_jtag *jtag_info,
 	return ERROR_OK;
 }
 
-int arm_jtag_scann_inner(struct arm_jtag *jtag_info, uint32_t new_scan_chain, tap_state_t end_state)
+int arm_jtag_instr_dr32(struct arm_jtag *jtag_info,
+		uint32_t ir, uint32_t dr, uint32_t drlen, tap_state_t end_state)
 {
 	int retval = ERROR_OK;
 	uint32_t values[1];
 	int num_bits[1];
 
-	values[0] = new_scan_chain;
-	num_bits[0] = jtag_info->scann_size;
+	values[0] = dr;
+	num_bits[0] = drlen;
 
-	retval = arm_jtag_set_instr(jtag_info, jtag_info->scann_instr, NULL, end_state);
+	retval = arm_jtag_set_instr(jtag_info, ir, NULL, TAP_DRPAUSE);
 	if (retval != ERROR_OK)
 		return retval;
 
@@ -74,6 +75,19 @@ int arm_jtag_scann_inner(struct arm_jtag *jtag_info, uint32_t new_scan_chain, ta
 			num_bits,
 			values,
 			end_state);
+
+	return retval;
+}
+
+int arm_jtag_scann_inner(struct arm_jtag *jtag_info, uint32_t new_scan_chain, tap_state_t end_state)
+{
+	int retval = ERROR_OK;
+
+	retval = arm_jtag_instr_dr32(jtag_info, jtag_info->scann_instr,
+		new_scan_chain, jtag_info->scann_size, end_state);
+
+	if (retval != ERROR_OK)
+		return retval;
 
 	jtag_info->cur_scan_chain = new_scan_chain;
 

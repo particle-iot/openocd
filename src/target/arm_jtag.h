@@ -36,6 +36,9 @@ struct arm_jtag {
 	uint32_t intest_instr;
 };
 
+int arm_jtag_instr_dr32(struct arm_jtag *jtag_info,
+		uint32_t ir, uint32_t dr, uint32_t drlen, tap_state_t end_state);
+
 int arm_jtag_set_instr_inner(struct arm_jtag *jtag_info, uint32_t new_instr,
 		void *no_verify_capture,
 		tap_state_t end_state);
