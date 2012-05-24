@@ -156,6 +156,8 @@ static const char *target_strerror_safe(int err)
 }
 
 static const Jim_Nvp nvp_target_event[] = {
+	{ .value = TARGET_EVENT_OLD_gdb_program_config , .name = "old-gdb_program_config" },
+	{ .value = TARGET_EVENT_OLD_pre_resume         , .name = "old-pre_resume" },
 
 	{ .value = TARGET_EVENT_GDB_HALT, .name = "gdb-halt" },
 	{ .value = TARGET_EVENT_HALTED, .name = "halted" },
@@ -166,7 +168,10 @@ static const Jim_Nvp nvp_target_event[] = {
 	{ .name = "gdb-start", .value = TARGET_EVENT_GDB_START },
 	{ .name = "gdb-end", .value = TARGET_EVENT_GDB_END },
 
-	{ .value = TARGET_EVENT_RESET_START,         .name = "reset-start" },
+	/* historical name */
+
+	{ .value = TARGET_EVENT_RESET_START, .name = "reset-start" },
+
 	{ .value = TARGET_EVENT_RESET_ASSERT_PRE,    .name = "reset-assert-pre" },
 	{ .value = TARGET_EVENT_RESET_ASSERT,        .name = "reset-assert" },
 	{ .value = TARGET_EVENT_RESET_ASSERT_POST,   .name = "reset-assert-post" },
@@ -193,6 +198,10 @@ static const Jim_Nvp nvp_target_event[] = {
 
 	{ .value = TARGET_EVENT_GDB_FLASH_ERASE_START, .name = "gdb-flash-erase-start" },
 	{ .value = TARGET_EVENT_GDB_FLASH_ERASE_END  , .name = "gdb-flash-erase-end" },
+
+	{ .value = TARGET_EVENT_RESUME_START, .name = "resume-start" },
+	{ .value = TARGET_EVENT_RESUMED     , .name = "resume-ok" },
+	{ .value = TARGET_EVENT_RESUME_END  , .name = "resume-end" },
 
 	{ .name = NULL, .value = -1 }
 };
@@ -518,8 +527,6 @@ int target_resume(struct target *target, int current, uint32_t address, int hand
 		return ERROR_FAIL;
 	}
 
-	target_call_event_callbacks(target, TARGET_EVENT_RESUME_START);
-
 	/* note that resume *must* be asynchronous. The CPU can halt before
 	 * we poll. The CPU can even halt at the current PC as a result of
 	 * a software breakpoint being inserted by (a bug?) the application.
@@ -527,8 +534,6 @@ int target_resume(struct target *target, int current, uint32_t address, int hand
 	retval = target->type->resume(target, current, address, handle_breakpoints, debug_execution);
 	if (retval != ERROR_OK)
 		return retval;
-
-	target_call_event_callbacks(target, TARGET_EVENT_RESUME_END);
 
 	return retval;
 }
@@ -611,17 +616,9 @@ static int jtag_enable_callback(enum jtag_event event, void *priv)
 		return ERROR_OK;
 
 	jtag_unregister_event_callback(jtag_enable_callback, target);
-
-	target_call_event_callbacks(target, TARGET_EVENT_EXAMINE_START);
-
-	int retval = target_examine_one(target);
-	if (retval != ERROR_OK)
-		return retval;
-
-	target_call_event_callbacks(target, TARGET_EVENT_EXAMINE_END);
-
-	return retval;
+	return target_examine_one(target);
 }
+
 
 /* Targets that correctly implement init + examine, i.e.
  * no communication with target during init:
@@ -640,18 +637,12 @@ int target_examine(void)
 					target);
 			continue;
 		}
-
-		target_call_event_callbacks(target, TARGET_EVENT_EXAMINE_START);
-
 		retval = target_examine_one(target);
 		if (retval != ERROR_OK)
 			return retval;
-
-		target_call_event_callbacks(target, TARGET_EVENT_EXAMINE_END);
 	}
 	return retval;
 }
-
 const char *target_type_name(struct target *target)
 {
 	return target->type->name;
@@ -2520,6 +2511,7 @@ COMMAND_HANDLER(handle_resume_command)
 		return ERROR_COMMAND_SYNTAX_ERROR;
 
 	struct target *target = get_current_target(CMD_CTX);
+	target_handle_event(target, TARGET_EVENT_OLD_pre_resume);
 
 	/* with no CMD_ARGV, resume from current pc, addr = 0,
 	 * with one arguments, addr = CMD_ARGV[0],
@@ -4343,6 +4335,35 @@ static int jim_target_mw(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
 	return (target_fill_mem(target, a, fn, data_size, b, c) == ERROR_OK) ? JIM_OK : JIM_ERR;
 }
 
+
+
+/**
+*  Reads an array of words/halfwords/bytes from target memory starting at specified address.
+*
+*  Usage: mdw [phys] <address> [<count>] - for 32 bit reads
+*         mdh [phys] <address> [<count>] - for 16 bit reads
+*         mdb [phys] <address> [<count>] - for  8 bit reads
+*
+*  Count defaults to 1.
+*
+*  Calls target_read_memory or target_read_phys_memory depending on
+*  the presence of the "phys" argument
+*  Reads the target memory in blocks of max. 32 bytes, and returns an array of ints formatted
+*  to int representation in base16.
+*
+*  Returns:  JIM_ERR on error
+*            A string of ascii formatted numbers on success, with [<count>] number of elements.
+*
+*  Outputs: Read data in a human readable form using command_print
+*
+*  In case of little endian target:
+*  Example1: "mdw 0x00000000"  returns "10123456"
+*  Exmaple2: "mdh 0x00000000 1" returns "3456"
+*  Example3: "mdb 0x00000000" returns "56"
+*  Example4: "mdh 0x00000000 2" returns "3456 1012"
+*  Example5: "mdb 0x00000000 3" returns "56 34 12"
+**/
+
 static int jim_target_md(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
 {
 	const char *cmd_name = Jim_GetString(argv[0], NULL);
@@ -4371,54 +4392,56 @@ static int jim_target_md(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
 		fn = target_read_phys_memory;
 	}
 
-	jim_wide a;
-	e = Jim_GetOpt_Wide(&goi, &a);
+	/* Read address parameter */
+	jim_wide addr;
+	e = Jim_GetOpt_Wide(&goi, &addr);
 	if (e != JIM_OK)
 		return JIM_ERR;
-	jim_wide c;
+
+	/* If next parameter exists, read it out as the count parameter, if not, set it to 1 (default) */
+	jim_wide count;
 	if (goi.argc == 1) {
-		e = Jim_GetOpt_Wide(&goi, &c);
+		e = Jim_GetOpt_Wide(&goi, &count);
 		if (e != JIM_OK)
 			return JIM_ERR;
 	} else
-		c = 1;
+		count = 1;
 
 	/* all args must be consumed */
 	if (goi.argc != 0)
 		return JIM_ERR;
 
-	jim_wide b = 1; /* shut up gcc */
+	jim_wide blocksize = 1; /* shut up gcc */
 	if (strcasecmp(cmd_name, "mdw") == 0)
-		b = 4;
+		blocksize = 4;
 	else if (strcasecmp(cmd_name, "mdh") == 0)
-		b = 2;
+		blocksize = 2;
 	else if (strcasecmp(cmd_name, "mdb") == 0)
-		b = 1;
+		blocksize = 1;
 	else {
 		LOG_ERROR("command '%s' unknown: ", cmd_name);
 		return JIM_ERR;
 	}
 
 	/* convert count to "bytes" */
-	c = c * b;
+	int bytes = count * blocksize;
 
 	struct target *target = Jim_CmdPrivData(goi.interp);
 	uint8_t  target_buf[32];
 	jim_wide x, y, z;
-	while (c > 0) {
-		y = c;
-		if (y > 16)
-			y = 16;
-		e = fn(target, a, b, y / b, target_buf);
+	while (bytes > 0) {
+		y = (bytes < 16) ? bytes : 16; /* y = min(bytes, 16); */
+
+		/* Try to read out next block */
+		e = fn(target, addr, blocksize, y / blocksize, target_buf);
+
 		if (e != ERROR_OK) {
-			char tmp[10];
-			snprintf(tmp, sizeof(tmp), "%08lx", (long)a);
-			Jim_SetResultFormatted(interp, "error reading target @ 0x%s", tmp);
+			Jim_SetResultFormatted(interp, "error reading target @ 0x%08lx", (long)addr);
 			return JIM_ERR;
 		}
 
-		command_print(NULL, "0x%08x ", (int)(a));
-		switch (b) {
+		command_print(NULL, "0x%08x ", (int)(addr));
+		switch (blocksize) {
 		case 4:
 			for (x = 0; x < 16 && x < y; x += 4) {
 				z = target_buffer_get_u32(target, &(target_buf[x]));
@@ -4465,8 +4488,8 @@ static int jim_target_md(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
 		/* print - with a newline */
 		command_print(NULL, "%s\n", target_buf);
 		/* NEXT... */
-		c -= 16;
-		a += 16;
+		bytes -= 16;
+		addr += 16;
 	}
 	return JIM_OK;
 }
