@@ -433,6 +433,16 @@ static int jlink_khz(int khz, int *jtag_speed)
  */
 static int jlink_select_interface(int iface)
 {
+	/*
+	 * Once reported, that V7 JLink fails to operate after SELECT command.
+	 * while operate normally without it.
+	 *
+	 * To avoid this, skip SELECT operation for earlier devices.
+	 * This should be revised when implementing SWD.
+	 */
+	if (jlink_major_revision < 8)
+		return iface ? ERROR_JTAG_DEVICE_ERROR : ERROR_OK;
+
 	/* According to Segger's document RM08001-R7 Date: October 8, 2010,
 	 * http://www.segger.com/admin/uploads/productDocs/RM08001_JLinkUSBProtocol.pdf
 	 * section 5.5.3 EMU_CMD_SELECT_IF
