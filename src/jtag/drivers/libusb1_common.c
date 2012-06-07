@@ -88,7 +88,7 @@ int jtag_libusb_control_transfer(jtag_libusb_device_handle *dev, uint8_t request
 	transferred = libusb_control_transfer(dev, requestType, request, wValue, wIndex,
 				(unsigned char *)bytes, size, timeout);
 
-	if (transferred<0) transferred = 0;
+	if ( transferred < 0 ) transferred = 0;
 
 	return transferred;
 }

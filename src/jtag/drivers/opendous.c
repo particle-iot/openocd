@@ -53,10 +53,10 @@ struct opendous_probe {
 };
 
 static struct opendous_probe opendous_probes[] = {
-	{"usbprog-jtag",	{0x1781,0},			{0x0C63,0},			0x82, 0x02, 0x00, 510 },
-	{"opendous",		{0x1781,0x03EB, 0},	{0xC0C0,0x204F,0},	0x81, 0x02, 0x00, 360 },
-	{"usbvlab",			{0x16C0, 0},		{0x05DC,0},			0x81, 0x02, 0x01, 360 },
-	{NULL,				{0x0000},			{0x0000},			0x00, 0x00, 0x00,   0 }
+	{"usbprog-jtag",	{0x1781, 0},			{0x0C63, 0},			0x82, 0x02, 0x00, 510 },
+	{"opendous",		{0x1781, 0x03EB, 0},	{0xC0C0, 0x204F, 0},	0x81, 0x02, 0x00, 360 },
+	{"usbvlab",			{0x16C0, 0},			{0x05DC, 0},			0x81, 0x02, 0x01, 360 },
+	{NULL,				{0x0000},				{0x0000},				0x00, 0x00, 0x00,   0 }
 };
 
 #define OPENDOUS_WRITE_ENDPOINT   (opendous_probe->WRITE_EP)
@@ -410,7 +410,7 @@ static int opendous_init(void)
 static int opendous_quit(void)
 {
 	opendous_usb_close(opendous_jtag_handle);
-	
+
 	if (usb_out_buffer) {
 		free(usb_out_buffer);
 		usb_out_buffer = NULL;
@@ -420,17 +420,17 @@ static int opendous_quit(void)
 		free(usb_in_buffer);
 		usb_in_buffer = NULL;
 	}
-	
+
 	if (pending_scan_results_buffer) {
 		free(pending_scan_results_buffer);
 		pending_scan_results_buffer = NULL;
 	}
-	
+
 	if (opendous_type) {
 		free(opendous_type);
 		opendous_type = NULL;
 	}
-	
+
 	return ERROR_OK;
 }
 
@@ -791,7 +791,7 @@ int opendous_usb_write(struct opendous_jtag *opendous_jtag, int out_length)
 #ifdef _DEBUG_USB_COMMS_
 	LOG_DEBUG("%s: USB write begin", opendous_get_time(time_str));
 #endif
-	if (opendous_probe->CONTROL_TRANSFER) {
+	if ( opendous_probe->CONTROL_TRANSFER ) {
 		result = jtag_libusb_control_transfer(opendous_jtag->usb_handle, 
 			LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_RECIPIENT_DEVICE | LIBUSB_ENDPOINT_OUT,
 			FUNC_WRITE_DATA, 0, 0, (char *) usb_out_buffer, out_length, OPENDOUS_USB_TIMEOUT);
@@ -818,7 +818,7 @@ int opendous_usb_read(struct opendous_jtag *opendous_jtag)
 	LOG_DEBUG("%s: USB read begin", opendous_get_time(time_str));
 #endif
 	int result;
-	if (opendous_probe->CONTROL_TRANSFER) {
+	if ( opendous_probe->CONTROL_TRANSFER ) {
 		result = jtag_libusb_control_transfer(opendous_jtag->usb_handle, 
 			LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_RECIPIENT_DEVICE | LIBUSB_ENDPOINT_IN,
 			FUNC_READ_DATA, 0, 0, (char *) usb_in_buffer, OPENDOUS_IN_BUFFER_SIZE, OPENDOUS_USB_TIMEOUT);
