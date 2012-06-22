@@ -375,7 +375,6 @@ static int at91sam7_read_part_info(struct flash_bank *bank)
 	if (at91sam7_info->cidr != 0) {
 		/* flash already configured, update clock and check for protected sectors */
 		struct flash_bank *fb = bank;
-		t_bank = fb;
 
 		while (t_bank) {
 			/* re-calculate master clock frequency */
@@ -404,7 +403,6 @@ static int at91sam7_read_part_info(struct flash_bank *bank)
 	if (at91sam7_info->flash_autodetection == 0) {
 		/* banks and sectors are already created, based on data from input file */
 		struct flash_bank *fb = bank;
-		t_bank = fb;
 		while (t_bank) {
 			at91sam7_info = t_bank->driver_priv;
 
