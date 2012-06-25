@@ -403,7 +403,6 @@ static int at91sam7_read_part_info(struct flash_bank *bank)
 		/* banks and sectors are already created, based on data from input file */
 		struct flash_bank *fb = bank;
 		struct flash_bank *t_bank = bank;
-		
 		while (t_bank) {
 			at91sam7_info = t_bank->driver_priv;
 
