@@ -1996,6 +1996,59 @@ static int cortex_m3_target_create(struct target *target, Jim_Interp *interp)
 	return ERROR_OK;
 }
 
+static int cortex_m0_init_arch_info(struct target *target,
+	struct cortex_m3_common *cortex_m3, struct jtag_tap *tap)
+{
+	int retval;
+	struct armv7m_common *armv7m = &cortex_m3->armv7m;
+
+	armv7m_init_arch_info(target, armv7m);
+
+	/* prepare JTAG information for the new target */
+	cortex_m3->jtag_info.tap = tap;
+	cortex_m3->jtag_info.scann_size = 4;
+
+	/* default reset mode is to use srst if fitted
+	 * if not it will use CORTEX_M3_RESET_VECTRESET */
+	cortex_m3->soft_reset_config = CORTEX_M3_RESET_VECTRESET;
+
+	armv7m->arm.dap = &armv7m->dap;
+
+	/* Leave (only) generic DAP stuff for debugport_init(); */
+	armv7m->dap.jtag_info = &cortex_m3->jtag_info;
+	armv7m->dap.memaccess_tck = 8;
+	/* Cortex-M0 has 1024 bytes autoincrement range */
+	armv7m->dap.tar_autoincr_block = (1 << 10);
+
+	/* register arch-specific functions */
+	armv7m->examine_debug_reason = cortex_m3_examine_debug_reason;
+
+	armv7m->post_debug_entry = NULL;
+
+	armv7m->pre_restore_context = NULL;
+
+	armv7m->load_core_reg_u32 = cortex_m3_load_core_reg_u32;
+	armv7m->store_core_reg_u32 = cortex_m3_store_core_reg_u32;
+
+	target_register_timer_callback(cortex_m3_handle_target_request, 1, 1, target);
+
+	retval = arm_jtag_setup_connection(&cortex_m3->jtag_info);
+	if (retval != ERROR_OK)
+		return retval;
+
+	return ERROR_OK;
+}
+
+static int cortex_m0_target_create(struct target *target, Jim_Interp *interp)
+{
+	struct cortex_m3_common *cortex_m3 = calloc(1, sizeof(struct cortex_m3_common));
+
+	cortex_m3->common_magic = CORTEX_M3_COMMON_MAGIC;
+	cortex_m0_init_arch_info(target, cortex_m3, target->tap);
+
+	return ERROR_OK;
+}
+
 /*--------------------------------------------------------------------------*/
 
 static int cortex_m3_verify_pointer(struct command_context *cmd_ctx,
@@ -2252,6 +2305,45 @@ struct target_type cortexm3_target = {
 
 	.commands = cortex_m3_command_handlers,
 	.target_create = cortex_m3_target_create,
+	.init_target = cortex_m3_init_target,
+	.examine = cortex_m3_examine,
+};
+
+struct target_type cortexm0_target = {
+	.name = "cortex_m0",
+
+	.poll = cortex_m3_poll,
+	.arch_state = armv7m_arch_state,
+
+	.target_request_data = cortex_m3_target_request_data,
+
+	.halt = cortex_m3_halt,
+	.resume = cortex_m3_resume,
+	.step = cortex_m3_step,
+
+	.assert_reset = cortex_m3_assert_reset,
+	.deassert_reset = cortex_m3_deassert_reset,
+	.soft_reset_halt = cortex_m3_soft_reset_halt,
+
+	.get_gdb_reg_list = armv7m_get_gdb_reg_list,
+
+	.read_memory = cortex_m3_read_memory,
+	.write_memory = cortex_m3_write_memory,
+	.bulk_write_memory = cortex_m3_bulk_write_memory,
+	.checksum_memory = armv7m_checksum_memory,
+	.blank_check_memory = armv7m_blank_check_memory,
+
+	.run_algorithm = armv7m_run_algorithm,
+	.start_algorithm = armv7m_start_algorithm,
+	.wait_algorithm = armv7m_wait_algorithm,
+
+	.add_breakpoint = cortex_m3_add_breakpoint,
+	.remove_breakpoint = cortex_m3_remove_breakpoint,
+	.add_watchpoint = cortex_m3_add_watchpoint,
+	.remove_watchpoint = cortex_m3_remove_watchpoint,
+
+	.commands = cortex_m3_command_handlers,
+	.target_create = cortex_m0_target_create,
 	.init_target = cortex_m3_init_target,
 	.examine = cortex_m3_examine,
 };
