@@ -126,6 +126,8 @@ static int gdb_last_signal(struct target *target)
 		default:
 			LOG_USER("undefined debug reason %d - target needs reset",
 			target->debug_reason);
+			if (target->debug_reason == 6)
+				target_halt(target);
 			return 0x0;
 	}
 }
