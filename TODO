@@ -78,7 +78,7 @@ There are some known bugs to fix in JTAG adapter drivers:
   - gw16012.c
   - jlink.c
   - usbprog.c
-  - vsllink.c
+  - versaloon.c
   - rlink/rlink.c
 - bug: USBprog is broken with new tms sequence; it needs 7-clock cycles.
   Fix promised from  Peter Denison openwrt at marshadder.org

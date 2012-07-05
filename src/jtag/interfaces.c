@@ -83,8 +83,8 @@ extern struct jtag_interface usbprog_interface;
 #if BUILD_JLINK == 1
 extern struct jtag_interface jlink_interface;
 #endif
-#if BUILD_VSLLINK == 1
-extern struct jtag_interface vsllink_interface;
+#if BUILD_VERSALOON == 1
+extern struct jtag_interface versaloon_interface;
 #endif
 #if BUILD_RLINK == 1
 extern struct jtag_interface rlink_interface;
@@ -161,8 +161,8 @@ struct jtag_interface *jtag_interfaces[] = {
 #if BUILD_JLINK == 1
 		&jlink_interface,
 #endif
-#if BUILD_VSLLINK == 1
-		&vsllink_interface,
+#if BUILD_VERSALOON == 1
+		&versaloon_interface,
 #endif
 #if BUILD_RLINK == 1
 		&rlink_interface,

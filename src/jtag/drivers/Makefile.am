@@ -77,14 +77,14 @@ if ULINK
 DRIVERFILES += ulink.c
 nobase_dist_ocddata_DATA += $(ULINK_FIRMWARE)/ulink_firmware.hex
 endif
-if VSLLINK
+if VERSALOON
 DRIVERFILES += versaloon/usbtoxxx/usbtogpio.c
 DRIVERFILES += versaloon/usbtoxxx/usbtojtagraw.c
 DRIVERFILES += versaloon/usbtoxxx/usbtoswd.c
 DRIVERFILES += versaloon/usbtoxxx/usbtopwr.c
 DRIVERFILES += versaloon/usbtoxxx/usbtoxxx.c
 DRIVERFILES += versaloon/versaloon.c
-DRIVERFILES += vsllink.c
+DRIVERFILES += versaloon.c
 endif
 if ARMJTAGEW
 DRIVERFILES += arm-jtag-ew.c
