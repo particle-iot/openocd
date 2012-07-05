@@ -451,9 +451,9 @@ AC_ARG_ENABLE([jlink],
   AS_HELP_STRING([--enable-jlink], [Enable building support for the Segger J-Link JTAG Programmer]),
   [build_jlink=$enableval], [build_jlink=no])
 
-AC_ARG_ENABLE([vsllink],
-  AS_HELP_STRING([--enable-vsllink], [Enable building support for the Versaloon-Link JTAG Programmer]),
-  [build_vsllink=$enableval], [build_vsllink=no])
+AC_ARG_ENABLE([versaloon],
+  AS_HELP_STRING([--enable-versaloon], [Enable building support for the Versaloon Programmer]),
+  [build_versaloon=$enableval], [build_versaloon=no])
 
 AC_ARG_ENABLE([rlink],
   AS_HELP_STRING([--enable-rlink], [Enable building support for the Raisonance RLink JTAG Programmer]),
@@ -746,10 +746,10 @@ else
   AC_DEFINE([BUILD_JLINK], [0], [0 if you don't want the J-Link JTAG driver.])
 fi
 
-if test $build_vsllink = yes; then
-  AC_DEFINE([BUILD_VSLLINK], [1], [1 if you want the Versaloon-Link JTAG driver.])
+if test $build_versaloon = yes; then
+  AC_DEFINE([BUILD_VERSALOON], [1], [1 if you want the Versaloon driver.])
 else
-  AC_DEFINE([BUILD_VSLLINK], [0], [0 if you don't want the Versaloon-Link JTAG driver.])
+  AC_DEFINE([BUILD_VERSALOON], [0], [0 if you don't want the Versaloon driver.])
 fi
 
 if test $build_rlink = yes; then
@@ -1072,7 +1072,7 @@ fi
 
 # check for usb.h when a driver will require it
 build_usb=no
-if test $build_vsllink = yes -o $build_usbprog = yes -o \
+if test $build_versaloon = yes -o $build_usbprog = yes -o \
   $build_rlink = yes -o $build_ulink = yes -o $build_armjtagew = yes
 then
   build_usb=yes
@@ -1123,7 +1123,7 @@ AM_CONDITIONAL([PRESTO_DRIVER], [test $build_presto_ftd2xx = yes -o $build_prest
 AM_CONDITIONAL([USBPROG], [test $build_usbprog = yes])
 AM_CONDITIONAL([OOCD_TRACE], [test $build_oocd_trace = yes])
 AM_CONDITIONAL([JLINK], [test $build_jlink = yes])
-AM_CONDITIONAL([VSLLINK], [test $build_vsllink = yes])
+AM_CONDITIONAL([VERSALOON], [test $build_versaloon = yes])
 AM_CONDITIONAL([RLINK], [test $build_rlink = yes])
 AM_CONDITIONAL([ULINK], [test $build_ulink = yes])
 AM_CONDITIONAL([ARMJTAGEW], [test $build_armjtagew = yes])

@@ -81,7 +81,7 @@ OPENOCD_CONFIG_OPTIONS_ft2232_libftdi = --enable-ft2232_libftdi --enable-presto_
 OPENOCD_CONFIG_OPTIONS_libusb_y += --enable-jlink 
 OPENOCD_CONFIG_OPTIONS_libusb_y += --enable-usbprog
 OPENOCD_CONFIG_OPTIONS_libusb_y += --enable-rlink 
-OPENOCD_CONFIG_OPTIONS_libusb_y += --enable-vsllink
+OPENOCD_CONFIG_OPTIONS_libusb_y += --enable-versaloon
 OPENOCD_CONFIG_OPTIONS_libusb_y += --enable-usbprog
 
 #========================================

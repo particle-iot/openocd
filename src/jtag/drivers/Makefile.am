@@ -77,7 +77,7 @@ if ULINK
 DRIVERFILES += ulink.c
 nobase_dist_ocddata_DATA += $(ULINK_FIRMWARE)/ulink_firmware.hex
 endif
-if VSLLINK
+if VERSALOON
 DRIVERFILES += versaloon/usbtoxxx/usbtogpio.c
 DRIVERFILES += versaloon/usbtoxxx/usbtojtagraw.c
 DRIVERFILES += versaloon/usbtoxxx/usbtoswd.c

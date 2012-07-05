@@ -453,7 +453,7 @@ The simplest solution is to get linux to ignore the ST-LINK using one of the fol
 @item @b{USB - Presto}
 @* Link: @url{http://tools.asix.net/prg_presto.htm}
 
-@item @b{Versaloon-Link}
+@item @b{Versaloon}
 @* Link: @url{http://www.versaloon.com}
 
 @item @b{ARM-JTAG-EW}
@@ -1251,7 +1251,7 @@ flashlink.cfg             ngxtech.cfg                ulink.cfg
 flossjtag.cfg             olimex-arm-usb-ocd.cfg     usb-jtag.cfg
 flossjtag-noeeprom.cfg    olimex-arm-usb-ocd-h.cfg   usbprog.cfg
 flyswatter2.cfg           olimex-arm-usb-tiny-h.cfg  vpaclink.cfg
-flyswatter.cfg            olimex-jtag-tiny.cfg       vsllink.cfg
+flyswatter.cfg            olimex-jtag-tiny.cfg       versaloon.cfg
 hilscher_nxhx10_etm.cfg   oocdlink.cfg               xds100v2.cfg
 hilscher_nxhx500_etm.cfg  opendous.cfg
 hilscher_nxhx500_re.cfg   openocd-usb.cfg
@@ -2781,8 +2781,8 @@ Raisonance RLink USB adapter
 usbprog is a freely programmable USB adapter.
 @end deffn
 
-@deffn {Interface Driver} {vsllink}
-vsllink is part of Versaloon which is a versatile USB programmer.
+@deffn {Interface Driver} {versaloon}
+versaloon is an open hardware and open source firmware USB programmer.
 
 @quotation Note
 This defines quite a few driver-specific commands,

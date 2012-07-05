@@ -143,7 +143,7 @@ extending support to conditionally remove GCC-specific extensions.
 Also, you need to install the appropriate driver files, if you want to
 build support for a USB or FTDI-based interface:
 
-- ft2232, jlink, rlink, vsllink, usbprog, arm-jtag-ew:
+- ft2232, jlink, rlink, versaloon, usbprog, arm-jtag-ew:
   - libusb: required for portable communication with USB dongles
 - ft2232 also requires:
   - libftdi: http://www.intra2net.com/opensource/ftdi/  *OR*
@@ -259,8 +259,7 @@ options may be available there:
   --enable-jlink          Enable building support for the Segger J-Link JTAG
                           Programmer
 
-  --enable-vsllink        Enable building support for the Versaloon-Link JTAG
-                          Programmer
+  --enable-versaloon      Enable building support for the Versaloon Programmer
 
   --enable-rlink          Enable building support for the Raisonance RLink
                           JTAG Programmer
