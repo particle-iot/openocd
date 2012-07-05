@@ -98,7 +98,7 @@ static int vsllink_execute_queue(void)
 	uint8_t *buffer;
 
 	DEBUG_JTAG_IO("-------------------------------------"
-		" vsllink "
+		" versaloon "
 		"-------------------------------------");
 
 	while (cmd != NULL) {
@@ -289,7 +289,7 @@ static int vsllink_init(void)
 			"Please check connection and permissions.");
 		return ERROR_JTAG_INIT_FAILED;
 	}
-	LOG_DEBUG("vsllink found on %04X:%04X",
+	LOG_DEBUG("Versaloon found on %04X:%04X",
 		versaloon_interface.usb_setting.vid,
 		versaloon_interface.usb_setting.pid);
 	versaloon_usb_device_handle = vsllink_handle->usb_handle;
@@ -805,27 +805,27 @@ static void vsllink_debug_buffer(uint8_t *buffer, int length)
 
 static const struct command_registration vsllink_command_handlers[] = {
 	{
-		.name = "vsllink_usb_vid",
+		.name = "versaloon_usb_vid",
 		.handler = &vsllink_handle_usb_vid_command,
 		.mode = COMMAND_CONFIG,
 	},
 	{
-		.name = "vsllink_usb_pid",
+		.name = "versaloon_usb_pid",
 		.handler = &vsllink_handle_usb_pid_command,
 		.mode = COMMAND_CONFIG,
 	},
 	{
-		.name = "vsllink_usb_bulkin",
+		.name = "versaloon_usb_bulkin",
 		.handler = &vsllink_handle_usb_bulkin_command,
 		.mode = COMMAND_CONFIG,
 	},
 	{
-		.name = "vsllink_usb_bulkout",
+		.name = "versaloon_usb_bulkout",
 		.handler = &vsllink_handle_usb_bulkout_command,
 		.mode = COMMAND_CONFIG,
 	},
 	{
-		.name = "vsllink_usb_interface",
+		.name = "versaloon_usb_interface",
 		.handler = &vsllink_handle_usb_interface_command,
 		.mode = COMMAND_CONFIG,
 	},
@@ -835,7 +835,7 @@ static const struct command_registration vsllink_command_handlers[] = {
 static const char *vsllink_transports[] = {"jtag", "swd", NULL};
 
 struct jtag_interface vsllink_interface = {
-	.name = "vsllink",
+	.name = "versaloon",
 	.supported = DEBUG_CAP_TMS_SEQ,
 	.commands = vsllink_command_handlers,
 	.transports = vsllink_transports,
