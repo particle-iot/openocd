@@ -352,21 +352,25 @@ static int kinetis_write(struct flash_bank *bank, uint8_t *buffer,
 		unsigned prog_section_bytes = kinfo->sector_size >> 8;
 		for (i = 0; i < count; i += kinfo->sector_size) {
 			uint8_t ftfx_fstat;
+			uint32_t section_count;
 
 			wc = kinfo->sector_size / 4;
 
+			/*
+			 * If remaining bytes are less than the full
+			 * sector, determine the number of full-words
+			 * to program
+			 */
 			if ((count - i) < kinfo->sector_size) {
-				wc = count - i;
-				wc /= 4;
+				wc = (count - i + 3) / 4;
 			}
 
 			LOG_DEBUG("write section @ %08X with length %d",
 				  offset + i, wc * 4);
 
 			/* write data to flexram */
-			result =
-				target_write_memory(bank->target, 0x14000000, 4, wc,
-						    buffer + i);
+			result = target_write_memory(bank->target, 0x14000000, 4, wc,
+						     buffer + i);
 
 			if (result != ERROR_OK) {
 				LOG_ERROR("target_write_memory failed");
@@ -375,8 +379,9 @@ static int kinetis_write(struct flash_bank *bank, uint8_t *buffer,
 			}
 
 			/* execute section command */
+			section_count = ((wc * 4) + prog_section_bytes - 1) / prog_section_bytes;
 			w0 = (0x0b << 24) | (bank->base + offset + i);
-			w1 = ((wc * 4 / prog_section_bytes) << 16);
+			w1 = section_count << 16;
 
 			result = kinetis_ftfx_command(bank, w0, w1, w2, &ftfx_fstat);
 
