@@ -356,7 +356,7 @@ static int kinetis_write(struct flash_bank *bank, uint8_t *buffer,
 
 			wc = kinfo->sector_size / 4;
 
-			/* 
+			/*
 			 * If remaining bytes are less than the full
 			 * sector, determine the number of full-words
 			 * to program
