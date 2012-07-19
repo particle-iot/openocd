@@ -329,7 +329,7 @@ static int telnet_input(struct connection *connection)
 
 							t_con->line_cursor = 0;
 
-							if (retval == ERROR_COMMAND_CLOSE_CONNECTION)
+							if (retval == ERROR_OK_EXIT)
 								return ERROR_SERVER_REMOTE_CLOSED;
 
 							telnet_write(connection, "\r", 1);		/*
