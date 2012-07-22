@@ -146,6 +146,35 @@ static int wait_for_pracc_rw(struct mips_ejtag *ejtag_info, uint32_t *ctrl)
 	return ERROR_OK;
 }
 
+static int wait_for_pracc_rw_all(struct mips_ejtag *ejtag_info, uint32_t *ctrl, uint32_t *data, uint32_t *addr)
+{
+	uint32_t ejtag_ctrl;
+	long long then = timeval_ms();
+	int timeout;
+	int retval;
+
+	/* wait for the PrAcc to become "1" */
+	ejtag_ctrl = ejtag_info->ejtag_ctrl;
+
+	while (1) {
+		retval = mips_ejtag_drscan_96(ejtag_info, &ejtag_ctrl, data, addr);
+		if (retval != ERROR_OK)
+			return retval;
+
+		if (ejtag_ctrl & EJTAG_CTRL_PRACC)
+			break;
+
+		timeout = timeval_ms() - then;
+		if (timeout > 1000) {
+			LOG_DEBUG("DEBUGMODULE: No memory access in progress!");
+			return ERROR_JTAG_DEVICE_ERROR;
+		}
+	}
+
+	*ctrl = ejtag_ctrl;
+	return ERROR_OK;
+}
+
 static int mips32_pracc_exec_read(struct mips32_pracc_context *ctx, uint32_t address)
 {
 	struct mips_ejtag *ejtag_info = ctx->ejtag_info;
@@ -153,20 +182,25 @@ static int mips32_pracc_exec_read(struct mips32_pracc_context *ctx, uint32_t add
 	uint32_t ejtag_ctrl, data;
 
 	if ((address >= MIPS32_PRACC_PARAM_IN)
-		&& (address <= MIPS32_PRACC_PARAM_IN + ctx->num_iparam * 4)) {
+		&& (address < MIPS32_PRACC_PARAM_IN + ctx->num_iparam * 4)) {
 		offset = (address - MIPS32_PRACC_PARAM_IN) / 4;
 		data = ctx->local_iparam[offset];
 	} else if ((address >= MIPS32_PRACC_PARAM_OUT)
-		&& (address <= MIPS32_PRACC_PARAM_OUT + ctx->num_oparam * 4)) {
+		&& (address < MIPS32_PRACC_PARAM_OUT + ctx->num_oparam * 4)) {
 		offset = (address - MIPS32_PRACC_PARAM_OUT) / 4;
 		data = ctx->local_oparam[offset];
 	} else if ((address >= MIPS32_PRACC_TEXT)
-		&& (address <= MIPS32_PRACC_TEXT + ctx->code_len * 4)) {
+		&& (address < MIPS32_PRACC_TEXT + ctx->code_len * 4)) {
 		offset = (address - MIPS32_PRACC_TEXT) / 4;
 		data = ctx->code[offset];
 	} else if (address == MIPS32_PRACC_STACK) {
 		/* save to our debug stack */
+		if (ctx->stack_offset <= 0) {
+			LOG_ERROR("Error: Pracc stack out of bounds");
+			return ERROR_JTAG_DEVICE_ERROR;
+		}
 		data = ctx->stack[--ctx->stack_offset];
+
 	} else {
 		/* TODO: send JMP 0xFF200000 instruction. Hopefully processor jump back
 		 * to start of debug vector */
@@ -175,50 +209,47 @@ static int mips32_pracc_exec_read(struct mips32_pracc_context *ctx, uint32_t add
 		return ERROR_JTAG_DEVICE_ERROR;
 	}
 
-	/* Send the data out */
-	mips_ejtag_set_instr(ctx->ejtag_info, EJTAG_INST_DATA);
-	mips_ejtag_drscan_32_out(ctx->ejtag_info, data);
-
-	/* Clear the access pending bit (let the processor eat!) */
+	/* Send the data out and clear the access pending bit (let the processor eat!) */
 	ejtag_ctrl = ejtag_info->ejtag_ctrl & ~EJTAG_CTRL_PRACC;
-	mips_ejtag_set_instr(ctx->ejtag_info, EJTAG_INST_CONTROL);
-	mips_ejtag_drscan_32_out(ctx->ejtag_info, ejtag_ctrl);
+	mips_ejtag_drscan_96_out(ctx->ejtag_info, ejtag_ctrl, data);
 
 	return jtag_execute_queue();
 }
 
-static int mips32_pracc_exec_write(struct mips32_pracc_context *ctx, uint32_t address)
+static int mips32_pracc_exec_write(struct mips32_pracc_context *ctx, uint32_t data, uint32_t address)
 {
-	uint32_t ejtag_ctrl, data;
+	uint32_t ejtag_ctrl;
 	int offset;
 	struct mips_ejtag *ejtag_info = ctx->ejtag_info;
 	int retval;
-
-	mips_ejtag_set_instr(ctx->ejtag_info, EJTAG_INST_DATA);
-	retval = mips_ejtag_drscan_32(ctx->ejtag_info, &data);
-	if (retval != ERROR_OK)
-		return retval;
 
 	/* Clear access pending bit */
 	ejtag_ctrl = ejtag_info->ejtag_ctrl & ~EJTAG_CTRL_PRACC;
 	mips_ejtag_set_instr(ctx->ejtag_info, EJTAG_INST_CONTROL);
 	mips_ejtag_drscan_32_out(ctx->ejtag_info, ejtag_ctrl);
 
+	mips_ejtag_set_instr(ctx->ejtag_info, EJTAG_INST_ALL);
+
 	retval = jtag_execute_queue();
 	if (retval != ERROR_OK)
 		return retval;
 
 	if ((address >= MIPS32_PRACC_PARAM_IN)
-		&& (address <= MIPS32_PRACC_PARAM_IN + ctx->num_iparam * 4)) {
+		&& (address < MIPS32_PRACC_PARAM_IN + ctx->num_iparam * 4)) {
 		offset = (address - MIPS32_PRACC_PARAM_IN) / 4;
 		ctx->local_iparam[offset] = data;
 	} else if ((address >= MIPS32_PRACC_PARAM_OUT)
-		&& (address <= MIPS32_PRACC_PARAM_OUT + ctx->num_oparam * 4)) {
+		&& (address < MIPS32_PRACC_PARAM_OUT + ctx->num_oparam * 4)) {
 		offset = (address - MIPS32_PRACC_PARAM_OUT) / 4;
 		ctx->local_oparam[offset] = data;
 	} else if (address == MIPS32_PRACC_STACK) {
 		/* save data onto our stack */
+		if (ctx->stack_offset >= 32) {
+			LOG_ERROR("Error: Pracc stack out of bounds");
+			return ERROR_JTAG_DEVICE_ERROR;
+		}
 		ctx->stack[ctx->stack_offset++] = data;
+
 	} else {
 		LOG_ERROR("Error writing unexpected address 0x%8.8" PRIx32 "", address);
 		return ERROR_JTAG_DEVICE_ERROR;
@@ -231,7 +262,8 @@ int mips32_pracc_exec(struct mips_ejtag *ejtag_info, int code_len, const uint32_
 		int num_param_in, uint32_t *param_in, int num_param_out, uint32_t *param_out, int cycle)
 {
 	uint32_t ejtag_ctrl;
-	uint32_t address, data;
+	uint32_t address;
+	uint32_t data;
 	struct mips32_pracc_context ctx;
 	int retval;
 	int pass = 0;
@@ -245,20 +277,17 @@ int mips32_pracc_exec(struct mips_ejtag *ejtag_info, int code_len, const uint32_
 	ctx.ejtag_info = ejtag_info;
 	ctx.stack_offset = 0;
 
-	while (1) {
-		retval = wait_for_pracc_rw(ejtag_info, &ejtag_ctrl);
-		if (retval != ERROR_OK)
-			return retval;
+	mips_ejtag_set_instr(ejtag_info, EJTAG_INST_ALL);
 
-		address = data = 0;
-		mips_ejtag_set_instr(ejtag_info, EJTAG_INST_ADDRESS);
-		retval = mips_ejtag_drscan_32(ejtag_info, &address);
+	while (1) {
+		data = 0;
+		retval = wait_for_pracc_rw_all(ejtag_info, &ejtag_ctrl, &data, &address);
 		if (retval != ERROR_OK)
 			return retval;
 
 		/* Check for read or write */
 		if (ejtag_ctrl & EJTAG_CTRL_PRNW) {
-			retval = mips32_pracc_exec_write(&ctx, address);
+			retval = mips32_pracc_exec_write(&ctx, data, address);
 			if (retval != ERROR_OK)
 				return retval;
 		} else {
@@ -829,6 +858,9 @@ int mips32_pracc_write_mem(struct mips_ejtag *ejtag_info, uint32_t addr, int siz
 	uint32_t conf = 0;
 	int cached = 0;
 
+	if ((KSEGX(addr) == KSEG1) || ((addr >= 0xff200000) && (addr <= 0xff3fffff)))
+		return retval; /* Nothing to do */
+
 	mips32_cp0_read(ejtag_info, &conf, 16, 0);
 
 	switch (KSEGX(addr)) {
@@ -837,9 +869,6 @@ int mips32_pracc_write_mem(struct mips_ejtag *ejtag_info, uint32_t addr, int siz
 			break;
 		case KSEG0:
 			cached = (conf & MIPS32_CONFIG0_K0_MASK) >> MIPS32_CONFIG0_K0_SHIFT;
-			break;
-		case KSEG1:
-			/* uncachable segment - nothing to do */
 			break;
 		case KSEG2:
 		case KSEG3:
