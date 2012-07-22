@@ -99,6 +99,64 @@ static int mips_ejtag_get_impcode(struct mips_ejtag *ejtag_info, uint32_t *impco
 	return ERROR_OK;
 }
 
+/* Control, data and address */
+int mips_ejtag_drscan_96(struct mips_ejtag *ejtag_info, uint32_t *ctrl, uint32_t *data, uint32_t *addr)
+{
+	struct jtag_tap *tap;
+	tap  = ejtag_info->tap;
+	assert(tap != NULL);
+
+	struct scan_field field;
+	uint8_t t[12], r[12];
+	int retval;
+
+	field.num_bits = 96;
+	field.out_value = t;
+	field.in_value = r;
+
+	/* Out value for address, 0 */
+	buf_set_u32(t, 0, 32, *ctrl);
+	buf_set_u32(t + 4, 0, 32, *data);
+	buf_set_u32(t + 8, 0, 32, 0);
+
+	jtag_add_dr_scan(tap, 1, &field, TAP_IDLE);
+
+	retval = jtag_execute_queue();
+	if (retval != ERROR_OK) {
+		LOG_ERROR("register read_all failed");
+		return retval;
+	}
+
+	*ctrl = buf_get_u32(r, 0, 32);
+	*data = buf_get_u32(r + 4, 0, 32);
+	*addr = buf_get_u32(r + 8, 0, 32);
+
+	keep_alive();
+
+	return ERROR_OK;
+}
+
+void mips_ejtag_drscan_96_out(struct mips_ejtag *ejtag_info, uint32_t ctrl, uint32_t data)
+{
+	uint8_t t[12];
+	struct jtag_tap *tap;
+	tap  = ejtag_info->tap;
+	assert(tap != NULL);
+
+	struct scan_field field;
+
+	field.num_bits = 96;
+	field.out_value = t;
+
+	buf_set_u32(t, 0, 32, ctrl);
+	buf_set_u32(t + 4, 0, 32, data);
+	buf_set_u32(t + 8, 0, 32, 0);
+
+	field.in_value = NULL;
+
+	jtag_add_dr_scan(tap, 1, &field, TAP_IDLE);
+}
+
 int mips_ejtag_drscan_32(struct mips_ejtag *ejtag_info, uint32_t *data)
 {
 	struct jtag_tap *tap;
