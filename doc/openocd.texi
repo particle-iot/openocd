@@ -558,6 +558,9 @@ produced, PDF schematics are easily found and it is easy to make.
 @item @b{at91rm9200}
 @* Like the EP93xx - but an ATMEL AT91RM9200 based solution using the GPIO pins on the chip.
 
+@item @b{bcm2835gpio}
+@* A BCM2835-based board (e.g. Raspberry Pi) using the GPIO pins of the expansion header.
+
 @end itemize
 
 @node About Jim-Tcl
@@ -2982,7 +2985,6 @@ This is the Keil ULINK v1 JTAG debugger.
 
 @deffn {Interface Driver} {ZY1000}
 This is the Zylin ZY1000 JTAG debugger.
-@end deffn
 
 @quotation Note
 This defines some driver-specific commands,
@@ -2992,6 +2994,16 @@ which are not currently documented here.
 @deffn Command power [@option{on}|@option{off}]
 Turn power switch to target on/off.
 No arguments: print status.
+@end deffn
+@end deffn
+
+@deffn {Interface Driver} {bcm2835gpio}
+This SoC is present in Raspberry Pi which is a cheap single-board computer
+exposing some GPIOs on its expansion header.
+
+See @file{interface/bcm2835gpio-raspberrypi.cfg} for a sample config and
+pinout.
+
 @end deffn
 
 @section Transport Configuration
