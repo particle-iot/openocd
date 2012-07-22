@@ -81,6 +81,14 @@
 #include "mips32.h"
 #include "mips32_pracc.h"
 
+#if BUILD_FT2232_LIBFTDI == 1
+#define MAX_READ 32
+#elif BUILD_FT2232_FTD2XX == 1
+#define MAX_READ 512
+#else
+#define MAX_READ 4096
+#endif
+
 struct mips32_pracc_context {
 	uint32_t *local_iparam;
 	int num_iparam;
@@ -125,9 +133,9 @@ static int wait_for_pracc_rw(struct mips_ejtag *ejtag_info, uint32_t *ctrl)
 
 	/* wait for the PrAcc to become "1" */
 	mips_ejtag_set_instr(ejtag_info, EJTAG_INST_CONTROL);
-	ejtag_ctrl = ejtag_info->ejtag_ctrl;
 
 	while (1) {
+		ejtag_ctrl = ejtag_info->ejtag_ctrl;
 		retval = mips_ejtag_drscan_32(ejtag_info, &ejtag_ctrl);
 		if (retval != ERROR_OK)
 			return retval;
@@ -154,9 +162,9 @@ static int wait_for_pracc_rw_all(struct mips_ejtag *ejtag_info, uint32_t *ctrl, 
 	int retval;
 
 	/* wait for the PrAcc to become "1" */
-	ejtag_ctrl = ejtag_info->ejtag_ctrl;
 
 	while (1) {
+		ejtag_ctrl = ejtag_info->ejtag_ctrl;
 		retval = mips_ejtag_drscan_96(ejtag_info, &ejtag_ctrl, data, addr);
 		if (retval != ERROR_OK)
 			return retval;
@@ -1296,8 +1304,11 @@ int mips32_pracc_fastdata_xfer(struct mips_ejtag *ejtag_info, struct working_are
 		MIPS32_NOP,
 	};
 
-	int retval, i;
-	uint32_t val, ejtag_ctrl, address;
+	int retval, i, j = 0;
+	uint32_t ejtag_ctrl, val, address;
+
+	/*Delay in scan clocks*/
+	unsigned int clk_delay = 20;
 
 	if (source->size < MIPS32_FASTDATA_HANDLER_SIZE)
 		return ERROR_TARGET_RESOURCE_NOT_AVAILABLE;
@@ -1323,12 +1334,10 @@ int mips32_pracc_fastdata_xfer(struct mips_ejtag *ejtag_info, struct working_are
 	jmp_code[2] |= LOWER16(source->address);
 
 	for (i = 0; i < (int) ARRAY_SIZE(jmp_code); i++) {
-		retval = wait_for_pracc_rw(ejtag_info, &ejtag_ctrl);
+		mips_ejtag_set_instr(ejtag_info, EJTAG_INST_ALL);
+		retval = wait_for_pracc_rw_all(ejtag_info, &ejtag_ctrl, &jmp_code[i], &address);
 		if (retval != ERROR_OK)
 			return retval;
-
-		mips_ejtag_set_instr(ejtag_info, EJTAG_INST_DATA);
-		mips_ejtag_drscan_32_out(ejtag_info, jmp_code[i]);
 
 		/* Clear the access pending bit (let the processor eat!) */
 		ejtag_ctrl = ejtag_info->ejtag_ctrl & ~EJTAG_CTRL_PRACC;
@@ -1336,38 +1345,44 @@ int mips32_pracc_fastdata_xfer(struct mips_ejtag *ejtag_info, struct working_are
 		mips_ejtag_drscan_32_out(ejtag_info, ejtag_ctrl);
 	}
 
-	retval = wait_for_pracc_rw(ejtag_info, &ejtag_ctrl);
+	/* Not needed, but probably will save a scan */
+	jtag_add_clocks(clk_delay);
+
+	mips_ejtag_set_instr(ejtag_info, EJTAG_INST_ALL);
+	retval = wait_for_pracc_rw_all(ejtag_info, &ejtag_ctrl, &val, &address);
 	if (retval != ERROR_OK)
 		return retval;
 
 	/* next fetch to dmseg should be in FASTDATA_AREA, check */
-	address = 0;
-	mips_ejtag_set_instr(ejtag_info, EJTAG_INST_ADDRESS);
-	retval = mips_ejtag_drscan_32(ejtag_info, &address);
-	if (retval != ERROR_OK)
-		return retval;
-
 	if (address != MIPS32_PRACC_FASTDATA_AREA)
 		return ERROR_FAIL;
-
-	/* wait PrAcc pending bit for FASTDATA write */
-	retval = wait_for_pracc_rw(ejtag_info, &ejtag_ctrl);
-	if (retval != ERROR_OK)
-		return retval;
 
 	/* Send the load start address */
 	val = addr;
 	mips_ejtag_set_instr(ejtag_info, EJTAG_INST_FASTDATA);
 	mips_ejtag_fastdata_scan(ejtag_info, 1, &val);
 
-	/* Send the load end address */
+	/* Wait for pracc and send the load end address*/
+	retval = wait_for_pracc_rw(ejtag_info, &ejtag_ctrl);
+	if (retval != ERROR_OK)
+		return retval;
 	val = addr + (count - 1) * 4;
+	mips_ejtag_set_instr(ejtag_info, EJTAG_INST_FASTDATA);
 	mips_ejtag_fastdata_scan(ejtag_info, 1, &val);
 
 	for (i = 0; i < count; i++) {
-		retval = mips_ejtag_fastdata_scan(ejtag_info, write_t, buf++);
-		if (retval != ERROR_OK)
-			return retval;
+		jtag_add_clocks(clk_delay);
+		mips_ejtag_fastdata_scan(ejtag_info, write_t, buf++);
+		if (write_t == 0) {
+			if (++j > MAX_READ) {
+				j = 0;
+				retval = jtag_execute_queue();
+				if (retval != ERROR_OK) {
+					LOG_ERROR("fastdata load failed");
+					return retval;
+				}
+			}
+		}
 	}
 
 	retval = jtag_execute_queue();
@@ -1376,13 +1391,11 @@ int mips32_pracc_fastdata_xfer(struct mips_ejtag *ejtag_info, struct working_are
 		return retval;
 	}
 
-	retval = wait_for_pracc_rw(ejtag_info, &ejtag_ctrl);
-	if (retval != ERROR_OK)
-		return retval;
+	/* Not needed, but probably will save a scan */
+	jtag_add_clocks(clk_delay);
 
-	address = 0;
-	mips_ejtag_set_instr(ejtag_info, EJTAG_INST_ADDRESS);
-	retval = mips_ejtag_drscan_32(ejtag_info, &address);
+	mips_ejtag_set_instr(ejtag_info, EJTAG_INST_ALL);
+	retval = wait_for_pracc_rw_all(ejtag_info, &ejtag_ctrl, &val, &address);
 	if (retval != ERROR_OK)
 		return retval;
 

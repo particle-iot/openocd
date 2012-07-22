@@ -35,6 +35,7 @@
 #include "mips32_dmaacc.h"
 #include "target_type.h"
 #include "register.h"
+#include "image.h"
 
 static void mips_m4k_enable_breakpoints(struct target *target);
 static void mips_m4k_enable_watchpoints(struct target *target);
@@ -782,6 +783,34 @@ static void mips_m4k_enable_watchpoints(struct target *target)
 	}
 }
 
+static int mips_m4k_fast_read_memory(struct target *target, uint32_t address,
+		uint32_t count, const uint8_t *buffer)
+{
+	struct mips32_common *mips32 = target_to_mips32(target);
+	struct mips_ejtag *ejtag_info = &mips32->ejtag_info;
+	int retval;
+	int write_t = 0;
+
+	if (mips32->fast_data_area == NULL) {
+		/* Get memory for block write handler
+		 * we preserve this area between calls and gain a speed increase
+		 * of about 3kb/sec when writing flash
+		 * this will be released/nulled by the system when the target is resumed or reset */
+		retval = target_alloc_working_area(target,
+				MIPS32_FASTDATA_HANDLER_SIZE,
+				&mips32->fast_data_area);
+		if (retval != ERROR_OK) {
+			LOG_WARNING("No working area available, falling back to non-fast read");
+			return ERROR_FAIL;
+		}
+
+		/* reset fastadata state so the algo get reloaded */
+		ejtag_info->fast_access_save = -1;
+	}
+
+	return mips32_pracc_fastdata_xfer(ejtag_info, mips32->fast_data_area, write_t, address, count, (uint32_t *)buffer);
+}
+
 static int mips_m4k_read_memory(struct target *target, uint32_t address,
 		uint32_t size, uint32_t count, uint8_t *buffer)
 {
@@ -817,9 +846,14 @@ static int mips_m4k_read_memory(struct target *target, uint32_t address,
 
 	/* if noDMA off, use DMAACC mode for memory read */
 	int retval;
-	if (ejtag_info->impcode & EJTAG_IMP_NODMA)
-		retval = mips32_pracc_read_mem(ejtag_info, address, size, count, t);
-	else
+	if (ejtag_info->impcode & EJTAG_IMP_NODMA) {
+		if (size == 4 && count > 128) {
+			retval = mips_m4k_fast_read_memory(target, address, count, t);
+			if (retval != ERROR_OK)
+				retval = mips32_pracc_read_mem(ejtag_info, address, size, count, t);
+		} else
+			retval = mips32_pracc_read_mem(ejtag_info, address, size, count, t);
+	} else
 		retval = mips32_dmaacc_read_mem(ejtag_info, address, size, count, t);
 
 	/* mips32_..._read_mem with size 4/2 returns uint32_t/uint16_t in host */
@@ -1027,6 +1061,85 @@ static int mips_m4k_bulk_write_memory(struct target *target, uint32_t address,
 	return retval;
 }
 
+static int mips_m4k_fast_blank_check_memory(struct target *target, uint32_t address,
+		uint32_t count, uint32_t *blank)
+{
+	int retval;
+
+	if (target->state != TARGET_HALTED) {
+		LOG_WARNING("target not halted");
+		return ERROR_TARGET_NOT_HALTED;
+	}
+
+	/* check alignment */
+	if ((address & 0x3u) || (count%4))
+		return ERROR_TARGET_UNALIGNED_ACCESS;
+
+	count /= 4;
+
+	uint32_t *t = NULL;
+	t = malloc(count * sizeof(uint32_t));
+	if (t == NULL) {
+		LOG_ERROR("Out of memory");
+		return ERROR_FAIL;
+	}
+
+	retval = mips_m4k_fast_read_memory(target, address, count, (uint8_t *)t);
+
+	uint32_t *val = t;
+	uint32_t check = 0xffffffff;
+	for (uint32_t i = 0; i != count; i++)
+		check &= *val++;
+
+	*blank = (check == 0xffffffff) ? 0xff : 0;
+
+	if (t != NULL)
+		free(t);
+
+	return retval;
+}
+
+static int mips_m4k_fast_checksum_memory(struct target *target, uint32_t address,
+		uint32_t count, uint32_t *checksum)
+{
+	int retval;
+
+	if (target->state != TARGET_HALTED) {
+		LOG_WARNING("target not halted");
+		return ERROR_TARGET_NOT_HALTED;
+	}
+
+	/* check alignment */
+	if ((address & 0x3u) || (count%4))
+		return ERROR_TARGET_UNALIGNED_ACCESS;
+
+	count /= 4;
+
+	/* mips32_pracc_fastdata_xfer requires uint32_t in host endianness, */
+	/* but byte array represents target endianness                      */
+	uint32_t *t = NULL;
+	t = malloc(count * sizeof(uint32_t));
+	if (t == NULL) {
+		LOG_ERROR("Out of memory");
+		return ERROR_FAIL;
+	}
+
+	retval = mips_m4k_fast_read_memory(target, address, count, (uint8_t *)t);
+	if (retval != ERROR_OK)
+		goto exit;
+
+	for (uint32_t i = 0; i < count; i++)
+		target_buffer_set_u32(target, (uint8_t *)&t[i], t[i]);
+
+	retval = image_calculate_checksum((uint8_t *)t, count * 4, checksum);
+
+exit:
+	if (t != NULL)
+		free(t);
+
+	return retval;
+}
+
 static int mips_m4k_verify_pointer(struct command_context *cmd_ctx,
 		struct mips_m4k_common *mips_m4k)
 {
@@ -1141,8 +1254,8 @@ struct target_type mips_m4k_target = {
 	.read_memory = mips_m4k_read_memory,
 	.write_memory = mips_m4k_write_memory,
 	.bulk_write_memory = mips_m4k_bulk_write_memory,
-	.checksum_memory = mips32_checksum_memory,
-	.blank_check_memory = mips32_blank_check_memory,
+	.checksum_memory = mips_m4k_fast_checksum_memory,
+	.blank_check_memory = mips_m4k_fast_blank_check_memory,
 
 	.run_algorithm = mips32_run_algorithm,
 
