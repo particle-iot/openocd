@@ -531,6 +531,10 @@ produced, PDF schematics are easily found and it is easy to make.
 @item @b{at91rm9200}
 @* Like the EP93xx - but an ATMEL AT91RM9200 based solution using the GPIO pins on the chip.
 
+@item @b{raspberrypi}
+@* The single-board ARM-based computer using the GPIO pins of the
+expansion header.
+
 @end itemize
 
 @node About Jim-Tcl
@@ -2820,7 +2824,6 @@ opendous-jtag is a freely programmable USB adapter.
 
 @deffn {Interface Driver} {ZY1000}
 This is the Zylin ZY1000 JTAG debugger.
-@end deffn
 
 @quotation Note
 This defines some driver-specific commands,
@@ -2830,6 +2833,22 @@ which are not currently documented here.
 @deffn Command power [@option{on}|@option{off}]
 Turn power switch to target on/off.
 No arguments: print status.
+@end deffn
+@end deffn
+
+@deffn {Interface Driver} {raspberrypi}
+This is a cheap single-board computer exposing some GPIOs on its
+expansion header. The pin connection is the following:
+
+@multitable {JTAG connector} {RaspberryPi Expansion connector}
+@item JTAG connector @tab RaspberryPi Expansion connector
+@item TDI @tab pin 19
+@item TDO @tab pin 21
+@item TCK @tab pin 23
+@item TMS @tab pin 22
+@item TRST @tab pin 26
+@item SRST @tab pin 18
+@end multitable
 @end deffn
 
 @section Transport Configuration
