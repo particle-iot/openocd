@@ -107,6 +107,9 @@ endif
 if OPENDOUS
 DRIVERFILES += opendous.c
 endif
+if RASPBERRYPI
+DRIVERFILES += raspberrypi.c
+endif
 
 noinst_HEADERS = \
 	bitbang.h \
