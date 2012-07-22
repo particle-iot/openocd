@@ -422,11 +422,16 @@ case "${host_cpu}" in
     AC_ARG_ENABLE([at91rm9200],
       AS_HELP_STRING([--enable-at91rm9200], [Enable building support for AT91RM9200 based SBCs]),
       [build_at91rm9200=$enableval], [build_at91rm9200=no])
+
+    AC_ARG_ENABLE([raspberrypi],
+      AS_HELP_STRING([--enable-raspberrypi], [Enable building support for RaspberryPi-based adapter]),
+      [build_raspberrypi=$enableval], [build_raspberrypi=no])
     ;;
 
   *)
     build_ep93xx=no
     build_at91rm9200=no
+    build_raspberrypi=no
     ;;
 esac
 
@@ -654,6 +659,13 @@ if test $build_at91rm9200 = yes; then
   AC_DEFINE([BUILD_AT91RM9200], [1], [1 if you want at91rm9200.])
 else
   AC_DEFINE([BUILD_AT91RM9200], [0], [0 if you don't want at91rm9200.])
+fi
+
+if test $build_raspberrypi = yes; then
+  build_bitbang=yes
+  AC_DEFINE([BUILD_RASPBERRYPI], [1], [1 if you want raspberrypi.])
+else
+  AC_DEFINE([BUILD_RASPBERRYPI], [0], [0 if you don't want raspberrypi.])
 fi
 
 if test x$parport_use_ppdev = xyes; then
@@ -1121,6 +1133,7 @@ AM_CONDITIONAL([ZY1000], [test $build_zy1000 = yes])
 AM_CONDITIONAL([ZY1000_MASTER], [test $build_zy1000_master = yes])
 AM_CONDITIONAL([IOUTIL], [test $build_ioutil = yes])
 AM_CONDITIONAL([AT91RM9200], [test $build_at91rm9200 = yes])
+AM_CONDITIONAL([RASPBERRYPI], [test $build_raspberrypi = yes])
 AM_CONDITIONAL([BITBANG], [test $build_bitbang = yes])
 AM_CONDITIONAL([FT2232_LIBFTDI], [test $build_ft2232_libftdi = yes])
 AM_CONDITIONAL([FT2232_DRIVER], [test $build_ft2232_ftd2xx = yes -o $build_ft2232_libftdi = yes])
