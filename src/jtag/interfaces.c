@@ -116,6 +116,9 @@ extern struct jtag_interface opendous_interface;
 #if BUILD_SYSFSGPIO == 1
 extern struct jtag_interface sysfsgpio_interface;
 #endif
+#if BUILD_BCM2835GPIO == 1
+extern struct jtag_interface bcm2835gpio_interface;
+#endif
 #endif /* standard drivers */
 
 /**
@@ -199,6 +202,9 @@ struct jtag_interface *jtag_interfaces[] = {
 #endif
 #if BUILD_SYSFSGPIO == 1
 		&sysfsgpio_interface,
+#endif
+#if BUILD_BCM2835GPIO == 1
+		&bcm2835gpio_interface,
 #endif
 #endif /* standard drivers */
 		NULL,

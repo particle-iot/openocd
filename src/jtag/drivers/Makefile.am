@@ -111,6 +111,9 @@ endif
 if SYSFSGPIO
 DRIVERFILES += sysfsgpio.c
 endif
+if BCM2835GPIO
+DRIVERFILES += bcm2835gpio.c
+endif
 
 noinst_HEADERS = \
 	bitbang.h \
