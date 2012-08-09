@@ -1782,7 +1782,6 @@ static int cortex_a8_write_apb_ab_memory(struct target *target,
 	uint32_t count, const uint8_t *buffer)
 {
 	/* write memory through APB-AP */
-
 	int retval = ERROR_COMMAND_SYNTAX_ERROR;
 	struct armv7a_common *armv7a = target_to_armv7a(target);
 	struct arm *arm = &armv7a->arm;
@@ -1843,10 +1842,8 @@ static int cortex_a8_write_apb_ab_memory(struct target *target,
 		total_bytes -= nbytes_to_write;
 		start_byte = 0;
 	}
-
 	return retval;
 }
-
 
 static int cortex_a8_read_apb_ab_memory(struct target *target,
 	uint32_t address, uint32_t size,
@@ -1857,39 +1854,86 @@ static int cortex_a8_read_apb_ab_memory(struct target *target,
 
 	int retval = ERROR_COMMAND_SYNTAX_ERROR;
 	struct armv7a_common *armv7a = target_to_armv7a(target);
+	struct adiv5_dap *swjdp = armv7a->arm.dap;
 	struct arm *arm = &armv7a->arm;
 	int total_bytes = count * size;
-	int start_byte, nbytes_to_read, i;
+	int total_u32;
+	int start_byte, nbytes_to_read;
 	struct reg *reg;
+	uint32_t dscr;
+	long long then=0;
 	union _data {
 		uint8_t uc_a[4];
 		uint32_t ui;
 	} data;
-
+	uint32_t buff32[2];
 	if (target->state != TARGET_HALTED) {
 		LOG_WARNING("target not halted");
 		return ERROR_TARGET_NOT_HALTED;
 	}
+	total_u32 = ((address + total_bytes
+				+ 4) & ~0x3) - (address & ~0x3);
+	total_u32 = total_u32 / 4;
 
 	reg = arm_reg_current(arm, 0);
 	reg->dirty = 1;
-	reg = arm_reg_current(arm, 1);
-	reg->dirty = 1;
 
-	retval = cortex_a8_dap_write_coreregister_u32(target, address & 0xFFFFFFFC, 0);
+	/*  clear any abort  */
+	retval =
+		mem_ap_sel_write_atomic_u32(swjdp, swjdp_debugap, armv7a->debug_base + CPUDBG_DRCR, 1<<2);
 	if (retval != ERROR_OK)
 		return retval;
 
 	start_byte = address & 0x3;
+	retval = mem_ap_sel_read_atomic_u32(swjdp, swjdp_debugap,
+			armv7a->debug_base + CPUDBG_DSCR, &dscr);
+	/* set DTR access mode to stall mode b01  */
+	dscr = (dscr & ~(0x3 << 20)) | (0x1 << 20);
+	retval +=  mem_ap_sel_write_atomic_u32(swjdp, swjdp_debugap,
+			armv7a->debug_base + CPUDBG_DSCR, dscr);
+	/*  address  for read access */
+	retval += mem_ap_sel_write_atomic_u32(swjdp, swjdp_debugap,
+			armv7a->debug_base + CPUDBG_DTRRX, address & ~0x3 );
+	/*  mrc p14, 0, r0, c5, c0 */
+	cortex_a8_exec_opcode(target,0xEE100E15,&dscr);
+	/*  ldc p14, c5, [r0],4 */
+	buff32[0] = 0xecb05e01;
+	/* set DTR access mode to fast mode b10  */
+	dscr = (dscr & ~(0x3 << 20)) | (0x2 << 20);
+	buff32[1] = dscr;
+	/*  group the 2 access CPUDBG_ITR 0x84 and CPUDBG_DSCR 0x88 */
+	retval += mem_ap_sel_write_buf_u32(swjdp, swjdp_debugap, (uint8_t *)buff32, 8,
+			armv7a->debug_base + CPUDBG_ITR);
+	while (total_u32 > 0) {
+		then = timeval_ms();
+		if (total_u32 > 1) {
+			do {
+				/*  group 2 read CPUDBG_DSCR 0x88 and CPUDBG_DTRTX 0x8c */
+				retval = mem_ap_sel_read_buf_u32(swjdp, swjdp_debugap, (uint8_t *)buff32, 8,
+						armv7a->debug_base + CPUDBG_DSCR);
+				/*  check a potential abort ? */
+				dscr = buff32[0];
+				data.ui = buff32[1];
+				if (timeval_ms() > then + 1000) {
+					LOG_ERROR("Timeout waiting for cortex_a8_exec_opcode");
+					retval = ERROR_FAIL;
+					goto error;
+				}
 
-	while (total_bytes > 0) {
+			}
+			while((dscr & DSCR_DTR_TX_FULL) == 0);
+		} else	{
+			/*  set DTR Access mode to Normal b00*/
+			dscr = (dscr & ~(0x3 << 20));
+			retval +=  mem_ap_sel_write_atomic_u32(swjdp, swjdp_debugap,
+					armv7a->debug_base + CPUDBG_DSCR, dscr);
+			mem_ap_sel_read_atomic_u32(swjdp, swjdp_debugap,
+					armv7a->debug_base + CPUDBG_DTRTX, &data.ui);
 
-		/* execute instruction LDRW r1, [r0], 4 (0xe4901004)  */
-		retval = cortex_a8_exec_opcode(target,  ARMV4_5_LDRW_IP(1, 0), NULL);
-		if (retval != ERROR_OK)
-			return retval;
+		}
+		if (dscr & ( 1<<6 | 1<<7 ))
+			goto abort;
 
-		retval = cortex_a8_dap_read_coreregister_u32(target, &data.ui, 1);
 		if (retval != ERROR_OK)
 			return retval;
 
@@ -1897,16 +1941,28 @@ static int cortex_a8_read_apb_ab_memory(struct target *target,
 		if (total_bytes < nbytes_to_read)
 			nbytes_to_read = total_bytes;
 
-		for (i = 0; i < nbytes_to_read; ++i)
-			*buffer++ = data.uc_a[i + start_byte];
-
+		memcpy(buffer, &data.uc_a[start_byte], nbytes_to_read);
+		buffer+=nbytes_to_read;
 		total_bytes -= nbytes_to_read;
 		start_byte = 0;
+		total_u32 -= 1;
 	}
-
 	return retval;
-}
+abort:
+	LOG_ERROR("abort %x",((address + count * size - total_bytes) & 0x3));
+	mem_ap_sel_write_atomic_u32(swjdp, swjdp_debugap,
+			armv7a->debug_base + CPUDBG_DRCR, 1 <<2);
+	retval = ERROR_FAIL;
+	/*  set DTR Access mode to Normal b00*/
+error:
+	mem_ap_sel_read_atomic_u32(swjdp, swjdp_debugap,
+			armv7a->debug_base + CPUDBG_DSCR, &dscr);
+	dscr = (dscr & ~(0x3 << 20));
+	mem_ap_sel_write_atomic_u32(swjdp, swjdp_debugap,
+			armv7a->debug_base + CPUDBG_DSCR, dscr);
+	return retval;
 
+}
 
 
 /*
