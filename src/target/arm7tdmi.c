@@ -211,6 +211,7 @@ static int arm7tdmi_clock_data_in_endianness(struct arm_jtag *jtag_info,
 {
 	int retval = ERROR_OK;
 	struct scan_field fields[2];
+	uint8_t in_buf[4];
 
 	retval = arm_jtag_scann(jtag_info, 0x1, TAP_DRPAUSE);
 	if (retval != ERROR_OK)
@@ -223,9 +224,9 @@ static int arm7tdmi_clock_data_in_endianness(struct arm_jtag *jtag_info,
 	fields[0].out_value = NULL;
 	fields[0].in_value = NULL;
 
-	fields[1].num_bits = size * 8;
+	fields[1].num_bits = 32;
 	fields[1].out_value = NULL;
-	fields[1].in_value = in;
+	fields[1].in_value = in_buf;
 
 	jtag_add_dr_scan(jtag_info->tap, 2, fields, TAP_DRPAUSE);
 
@@ -233,7 +234,7 @@ static int arm7tdmi_clock_data_in_endianness(struct arm_jtag *jtag_info,
 		(jtag_callback_data_t)in,
 		(jtag_callback_data_t)size,
 		(jtag_callback_data_t)be,
-		(jtag_callback_data_t)in);
+		(jtag_callback_data_t)in_buf);
 
 	jtag_add_runtest(0, TAP_DRPAUSE);
 
