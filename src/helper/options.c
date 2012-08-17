@@ -93,6 +93,25 @@ static void add_default_dirs(void)
 		}
 		add_script_search_dir(strExePath);
 	}
+	/*
+	 * Add single "scripts" folder to search path for Windows OpenOCD builds that don't use cygwin
+	 *
+	 * bin/openocd.exe
+	 * scripts/interface/dummy.cfg
+	 * scripts/target/at91eb40a.cfg
+	 */
+	{
+		char strExePath[MAX_PATH];
+		char *p;
+		GetModuleFileName(NULL, strExePath, MAX_PATH);
+		*strrchr(strExePath, '\\') = 0;
+		strcat(strExePath, "/../scripts");
+		for (p = strExePath; *p; p++) {
+			if (*p == '\\')
+				*p = '/';
+		}
+		add_script_search_dir(strExePath);
+	}
 #else
 	/*
 	 * The directory containing OpenOCD-supplied scripts should be
