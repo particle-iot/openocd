@@ -465,8 +465,8 @@ int mpsse_clock_data(struct mpsse_ctx *ctx, const uint8_t *out, unsigned out_off
 			if (this_bytes > 65536)
 				this_bytes = 65536;
 			/* Buffer space limit. We already made sure there's space for the minimum
-			 *transfer. */
-			if (out && this_bytes + 3 > buffer_write_space(ctx))
+			 * transfer. */
+			if ((out || (!out && !in)) && this_bytes + 3 > buffer_write_space(ctx))
 				this_bytes = buffer_write_space(ctx) - 3;
 			if (in && this_bytes > buffer_read_space(ctx))
 				this_bytes = buffer_read_space(ctx);
