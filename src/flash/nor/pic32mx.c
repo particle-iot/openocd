@@ -28,6 +28,7 @@
 #include "config.h"
 #endif
 
+#include <jtag/jtag.h>
 #include "imp.h"
 #include <target/algorithm.h>
 #include <target/mips32.h>
@@ -418,11 +419,12 @@ static int pic32mx_write_block(struct flash_bank *bank, uint8_t *buffer,
 	uint32_t buffer_size = 16384;
 	struct working_area *source;
 	uint32_t address = bank->base + offset;
-	struct reg_param reg_params[3];
+	uint32_t row_size;
 	int retval = ERROR_OK;
 
 	struct pic32mx_flash_bank *pic32mx_info = bank->driver_priv;
-	struct mips32_algorithm mips32_info;
+	struct mips32_common *mips32 = target_to_mips32(target);
+	struct mips_ejtag *ejtag_info = &mips32->ejtag_info;
 
 	/* flash write code */
 	if (target_alloc_working_area(target, sizeof(pic32mx_flash_write_code),
@@ -438,12 +440,14 @@ static int pic32mx_write_block(struct flash_bank *bank, uint8_t *buffer,
 		pic32mx_flash_write_code[14] = 0x24840080;
 		pic32mx_flash_write_code[15] = 0x24A50080;
 		pic32mx_flash_write_code[17] = 0x24C6FFE0;
+		row_size = 128;
 	} else {
 		/* 512 byte row */
 		pic32mx_flash_write_code[8] = 0x2CD30080;
 		pic32mx_flash_write_code[14] = 0x24840200;
 		pic32mx_flash_write_code[15] = 0x24A50200;
 		pic32mx_flash_write_code[17] = 0x24C6FF80;
+		row_size = 512;
 	}
 
 	retval = target_write_buffer(target, pic32mx_info->write_algorithm->address,
@@ -463,39 +467,79 @@ static int pic32mx_write_block(struct flash_bank *bank, uint8_t *buffer,
 			LOG_WARNING("no large enough working area available, can't do block memory writes");
 			return ERROR_TARGET_RESOURCE_NOT_AVAILABLE;
 		}
-	};
+	}
 
-	mips32_info.common_magic = MIPS32_COMMON_MAGIC;
-	mips32_info.isa_mode = MIPS32_ISA_MIPS32;
-
-	init_reg_param(&reg_params[0], "a0", 32, PARAM_IN_OUT);
-	init_reg_param(&reg_params[1], "a1", 32, PARAM_OUT);
-	init_reg_param(&reg_params[2], "a2", 32, PARAM_OUT);
+	int row_offset = offset % row_size;
+	uint8_t *new_buffer = NULL;
+	if (row_offset && (count >= (row_size / 4))) {
+		new_buffer = malloc(buffer_size);
+		if (new_buffer == NULL) {
+			LOG_ERROR("Out of memory");
+			return ERROR_FAIL;
+		}
+		memset(new_buffer,  0xff, row_offset);
+		address -= row_offset;
+	} else
+		row_offset = 0;
 
 	while (count > 0) {
 		uint32_t status;
-		uint32_t thisrun_count = (count > (buffer_size / 4)) ?
-				(buffer_size / 4) : count;
+		uint32_t thisrun_count;
 
-		retval = target_write_buffer(target, source->address,
-				thisrun_count * 4, buffer);
+		if (row_offset) {
+			thisrun_count = (count > ((buffer_size - row_offset) / 4)) ?
+				((buffer_size - row_offset) / 4) : count;
+
+			memcpy(new_buffer + row_offset, buffer, thisrun_count * 4);
+
+			retval = target_write_buffer(target, source->address,
+				row_offset + thisrun_count * 4, new_buffer);
+			if (retval != ERROR_OK)
+				break;
+		} else {
+			thisrun_count = (count > (buffer_size / 4)) ?
+					(buffer_size / 4) : count;
+
+			retval = target_write_buffer(target, source->address,
+					thisrun_count * 4, buffer);
+			if (retval != ERROR_OK)
+				break;
+		}
+
+		/* Processor waiting for instruction at PRACC TEXT, as usual */
+		ejtag_info->fetch_address = 0xff200200;
+
+		/* Load registers 4, 5 and 6 with parameters */
+		retval = mips32_pracc_write_register(ejtag_info, 4, Virt2Phys(source->address));
+		if (retval != ERROR_OK)
+			break;
+		retval = mips32_pracc_write_register(ejtag_info, 5, Virt2Phys(address));
+		if (retval != ERROR_OK)
+			break;
+		retval = mips32_pracc_write_register(ejtag_info, 6, thisrun_count + row_offset / 4);
 		if (retval != ERROR_OK)
 			break;
 
-		buf_set_u32(reg_params[0].value, 0, 32, Virt2Phys(source->address));
-		buf_set_u32(reg_params[1].value, 0, 32, Virt2Phys(address));
-		buf_set_u32(reg_params[2].value, 0, 32, thisrun_count);
-
-		retval = target_run_algorithm(target, 0, NULL, 3, reg_params,
-				pic32mx_info->write_algorithm->address,
-				0, 10000, &mips32_info);
-		if (retval != ERROR_OK) {
-			LOG_ERROR("error executing pic32mx flash write algorithm");
-			retval = ERROR_FLASH_OPERATION_FAILED;
+		/* Jump to flashing code, flashing begins */
+		retval = mips32_pracc_jump(ejtag_info, pic32mx_info->write_algorithm->address);
+		if (retval != ERROR_OK)
 			break;
-		}
 
-		status = buf_get_u32(reg_params[0].value, 0, 32);
+		/* wait_for_pracc_rw() is expected to wait up to 125 mSec */
+		/* Previous code waits up to 10 Sec., is 1 Second enough ?, problems ? */
+
+		/* Flash code ends with sdbbp instruction, re-enter debug mode */
+		ejtag_info->fetch_address = 0xff200200;
+
+		/* Read status from register 4 */
+		retval = mips32_pracc_read_register(ejtag_info, 4, &status);
+		if (retval != ERROR_OK)
+			break;
+
+		/* Jump to PRACC TEXT, pracc code need it */
+		retval = mips32_pracc_jump(ejtag_info, 0xff200200);
+		if (retval != ERROR_OK)
+			break;
 
 		if (status & NVMCON_NVMERR) {
 			LOG_ERROR("Flash write error NVMERR (status = 0x%08" PRIx32 ")", status);
@@ -512,15 +556,17 @@ static int pic32mx_write_block(struct flash_bank *bank, uint8_t *buffer,
 		buffer += thisrun_count * 4;
 		address += thisrun_count * 4;
 		count -= thisrun_count;
+		if (row_offset) {
+			address += row_offset;
+			row_offset = 0;
+		}
 	}
 
 	target_free_working_area(target, source);
 	target_free_working_area(target, pic32mx_info->write_algorithm);
 
-	destroy_reg_param(&reg_params[0]);
-	destroy_reg_param(&reg_params[1]);
-	destroy_reg_param(&reg_params[2]);
-
+	if (new_buffer != NULL)
+		free(new_buffer);
 	return retval;
 }
 
@@ -828,6 +874,7 @@ COMMAND_HANDLER(pic32mx_handle_unlock_command)
 
 	/* unlock/erase device */
 	mips_ejtag_drscan_8_out(ejtag_info, MCHP_ASERT_RST);
+	jtag_add_sleep(200);
 
 	mips_ejtag_drscan_8_out(ejtag_info, MCHP_ERASE);
 

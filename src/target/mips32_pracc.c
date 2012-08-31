@@ -1404,3 +1404,166 @@ int mips32_pracc_fastdata_xfer(struct mips_ejtag *ejtag_info, struct working_are
 
 	return retval;
 }
+
+/* A processor fetch is expected */
+static int mips32_pracc_fetch(struct mips_ejtag *ejtag_info, uint32_t *instr)
+{
+	uint32_t ejtag_ctrl, address;
+	int retval;
+
+	mips_ejtag_set_instr(ejtag_info, EJTAG_INST_ALL);
+	retval = wait_for_pracc_rw_all(ejtag_info, &ejtag_ctrl, instr, &address);
+	if (retval != ERROR_OK)
+		return retval;
+
+	if (ejtag_ctrl & EJTAG_CTRL_PRNW) {
+		LOG_ERROR("not a fetch/read access");
+		return ERROR_FAIL;
+	}
+
+	if (ejtag_info->fetch_address != address) {
+		LOG_ERROR("expected address do not match");
+		return ERROR_FAIL;
+	}
+
+	ejtag_ctrl = ejtag_info->ejtag_ctrl & ~EJTAG_CTRL_PRACC;
+	mips_ejtag_set_instr(ejtag_info, EJTAG_INST_CONTROL);
+	mips_ejtag_drscan_32_out(ejtag_info, ejtag_ctrl);
+
+	ejtag_info->fetch_address += 4;
+
+	return ERROR_OK;
+}
+
+/* A processor store is expected */
+static int mips32_pracc_store(struct mips_ejtag *ejtag_info, uint32_t *data, uint32_t exp_addr)
+{
+	uint32_t ejtag_ctrl, address;
+	int retval;
+
+	mips_ejtag_set_instr(ejtag_info, EJTAG_INST_ALL);
+	retval = wait_for_pracc_rw_all(ejtag_info, &ejtag_ctrl, data, &address);
+	if (retval != ERROR_OK)
+		return retval;
+
+	if (!(ejtag_ctrl & EJTAG_CTRL_PRNW)) {
+		LOG_ERROR("not a store/write access");
+		return ERROR_FAIL;
+	}
+
+	if (exp_addr != address) {
+		LOG_ERROR("expected address do not match");
+		return ERROR_FAIL;
+	}
+
+	ejtag_ctrl = ejtag_info->ejtag_ctrl & ~EJTAG_CTRL_PRACC;
+	mips_ejtag_set_instr(ejtag_info, EJTAG_INST_CONTROL);
+	mips_ejtag_drscan_32_out(ejtag_info, ejtag_ctrl);
+
+	return ERROR_OK;
+}
+
+/* A processor load is expected */
+/*
+static int mips32_pracc_load(struct mips_ejtag *ejtag_info, uint32_t *data, uint32_t exp_addr)
+{
+	uint32_t ejtag_ctrl, address;
+	int retval;
+
+	mips_ejtag_set_instr(ejtag_info, EJTAG_INST_ALL);
+	retval = wait_for_pracc_rw_all(ejtag_info, &ejtag_ctrl, data, &address);
+	if (retval != ERROR_OK)
+		return retval;
+
+	if (ejtag_ctrl & EJTAG_CTRL_PRNW){
+		LOG_ERROR("not a load/read access");
+		return ERROR_FAIL;
+	}
+
+	if (exp_addr != address){
+		LOG_ERROR("expected address do not match");
+		return ERROR_FAIL;
+	}
+
+	ejtag_ctrl = ejtag_info->ejtag_ctrl & ~EJTAG_CTRL_PRACC;
+	mips_ejtag_set_instr(ejtag_info, EJTAG_INST_CONTROL);
+	mips_ejtag_drscan_32_out(ejtag_info, ejtag_ctrl);
+
+	return ERROR_OK;
+}
+*/
+
+int mips32_pracc_write_register(struct mips_ejtag *ejtag_info, int num_reg, uint32_t value)
+{
+	uint32_t instruction;
+	int retval;
+
+	instruction = MIPS32_LUI(num_reg, UPPER16(value));
+	retval = mips32_pracc_fetch(ejtag_info, &instruction);
+	if (retval != ERROR_OK)
+		return retval;
+
+	instruction = MIPS32_ORI(num_reg, num_reg, LOWER16(value));
+	retval = mips32_pracc_fetch(ejtag_info, &instruction);
+	return retval;
+}
+
+int mips32_pracc_read_register(struct mips_ejtag *ejtag_info, int num_reg, uint32_t *value)
+{
+	uint32_t instruction;
+	int retval;
+
+	instruction = MIPS32_MTC0(15, 31, 0); /* move $15 to COP0 DeSave */
+	retval = mips32_pracc_fetch(ejtag_info, &instruction);
+	if (retval != ERROR_OK)
+		return retval;
+
+	instruction = MIPS32_LUI(15, 0xff20); /* Load upper 16 in register 15 */
+	retval = mips32_pracc_fetch(ejtag_info, &instruction);
+	if (retval != ERROR_OK)
+		return retval;
+
+	instruction = MIPS32_SW(num_reg, 0x100, 15); /* Store at 0xff200100 ((15) + 0x100) */
+	retval = mips32_pracc_fetch(ejtag_info, &instruction);
+	if (retval != ERROR_OK)
+		return retval;
+
+	instruction = MIPS32_MFC0(15, 31, 0); /* move COP0 DeSave to $15 */
+	retval = mips32_pracc_fetch(ejtag_info, &instruction);
+	if (retval != ERROR_OK)
+		return retval;
+
+	/* Store access at dmseg from previous store instruction, it's mips */
+	retval = mips32_pracc_store(ejtag_info, value, 0xff200100);
+	return retval;
+}
+
+int mips32_pracc_jump(struct mips_ejtag *ejtag_info, uint32_t jump_addr)
+{
+	uint32_t instruction;
+	int retval;
+
+	instruction = MIPS32_MTC0(16, 31, 0); /* move $16 to COP0 DeSave */
+	retval = mips32_pracc_fetch(ejtag_info, &instruction);
+	if (retval != ERROR_OK)
+		return retval;
+
+	instruction = MIPS32_LUI(16, UPPER16(jump_addr));
+	retval = mips32_pracc_fetch(ejtag_info, &instruction);
+	if (retval != ERROR_OK)
+		return retval;
+
+	instruction = MIPS32_ORI(16, 16, LOWER16(jump_addr));
+	retval = mips32_pracc_fetch(ejtag_info, &instruction);
+	if (retval != ERROR_OK)
+		return retval;
+
+	instruction = MIPS32_JR(16);
+	retval = mips32_pracc_fetch(ejtag_info, &instruction);
+	if (retval != ERROR_OK)
+		return retval;
+
+	instruction = MIPS32_MFC0(16, 31, 0); /* move COP0 DeSave to $16 */
+	retval = mips32_pracc_fetch(ejtag_info, &instruction);
+	return retval;
+}

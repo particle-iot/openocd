@@ -58,6 +58,10 @@ int mips32_pracc_exec(struct mips_ejtag *ejtag_info, int code_len, const uint32_
 		int num_param_in, uint32_t *param_in,
 		int num_param_out, uint32_t *param_out, int cycle);
 
+int mips32_pracc_read_register(struct mips_ejtag *ejtag_info, int num_reg, uint32_t *value);
+int mips32_pracc_write_register(struct mips_ejtag *ejtag_info, int num_reg, uint32_t value);
+int mips32_pracc_jump(struct mips_ejtag *ejtag_info, uint32_t jump_addr);
+
 /**
  * \b mips32_cp0_read
  *
