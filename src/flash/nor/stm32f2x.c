@@ -91,6 +91,9 @@
 #define FLASH_ERASE_TIMEOUT 10000
 #define FLASH_WRITE_TIMEOUT 5
 
+#define FLASH_BANK_BASE         0x08000000
+#define OTP_BANK_BASE           0x1FFF7800
+
 #define STM32_FLASH_BASE	0x40023c00
 #define STM32_FLASH_ACR		0x40023c00
 #define STM32_FLASH_KEYR	0x40023c04
@@ -152,8 +155,39 @@
 struct stm32x_flash_bank {
 	struct working_area *write_algorithm;
 	int probed;
+	int otp_unlocked;
 };
 
+static int stm32x_is_otp(struct flash_bank *bank)
+{
+	return (bank->base == OTP_BANK_BASE);
+}
+
+static int stm32x_is_otp_unlocked(struct flash_bank *bank)
+{
+	struct stm32x_flash_bank *stm32x_info = bank->driver_priv;
+	return stm32x_info->otp_unlocked;
+}
+
+static int stm32x_otp_disable(struct flash_bank *bank)
+{
+	struct stm32x_flash_bank *stm32x_info = bank->driver_priv;
+	LOG_INFO("OTP memory bank #%d is disabled for write commands.", bank->bank_number);
+	stm32x_info->otp_unlocked = 0;
+	return ERROR_OK;
+}
+
+static int stm32x_otp_enable(struct flash_bank *bank)
+{
+	struct stm32x_flash_bank *stm32x_info = bank->driver_priv;
+	if (stm32x_info->otp_unlocked != 1) {
+		LOG_INFO("OTP memory bank #%d is enabled for write commands.", bank->bank_number);
+		stm32x_info->otp_unlocked = 1;
+	} else {
+		LOG_WARNING("OTP memory bank #%d is already enabled for write commands.", bank->bank_number);
+	}
+	return ERROR_OK;
+}
 
 /* flash bank stm32x <base> <size> 0 0 <target#>
  */
@@ -169,6 +203,25 @@ FLASH_BANK_COMMAND_HANDLER(stm32x_flash_bank_command)
 
 	stm32x_info->write_algorithm = NULL;
 	stm32x_info->probed = 0;
+	stm32x_info->otp_unlocked = 0;
+
+	switch (bank->base) {
+		default:
+			LOG_ERROR("Address 0x%08x invalid bank address (try 0x%08x or 0x%08x)",
+			((unsigned int)(bank->base)),
+			((unsigned int)(FLASH_BANK_BASE)),
+			((unsigned int)(OTP_BANK_BASE)));
+			return ERROR_FAIL;
+			break;
+
+		/* stm32f2 has one flash bank and one OTP bank */
+		case FLASH_BANK_BASE:
+			bank->bank_number = 0;
+			break;
+		case OTP_BANK_BASE:
+			bank->bank_number = 1;
+			break;
+	}
 
 	return ERROR_OK;
 }
@@ -267,6 +320,11 @@ static int stm32x_erase(struct flash_bank *bank, int first, int last)
 	struct target *target = bank->target;
 	int i;
 
+	if (stm32x_is_otp(bank) == 1) {
+		LOG_ERROR("Can not erase OTP memory");
+		return ERROR_FAIL;
+	}
+
 	if (bank->target->state != TARGET_HALTED) {
 		LOG_ERROR("Target not halted");
 		return ERROR_TARGET_NOT_HALTED;
@@ -364,6 +422,11 @@ static int stm32x_write_block(struct flash_bank *bank, uint8_t *buffer,
 		/* <STM32_PROG16>: */
 		0x01, 0x01, 0x00, 0x00,		/* .word	0x00000101 */
 	};
+
+	if ((stm32x_is_otp(bank) == 1) && (stm32x_is_otp_unlocked(bank) != 1)) {
+		LOG_ERROR("OTP memory bank is disabled for write commands.");
+		return ERROR_FAIL;
+	}
 
 	if (target_alloc_working_area(target, sizeof(stm32x_flash_write_code),
 			&stm32x_info->write_algorithm) != ERROR_OK) {
@@ -586,71 +649,99 @@ static int stm32x_probe(struct flash_bank *bank)
 	struct stm32x_flash_bank *stm32x_info = bank->driver_priv;
 	int i;
 	uint16_t flash_size_in_kb;
+	uint16_t flash_size_in_b;
 	uint16_t max_flash_size_in_kb;
 	uint32_t device_id;
-	uint32_t base_address = 0x08000000;
+	int retval;
 
 	stm32x_info->probed = 0;
+	stm32x_info->otp_unlocked = 0;
 
-	/* read stm32 device id register */
-	int retval = stm32x_get_device_id(bank, &device_id);
-	if (retval != ERROR_OK)
-		return retval;
-	LOG_INFO("device id = 0x%08" PRIx32 "", device_id);
+	if (bank->base == FLASH_BANK_BASE) {
+		/* read stm32 device id register */
+		retval = stm32x_get_device_id(bank, &device_id);
+		if (retval != ERROR_OK)
+			return retval;
+		LOG_INFO("device id = 0x%08" PRIx32 "", device_id);
 
-	/* set max flash size depending on family */
-	switch (device_id & 0xfff) {
-	case 0x411:
-	case 0x413:
-		max_flash_size_in_kb = 1024;
-		break;
-	default:
-		LOG_WARNING("Cannot identify target as a STM32 family.");
-		return ERROR_FAIL;
-	}
+		/* set max flash size depending on family */
+		switch (device_id & 0xfff) {
+		case 0x411:
+		case 0x413:
+			max_flash_size_in_kb = 1024;
+			break;
+		default:
+			LOG_WARNING("Cannot identify target as a STM32 family.");
+			return ERROR_FAIL;
+		}
 
-	/* get flash size from target. */
-	retval = target_read_u16(target, 0x1FFF7A22, &flash_size_in_kb);
+		/* get flash size from target. */
+		retval = target_read_u16(target, 0x1FFF7A22, &flash_size_in_kb);
 
-	/* failed reading flash size or flash size invalid (early silicon),
-	 * default to max target family */
-	if (retval != ERROR_OK || flash_size_in_kb == 0xffff || flash_size_in_kb == 0) {
-		LOG_WARNING("STM32 flash size failed, probe inaccurate - assuming %dk flash",
-			max_flash_size_in_kb);
-		flash_size_in_kb = max_flash_size_in_kb;
-	}
+		/* failed reading flash size or flash size invalid (early silicon),
+		 * default to max target family */
+		if (retval != ERROR_OK || flash_size_in_kb == 0xffff || flash_size_in_kb == 0) {
+			LOG_WARNING("STM32 flash size failed, probe inaccurate - assuming %dk flash",
+				max_flash_size_in_kb);
+			flash_size_in_kb = max_flash_size_in_kb;
+		}
 
-	LOG_INFO("flash size = %dkbytes", flash_size_in_kb);
+		LOG_INFO("flash size = %dkbytes", flash_size_in_kb);
 
-	/* did we assign flash size? */
-	assert(flash_size_in_kb != 0xffff);
+		/* did we assign flash size? */
+		assert(flash_size_in_kb != 0xffff);
 
-	/* calculate numbers of pages */
-	int num_pages = (flash_size_in_kb / 128) + 4;
+		/* calculate numbers of pages */
+		int num_pages = (flash_size_in_kb / 128) + 4;
 
-	/* check that calculation result makes sense */
-	assert(num_pages > 0);
+		/* check that calculation result makes sense */
+		assert(num_pages > 0);
 
-	if (bank->sectors) {
-		free(bank->sectors);
-		bank->sectors = NULL;
-	}
+		if (bank->sectors) {
+			free(bank->sectors);
+			bank->sectors = NULL;
+		}
 
-	bank->base = base_address;
-	bank->num_sectors = num_pages;
-	bank->sectors = malloc(sizeof(struct flash_sector) * num_pages);
-	bank->size = 0;
+		bank->num_sectors = num_pages;
+		bank->sectors = malloc(sizeof(struct flash_sector) * num_pages);
+		bank->size = 0;
 
-	/* fixed memory */
-	setup_sector(bank, 0, 4, 16 * 1024);
-	setup_sector(bank, 4, 1, 64 * 1024);
+		/* fixed memory */
+		setup_sector(bank, 0, 4, 16 * 1024);
+		setup_sector(bank, 4, 1, 64 * 1024);
 
-	/* dynamic memory */
-	setup_sector(bank, 4 + 1, num_pages - 5, 128 * 1024);
+		/* dynamic memory */
+		setup_sector(bank, 4 + 1, num_pages - 5, 128 * 1024);
 
-	for (i = 0; i < num_pages; i++) {
-		bank->sectors[i].is_erased = -1;
-		bank->sectors[i].is_protected = 0;
+		for (i = 0; i < num_pages; i++) {
+			bank->sectors[i].is_erased = -1;
+			bank->sectors[i].is_protected = 0;
+		}
+	} else if (bank->base == OTP_BANK_BASE) {
+		flash_size_in_b = 512;
+		LOG_INFO("flash size = %dbytes", flash_size_in_b);
+
+		/* calculate numbers of sectors */
+		int num_sectors = flash_size_in_b / 32; /* OTP sector size is 32 bytes */
+
+		/* check that calculation result makes sense */
+		assert(num_sectors > 0);
+
+		if (bank->sectors) {
+			free(bank->sectors);
+			bank->sectors = NULL;
+		}
+		bank->num_sectors = num_sectors;
+		bank->sectors = malloc(sizeof(struct flash_sector) * num_sectors);
+		bank->size = 512;
+
+		/* OTP memory */
+		for (i = 0; i < num_sectors; i++) {
+			bank->sectors[i].offset = i*32;
+			bank->sectors[i].size = 32;
+			bank->sectors[i].is_erased = 1;
+			bank->sectors[i].is_protected = 0;
+		}
 	}
 
 	stm32x_info->probed = 1;
@@ -683,23 +774,23 @@ static int get_stm32x_info(struct flash_bank *bank, char *buf, int buf_size)
 
 		switch (device_id >> 16) {
 			case 0x1000:
-				snprintf(buf, buf_size, "A");
+				printed = snprintf(buf, buf_size, "A");
 				break;
 
 			case 0x2000:
-				snprintf(buf, buf_size, "B");
+				printed = snprintf(buf, buf_size, "B");
 				break;
 
 			case 0x1001:
-				snprintf(buf, buf_size, "Z");
+				printed = snprintf(buf, buf_size, "Z");
 				break;
 
 			case 0x2001:
-				snprintf(buf, buf_size, "Y");
+				printed = snprintf(buf, buf_size, "Y");
 				break;
 
 			default:
-				snprintf(buf, buf_size, "unknown");
+				printed = snprintf(buf, buf_size, "unknown");
 				break;
 		}
 	} else if ((device_id & 0xfff) == 0x413) {
@@ -709,20 +800,28 @@ static int get_stm32x_info(struct flash_bank *bank, char *buf, int buf_size)
 
 		switch (device_id >> 16) {
 			case 0x1000:
-				snprintf(buf, buf_size, "A");
+				printed = snprintf(buf, buf_size, "A");
 				break;
 
 			case 0x1001:
-				snprintf(buf, buf_size, "Z");
+				printed = snprintf(buf, buf_size, "Z");
 				break;
 
 			default:
-				snprintf(buf, buf_size, "unknown");
+				printed = snprintf(buf, buf_size, "unknown");
 				break;
 		}
 	} else {
 		snprintf(buf, buf_size, "Cannot identify target as a stm32x\n");
 		return ERROR_FAIL;
+	}
+
+	if (stm32x_is_otp(bank) == 1) {
+		buf += printed;
+		buf_size -= printed;
+		snprintf(buf, buf_size,
+			"\nOTP memory bank is %s for write commands.",
+			((stm32x_is_otp_unlocked(bank) == 1) ? "enabled" : "disabled"));
 	}
 
 	return ERROR_OK;
@@ -732,6 +831,11 @@ static int stm32x_mass_erase(struct flash_bank *bank)
 {
 	int retval;
 	struct target *target = bank->target;
+
+	if (stm32x_is_otp(bank) == 1) {
+		LOG_ERROR("Can not erase OTP memory");
+		return ERROR_FAIL;
+	}
 
 	if (target->state != TARGET_HALTED) {
 		LOG_ERROR("Target not halted");
@@ -762,6 +866,8 @@ static int stm32x_mass_erase(struct flash_bank *bank)
 	return ERROR_OK;
 }
 
+/* stm32f2x mass_erase <bank#>
+ */
 COMMAND_HANDLER(stm32x_handle_mass_erase_command)
 {
 	int i;
@@ -790,6 +896,39 @@ COMMAND_HANDLER(stm32x_handle_mass_erase_command)
 	return retval;
 }
 
+/* stm32f2x otp <bank#> enable|disable|show
+ */
+COMMAND_HANDLER(stm32x_handle_otp_command)
+{
+	if (CMD_ARGC < 2) {
+		command_print(CMD_CTX, "stm32x otp <bank> (enable|disable|show)");
+		return ERROR_COMMAND_SYNTAX_ERROR;
+	}
+
+	struct flash_bank *bank;
+	int retval = CALL_COMMAND_HANDLER(flash_command_get_bank, 0, &bank);
+	if (ERROR_OK != retval)
+		return retval;
+	if (stm32x_is_otp(bank) == 1) {
+		if (strcmp(CMD_ARGV[1], "enable") == 0) {
+			stm32x_otp_enable(bank);
+		} else if (strcmp(CMD_ARGV[1], "disable") == 0) {
+			stm32x_otp_disable(bank);
+		} else if (strcmp(CMD_ARGV[1], "show") == 0) {
+			command_print(CMD_CTX,
+				"OTP memory bank #%d is %s for write commands.",
+				bank->bank_number,
+				((stm32x_is_otp_unlocked(bank) == 1) ? "enabled" : "disabled"));
+		} else {
+			return ERROR_COMMAND_SYNTAX_ERROR;
+		}
+	} else {
+		command_print(CMD_CTX, "Failed: not an OTP bank.");
+	}
+
+	return retval;
+}
+
 static const struct command_registration stm32x_exec_command_handlers[] = {
 	{
 		.name = "mass_erase",
@@ -797,6 +936,13 @@ static const struct command_registration stm32x_exec_command_handlers[] = {
 		.mode = COMMAND_EXEC,
 		.usage = "bank_id",
 		.help = "Erase entire flash device.",
+	},
+	{
+		.name = "otp",
+		.handler = stm32x_handle_otp_command,
+		.mode = COMMAND_EXEC,
+		.usage = "bank_id",
+		.help = "OTP (One Time Programmable) memory write enable/disable.",
 	},
 	COMMAND_REGISTRATION_DONE
 };
