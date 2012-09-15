@@ -967,11 +967,10 @@ static int cortex_m3_assert_reset(struct target *target)
 	retval = mem_ap_read_atomic_u32(swjdp, DCB_DHCSR, &cortex_m3->dcb_dhcsr);
 	if (retval != ERROR_OK)
 		return retval;
-	if (!(cortex_m3->dcb_dhcsr & C_DEBUGEN)) {
-		retval = mem_ap_write_u32(swjdp, DCB_DHCSR, DBGKEY | C_DEBUGEN);
-		if (retval != ERROR_OK)
-			return retval;
-	}
+
+	retval = mem_ap_write_u32(swjdp, DCB_DHCSR, DBGKEY | C_HALT | C_MASKINTS | C_DEBUGEN);
+	if (retval != ERROR_OK)
+		return retval;
 
 	retval = mem_ap_write_u32(swjdp, DCB_DCRDR, 0);
 	if (retval != ERROR_OK)
