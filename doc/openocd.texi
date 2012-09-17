@@ -2529,6 +2529,14 @@ also reduces the risk of timeouts before receiving the expected number of bytes.
 The OpenOCD default value is 2 and for some systems a value of 10 has proved useful.
 @end deffn
 
+@deffn {Config Command} {ft2232_channel} number
+The FTDI FT2232 chips have more than one serializers. Some JTAG cables doesn't use
+the default channel (1). You can change the channel using this option. Valida values
+range from 0 (automatic) to 4. This is useful when you have a cable that uses a known
+layout, but a different channel (i.e. Opendous FT2232 cable is like jtagkey but using
+channel 2 instead of 1).
+@end deffn
+
 For example, the interface config file for a
 Turtelizer JTAG Adapter looks something like this:
 
