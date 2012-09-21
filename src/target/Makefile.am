@@ -76,7 +76,9 @@ ARMV7_SRC = \
 	armv7m.c \
 	cortex_m.c \
 	armv7a.c \
-	cortex_a.c
+	cortex_a.c \
+	armv7r.c \
+	cortex_r.c
 
 ARM_DEBUG_SRC = \
 	arm_dpm.c \
@@ -132,6 +134,7 @@ noinst_HEADERS = \
 	armv4_5_mmu.h \
 	armv4_5_cache.h \
 	armv7a.h \
+	armv7r.h \
 	armv7m.h \
 	avrt.h \
 	dsp563xx.h \
@@ -140,6 +143,7 @@ noinst_HEADERS = \
 	breakpoints.h \
 	cortex_m.h \
 	cortex_a.h \
+	cortex_r.h \
 	embeddedice.h \
 	etb.h \
 	etm.h \
