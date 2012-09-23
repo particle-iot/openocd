@@ -176,6 +176,7 @@ static int jtagkey_init(void);
 static int lm3s811_jtag_init(void);
 static int icdi_jtag_init(void);
 static int olimex_jtag_init(void);
+static int ordb2a_init(void);
 static int flyswatter1_init(void);
 static int flyswatter2_init(void);
 static int minimodule_init(void);
@@ -199,6 +200,7 @@ static int digilent_hs1_init(void);
 static void ftx23_reset(int trst, int srst);
 static void jtagkey_reset(int trst, int srst);
 static void olimex_jtag_reset(int trst, int srst);
+static void ordb2a_reset(int trst, int srst);
 static void flyswatter1_reset(int trst, int srst);
 static void flyswatter2_reset(int trst, int srst);
 static void minimodule_reset(int trst, int srst);
@@ -261,6 +263,11 @@ static const struct ft2232_layout  ft2232_layouts[] = {
 		.init = olimex_jtag_init,
 		.reset = olimex_jtag_reset,
 		.blink = olimex_jtag_blink
+	},
+	{ .name = "ordb2a",
+		.init = ordb2a_init,
+		.reset = ordb2a_reset,
+		.channel = INTERFACE_B
 	},
 	{ .name = "flyswatter",
 		.init = flyswatter1_init,
@@ -1418,6 +1425,16 @@ static void olimex_jtag_reset(int trst, int srst)
 	buffer_write(0x82);
 	buffer_write(high_output);
 	buffer_write(high_direction);
+	LOG_DEBUG("trst: %i, srst: %i, high_output: 0x%2.2x, high_direction: 0x%2.2x",
+		trst,
+		srst,
+		high_output,
+		high_direction);
+}
+
+static void ordb2a_reset(int trst, int srst)
+{
+	/* Nothing to do here */
 	LOG_DEBUG("trst: %i, srst: %i, high_output: 0x%2.2x, high_direction: 0x%2.2x",
 		trst,
 		srst,
@@ -2713,6 +2730,26 @@ static int olimex_jtag_init(void)
 		LOG_ERROR("couldn't initialize FT2232 with 'Olimex' layout");
 		return ERROR_JTAG_INIT_FAILED;
 	}
+
+	return ERROR_OK;
+}
+
+static int ordb2a_init(void)
+{
+	low_output = 0x08;
+	low_direction = 0x0b;
+
+	/* initialize low byte for jtag */
+	if (ft2232_set_data_bits_low_byte(low_output, low_direction) != ERROR_OK) {
+		LOG_ERROR("couldn't initialize FT2232 with 'ordb2a' layout");
+		return ERROR_JTAG_INIT_FAILED;
+	}
+
+	/* No RST connections from this JTAG cable */
+	nTRST    = 0x00;
+	nTRSTnOE = 0x0;
+	nSRST    = 0x00;
+	nSRSTnOE = 0x00;
 
 	return ERROR_OK;
 }
