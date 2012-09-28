@@ -276,42 +276,38 @@ static int lpc2000_iap_call(struct flash_bank *bank,
 	struct armv7m_algorithm armv7m_info;	/* for LPC1700 */
 	uint32_t status_code;
 	uint32_t iap_entry_point = 0;	/* to make compiler happier */
+	uint8_t jump_gate[8];
 
-	/* regrab previously allocated working_area, or allocate a new one */
-	if (!lpc2000_info->iap_working_area) {
-		uint8_t jump_gate[8];
+	/* make sure we have a working area */
+	if (target_alloc_working_area(target, 180,
+			&lpc2000_info->iap_working_area) != ERROR_OK) {
+		LOG_ERROR("no working area specified, can't write LPC2000 internal flash");
+		return ERROR_FLASH_OPERATION_FAILED;
+	}
 
-		/* make sure we have a working area */
-		if (target_alloc_working_area(target, 180,
-				&lpc2000_info->iap_working_area) != ERROR_OK) {
-			LOG_ERROR("no working area specified, can't write LPC2000 internal flash");
-			return ERROR_FLASH_OPERATION_FAILED;
-		}
+	/* write IAP code to working area */
+	switch (lpc2000_info->variant) {
+		case lpc1700:
+			target_buffer_set_u32(target, jump_gate, ARMV4_5_T_BX(12));
+			target_buffer_set_u32(target, jump_gate + 4, ARMV5_T_BKPT(0));
+			break;
+		case lpc2000_v1:
+		case lpc2000_v2:
+			target_buffer_set_u32(target, jump_gate, ARMV4_5_BX(12));
+			target_buffer_set_u32(target, jump_gate + 4, ARMV4_5_B(0xfffffe, 0));
+			break;
+		default:
+			LOG_ERROR("BUG: unknown lpc2000_info->variant encountered");
+			exit(-1);
+	}
 
-		/* write IAP code to working area */
-		switch (lpc2000_info->variant) {
-			case lpc1700:
-				target_buffer_set_u32(target, jump_gate, ARMV4_5_T_BX(12));
-				target_buffer_set_u32(target, jump_gate + 4, ARMV5_T_BKPT(0));
-				break;
-			case lpc2000_v1:
-			case lpc2000_v2:
-				target_buffer_set_u32(target, jump_gate, ARMV4_5_BX(12));
-				target_buffer_set_u32(target, jump_gate + 4, ARMV4_5_B(0xfffffe, 0));
-				break;
-			default:
-				LOG_ERROR("BUG: unknown lpc2000_info->variant encountered");
-				exit(-1);
-		}
-
-		retval = target_write_memory(target,
-				lpc2000_info->iap_working_area->address, 4, 2, jump_gate);
-		if (retval != ERROR_OK) {
-			LOG_ERROR(
-				"Write memory at address 0x%8.8" PRIx32 " failed (check work_area definition)",
-				lpc2000_info->iap_working_area->address);
-			return retval;
-		}
+	retval = target_write_memory(target,
+			lpc2000_info->iap_working_area->address, 4, 2, jump_gate);
+	if (retval != ERROR_OK) {
+		LOG_ERROR(
+			"Write memory at address 0x%8.8" PRIx32 " failed (check work_area definition)",
+			lpc2000_info->iap_working_area->address);
+		return retval;
 	}
 
 	switch (lpc2000_info->variant) {
