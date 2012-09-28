@@ -69,7 +69,6 @@ typedef enum {
 
 struct lpc2000_flash_bank {
 	lpc2000_variant variant;
-	struct working_area *iap_working_area;
 	uint32_t cclk;
 	int cmd51_dst_boundary;
 	int cmd51_can_256b;
@@ -276,42 +275,40 @@ static int lpc2000_iap_call(struct flash_bank *bank,
 	struct armv7m_algorithm armv7m_info;	/* for LPC1700 */
 	uint32_t status_code;
 	uint32_t iap_entry_point = 0;	/* to make compiler happier */
+	uint8_t jump_gate[8];
+	struct working_area *iap_working_area;
 
-	/* regrab previously allocated working_area, or allocate a new one */
-	if (!lpc2000_info->iap_working_area) {
-		uint8_t jump_gate[8];
+	/* make sure we have a working area */
+	if (target_alloc_working_area(target, 180,
+			&iap_working_area) != ERROR_OK) {
+		LOG_ERROR("no working area specified, can't write LPC2000 internal flash");
+		return ERROR_FLASH_OPERATION_FAILED;
+	}
 
-		/* make sure we have a working area */
-		if (target_alloc_working_area(target, 180,
-				&lpc2000_info->iap_working_area) != ERROR_OK) {
-			LOG_ERROR("no working area specified, can't write LPC2000 internal flash");
-			return ERROR_FLASH_OPERATION_FAILED;
-		}
+	/* write IAP code to working area */
+	switch (lpc2000_info->variant) {
+		case lpc1700:
+			target_buffer_set_u32(target, jump_gate, ARMV4_5_T_BX(12));
+			target_buffer_set_u32(target, jump_gate + 4, ARMV5_T_BKPT(0));
+			break;
+		case lpc2000_v1:
+		case lpc2000_v2:
+			target_buffer_set_u32(target, jump_gate, ARMV4_5_BX(12));
+			target_buffer_set_u32(target, jump_gate + 4, ARMV4_5_B(0xfffffe, 0));
+			break;
+		default:
+			LOG_ERROR("BUG: unknown lpc2000_info->variant encountered");
+			exit(-1);
+	}
 
-		/* write IAP code to working area */
-		switch (lpc2000_info->variant) {
-			case lpc1700:
-				target_buffer_set_u32(target, jump_gate, ARMV4_5_T_BX(12));
-				target_buffer_set_u32(target, jump_gate + 4, ARMV5_T_BKPT(0));
-				break;
-			case lpc2000_v1:
-			case lpc2000_v2:
-				target_buffer_set_u32(target, jump_gate, ARMV4_5_BX(12));
-				target_buffer_set_u32(target, jump_gate + 4, ARMV4_5_B(0xfffffe, 0));
-				break;
-			default:
-				LOG_ERROR("BUG: unknown lpc2000_info->variant encountered");
-				exit(-1);
-		}
-
-		retval = target_write_memory(target,
-				lpc2000_info->iap_working_area->address, 4, 2, jump_gate);
-		if (retval != ERROR_OK) {
-			LOG_ERROR(
-				"Write memory at address 0x%8.8" PRIx32 " failed (check work_area definition)",
-				lpc2000_info->iap_working_area->address);
-			return retval;
-		}
+	retval = target_write_memory(target,
+			iap_working_area->address, 4, 2, jump_gate);
+	if (retval != ERROR_OK) {
+		LOG_ERROR(
+			"Write memory at address 0x%8.8" PRIx32 " failed (check work_area definition)",
+			iap_working_area->address);
+		target_free_working_area(target, iap_working_area);
+		return retval;
 	}
 
 	switch (lpc2000_info->variant) {
@@ -333,7 +330,7 @@ static int lpc2000_iap_call(struct flash_bank *bank,
 	}
 
 	/* command parameter table */
-	init_mem_param(&mem_params[0], lpc2000_info->iap_working_area->address + 8, 6 * 4,
+	init_mem_param(&mem_params[0], iap_working_area->address + 8, 6 * 4,
 		PARAM_OUT);
 	target_buffer_set_u32(target, mem_params[0].value, code);
 	target_buffer_set_u32(target, mem_params[0].value + 0x04, param_table[0]);
@@ -343,16 +340,16 @@ static int lpc2000_iap_call(struct flash_bank *bank,
 	target_buffer_set_u32(target, mem_params[0].value + 0x14, param_table[4]);
 
 	init_reg_param(&reg_params[0], "r0", 32, PARAM_OUT);
-	buf_set_u32(reg_params[0].value, 0, 32, lpc2000_info->iap_working_area->address + 0x08);
+	buf_set_u32(reg_params[0].value, 0, 32, iap_working_area->address + 0x08);
 
 	/* command result table */
 	init_mem_param(&mem_params[1],
-		lpc2000_info->iap_working_area->address + 0x20,
+		iap_working_area->address + 0x20,
 		5 * 4,
 		PARAM_IN);
 
 	init_reg_param(&reg_params[1], "r1", 32, PARAM_OUT);
-	buf_set_u32(reg_params[1].value, 0, 32, lpc2000_info->iap_working_area->address + 0x20);
+	buf_set_u32(reg_params[1].value, 0, 32, iap_working_area->address + 0x20);
 
 	/* IAP entry point */
 	init_reg_param(&reg_params[2], "r12", 32, PARAM_OUT);
@@ -363,38 +360,40 @@ static int lpc2000_iap_call(struct flash_bank *bank,
 			/* IAP stack */
 			init_reg_param(&reg_params[3], "sp", 32, PARAM_OUT);
 			buf_set_u32(reg_params[3].value, 0, 32,
-					lpc2000_info->iap_working_area->address + 0xb4);
+					iap_working_area->address + 0xb4);
 
 			/* return address */
 			init_reg_param(&reg_params[4], "lr", 32, PARAM_OUT);
 			buf_set_u32(reg_params[4].value, 0, 32,
-					(lpc2000_info->iap_working_area->address + 0x04) | 1);
+					(iap_working_area->address + 0x04) | 1);
 			/* bit0 of LR = 1 to return in Thumb mode */
 
 			target_run_algorithm(target, 2, mem_params, 5, reg_params,
-					lpc2000_info->iap_working_area->address, 0, 10000, &armv7m_info);
+					iap_working_area->address, 0, 10000, &armv7m_info);
 			break;
 		case lpc2000_v1:
 		case lpc2000_v2:
 			/* IAP stack */
 			init_reg_param(&reg_params[3], "sp_svc", 32, PARAM_OUT);
 			buf_set_u32(reg_params[3].value, 0, 32,
-					lpc2000_info->iap_working_area->address + 0xb4);
+					iap_working_area->address + 0xb4);
 
 			/* return address */
 			init_reg_param(&reg_params[4], "lr_svc", 32, PARAM_OUT);
 			buf_set_u32(reg_params[4].value, 0, 32,
-					lpc2000_info->iap_working_area->address + 0x04);
+					iap_working_area->address + 0x04);
 
 			target_run_algorithm(target, 2, mem_params, 5, reg_params,
-					lpc2000_info->iap_working_area->address,
-					lpc2000_info->iap_working_area->address + 0x4,
+					iap_working_area->address,
+					iap_working_area->address + 0x4,
 					10000, &arm_algo);
 			break;
 		default:
 			LOG_ERROR("BUG: unknown lpc2000->variant encountered");
 			exit(-1);
 	}
+
+	target_free_working_area(target, iap_working_area);
 
 	status_code = target_buffer_get_u32(target, mem_params[1].value);
 	result_table[0] = target_buffer_get_u32(target, mem_params[1].value + 0x04);
@@ -496,7 +495,6 @@ FLASH_BANK_COMMAND_HANDLER(lpc2000_flash_bank_command)
 		return ERROR_FLASH_BANK_INVALID;
 	}
 
-	lpc2000_info->iap_working_area = NULL;
 	COMMAND_PARSE_NUMBER(u32, CMD_ARGV[7], lpc2000_info->cclk);
 	lpc2000_info->calc_checksum = 0;
 	lpc2000_build_sector_list(bank);
