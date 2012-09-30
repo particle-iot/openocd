@@ -970,6 +970,7 @@ static int mips_m4k_bulk_write_memory(struct target *target, uint32_t address,
 {
 	struct mips32_common *mips32 = target_to_mips32(target);
 	struct mips_ejtag *ejtag_info = &mips32->ejtag_info;
+	struct working_area *fast_data_area;
 	int retval;
 	int write_t = 1;
 
@@ -984,22 +985,17 @@ static int mips_m4k_bulk_write_memory(struct target *target, uint32_t address,
 	if (address & 0x3u)
 		return ERROR_TARGET_UNALIGNED_ACCESS;
 
-	if (mips32->fast_data_area == NULL) {
-		/* Get memory for block write handler
-		 * we preserve this area between calls and gain a speed increase
-		 * of about 3kb/sec when writing flash
-		 * this will be released/nulled by the system when the target is resumed or reset */
-		retval = target_alloc_working_area(target,
-				MIPS32_FASTDATA_HANDLER_SIZE,
-				&mips32->fast_data_area);
-		if (retval != ERROR_OK) {
-			LOG_WARNING("No working area available, falling back to non-bulk write");
-			return mips_m4k_write_memory(target, address, 4, count, buffer);
-		}
-
-		/* reset fastadata state so the algo get reloaded */
-		ejtag_info->fast_access_save = -1;
+	/* Get memory for block write handler */
+	retval = target_alloc_working_area(target,
+			MIPS32_FASTDATA_HANDLER_SIZE,
+			&fast_data_area);
+	if (retval != ERROR_OK) {
+		LOG_WARNING("No working area available, falling back to non-bulk write");
+		return mips_m4k_write_memory(target, address, 4, count, buffer);
 	}
+
+	/* reset fastadata state so the algo get reloaded */
+	ejtag_info->fast_access_save = -1;
 
 	/* mips32_pracc_fastdata_xfer requires uint32_t in host endianness, */
 	/* but byte array represents target endianness                      */
@@ -1007,12 +1003,12 @@ static int mips_m4k_bulk_write_memory(struct target *target, uint32_t address,
 	t = malloc(count * sizeof(uint32_t));
 	if (t == NULL) {
 		LOG_ERROR("Out of memory");
-		return ERROR_FAIL;
+		goto cleanup;
 	}
 
 	target_buffer_get_u32_array(target, buffer, count, t);
 
-	retval = mips32_pracc_fastdata_xfer(ejtag_info, mips32->fast_data_area, write_t, address,
+	retval = mips32_pracc_fastdata_xfer(ejtag_info, fast_data_area, write_t, address,
 			count, t);
 
 	if (t != NULL)
@@ -1023,6 +1019,9 @@ static int mips_m4k_bulk_write_memory(struct target *target, uint32_t address,
 		LOG_DEBUG("Fastdata access Failed, falling back to non-bulk write");
 		retval = mips_m4k_write_memory(target, address, 4, count, buffer);
 	}
+
+cleanup:
+	target_free_working_area(target, fast_data_area);
 
 	return retval;
 }
