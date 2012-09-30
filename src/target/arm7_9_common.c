@@ -2545,31 +2545,27 @@ int arm7_9_bulk_write_memory(struct target *target,
 {
 	int retval;
 	struct arm7_9_common *arm7_9 = target_to_arm7_9(target);
-	int i;
+	struct working_area *dcc_working_area;
+	uint8_t dcc_code_buf[sizeof(dcc_code)];
 
 	if (!arm7_9->dcc_downloads)
 		return target_write_memory(target, address, 4, count, buffer);
 
-	/* regrab previously allocated working_area, or allocate a new one */
-	if (!arm7_9->dcc_working_area) {
-		uint8_t dcc_code_buf[6 * 4];
-
-		/* make sure we have a working area */
-		if (target_alloc_working_area(target, 24, &arm7_9->dcc_working_area) != ERROR_OK) {
-			LOG_INFO("no working area available, falling back to memory writes");
-			return target_write_memory(target, address, 4, count, buffer);
-		}
-
-		/* copy target instructions to target endianness */
-		for (i = 0; i < 6; i++)
-			target_buffer_set_u32(target, dcc_code_buf + i*4, dcc_code[i]);
-
-		/* write DCC code to working area */
-		retval = target_write_memory(target,
-				arm7_9->dcc_working_area->address, 4, 6, dcc_code_buf);
-		if (retval != ERROR_OK)
-			return retval;
+	retval = target_alloc_working_area(target, sizeof(dcc_code), &dcc_working_area);
+	if (retval != ERROR_OK) {
+		LOG_INFO("no working area available, falling back to memory writes");
+		return target_write_memory(target, address, 4, count, buffer);
 	}
+
+	/* copy target instructions to target endianness */
+	for (size_t i = 0; i < ARRAY_SIZE(dcc_code); i++)
+		target_buffer_set_u32(target, dcc_code_buf + i*4, dcc_code[i]);
+
+	/* write DCC code to working area */
+	retval = target_write_memory(target,
+			dcc_working_area->address, 4, ARRAY_SIZE(dcc_code_buf), dcc_code_buf);
+	if (retval != ERROR_OK)
+		goto cleanup;
 
 	struct arm_algorithm arm_algo;
 	struct reg_param reg_params[1];
@@ -2585,8 +2581,8 @@ int arm7_9_bulk_write_memory(struct target *target,
 	dcc_count = count;
 	dcc_buffer = buffer;
 	retval = armv4_5_run_algorithm_inner(target, 0, NULL, 1, reg_params,
-			arm7_9->dcc_working_area->address,
-			arm7_9->dcc_working_area->address + 6*4,
+			dcc_working_area->address,
+			dcc_working_area->address + sizeof(dcc_code),
 			20*1000, &arm_algo, arm7_9_dcc_completion);
 
 	if (retval == ERROR_OK) {
@@ -2601,6 +2597,9 @@ int arm7_9_bulk_write_memory(struct target *target,
 	}
 
 	destroy_reg_param(&reg_params[0]);
+
+cleanup:
+	target_free_working_area(target, dcc_working_area);
 
 	return retval;
 }
