@@ -36,9 +36,6 @@ struct arm_nand_data {
 	/** Target is proxy for some ARM core. */
 	struct target *target;
 
-	/** The copy area holds code loop and data for I/O operations. */
-	struct working_area *copy_area;
-
 	/** The chunk size is the page size or ECC chunk. */
 	unsigned chunk_size;
 

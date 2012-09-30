@@ -32,7 +32,7 @@
 
 /**
  * Copies code to a working area.  This will allocate room for the code plus the
- * additional amount requested if the working area pointer is null.
+ * additional amount requested.
  *
  * @param target Pointer to the target to copy code to
  * @param code Pointer to the code area to be copied
@@ -56,13 +56,11 @@ static int arm_code_to_working_area(struct target *target,
 	 * both large and small page chips, where it won't be...
 	 */
 
-	/* make sure we have a working area */
-	if (NULL == *area) {
-		retval = target_alloc_working_area(target, size, area);
-		if (retval != ERROR_OK) {
-			LOG_DEBUG("%s: no %d byte buffer", __func__, (int) size);
-			return ERROR_NAND_NO_BUFFER;
-		}
+	/* allocate a working area */
+	retval = target_alloc_working_area(target, size, area);
+	if (retval != ERROR_OK) {
+		LOG_DEBUG("%s: no %d byte buffer", __func__, (int) size);
+		return ERROR_NAND_NO_BUFFER;
 	}
 
 	/* buffer code in target endianness */
@@ -97,6 +95,7 @@ int arm_nandwrite(struct arm_nand_data *nand, uint8_t *data, int size)
 	struct target *target = nand->target;
 	struct arm_algorithm algo;
 	struct arm *arm = target->arch_info;
+	struct working_area *copy_area;
 	struct reg_param reg_params[3];
 	uint32_t target_buf;
 	uint32_t exit_var = 0;
@@ -117,24 +116,22 @@ int arm_nandwrite(struct arm_nand_data *nand, uint8_t *data, int size)
 		0xe1200070,	/* e: bkpt  #0           */
 	};
 
-	if (nand->op != ARM_NAND_WRITE || !nand->copy_area) {
-		retval = arm_code_to_working_area(target, code, sizeof(code),
-				nand->chunk_size, &nand->copy_area);
-		if (retval != ERROR_OK)
-			return retval;
-	}
+	retval = arm_code_to_working_area(target, code, sizeof(code),
+			nand->chunk_size, &copy_area);
+	if (retval != ERROR_OK)
+		return retval;
 
 	nand->op = ARM_NAND_WRITE;
 
 	/* copy data to work area */
-	target_buf = nand->copy_area->address + sizeof(code);
+	target_buf = copy_area->address + sizeof(code);
 	retval = target_bulk_write_memory(target, target_buf, size / 4, data);
 	if (retval == ERROR_OK && (size & 3) != 0)
 		retval = target_write_memory(target,
 				target_buf + (size & ~3),
 				1, size & 3, data + (size & ~3));
 	if (retval != ERROR_OK)
-		return retval;
+		goto cleanup;
 
 	/* set up algorithm and parameters */
 	algo.common_magic = ARM_COMMON_MAGIC;
@@ -151,17 +148,20 @@ int arm_nandwrite(struct arm_nand_data *nand, uint8_t *data, int size)
 
 	/* armv4 must exit using a hardware breakpoint */
 	if (arm->is_armv4)
-		exit_var = nand->copy_area->address + sizeof(code) - 4;
+		exit_var = copy_area->address + sizeof(code) - 4;
 
 	/* use alg to write data from work area to NAND chip */
 	retval = target_run_algorithm(target, 0, NULL, 3, reg_params,
-			nand->copy_area->address, exit_var, 1000, &algo);
+			copy_area->address, exit_var, 1000, &algo);
 	if (retval != ERROR_OK)
 		LOG_ERROR("error executing hosted NAND write");
 
 	destroy_reg_param(&reg_params[0]);
 	destroy_reg_param(&reg_params[1]);
 	destroy_reg_param(&reg_params[2]);
+
+cleanup:
+	target_free_working_area(target, copy_area);
 
 	return retval;
 }
@@ -180,6 +180,7 @@ int arm_nandread(struct arm_nand_data *nand, uint8_t *data, uint32_t size)
 	struct target *target = nand->target;
 	struct arm_algorithm algo;
 	struct arm *arm = target->arch_info;
+	struct working_area *copy_area;
 	struct reg_param reg_params[3];
 	uint32_t target_buf;
 	uint32_t exit_var = 0;
@@ -200,16 +201,13 @@ int arm_nandread(struct arm_nand_data *nand, uint8_t *data, uint32_t size)
 		0xe1200070,	/* e: bkpt  #0           */
 	};
 
-	/* create the copy area if not yet available */
-	if (nand->op != ARM_NAND_READ || !nand->copy_area) {
-		retval = arm_code_to_working_area(target, code, sizeof(code),
-				nand->chunk_size, &nand->copy_area);
-		if (retval != ERROR_OK)
-			return retval;
-	}
+	retval = arm_code_to_working_area(target, code, sizeof(code),
+			nand->chunk_size, &copy_area);
+	if (retval != ERROR_OK)
+		return retval;
 
 	nand->op = ARM_NAND_READ;
-	target_buf = nand->copy_area->address + sizeof(code);
+	target_buf = copy_area->address + sizeof(code);
 
 	/* set up algorithm and parameters */
 	algo.common_magic = ARM_COMMON_MAGIC;
@@ -226,11 +224,11 @@ int arm_nandread(struct arm_nand_data *nand, uint8_t *data, uint32_t size)
 
 	/* armv4 must exit using a hardware breakpoint */
 	if (arm->is_armv4)
-		exit_var = nand->copy_area->address + sizeof(code) - 4;
+		exit_var = copy_area->address + sizeof(code) - 4;
 
 	/* use alg to write data from NAND chip to work area */
 	retval = target_run_algorithm(target, 0, NULL, 3, reg_params,
-			nand->copy_area->address, exit_var, 1000, &algo);
+			copy_area->address, exit_var, 1000, &algo);
 	if (retval != ERROR_OK)
 		LOG_ERROR("error executing hosted NAND read");
 
@@ -240,6 +238,8 @@ int arm_nandread(struct arm_nand_data *nand, uint8_t *data, uint32_t size)
 
 	/* read from work area to the host's memory */
 	retval = target_read_buffer(target, target_buf, size, data);
+
+	target_free_working_area(target, copy_area);
 
 	return retval;
 }
