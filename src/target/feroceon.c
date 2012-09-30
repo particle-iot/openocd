@@ -461,6 +461,7 @@ static int feroceon_bulk_write_memory(struct target *target,
 	struct arm *arm = target->arch_info;
 	struct arm7_9_common *arm7_9 = arm->arch_info;
 	enum arm_state core_state = arm->core_state;
+	struct working_area *dcc_working_area;
 	uint32_t x, flip, shift, save[7];
 	uint32_t i;
 
@@ -492,30 +493,25 @@ static int feroceon_bulk_write_memory(struct target *target,
 	};
 
 	uint32_t dcc_size = sizeof(dcc_code);
+	uint8_t dcc_code_buf[dcc_size];
 
 	if (!arm7_9->dcc_downloads)
 		return target_write_memory(target, address, 4, count, buffer);
 
-	/* regrab previously allocated working_area, or allocate a new one */
-	if (!arm7_9->dcc_working_area) {
-		uint8_t dcc_code_buf[dcc_size];
-
-		/* make sure we have a working area */
-		if (target_alloc_working_area(target, dcc_size, &arm7_9->dcc_working_area) != ERROR_OK) {
-			LOG_INFO("no working area available, falling back to memory writes");
-			return target_write_memory(target, address, 4, count, buffer);
-		}
-
-		/* copy target instructions to target endianness */
-		for (i = 0; i < dcc_size/4; i++)
-			target_buffer_set_u32(target, dcc_code_buf + i*4, dcc_code[i]);
-
-		/* write DCC code to working area */
-		retval = target_write_memory(target,
-				arm7_9->dcc_working_area->address, 4, dcc_size/4, dcc_code_buf);
-		if (retval != ERROR_OK)
-			return retval;
+	if (target_alloc_working_area(target, dcc_size, &dcc_working_area) != ERROR_OK) {
+		LOG_INFO("no working area available, falling back to memory writes");
+		return target_write_memory(target, address, 4, count, buffer);
 	}
+
+	/* copy target instructions to target endianness */
+	for (i = 0; i < dcc_size/4; i++)
+		target_buffer_set_u32(target, dcc_code_buf + i*4, dcc_code[i]);
+
+	/* write DCC code to working area */
+	retval = target_write_memory(target,
+			dcc_working_area->address, 4, dcc_size/4, dcc_code_buf);
+	if (retval != ERROR_OK)
+		goto cleanup;
 
 	/* backup clobbered processor state */
 	for (i = 0; i <= 5; i++)
@@ -529,7 +525,7 @@ static int feroceon_bulk_write_memory(struct target *target,
 	arm->core_state = ARM_STATE_ARM;
 
 	embeddedice_write_reg(&arm7_9->eice_cache->reg_list[EICE_COMMS_DATA], 0);
-	arm7_9_resume(target, 0, arm7_9->dcc_working_area->address, 1, 1);
+	arm7_9_resume(target, 0, dcc_working_area->address, 1, 1);
 
 	/* send data over */
 	x = 0;
@@ -574,6 +570,9 @@ static int feroceon_bulk_write_memory(struct target *target,
 	arm->pc->valid = 1;
 	arm->pc->dirty = 1;
 	arm->core_state = core_state;
+
+cleanup:
+	target_free_working_area(target, dcc_working_area);
 
 	return retval;
 }
