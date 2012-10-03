@@ -287,13 +287,24 @@ int rtos_thread_packet(struct connection *connection, char *packet, int packet_s
 		gdb_put_packet(connection, "", 0);
 		return ERROR_OK;
 	} else if (strstr(packet, "qSymbol")) {
-		if (rtos_qsymbol(connection, packet, packet_size) == 1) {
+		if ((rtos_qsymbol(connection, packet, packet_size) == 1) && (target->rtos->type != NULL)) {
+			/* All symbols are resolved and rtos detection succeeded. */
 			target->rtos_auto_detect = false;
 			target->rtos->type->create(target);
 			target->rtos->type->update_threads(target->rtos);
 			/* No more symbols needed */
 			gdb_put_packet(connection, "OK", 2);
 		}
+
+		if (target->rtos->type == NULL) {
+			/* Automatically detection of the rtos was not successful. */
+			free((void *)(target->rtos));
+			target->rtos = NULL;
+
+			/* No more symbols needed */
+			gdb_put_packet(connection, "OK", 2);
+		}
+
 		return ERROR_OK;
 	} else if (strstr(packet, "qfThreadInfo")) {
 		int i;
@@ -455,13 +466,13 @@ int rtos_try_next(struct target *target)
 	for (x = 0; rtos_types[x]; x++) {
 		if (target->rtos->type == rtos_types[x]) {
 			/* found */
+			target->rtos->type = rtos_types[x+1];
 			if (rtos_types[x+1] != NULL) {
-				target->rtos->type = rtos_types[x+1];
 				if (target->rtos->symbols != NULL)
 					free(target->rtos->symbols);
 				return 1;
 			} else {
-				/* No more rtos types */
+				/* No more rtos types, target->rtos->type is NULL again*/
 				return 0;
 			}
 
