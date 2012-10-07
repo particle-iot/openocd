@@ -9,6 +9,7 @@ The Target Support module contains APIs that cover several functional areas:
 
   - @subpage targetarm
   - @subpage targetnotarm
+  - @subpage targetmips
   - @subpage targetregister
   - @subpage targetimage
   - @subpage targettrace
@@ -20,6 +21,12 @@ This section needs to be expanded.
 /** @page targetarm OpenOCD ARM Targets
 
 This section needs to describe OpenOCD's ARM target support.
+
+ */
+
+/** @page targetarm OpenOCD ARM Targets
+
+This section needs to describe OpenOCD's MIPS target support.
 
  */
 
