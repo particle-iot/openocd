@@ -156,6 +156,8 @@ target_to_armv7a(struct target *target)
 /* See ARMv7a arch spec section C10.8 */
 #define CPUDBG_AUTHSTATUS	0xFB8
 
+#define CORTEX_R4_NAME "cortex_r4"
+
 int armv7a_arch_state(struct target *target);
 int armv7a_identify_cache(struct target *target);
 int armv7a_init_arch_info(struct target *target, struct armv7a_common *armv7a);
