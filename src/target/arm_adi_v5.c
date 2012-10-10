@@ -1195,6 +1195,52 @@ static bool is_dap_cid_ok(uint32_t cid3, uint32_t cid2, uint32_t cid1, uint32_t 
 			&& ((cid1 & 0x0f) == 0) && cid0 == 0x0d;
 }
 
+/*
+ * This function checks the ID for each access port to find the requested Access Port type
+ */
+int dap_find_ap(struct adiv5_dap *dap, enum ap_type type_to_find, uint8_t *ap_num_out)
+{
+	int ap;
+	uint32_t id_val;
+	int retval;
+
+	for (ap = 0; ap < 4; ap++) {
+
+		/* read the IDR register of the Access Port */
+		id_val = 0;
+		dap_ap_select(dap, ap);
+
+		retval = dap_queue_ap_read(dap, AP_REG_IDR, &id_val);
+		retval = dap_run(dap);
+
+
+		/* IDR bits:
+		 * 31-28 : Revision
+		 * 27-24 : JEDEC bank (0x4 for ARM)
+		 * 23-17 : JEDEC code (0x3B for ARM)
+		 * 16    : Mem-AP
+		 * 15-8  : Reserved
+		 *  7-0  : AP Identity (1=AHB-AP 2=APB-AP 0x10=JTAG-AP)
+		 */
+
+		if ((retval == ERROR_OK) && ((id_val & 0x0FFF00FF) == (0x04770000 + type_to_find))) {
+			LOG_DEBUG("Found %s at AP index: %d (IDR=0x%08X)", (type_to_find == AP_TYPE_AHB_AP) ? "AHB-AP" :
+						(type_to_find == AP_TYPE_APB_AP) ? "APB-AP" :
+						(type_to_find == AP_TYPE_JTAG_AP) ? "JTAG-AP" : "Unknown",
+						ap, id_val);
+			*ap_num_out = ap;
+			return ERROR_OK;
+		}
+
+	}
+
+	LOG_ERROR("No %s found", (type_to_find == AP_TYPE_AHB_AP) ? "AHB-AP" :
+				(type_to_find == AP_TYPE_APB_AP) ? "APB-AP" :
+				(type_to_find == AP_TYPE_JTAG_AP) ? "JTAG-AP" : "Unknown");
+	return ERROR_FAIL;
+}
+
+
 int dap_get_debugbase(struct adiv5_dap *dap, int ap,
 			uint32_t *out_dbgbase, uint32_t *out_apid)
 {
