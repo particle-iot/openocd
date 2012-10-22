@@ -2234,14 +2234,60 @@ static int ft2232_init_libftdi(uint16_t vid, uint16_t pid, int more, int *try_mo
 		return ERROR_JTAG_INIT_FAILED;
 	}
 
+	LOG_DEBUG("Attempting to open FTDI device with the following parameters "
+				"from cfg:\n"
+				"   VID: %04x, PID: %04x, Description: %s",
+				vid, pid, ft2232_device_desc);
+
 	/* context, vendor id, product id */
 	if (ftdi_usb_open_desc(&ftdic, vid, pid, ft2232_device_desc, ft2232_serial) < 0) {
+		struct ftdi_device_list *device_list, *curdev;
+		int ret;
 		if (more)
 			LOG_WARNING("unable to open ftdi device (trying more): %s",
 				ftdic.error_str);
 		else
 			LOG_ERROR("unable to open ftdi device: %s", ftdic.error_str);
 		*try_more = 1;
+
+		/* We were unable to open the device, so list some useful information
+		 * about what we found.  This section of code is based on the find_all.c
+		 * example in libftdi.
+		 */
+		ret = ftdi_usb_find_all(&ftdic, &device_list, vid, pid);
+		if (ret < 0) {
+			LOG_ERROR("ftdi_usb_find_all failed: %d (%s)",
+					ret, ftdi_get_error_string(&ftdic));
+			goto device_fail;
+		}
+
+		LOG_ERROR("Found %d ftdi device(s) with VID: %04x, PID: %04x:",
+				ret, vid, pid);
+
+		for (curdev = device_list; curdev != NULL; curdev = curdev->next) {
+			/* Limit the scope of these variables */
+			char manufacturer[128], description[128];
+			int i = 0;
+
+			i++;
+
+			ret = ftdi_usb_get_strings(&ftdic, curdev->dev, manufacturer, 128,
+					description, 128, NULL, 0);
+			/* Try reading strings from the found device */
+			if (ret < 0) {
+				LOG_ERROR("ftdi_usb_get_strings failed: %d (%s)\n",
+					ret, ftdi_get_error_string(&ftdic));
+				goto device_fail;
+			}
+
+			/* Show the device description */
+			LOG_ERROR("   Device %d Description: %s", i, description);
+
+		}
+
+	/* Cleanup the device list and exit */
+device_fail:
+		ftdi_list_free(&device_list);
 		return ERROR_JTAG_INIT_FAILED;
 	}
 
