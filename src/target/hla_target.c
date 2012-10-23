@@ -763,7 +763,8 @@ static const struct command_registration adapter_command_handlers[] = {
 };
 
 struct target_type stm32_stlink_target = {
-	.name = "stm32_stlink",
+	.name = "hla_target",
+	.deprecated_name = "stm32_stlink",
 
 	.init_target = adapter_init_target,
 	.target_create = adapter_target_create,

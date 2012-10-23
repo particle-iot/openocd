@@ -162,11 +162,11 @@ static int hl_transport_init(struct command_context *cmd_ctx)
 	/* get selected transport as enum */
 	tr = HL_TRANSPORT_UNKNOWN;
 
-	if (strcmp(transport->name, "stlink_swd") == 0)
+	if (strcmp(transport->name, "hla_swd") == 0)
 		tr = HL_TRANSPORT_SWD;
-	else if (strcmp(transport->name, "stlink_jtag") == 0)
+	else if (strcmp(transport->name, "hla_jtag") == 0)
 		tr = HL_TRANSPORT_JTAG;
-	else if (strcmp(transport->name, "stlink_swim") == 0)
+	else if (strcmp(transport->name, "hla_swim") == 0)
 		tr = HL_TRANSPORT_SWIM;
 
 	int retval = hl_interface_open(tr);
@@ -196,24 +196,24 @@ static int hl_transport_select(struct command_context *ctx)
 }
 
 static struct transport hl_swd_transport = {
-	.name = "stlink_swd",
+	.name = "hla_swd",
 	.select = hl_transport_select,
 	.init = hl_transport_init,
 };
 
 static struct transport hl_jtag_transport = {
-	.name = "stlink_jtag",
+	.name = "hla_jtag",
 	.select = hl_transport_select,
 	.init = hl_transport_init,
 };
 
 static struct transport hl_swim_transport = {
-	.name = "stlink_swim",
+	.name = "hla_swim",
 	.select = hl_transport_select,
 	.init = hl_transport_init,
 };
 
-const char *hl_transports[] = { "stlink_swd", "stlink_jtag", "stlink_swim", NULL };
+const char *hl_transports[] = { "hla_swd", "hla_jtag", "hla_swim", NULL };
 
 static void hl_constructor(void) __attribute__ ((constructor));
 static void hl_constructor(void)
