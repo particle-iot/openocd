@@ -316,7 +316,7 @@ AC_ARG_ENABLE([verbose],
 
 AC_ARG_ENABLE([verbose_jtag_io],
   AS_HELP_STRING([--enable-verbose-jtag-io],
-      [Enable verbose JTAG I/O messages (for debugging).]),
+      [Enable verbose JTAG/SWD I/O messages (for debugging).]),
   [debug_jtag_io=$enableval], [])
 
 AC_ARG_ENABLE([verbose_usb_io],
@@ -329,10 +329,10 @@ AC_ARG_ENABLE([verbose_usb_comms],
       [Enable verbose USB communication messages (for debugging)]),
   [debug_usb_comms=$enableval], [])
 
-AC_MSG_CHECKING([whether to enable verbose JTAG I/O messages]);
+AC_MSG_CHECKING([whether to enable verbose JTAG/SWD I/O messages]);
 AC_MSG_RESULT([$debug_jtag_io])
 if test $debug_jtag_io = yes; then
-  AC_DEFINE([_DEBUG_JTAG_IO_],[1], [Print verbose JTAG I/O messages])
+  AC_DEFINE([_DEBUG_JTAG_IO_],[1], [Print verbose JTAG/SWD I/O messages])
 fi
 
 AC_MSG_CHECKING([whether to enable verbose USB I/O messages]);
@@ -502,6 +502,10 @@ AC_ARG_ENABLE([minidriver_dummy],
 AC_ARG_ENABLE([internal-jimtcl],
   AS_HELP_STRING([--disable-internal-jimtcl], [Disable building internal jimtcl]),
   [use_internal_jimtcl=$enableval], [use_internal_jimtcl=yes])
+
+AC_ARG_ENABLE([internal-libswd],
+  AS_HELP_STRING([--disable-internal-libswd], [Disable building internal libswd]),
+  [use_internal_libswd=$enableval], [use_internal_libswd=yes])
 
 AC_ARG_ENABLE([libusb0],
   AS_HELP_STRING([--enable-libusb0], [Use libusb-0.1 library for USB JTAG devices]),
@@ -817,6 +821,14 @@ if test "$use_internal_jimtcl" = yes; then
     AX_CONFIG_SUBDIR_OPTION([jimtcl], [--disable-install-jim])
   else
     AC_MSG_ERROR([jimtcl not found, run git submodule init and git submodule update.])
+  fi
+fi
+
+if test "$use_internal_libswd" = yes; then
+  if test -f "$srcdir/submodules/libswd/configure.ac"; then
+    AX_CONFIG_SUBDIR_OPTION([submodules/libswd])
+  else
+    AC_MSG_ERROR([libswd not found, run git submodule init and git submodule update.])
   fi
 fi
 
@@ -1214,6 +1226,7 @@ AM_CONDITIONAL([MINIDRIVER], [test $build_minidriver = ye]s)
 AM_CONDITIONAL([MINIDRIVER_DUMMY], [test $build_minidriver_dummy = yes])
 
 AM_CONDITIONAL([INTERNAL_JIMTCL], [test $use_internal_jimtcl = yes])
+AM_CONDITIONAL([INTERNAL_LIBSWD], [test $use_internal_libswd = yes])
 
 # Look for environ alternatives.  Possibility #1: is environ in unistd.h or stdlib.h?
 AC_MSG_CHECKING([for environ in unistd.h and stdlib.h])
