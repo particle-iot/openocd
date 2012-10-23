@@ -96,7 +96,7 @@ struct ChibiOS_params ChibiOS_params_list[] = {
 	&rtos_chibios_arm_v7m_stacking,		/* stacking_info */
 	},
 	{
-	"stm32_stlink",							/* target_name */
+	"hla_target",							/* target_name */
 	0,
 	&rtos_chibios_arm_v7m_stacking,		/* stacking_info */
 	}
