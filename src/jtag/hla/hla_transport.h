@@ -2,6 +2,9 @@
  *   Copyright (C) 2011 by Mathias Kuester                                 *
  *   Mathias Kuester <kesmtp@freenet.de>                                   *
  *                                                                         *
+ *   Copyright (C) 2012 by Spencer Oliver                                  *
+ *   spen@spen-soft.co.uk                                                  *
+ *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
  *   the Free Software Foundation; either version 2 of the License, or     *
@@ -18,43 +21,14 @@
  *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
  ***************************************************************************/
 
-#ifndef _STLINK_INTERFACE_
-#define _STLINK_INTERFACE_
+#ifndef _HL_TRANSPORT
+#define _HL_TRANSPORT
 
-/** */
-struct target;
-/** */
-enum e_stlink_transports;
-/** */
-extern const char *stlink_transports[];
-
-struct stlink_interface_param_s {
-	/** */
-	char *device_desc;
-	/** */
-	char *serial;
-	/** */
-	uint16_t vid;
-	/** */
-	uint16_t pid;
-	/** */
-	unsigned api;
-	/** */
-	enum stlink_transports transport;
+enum hl_transports {
+	HL_TRANSPORT_UNKNOWN = 0,
+	HL_TRANSPORT_SWD,
+	HL_TRANSPORT_JTAG,
+	HL_TRANSPORT_SWIM
 };
 
-struct stlink_interface_s {
-	/** */
-	struct stlink_interface_param_s param;
-	/** */
-	const struct stlink_layout *layout;
-	/** */
-	void *fd;
-};
-
-/** */
-int stlink_interface_open(enum stlink_transports tr);
-/** */
-int stlink_interface_init_target(struct target *t);
-
-#endif
+#endif /* _HL_TRANSPORT */
