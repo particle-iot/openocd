@@ -322,11 +322,13 @@ static char *linux_symbol_list[] = {
 	NULL
 };
 
+#define LINUX_NUM_SYMBOLS (sizeof(linux_symbol_list)/sizeof(char *))
+
 static int linux_get_symbol_list_to_lookup(symbol_table_elem_t *symbol_list[])
 {
 	unsigned int i;
 	*symbol_list = (symbol_table_elem_t *)
-		malloc(sizeof(symbol_table_elem_t) / sizeof(char *));
+		malloc(sizeof(symbol_table_elem_t) * LINUX_NUM_SYMBOLS);
 
 	for (i = 0; i < sizeof(linux_symbol_list) / sizeof(char *); i++)
 		(*symbol_list)[i].symbol_name = linux_symbol_list[i];
