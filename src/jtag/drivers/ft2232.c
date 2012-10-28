@@ -805,6 +805,11 @@ static int ft2232_send_and_recv(struct jtag_command *first, struct jtag_command 
 	uint32_t bytes_written = 0;
 	uint32_t bytes_read = 0;
 
+	if (ft2232_expect_read) {
+		buffer_write(0x87);
+		LOG_DEBUG("Send Immediate buffer to PC");
+	}
+
 #ifdef _DEBUG_USB_IO_
 	struct timeval start, inter, inter2, end;
 	struct timeval d_inter, d_inter2, d_end;
@@ -1156,6 +1161,10 @@ static int ft2232_large_scan(struct scan_command *cmd,
 			}
 		} else /* (type == SCAN_IN) */
 			bits_left -= 8 * (thisrun_bytes);
+		if (type != SCAN_OUT) {
+			buffer_write(0x87);
+			/* LOG_DEBUG("Send Immediate buffer to PC"); */
+		}
 
 		retval = ft2232_write(ft2232_buffer, ft2232_buffer_size, &bytes_written);
 		if (retval != ERROR_OK) {
@@ -1247,8 +1256,11 @@ static int ft2232_large_scan(struct scan_command *cmd,
 		clock_tms(mpsse_cmd, tms_bits, tms_count, last_bit);
 	}
 
-	if (type != SCAN_OUT)
+	if (type != SCAN_OUT) {
 		thisrun_read += 1;
+		buffer_write(0x87);
+		/* LOG_DEBUG("Send Immediate buffer to PC"); */
+	}
 
 	retval = ft2232_write(ft2232_buffer, ft2232_buffer_size, &bytes_written);
 	if (retval != ERROR_OK) {
