@@ -166,6 +166,7 @@ static uint16_t ft2232_pid[MAX_USB_IDS + 1] = { 0x6010, 0 };
 struct ft2232_layout {
 	const char *name;
 	int (*init)(void);
+	int (*deinit)(void);
 	void (*reset)(int trst, int srst);
 	void (*blink)(void);
 	int channel;
@@ -3146,19 +3147,27 @@ static void flossjtag_blink(void)
 
 static int ft2232_quit(void)
 {
-#if BUILD_FT2232_FTD2XX == 1
+	int rc = ERROR_OK;
 
+	/* deinit, if the current layout has that feature */
+	if (layout && layout->deinit) {
+		LOG_DEBUG("'ft2232' interface calling deinit for '%s' layout",
+				layout->name ? layout->name : "unknown");
+		if (layout->deinit() != ERROR_OK)
+			rc = ERROR_JTAG_DEVICE_ERROR;
+	}
+
+#if BUILD_FT2232_FTD2XX == 1
 	FT_Close(ftdih);
 #elif BUILD_FT2232_LIBFTDI == 1
 	ftdi_usb_close(&ftdic);
-
 	ftdi_deinit(&ftdic);
 #endif
 
 	free(ft2232_buffer);
 	ft2232_buffer = NULL;
 
-	return ERROR_OK;
+	return rc;
 }
 
 COMMAND_HANDLER(ft2232_handle_device_desc_command)
