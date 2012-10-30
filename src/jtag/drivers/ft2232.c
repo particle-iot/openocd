@@ -4261,7 +4261,7 @@ static const struct command_registration ft2232_command_handlers[] = {
 	COMMAND_REGISTRATION_DONE
 };
 
-struct jtag_interface ft2232_interface = {
+const struct adapter_driver ft2232_driver = {
 	.name = "ft2232",
 	.supported = DEBUG_CAP_TMS_SEQ,
 	.commands = ft2232_command_handlers,

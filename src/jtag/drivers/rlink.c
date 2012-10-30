@@ -1674,7 +1674,7 @@ static int rlink_quit(void)
 	return ERROR_OK;
 }
 
-struct jtag_interface rlink_interface = {
+const struct adapter_driver rlink_driver = {
 	.name = "rlink",
 	.init = rlink_init,
 	.quit = rlink_quit,

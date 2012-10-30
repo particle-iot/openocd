@@ -834,7 +834,7 @@ static const struct command_registration vsllink_command_handlers[] = {
 
 static const char *vsllink_transports[] = {"jtag", "swd", NULL};
 
-struct jtag_interface vsllink_interface = {
+const struct adapter_driver vsllink_driver = {
 	.name = "vsllink",
 	.supported = DEBUG_CAP_TMS_SEQ,
 	.commands = vsllink_command_handlers,

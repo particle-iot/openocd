@@ -1295,7 +1295,7 @@ static const struct command_registration jlink_command_handlers[] = {
 	COMMAND_REGISTRATION_DONE
 };
 
-struct jtag_interface jlink_interface = {
+const struct adapter_driver jlink_driver = {
 	.name = "jlink",
 	.commands = jlink_command_handlers,
 	.transports = jtag_only,

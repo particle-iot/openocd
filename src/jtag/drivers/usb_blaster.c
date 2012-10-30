@@ -581,7 +581,7 @@ static const struct command_registration usb_blaster_command_handlers[] = {
 	COMMAND_REGISTRATION_DONE
 };
 
-struct jtag_interface usb_blaster_interface = {
+const struct adapter_driver usb_blaster_driver = {
 	.name = "usb_blaster",
 	.commands = usb_blaster_command_handlers,
 	.supported = DEBUG_CAP_TMS_SEQ,

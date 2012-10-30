@@ -53,7 +53,7 @@ static int ep93xx_quit(void);
 
 struct timespec ep93xx_zzzz;
 
-struct jtag_interface ep93xx_interface = {
+const struct adapter_driver ep93xx_driver = {
 	.name = "ep93xx",
 
 	.supported = DEBUG_CAP_TMS_SEQ,
