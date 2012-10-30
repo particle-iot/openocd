@@ -33,7 +33,7 @@ struct bitbang_interface {
 	void (*blink)(int on);
 };
 
-int bitbang_execute_queue(void);
+int bitbang_execute_queue(struct jtag_command *cmd_queue);
 
 extern struct bitbang_interface *bitbang_interface;
 
