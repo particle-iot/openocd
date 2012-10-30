@@ -500,7 +500,7 @@ static const struct command_registration parport_command_handlers[] = {
 	COMMAND_REGISTRATION_DONE
 };
 
-struct jtag_interface parport_interface = {
+const struct adapter_driver parport_driver = {
 	.name = "parport",
 	.supported = DEBUG_CAP_TMS_SEQ,
 	.commands = parport_command_handlers,

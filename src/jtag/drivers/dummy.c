@@ -144,7 +144,7 @@ static const struct command_registration dummy_command_handlers[] = {
 /* The dummy driver is used to easily check the code path
  * where the target is unresponsive.
  */
-struct jtag_interface dummy_interface = {
+const struct adapter_driver dummy_driver = {
 		.name = "dummy",
 
 		.supported = DEBUG_CAP_TMS_SEQ,

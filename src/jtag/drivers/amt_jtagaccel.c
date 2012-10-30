@@ -593,7 +593,7 @@ static const struct command_registration amtjtagaccel_command_handlers[] = {
 	COMMAND_REGISTRATION_DONE
 };
 
-struct jtag_interface amt_jtagaccel_interface = {
+const struct adapter_driver amt_jtagaccel_driver = {
 	.name = "amt_jtagaccel",
 	.commands = amtjtagaccel_command_handlers,
 

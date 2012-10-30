@@ -193,7 +193,7 @@ static const struct command_registration at91rm9200_command_handlers[] = {
 	COMMAND_REGISTRATION_DONE
 };
 
-struct jtag_interface at91rm9200_interface = {
+const struct adapter_driver at91rm9200_driver = {
 	.name = "at91rm9200",
 	.execute_queue = bitbang_execute_queue,
 	.speed = at91rm9200_speed,
