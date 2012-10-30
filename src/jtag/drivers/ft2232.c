@@ -1,15 +1,18 @@
-/***************************************************************************
+/**************************************************************************
 *   Copyright (C) 2009 by Øyvind Harboe                                   *
-*	Øyvind Harboe <oyvind.harboe@zylin.com>                               *
+*	Øyvind Harboe <oyvind.harboe@zylin.com>                              *
 *                                                                         *
 *   Copyright (C) 2009 by SoftPLC Corporation.  http://softplc.com        *
-*	Dick Hollenbeck <dick@softplc.com>                                    *
+*	Dick Hollenbeck <dick@softplc.com>                                   *
 *                                                                         *
 *   Copyright (C) 2004, 2006 by Dominic Rath                              *
 *   Dominic.Rath@gmx.de                                                   *
 *                                                                         *
 *   Copyright (C) 2008 by Spencer Oliver                                  *
 *   spen@spen-soft.co.uk                                                  *
+*                                                                         *
+*   Copyright (C) 2011-2012 Tomasz Boleslaw CEDRO                         *
+*   cederom@tlen.pl, http://www.tomek.cedro.info                          *
 *                                                                         *
 *   This program is free software; you can redistribute it and/or modify  *
 *   it under the terms of the GNU General Public License as published by  *
@@ -162,12 +165,20 @@ static unsigned ft2232_max_tck = FTDI_2232C_MAX_TCK;
 static uint16_t ft2232_vid[MAX_USB_IDS + 1] = { 0x0403, 0 };
 static uint16_t ft2232_pid[MAX_USB_IDS + 1] = { 0x6010, 0 };
 
+/** This structure describes different layout of FT2232 based devices. */
 struct ft2232_layout {
+	/// Layout name.
 	char *name;
+	/// Layout specific initialization routine.
 	int (*init)(void);
+	/// Layout specific reset routine.
 	void (*reset)(int trst, int srst);
+	/// Layout specific LED blink routine.
 	void (*blink)(void);
+	/// Which FTDI channel does this layout use.
 	int channel;
+	/// This will forbid bitbanging selected port pins.
+	int bitbang_deny;
 };
 
 /* init procedures for supported layouts */
