@@ -58,6 +58,11 @@ static void jtag_add_scan_check(struct jtag_tap *active,
 		tap_state_t state),
 		int in_num_fields, struct scan_field *in_fields, tap_state_t state);
 
+static int default_khz(int khz, int *jtag_speed_in);
+static int default_speed_div(int speed, int *khz);
+static int default_power_dropout(int *dropout);
+static int default_srst_asserted(int *srst_asserted);
+
 /**
  * The jtag_error variable is set when an error occurs while executing
  * the queue.  Application code may set this using jtag_set_error(),
@@ -132,12 +137,13 @@ static int rclk_fallback_speed_khz;
 static enum {CLOCK_MODE_UNSELECTED, CLOCK_MODE_KHZ, CLOCK_MODE_RCLK} clock_mode;
 static int jtag_speed;
 
-static struct jtag_interface *jtag;
 
 const struct swd_driver *swd;
 
 /* configuration */
-struct jtag_interface *jtag_interface;
+const struct adapter_driver *current_adapter_driver;
+static bool adapter_inited;
+
 
 void jtag_set_flush_queue_sleep(int ms)
 {
@@ -499,7 +505,7 @@ int jtag_add_tms_seq(unsigned nbits, const uint8_t *seq, enum tap_state state)
 {
 	int retval;
 
-	if (!(jtag->supported & DEBUG_CAP_TMS_SEQ))
+	if (!(current_adapter_driver->supported & DEBUG_CAP_TMS_SEQ))
 		return ERROR_JTAG_NOT_IMPLEMENTED;
 
 	jtag_checks();
@@ -819,14 +825,14 @@ void jtag_check_value_mask(struct scan_field *field, uint8_t *value, uint8_t *ma
 
 int default_interface_jtag_execute_queue(void)
 {
-	if (NULL == jtag) {
+	if (!adapter_inited) {
 		LOG_ERROR("No JTAG interface configured yet.  "
 			"Issue 'init' command in startup scripts "
 			"before communicating with targets.");
 		return ERROR_FAIL;
 	}
 
-	return jtag->execute_queue();
+	return current_adapter_driver->execute_queue();
 }
 
 void jtag_execute_queue_noclear(void)
@@ -1342,10 +1348,10 @@ void jtag_tap_free(struct jtag_tap *tap)
  */
 int adapter_init(struct command_context *cmd_ctx)
 {
-	if (jtag)
+	if (adapter_inited)
 		return ERROR_OK;
 
-	if (!jtag_interface) {
+	if (!current_adapter_driver) {
 		/* nothing was previously specified by "interface" command */
 		LOG_ERROR("Debug Adapter has to be specified, "
 			"see \"interface\" command");
@@ -1353,10 +1359,10 @@ int adapter_init(struct command_context *cmd_ctx)
 	}
 
 	int retval;
-	retval = jtag_interface->init();
+	retval = current_adapter_driver->init();
 	if (retval != ERROR_OK)
 		return retval;
-	jtag = jtag_interface;
+	adapter_inited = true;
 
 	/* LEGACY SUPPORT ... adapter drivers  must declare what
 	 * transports they allow.  Until they all do so, assume
@@ -1365,7 +1371,7 @@ int adapter_init(struct command_context *cmd_ctx)
 	if (!transports_are_declared()) {
 		LOG_ERROR("Adapter driver '%s' did not declare "
 			"which transports it allows; assuming "
-			"JTAG-only", jtag->name);
+			"JTAG-only", current_adapter_driver->name);
 		retval = allow_transports(cmd_ctx, jtag_only);
 		if (retval != ERROR_OK)
 			return retval;
@@ -1383,7 +1389,7 @@ int adapter_init(struct command_context *cmd_ctx)
 	retval = jtag_get_speed(&jtag_speed_var);
 	if (retval != ERROR_OK)
 		return retval;
-	retval = jtag->speed(jtag_speed_var);
+	retval = current_adapter_driver->speed(jtag_speed_var);
 	if (retval != ERROR_OK)
 		return retval;
 	retval = jtag_get_speed_readable(&actual_khz);
@@ -1485,11 +1491,11 @@ int jtag_init_inner(struct command_context *cmd_ctx)
 
 int adapter_quit(void)
 {
-	if (!jtag || !jtag->quit)
+	if (!adapter_inited || !current_adapter_driver->quit)
 		return ERROR_OK;
 
 	/* close the JTAG interface */
-	int result = jtag->quit();
+	int result = current_adapter_driver->quit();
 	if (ERROR_OK != result)
 		LOG_ERROR("failed: %d", result);
 
@@ -1591,10 +1597,15 @@ static int adapter_khz_to_speed(unsigned khz, int *speed)
 {
 	LOG_DEBUG("convert khz to interface specific speed value");
 	speed_khz = khz;
-	if (jtag != NULL) {
+	if (adapter_inited) {
 		LOG_DEBUG("have interface set up");
 		int speed_div1;
-		int retval = jtag->khz(jtag_get_speed_khz(), &speed_div1);
+		int retval;
+		if (current_adapter_driver->khz != NULL)
+			retval = current_adapter_driver->khz(jtag_get_speed_khz(), &speed_div1);
+		else
+			retval = default_khz(jtag_get_speed_khz(), &speed_div1);
+
 		if (ERROR_OK != retval)
 			return retval;
 		*speed = speed_div1;
@@ -1617,7 +1628,7 @@ static int jtag_set_speed(int speed)
 	jtag_speed = speed;
 	/* this command can be called during CONFIG,
 	 * in which case jtag isn't initialized */
-	return jtag ? jtag->speed(speed) : ERROR_OK;
+	return adapter_inited ? current_adapter_driver->speed(speed) : ERROR_OK;
 }
 
 int jtag_config_khz(unsigned khz)
@@ -1661,7 +1672,13 @@ int jtag_get_speed_readable(int *khz)
 	int retval = jtag_get_speed(&jtag_speed_var);
 	if (retval != ERROR_OK)
 		return retval;
-	return jtag ? jtag->speed_div(jtag_speed_var, khz) : ERROR_OK;
+	if (!adapter_inited)
+	    return ERROR_OK;
+
+	if (current_adapter_driver->speed_div != NULL)
+	    return current_adapter_driver->speed_div(jtag_speed_var, khz);
+	else
+	    return default_speed_div(jtag_speed_var, khz);
 }
 
 void jtag_set_verify(bool enable)
@@ -1686,18 +1703,24 @@ bool jtag_will_verify_capture_ir()
 
 int jtag_power_dropout(int *dropout)
 {
-	if (jtag == NULL) {
+	if (!adapter_inited) {
 		/* TODO: as the jtag interface is not valid all
 		 * we can do at the moment is exit OpenOCD */
 		LOG_ERROR("No Valid JTAG Interface Configured.");
 		exit(-1);
 	}
-	return jtag->power_dropout(dropout);
+	if (current_adapter_driver->power_dropout != NULL)
+	    return current_adapter_driver->power_dropout(dropout);
+	else
+	    return default_power_dropout(dropout);
 }
 
 int jtag_srst_asserted(int *srst_asserted)
 {
-	return jtag->srst_asserted(srst_asserted);
+	if (current_adapter_driver->srst_asserted != NULL)
+	    return current_adapter_driver->srst_asserted(srst_asserted);
+	else
+	    return default_srst_asserted(srst_asserted);
 }
 
 enum reset_types jtag_get_reset_config(void)
@@ -1821,4 +1844,29 @@ void adapter_deassert_reset(void)
 			get_current_transport()->name);
 	else
 		LOG_ERROR("transport is not selected");
+}
+
+
+static int default_khz(int khz, int *jtag_speed_in)
+{
+	LOG_ERROR("Translation from khz to jtag_speed not implemented");
+	return ERROR_FAIL;
+}
+
+static int default_speed_div(int speed, int *khz)
+{
+	LOG_ERROR("Translation from jtag_speed to khz not implemented");
+	return ERROR_FAIL;
+}
+
+static int default_power_dropout(int *dropout)
+{
+	*dropout = 0; /* by default we can't detect power dropout */
+	return ERROR_OK;
+}
+
+static int default_srst_asserted(int *srst_asserted)
+{
+	*srst_asserted = 0; /* by default we can't detect srst asserted */
+	return ERROR_OK;
 }

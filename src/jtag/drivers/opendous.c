@@ -190,7 +190,7 @@ static const struct command_registration opendous_command_handlers[] = {
 	COMMAND_REGISTRATION_DONE
 };
 
-struct jtag_interface opendous_interface = {
+const struct adapter_driver opendous_driver = {
 	.name = "opendous",
 	.commands = opendous_command_handlers,
 	.execute_queue = opendous_execute_queue,

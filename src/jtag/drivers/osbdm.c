@@ -707,7 +707,7 @@ static int osbdm_speed_div(int speed, int *khz)
 	return ERROR_OK;
 }
 
-struct jtag_interface osbdm_interface = {
+const struct adapter_driver osbdm_driver = {
 	.name = "osbdm",
 
 	.transports = jtag_only,

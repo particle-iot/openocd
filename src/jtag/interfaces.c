@@ -43,162 +43,162 @@
  */
 
 #if BUILD_ZY1000 == 1
-extern struct jtag_interface zy1000_interface;
+extern const struct adapter_driver zy1000_driver;
 #elif defined(BUILD_MINIDRIVER_DUMMY)
-extern struct jtag_interface minidummy_interface;
+extern const struct adapter_driver minidummy_driver;
 #else /* standard drivers */
 #if BUILD_PARPORT == 1
-extern struct jtag_interface parport_interface;
+extern const struct adapter_driver parport_driver;
 #endif
 #if BUILD_DUMMY == 1
-extern struct jtag_interface dummy_interface;
+extern const struct adapter_driver dummy_driver;
 #endif
 #if BUILD_FT2232_FTD2XX == 1
-extern struct jtag_interface ft2232_interface;
+extern const struct adapter_driver ft2232_driver;
 #endif
 #if BUILD_FT2232_LIBFTDI == 1
-extern struct jtag_interface ft2232_interface;
+extern const struct adapter_driver ft2232_driver;
 #endif
 #if BUILD_FTDI == 1
-extern struct jtag_interface ftdi_interface;
+extern const struct adapter_driver ftdi_driver;
 #endif
 #if BUILD_USB_BLASTER_LIBFTDI == 1 || BUILD_USB_BLASTER_FTD2XX == 1
-extern struct jtag_interface usb_blaster_interface;
+extern const struct adapter_driver usb_blaster_driver;
 #endif
 #if BUILD_AMTJTAGACCEL == 1
-extern struct jtag_interface amt_jtagaccel_interface;
+extern const struct adapter_driver amt_jtagaccel_driver;
 #endif
 #if BUILD_EP93XX == 1
-extern struct jtag_interface ep93xx_interface;
+extern const struct adapter_driver ep93xx_driver;
 #endif
 #if BUILD_AT91RM9200 == 1
-extern struct jtag_interface at91rm9200_interface;
+extern const struct adapter_driver at91rm9200_driver;
 #endif
 #if BUILD_GW16012 == 1
-extern struct jtag_interface gw16012_interface;
+extern const struct adapter_driver gw16012_driver;
 #endif
 #if BUILD_PRESTO_LIBFTDI == 1 || BUILD_PRESTO_FTD2XX == 1
-extern struct jtag_interface presto_interface;
+extern const struct adapter_driver presto_driver;
 #endif
 #if BUILD_USBPROG == 1
-extern struct jtag_interface usbprog_interface;
+extern const struct adapter_driver usbprog_driver;
 #endif
 #if BUILD_JLINK == 1
-extern struct jtag_interface jlink_interface;
+extern const struct adapter_driver jlink_driver;
 #endif
 #if BUILD_VSLLINK == 1
-extern struct jtag_interface vsllink_interface;
+extern const struct adapter_driver vsllink_driver;
 #endif
 #if BUILD_RLINK == 1
-extern struct jtag_interface rlink_interface;
+extern const struct adapter_driver rlink_driver;
 #endif
 #if BUILD_ULINK == 1
-extern struct jtag_interface ulink_interface;
+extern const struct adapter_driver ulink_drier;
 #endif
 #if BUILD_ARMJTAGEW == 1
-extern struct jtag_interface armjtagew_interface;
+extern const struct adapter_driver armjtagew_driver;
 #endif
 #if BUILD_BUSPIRATE == 1
-extern struct jtag_interface buspirate_interface;
+extern const struct adapter_driver buspirate_driver;
 #endif
 #if BUILD_REMOTE_BITBANG == 1
-extern struct jtag_interface remote_bitbang_interface;
+extern const struct adapter_driver remote_bitbang_driver;
 #endif
 #if BUILD_STLINK == 1
-extern struct jtag_interface stlink_interface;
+extern const struct adapter_driver stlink_driver;
 #endif
 #if BUILD_OSBDM == 1
-extern struct jtag_interface osbdm_interface;
+extern const struct adapter_driver osbdm_driver;
 #endif
 #if BUILD_OPENDOUS == 1
-extern struct jtag_interface opendous_interface;
+extern const struct adapter_driver opendous_driver;
 #endif
 #if BUILD_SYSFSGPIO == 1
-extern struct jtag_interface sysfsgpio_interface;
+extern const struct adapter_driver sysfsgpio_driver;
 #endif
 #endif /* standard drivers */
 
 /**
- * The list of built-in JTAG interfaces, containing entries for those
+ * The list of built-in debug adapter drivers, containing entries for those
  * drivers that were enabled by the @c configure script.
  *
  * The list should be defined to contain either one minidriver interface
  * or some number of standard driver interfaces, never both.
  */
-struct jtag_interface *jtag_interfaces[] = {
+const struct adapter_driver *adapter_drivers[] = {
 #if BUILD_ZY1000 == 1
-		&zy1000_interface,
+		&zy1000_driver,
 #elif defined(BUILD_MINIDRIVER_DUMMY)
-		&minidummy_interface,
+		&minidummy_driver,
 #else /* standard drivers */
 #if BUILD_PARPORT == 1
-		&parport_interface,
+		&parport_driver,
 #endif
 #if BUILD_DUMMY == 1
-		&dummy_interface,
+		&dummy_driver,
 #endif
 #if BUILD_FT2232_FTD2XX == 1
-		&ft2232_interface,
+		&ft2232_driver,
 #endif
 #if BUILD_FT2232_LIBFTDI == 1
-		&ft2232_interface,
+		&ft2232_driver,
 #endif
 #if BUILD_FTDI == 1
-		&ftdi_interface,
+		&ftdi_driver,
 #endif
 #if BUILD_USB_BLASTER_LIBFTDI == 1 || BUILD_USB_BLASTER_FTD2XX == 1
-		&usb_blaster_interface,
+		&usb_blaster_driver,
 #endif
 #if BUILD_AMTJTAGACCEL == 1
-		&amt_jtagaccel_interface,
+		&amt_jtagaccel_driver,
 #endif
 #if BUILD_EP93XX == 1
-		&ep93xx_interface,
+		&ep93xx_driver,
 #endif
 #if BUILD_AT91RM9200 == 1
-		&at91rm9200_interface,
+		&at91rm9200_driver,
 #endif
 #if BUILD_GW16012 == 1
-		&gw16012_interface,
+		&gw16012_driver,
 #endif
 #if BUILD_PRESTO_LIBFTDI == 1 || BUILD_PRESTO_FTD2XX == 1
-		&presto_interface,
+		&presto_driver,
 #endif
 #if BUILD_USBPROG == 1
-		&usbprog_interface,
+		&usbprog_driver,
 #endif
 #if BUILD_JLINK == 1
-		&jlink_interface,
+		&jlink_driver,
 #endif
 #if BUILD_VSLLINK == 1
-		&vsllink_interface,
+		&vsllink_driver,
 #endif
 #if BUILD_RLINK == 1
-		&rlink_interface,
+		&rlink_driver,
 #endif
 #if BUILD_ULINK == 1
-		&ulink_interface,
+		&ulink_driver,
 #endif
 #if BUILD_ARMJTAGEW == 1
-		&armjtagew_interface,
+		&armjtagew_driver,
 #endif
 #if BUILD_BUSPIRATE == 1
-		&buspirate_interface,
+		&buspirate_driver,
 #endif
 #if BUILD_REMOTE_BITBANG == 1
-		&remote_bitbang_interface,
+		&remote_bitbang_driver,
 #endif
 #if BUILD_STLINK == 1
-		&stlink_interface,
+		&stlink_driver,
 #endif
 #if BUILD_OSBDM == 1
-		&osbdm_interface,
+		&osbdm_driver,
 #endif
 #if BUILD_OPENDOUS == 1
-		&opendous_interface,
+		&opendous_driver,
 #endif
 #if BUILD_SYSFSGPIO == 1
-		&sysfsgpio_interface,
+		&sysfsgpio_driver,
 #endif
 #endif /* standard drivers */
 		NULL,

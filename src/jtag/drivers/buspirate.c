@@ -423,7 +423,7 @@ static const struct command_registration buspirate_command_handlers[] = {
 	COMMAND_REGISTRATION_DONE
 };
 
-struct jtag_interface buspirate_interface = {
+const struct adapter_driver buspirate_driver = {
 	.name = "buspirate",
 	.execute_queue = buspirate_execute_queue,
 	.speed = buspirate_speed,

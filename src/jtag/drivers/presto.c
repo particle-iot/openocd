@@ -783,7 +783,7 @@ static int presto_jtag_quit(void)
 	return ERROR_OK;
 }
 
-struct jtag_interface presto_interface = {
+const struct adapter_driver presto_driver = {
 	.name = "presto",
 	.commands = presto_command_handlers,
 

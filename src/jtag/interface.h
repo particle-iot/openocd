@@ -185,10 +185,7 @@ static inline tap_state_t jtag_debug_state_machine(const void *tms_buf,
 #endif /* _DEBUG_JTAG_IO_ */
 
 /**
- * Represents a driver for a debugging interface.
- *
- * @todo Rename; perhaps "debug_driver".  This isn't an interface,
- * it's a driver!  Also, not all drivers support JTAG.
+ * Represents a driver for a debugging adapter.
  *
  * @todo We need a per-instance structure too, and changes to pass
  * that structure to the driver.  Instances can for example be in
@@ -196,7 +193,7 @@ static inline tap_state_t jtag_debug_state_machine(const void *tms_buf,
  * eventually to cope with systems which have more than one such
  * debugging interface.
  */
-struct jtag_interface {
+struct adapter_driver {
 	/** The name of the JTAG interface driver. */
 	char *name;
 
