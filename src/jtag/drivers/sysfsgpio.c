@@ -410,7 +410,7 @@ static const struct command_registration sysfsgpio_command_handlers[] = {
 static int sysfsgpio_init(void);
 static int sysfsgpio_quit(void);
 
-struct jtag_interface sysfsgpio_interface = {
+const struct adapter_driver sysfsgpio_driver = {
 	.name = "sysfsgpio",
 	.supported = DEBUG_CAP_TMS_SEQ,
 	.execute_queue = bitbang_execute_queue,

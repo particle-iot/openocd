@@ -541,7 +541,7 @@ static const struct command_registration gw16012_command_handlers[] = {
 	COMMAND_REGISTRATION_DONE
 };
 
-struct jtag_interface gw16012_interface = {
+const struct adapter_driver gw16012_driver = {
 	.name = "gw16012",
 	.commands = gw16012_command_handlers,
 

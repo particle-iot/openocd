@@ -493,7 +493,7 @@ static const struct command_registration armjtagew_command_handlers[] = {
 	COMMAND_REGISTRATION_DONE
 };
 
-struct jtag_interface armjtagew_interface = {
+const struct adapter_driver armjtagew_driver = {
 	.name = "arm-jtag-ew",
 	.commands = armjtagew_command_handlers,
 	.transports = jtag_only,

@@ -870,7 +870,7 @@ static const struct command_registration ftdi_command_handlers[] = {
 	COMMAND_REGISTRATION_DONE
 };
 
-struct jtag_interface ftdi_interface = {
+const struct adapter_driver ftdi_driver = {
 	.name = "ftdi",
 	.supported = DEBUG_CAP_TMS_SEQ,
 	.commands = ftdi_command_handlers,

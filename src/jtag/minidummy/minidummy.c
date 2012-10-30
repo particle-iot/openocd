@@ -26,7 +26,7 @@
 #include <jtag/minidriver.h>
 #include <jtag/interface.h>
 
-struct jtag_interface minidummy_interface = {
+const struct adapter_driver minidummy_driver = {
 	.name = "minidummy",
 	.execute_queue = NULL,
 	.speed = NULL,
