@@ -209,10 +209,11 @@ struct adapter_driver {
 	const struct swd_driver *swd;
 
 	/**
-	 * Execute queued commands.
+	 * Execute commands in the supplied queue
+	 * @param cmd_queue - a linked list of commands to execute
 	 * @returns ERROR_OK on success, or an error code on failure.
 	 */
-	int (*execute_queue)(void);
+    int (*execute_queue)(struct jtag_command *cmd_queue);
 
 	/**
 	 * Set the interface speed.

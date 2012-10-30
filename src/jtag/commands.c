@@ -142,6 +142,11 @@ void jtag_command_queue_reset(void)
 	next_command_pointer = &jtag_command_queue;
 }
 
+struct jtag_command *jtag_command_queue_get(void)
+{
+    return jtag_command_queue;
+}
+
 enum scan_type jtag_scan_type(const struct scan_command *cmd)
 {
 	int i;
