@@ -2287,7 +2287,7 @@ static const struct command_registration ulink_command_handlers[] = {
 	COMMAND_REGISTRATION_DONE,
 };
 
-struct jtag_interface ulink_interface = {
+const struct adapter_driver ulink_driver = {
 	.name = "ulink",
 
 	.commands = ulink_command_handlers,

@@ -1251,7 +1251,7 @@ int zy1000_init(void)
 	return ERROR_OK;
 }
 
-struct jtag_interface zy1000_interface = {
+const struct adapter_driver zy1000_driver = {
 	.name = "ZY1000",
 	.supported = DEBUG_CAP_TMS_SEQ,
 	.execute_queue = NULL,

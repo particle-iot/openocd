@@ -253,7 +253,7 @@ static const struct command_registration stlink_interface_command_handlers[] = {
 	COMMAND_REGISTRATION_DONE
 };
 
-struct jtag_interface stlink_interface = {
+const struct adapter_driver stlink_driver = {
 	.name = "stlink",
 	.supported = 0,
 	.commands = stlink_interface_command_handlers,
