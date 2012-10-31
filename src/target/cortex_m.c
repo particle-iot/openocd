@@ -855,7 +855,10 @@ static int cortex_m3_step(struct target *target, int current,
 			 */
 
 			/* Set a temporary break point */
-			retval = breakpoint_add(target, pc_value, 2, BKPT_TYPE_BY_ADDR(pc_value));
+			if (breakpoint)
+				retval = cortex_m3_set_breakpoint(target, breakpoint);
+			else
+				retval = breakpoint_add(target, pc_value, 2, BKPT_TYPE_BY_ADDR(pc_value));
 			bool tmp_bp_set = (retval == ERROR_OK);
 
 			/* No more breakpoints left, just do a step */
@@ -879,8 +882,11 @@ static int cortex_m3_step(struct target *target, int current,
 					isr_timed_out = ((timeval_ms() - t_start) > 500);
 				} while (!((cortex_m3->dcb_dhcsr & S_HALT) || isr_timed_out));
 
-				/* Remove the temporary breakpoint */
-				breakpoint_remove(target, pc_value);
+				/* only remove breakpoint if we created it */
+				if (breakpoint)
+					cortex_m3_unset_breakpoint(target, breakpoint);
+				else
+					breakpoint_remove(target, pc_value);
 
 				if (isr_timed_out) {
 					LOG_DEBUG("Interrupt handlers didn't complete within time, "
