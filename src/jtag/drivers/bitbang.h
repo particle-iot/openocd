@@ -24,6 +24,8 @@
 #ifndef BITBANG_H
 #define BITBANG_H
 
+#include <jtag/commands.h>
+
 struct bitbang_interface {
 	/* low level callbacks (for bitbang)
 	 */
@@ -33,7 +35,7 @@ struct bitbang_interface {
 	void (*blink)(int on);
 };
 
-int bitbang_execute_queue(void);
+int bitbang_execute_queue(struct jtag_command *cmd_queue);
 
 extern struct bitbang_interface *bitbang_interface;
 
