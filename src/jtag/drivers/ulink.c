@@ -1938,9 +1938,9 @@ int ulink_post_process_queue(struct ulink *device)
  * @return on success: ERROR_OK
  * @return on failure: ERROR_FAIL
  */
-static int ulink_execute_queue(void)
+static int ulink_execute_queue(struct jtag_command *cmd_queue)
 {
-	struct jtag_command *cmd = jtag_command_queue;
+	struct jtag_command *cmd = cmd_queue;
 	int ret;
 
 	while (cmd) {
