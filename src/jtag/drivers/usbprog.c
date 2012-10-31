@@ -101,9 +101,9 @@ static int usbprog_speed(int speed)
 	return ERROR_OK;
 }
 
-static int usbprog_execute_queue(void)
+static int usbprog_execute_queue(struct jtag_command *cmd_queue)
 {
-	struct jtag_command *cmd = jtag_command_queue;	/* currently processed command */
+	struct jtag_command *cmd = cmd_queue;	/* currently processed command */
 	int scan_size;
 	enum scan_type type;
 	uint8_t *buffer;

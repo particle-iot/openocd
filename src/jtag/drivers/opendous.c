@@ -85,7 +85,7 @@ static uint8_t usb_out_buffer[OPENDOUS_OUT_BUFFER_SIZE];
 #define JTAG_CMD_READ_CONFIG	0x7
 
 /* External interface functions */
-static int opendous_execute_queue(void);
+static int opendous_execute_queue(struct jtag_command *cmd_queue);
 static int opendous_speed(int speed);
 static int opendous_speed_div(int speed, int *khz);
 static int opendous_khz(int khz, int *jtag_speed);
@@ -201,9 +201,9 @@ const struct adapter_driver opendous_driver = {
 	.quit = opendous_quit,
 };
 
-static int opendous_execute_queue(void)
+static int opendous_execute_queue(struct jtag_command *cmd_queue)
 {
-	struct jtag_command *cmd = jtag_command_queue;
+	struct jtag_command *cmd = cmd_queue;
 	int scan_size;
 	enum scan_type type;
 	uint8_t *buffer;
