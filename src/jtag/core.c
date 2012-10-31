@@ -832,7 +832,7 @@ int default_interface_jtag_execute_queue(void)
 		return ERROR_FAIL;
 	}
 
-	return current_adapter_driver->execute_queue();
+	return current_adapter_driver->execute_queue(jtag_command_queue_get());
 }
 
 void jtag_execute_queue_noclear(void)

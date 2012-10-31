@@ -31,7 +31,7 @@
 
 #undef DEBUG_SERIAL
 /*#define DEBUG_SERIAL */
-static int buspirate_execute_queue(void);
+static int buspirate_execute_queue(struct jtag_command *cmd_queue);
 static int buspirate_speed(int speed);
 static int buspirate_khz(int khz, int *jtag_speed);
 static int buspirate_init(void);
@@ -130,10 +130,10 @@ static int buspirate_khz(int khz, int *jtag_speed)
 	return ERROR_OK;
 }
 
-static int buspirate_execute_queue(void)
+static int buspirate_execute_queue(struct jtag_command *cmd_queue)
 {
 	/* currently processed command */
-	struct jtag_command *cmd = jtag_command_queue;
+	struct jtag_command *cmd = cmd_queue;
 	int scan_size;
 	enum scan_type type;
 	uint8_t *buffer;
