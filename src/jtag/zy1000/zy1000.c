@@ -1253,14 +1253,14 @@ int zy1000_init(void)
 
 const struct adapter_driver zy1000_driver = {
 	.name = "ZY1000",
-	.supported = DEBUG_CAP_TMS_SEQ,
-	.execute_queue = NULL,
+	.jtag.supported = DEBUG_CAP_TMS_SEQ,
+	.jtag.execute_queue = NULL,
 	.speed = zy1000_speed,
 	.commands = zy1000_commands,
 	.init = zy1000_init,
 	.quit = zy1000_quit,
-	.khz = zy1000_khz,
-	.speed_div = zy1000_speed_div,
+	.jtag.khz = zy1000_khz,
+	.jtag.speed_div = zy1000_speed_div,
 	.power_dropout = zy1000_power_dropout,
 	.srst_asserted = zy1000_srst_asserted,
 };

@@ -28,13 +28,13 @@
 
 const struct adapter_driver minidummy_driver = {
 	.name = "minidummy",
-	.execute_queue = NULL,
+	.jtag.execute_queue = NULL,
 	.speed = NULL,
 	.commands = NULL,
 	.init = NULL,
 	.quit = NULL,
-	.khz = NULL,
-	.speed_div = NULL,
+	.jtag.khz = NULL,
+	.jtag.speed_div = NULL,
 	.power_dropout = NULL,
 	.srst_asserted = NULL,
 };

@@ -184,6 +184,46 @@ static inline tap_state_t jtag_debug_state_machine(const void *tms_buf,
 }
 #endif /* _DEBUG_JTAG_IO_ */
 
+
+
+struct jtag_driver {
+	/**
+	 * Bit vector listing capabilities exposed by this driver.
+	 */
+	unsigned supported;
+#define DEBUG_CAP_TMS_SEQ   (1 << 0)
+
+	/**
+	 * Execute commands in the supplied queue
+	 * @param cmd_queue - a linked list of commands to execute
+	 * @returns ERROR_OK on success, or an error code on failure.
+	 */
+	int (*execute_queue)(struct jtag_command *cmd_queue);
+
+	/**
+	 * Returns JTAG maxium speed for KHz. 0 = RTCK. The function returns
+	 *  a failure if it can't support the KHz/RTCK.
+	 *
+	 *  WARNING!!!! if RTCK is *slow* then think carefully about
+	 *  whether you actually want to support this in the driver.
+	 *  Many target scripts are written to handle the absence of RTCK
+	 *  and use a fallback kHz TCK.
+	 * @returns ERROR_OK on success, or an error code on failure.
+	 */
+	int (*khz)(int khz, int *jtag_speed);
+
+	/**
+	 * Calculate the clock frequency (in KHz) for the given @a speed.
+	 * @param speed The desired interface speed setting.
+	 * @param khz On return, contains the speed in KHz (0 for RTCK).
+	 * @returns ERROR_OK on success, or an error code if the
+	 * interface cannot support the specified speed (KHz or RTCK).
+	 */
+	int (*speed_div)(int speed, int *khz);
+
+};
+
+
 /**
  * Represents a driver for a debugging adapter.
  *
@@ -197,23 +237,11 @@ struct adapter_driver {
 	/** The name of the JTAG interface driver. */
 	char *name;
 
-	/**
-	 * Bit vector listing capabilities exposed by this driver.
-	 */
-	unsigned supported;
-#define DEBUG_CAP_TMS_SEQ	(1 << 0)
-
 	/** transports supported in C code (NULL terminated vector) */
 	const char **transports;
 
 	const struct swd_driver *swd;
-
-	/**
-	 * Execute commands in the supplied queue
-	 * @param cmd_queue - a linked list of commands to execute
-	 * @returns ERROR_OK on success, or an error code on failure.
-	 */
-	int (*execute_queue)(struct jtag_command *cmd_queue);
+	const struct jtag_driver jtag;
 
 	/**
 	 * Set the interface speed.
@@ -249,26 +277,7 @@ struct adapter_driver {
 	 */
 	int (*quit)(void);
 
-	/**
-	 * Returns JTAG maxium speed for KHz. 0 = RTCK. The function returns
-	 *  a failure if it can't support the KHz/RTCK.
-	 *
-	 *  WARNING!!!! if RTCK is *slow* then think carefully about
-	 *  whether you actually want to support this in the driver.
-	 *  Many target scripts are written to handle the absence of RTCK
-	 *  and use a fallback kHz TCK.
-	 * @returns ERROR_OK on success, or an error code on failure.
-	 */
-	int (*khz)(int khz, int *jtag_speed);
 
-	/**
-	 * Calculate the clock frequency (in KHz) for the given @a speed.
-	 * @param speed The desired interface speed setting.
-	 * @param khz On return, contains the speed in KHz (0 for RTCK).
-	 * @returns ERROR_OK on success, or an error code if the
-	 * interface cannot support the specified speed (KHz or RTCK).
-	 */
-	int (*speed_div)(int speed, int *khz);
 
 	/**
 	 * Read and clear the power dropout flag. Note that a power dropout

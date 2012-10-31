@@ -711,11 +711,11 @@ const struct adapter_driver osbdm_driver = {
 	.name = "osbdm",
 
 	.transports = jtag_only,
-	.execute_queue = osbdm_execute_queue,
+	.jtag.execute_queue = osbdm_execute_queue,
 
-	.khz = osbdm_khz,
+	.jtag.khz = osbdm_khz,
 	.speed = osbdm_speed,
-	.speed_div = osbdm_speed_div,
+	.jtag.speed_div = osbdm_speed_div,
 
 	.init = osbdm_init,
 	.quit = osbdm_quit

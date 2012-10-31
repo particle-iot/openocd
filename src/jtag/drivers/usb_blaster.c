@@ -584,9 +584,9 @@ static const struct command_registration usb_blaster_command_handlers[] = {
 const struct adapter_driver usb_blaster_driver = {
 	.name = "usb_blaster",
 	.commands = usb_blaster_command_handlers,
-	.supported = DEBUG_CAP_TMS_SEQ,
+	.jtag.supported = DEBUG_CAP_TMS_SEQ,
 
-	.execute_queue = bitbang_execute_queue,
+	.jtag.execute_queue = bitbang_execute_queue,
 
 	.speed = usb_blaster_speed,
 	.init = usb_blaster_init,

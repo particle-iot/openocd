@@ -412,12 +412,12 @@ static int sysfsgpio_quit(void);
 
 const struct adapter_driver sysfsgpio_driver = {
 	.name = "sysfsgpio",
-	.supported = DEBUG_CAP_TMS_SEQ,
-	.execute_queue = bitbang_execute_queue,
+	.jtag.supported = DEBUG_CAP_TMS_SEQ,
+	.jtag.execute_queue = bitbang_execute_queue,
 	.transports = jtag_only,
 	.speed = sysfsgpio_speed,
-	.khz = sysfsgpio_khz,
-	.speed_div = sysfsgpio_speed_div,
+	.jtag.khz = sysfsgpio_khz,
+	.jtag.speed_div = sysfsgpio_speed_div,
 	.commands = sysfsgpio_command_handlers,
 	.init = sysfsgpio_init,
 	.quit = sysfsgpio_quit,

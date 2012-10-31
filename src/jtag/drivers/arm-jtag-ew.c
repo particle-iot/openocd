@@ -497,10 +497,10 @@ const struct adapter_driver armjtagew_driver = {
 	.name = "arm-jtag-ew",
 	.commands = armjtagew_command_handlers,
 	.transports = jtag_only,
-	.execute_queue = armjtagew_execute_queue,
+	.jtag.execute_queue = armjtagew_execute_queue,
 	.speed = armjtagew_speed,
-	.speed_div = armjtagew_speed_div,
-	.khz = armjtagew_khz,
+	.jtag.speed_div = armjtagew_speed_div,
+	.jtag.khz = armjtagew_khz,
 	.init = armjtagew_init,
 	.quit = armjtagew_quit,
 };

@@ -600,5 +600,5 @@ const struct adapter_driver amt_jtagaccel_driver = {
 	.init = amt_jtagaccel_init,
 	.quit = amt_jtagaccel_quit,
 	.speed = amt_jtagaccel_speed,
-	.execute_queue = amt_jtagaccel_execute_queue,
+	.jtag.execute_queue = amt_jtagaccel_execute_queue,
 };

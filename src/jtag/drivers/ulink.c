@@ -2293,10 +2293,10 @@ const struct adapter_driver ulink_driver = {
 	.commands = ulink_command_handlers,
 	.transports = jtag_only,
 
-	.execute_queue = ulink_execute_queue,
-	.khz = ulink_khz,
+	.jtag.execute_queue = ulink_execute_queue,
+	.jtag.khz = ulink_khz,
 	.speed = ulink_speed,
-	.speed_div = ulink_speed_div,
+	.jtag.speed_div = ulink_speed_div,
 
 	.init = ulink_init,
 	.quit = ulink_quit

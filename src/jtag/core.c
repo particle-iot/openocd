@@ -505,7 +505,7 @@ int jtag_add_tms_seq(unsigned nbits, const uint8_t *seq, enum tap_state state)
 {
 	int retval;
 
-	if (!(current_adapter_driver->supported & DEBUG_CAP_TMS_SEQ))
+	if (!(current_adapter_driver->jtag.supported & DEBUG_CAP_TMS_SEQ))
 		return ERROR_JTAG_NOT_IMPLEMENTED;
 
 	jtag_checks();
@@ -832,7 +832,7 @@ int default_interface_jtag_execute_queue(void)
 		return ERROR_FAIL;
 	}
 
-	return current_adapter_driver->execute_queue(jtag_command_queue_get());
+	return current_adapter_driver->jtag.execute_queue(jtag_command_queue_get());
 }
 
 void jtag_execute_queue_noclear(void)
@@ -1601,8 +1601,8 @@ static int adapter_khz_to_speed(unsigned khz, int *speed)
 		LOG_DEBUG("have interface set up");
 		int speed_div1;
 		int retval;
-		if (current_adapter_driver->khz != NULL)
-			retval = current_adapter_driver->khz(jtag_get_speed_khz(), &speed_div1);
+		if (current_adapter_driver->jtag.khz != NULL)
+			retval = current_adapter_driver->jtag.khz(jtag_get_speed_khz(), &speed_div1);
 		else
 			retval = default_khz(jtag_get_speed_khz(), &speed_div1);
 
@@ -1675,8 +1675,8 @@ int jtag_get_speed_readable(int *khz)
 	if (!adapter_inited)
 	    return ERROR_OK;
 
-	if (current_adapter_driver->speed_div != NULL)
-	    return current_adapter_driver->speed_div(jtag_speed_var, khz);
+	if (current_adapter_driver->jtag.speed_div != NULL)
+	    return current_adapter_driver->jtag.speed_div(jtag_speed_var, khz);
 	else
 	    return default_speed_div(jtag_speed_var, khz);
 }

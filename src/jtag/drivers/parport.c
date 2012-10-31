@@ -502,13 +502,13 @@ static const struct command_registration parport_command_handlers[] = {
 
 const struct adapter_driver parport_driver = {
 	.name = "parport",
-	.supported = DEBUG_CAP_TMS_SEQ,
+	.jtag.supported = DEBUG_CAP_TMS_SEQ,
 	.commands = parport_command_handlers,
 
 	.init = parport_init,
 	.quit = parport_quit,
-	.khz = parport_khz,
-	.speed_div = parport_speed_div,
+	.jtag.khz = parport_khz,
+	.jtag.speed_div = parport_speed_div,
 	.speed = parport_speed,
-	.execute_queue = bitbang_execute_queue,
+	.jtag.execute_queue = bitbang_execute_queue,
 };

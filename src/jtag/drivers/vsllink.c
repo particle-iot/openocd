@@ -836,14 +836,14 @@ static const char *vsllink_transports[] = {"jtag", "swd", NULL};
 
 const struct adapter_driver vsllink_driver = {
 	.name = "vsllink",
-	.supported = DEBUG_CAP_TMS_SEQ,
+	.jtag.supported = DEBUG_CAP_TMS_SEQ,
 	.commands = vsllink_command_handlers,
 	.transports = vsllink_transports,
 
 	.init = vsllink_init,
 	.quit = vsllink_quit,
-	.khz = vsllink_khz,
+	.jtag.khz = vsllink_khz,
 	.speed = vsllink_speed,
-	.speed_div = vsllink_speed_div,
-	.execute_queue = vsllink_execute_queue,
+	.jtag.speed_div = vsllink_speed_div,
+	.jtag.execute_queue = vsllink_execute_queue,
 };

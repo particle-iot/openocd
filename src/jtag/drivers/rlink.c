@@ -1679,7 +1679,7 @@ const struct adapter_driver rlink_driver = {
 	.init = rlink_init,
 	.quit = rlink_quit,
 	.speed = rlink_speed,
-	.speed_div = rlink_speed_div,
-	.khz = rlink_khz,
-	.execute_queue = rlink_execute_queue,
+	.jtag.speed_div = rlink_speed_div,
+	.jtag.khz = rlink_khz,
+	.jtag.execute_queue = rlink_execute_queue,
 };

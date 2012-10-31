@@ -872,14 +872,14 @@ static const struct command_registration ftdi_command_handlers[] = {
 
 const struct adapter_driver ftdi_driver = {
 	.name = "ftdi",
-	.supported = DEBUG_CAP_TMS_SEQ,
+	.jtag.supported = DEBUG_CAP_TMS_SEQ,
 	.commands = ftdi_command_handlers,
 	.transports = jtag_only,
 
 	.init = ftdi_initialize,
 	.quit = ftdi_quit,
 	.speed = ftdi_speed,
-	.speed_div = ftdi_speed_div,
-	.khz = ftdi_khz,
-	.execute_queue = ftdi_execute_queue,
+	.jtag.speed_div = ftdi_speed_div,
+	.jtag.khz = ftdi_khz,
+	.jtag.execute_queue = ftdi_execute_queue,
 };

@@ -256,13 +256,13 @@ static const struct command_registration stlink_interface_command_handlers[] = {
 
 const struct adapter_driver stlink_driver = {
 	.name = "stlink",
-	.supported = 0,
+	.jtag.supported = 0,
 	.commands = stlink_interface_command_handlers,
 	.transports = stlink_transports,
 	.init = stlink_interface_init,
 	.quit = stlink_interface_quit,
 	.speed = stlink_interface_speed,
-	.speed_div = stlink_speed_div,
-	.khz = stlink_khz,
-	.execute_queue = stlink_interface_execute_queue,
+	.jtag.speed_div = stlink_speed_div,
+	.jtag.khz = stlink_khz,
+	.jtag.execute_queue = stlink_interface_execute_queue,
 };

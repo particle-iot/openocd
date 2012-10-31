@@ -1300,10 +1300,10 @@ const struct adapter_driver jlink_driver = {
 	.commands = jlink_command_handlers,
 	.transports = jtag_only,
 
-	.execute_queue = jlink_execute_queue,
+	.jtag.execute_queue = jlink_execute_queue,
 	.speed = jlink_speed,
-	.speed_div = jlink_speed_div,
-	.khz = jlink_khz,
+	.jtag.speed_div = jlink_speed_div,
+	.jtag.khz = jlink_khz,
 	.init = jlink_init,
 	.quit = jlink_quit,
 };

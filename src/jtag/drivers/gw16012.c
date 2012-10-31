@@ -548,5 +548,5 @@ const struct adapter_driver gw16012_driver = {
 	.init = gw16012_init,
 	.quit = gw16012_quit,
 	.speed = gw16012_speed,
-	.execute_queue = gw16012_execute_queue,
+	.jtag.execute_queue = gw16012_execute_queue,
 };

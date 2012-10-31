@@ -289,11 +289,11 @@ static const struct command_registration remote_bitbang_command_handlers[] = {
 
 const struct adapter_driver remote_bitbang_driver = {
 	.name = "remote_bitbang",
-	.execute_queue = &bitbang_execute_queue,
+	.jtag.execute_queue = &bitbang_execute_queue,
 	.speed = &remote_bitbang_speed,
 	.commands = remote_bitbang_command_handlers,
 	.init = &remote_bitbang_init,
 	.quit = &remote_bitbang_quit,
-	.khz = &remote_bitbang_khz,
-	.speed_div = &remote_bitbang_speed_div,
+	.jtag.khz = &remote_bitbang_khz,
+	.jtag.speed_div = &remote_bitbang_speed_div,
 };

@@ -787,10 +787,10 @@ const struct adapter_driver presto_driver = {
 	.name = "presto",
 	.commands = presto_command_handlers,
 
-	.execute_queue = bitq_execute_queue,
+	.jtag.execute_queue = bitq_execute_queue,
 	.speed = presto_jtag_speed,
-	.khz = presto_adapter_khz,
-	.speed_div = presto_jtag_speed_div,
+	.jtag.khz = presto_adapter_khz,
+	.jtag.speed_div = presto_jtag_speed_div,
 	.init = presto_jtag_init,
 	.quit = presto_jtag_quit,
 };

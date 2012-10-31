@@ -4263,14 +4263,14 @@ static const struct command_registration ft2232_command_handlers[] = {
 
 const struct adapter_driver ft2232_driver = {
 	.name = "ft2232",
-	.supported = DEBUG_CAP_TMS_SEQ,
+	.jtag.supported = DEBUG_CAP_TMS_SEQ,
 	.commands = ft2232_command_handlers,
 	.transports = jtag_only,
 
 	.init = ft2232_init,
 	.quit = ft2232_quit,
 	.speed = ft2232_speed,
-	.speed_div = ft2232_speed_div,
-	.khz = ft2232_khz,
-	.execute_queue = ft2232_execute_queue,
+	.jtag.speed_div = ft2232_speed_div,
+	.jtag.khz = ft2232_khz,
+	.jtag.execute_queue = ft2232_execute_queue,
 };

@@ -147,15 +147,15 @@ static const struct command_registration dummy_command_handlers[] = {
 const struct adapter_driver dummy_driver = {
 		.name = "dummy",
 
-		.supported = DEBUG_CAP_TMS_SEQ,
+		.jtag.supported = DEBUG_CAP_TMS_SEQ,
 		.commands = dummy_command_handlers,
 		.transports = jtag_only,
 
-		.execute_queue = &bitbang_execute_queue,
+		.jtag.execute_queue = &bitbang_execute_queue,
 
 		.speed = &dummy_speed,
-		.khz = &dummy_khz,
-		.speed_div = &dummy_speed_div,
+		.jtag.khz = &dummy_khz,
+		.jtag.speed_div = &dummy_speed_div,
 
 		.init = &dummy_init,
 		.quit = &dummy_quit,

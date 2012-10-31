@@ -56,8 +56,8 @@ struct timespec ep93xx_zzzz;
 const struct adapter_driver ep93xx_driver = {
 	.name = "ep93xx",
 
-	.supported = DEBUG_CAP_TMS_SEQ,
-	.execute_queue = bitbang_execute_queue,
+	.jtag.supported = DEBUG_CAP_TMS_SEQ,
+	.jtag.execute_queue = bitbang_execute_queue,
 
 	.speed = ep93xx_speed,
 	.init = ep93xx_init,

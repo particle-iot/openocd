@@ -425,9 +425,9 @@ static const struct command_registration buspirate_command_handlers[] = {
 
 const struct adapter_driver buspirate_driver = {
 	.name = "buspirate",
-	.execute_queue = buspirate_execute_queue,
+	.jtag.execute_queue = buspirate_execute_queue,
 	.speed = buspirate_speed,
-	.khz = buspirate_khz,
+	.jtag.khz = buspirate_khz,
 	.commands = buspirate_command_handlers,
 	.init = buspirate_init,
 	.quit = buspirate_quit

@@ -193,10 +193,10 @@ static const struct command_registration opendous_command_handlers[] = {
 const struct adapter_driver opendous_driver = {
 	.name = "opendous",
 	.commands = opendous_command_handlers,
-	.execute_queue = opendous_execute_queue,
+	.jtag.execute_queue = opendous_execute_queue,
 	.speed = opendous_speed,
-	.speed_div = opendous_speed_div,
-	.khz = opendous_khz,
+	.jtag.speed_div = opendous_speed_div,
+	.jtag.khz = opendous_khz,
 	.init = opendous_init,
 	.quit = opendous_quit,
 };
