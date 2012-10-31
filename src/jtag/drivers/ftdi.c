@@ -595,7 +595,7 @@ static int ftdi_execute_command(struct jtag_command *cmd)
 	return retval;
 }
 
-static int ftdi_execute_queue(void)
+static int ftdi_execute_queue(struct jtag_command *cmd_queue)
 {
 	int retval = ERROR_OK;
 
@@ -604,7 +604,7 @@ static int ftdi_execute_queue(void)
 	if (led)
 		ftdi_set_signal(led, '1');
 
-	for (struct jtag_command *cmd = jtag_command_queue; cmd; cmd = cmd->next) {
+	for (struct jtag_command *cmd = cmd_queue; cmd; cmd = cmd->next) {
 		/* fill the write buffer with the desired command */
 		if (ftdi_execute_command(cmd) != ERROR_OK)
 			retval = ERROR_JTAG_QUEUE_FAILED;

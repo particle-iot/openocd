@@ -162,13 +162,11 @@ struct jtag_command {
 	struct jtag_command *next;
 };
 
-/** The current queue of jtag_command_s structures. */
-extern struct jtag_command *jtag_command_queue;
-
 void *cmd_queue_alloc(size_t size);
 
 void jtag_queue_command(struct jtag_command *cmd);
 void jtag_command_queue_reset(void);
+struct jtag_command *jtag_command_queue_get(void);
 
 enum scan_type jtag_scan_type(const struct scan_command *cmd);
 int jtag_scan_size(const struct scan_command *cmd);

@@ -120,9 +120,10 @@ static int stlink_khz(int khz, int *jtag_speed)
 	return ERROR_OK;
 }
 
-static int stlink_interface_execute_queue(void)
+static int stlink_interface_execute_queue(struct jtag_command *cmd_queue)
 {
 	LOG_DEBUG("stlink_interface_execute_queue: ignored");
+	(void) cmd_queue;
 
 	return ERROR_OK;
 }
