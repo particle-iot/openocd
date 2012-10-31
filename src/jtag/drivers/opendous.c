@@ -112,7 +112,7 @@ static char *opendous_type;
 static const struct opendous_probe *opendous_probe;
 
 /* External interface functions */
-static int opendous_execute_queue(void);
+static int opendous_execute_queue(struct jtag_command *cmd_queue);
 static int opendous_init(void);
 static int opendous_quit(void);
 
@@ -243,9 +243,9 @@ struct jtag_interface opendous_interface = {
 	.quit = opendous_quit,
 };
 
-static int opendous_execute_queue(void)
+static int opendous_execute_queue(struct jtag_command *cmd_queue)
 {
-	struct jtag_command *cmd = jtag_command_queue;
+	struct jtag_command *cmd = cmd_queue;
 	int scan_size;
 	enum scan_type type;
 	uint8_t *buffer;

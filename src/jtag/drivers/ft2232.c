@@ -1988,9 +1988,9 @@ static int ft2232_execute_command(struct jtag_command *cmd)
 	return retval;
 }
 
-static int ft2232_execute_queue(void)
+static int ft2232_execute_queue(struct jtag_command *cmd_queue)
 {
-	struct jtag_command *cmd = jtag_command_queue;	/* currently processed command */
+	struct jtag_command *cmd = cmd_queue;	/* currently processed command */
 	int retval;
 
 	first_unsent = cmd;		/* next command that has to be sent */

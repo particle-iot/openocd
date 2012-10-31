@@ -32,7 +32,7 @@
 
 #undef DEBUG_SERIAL
 /*#define DEBUG_SERIAL */
-static int buspirate_execute_queue(void);
+static int buspirate_execute_queue(struct jtag_command *cmd_queue);
 static int buspirate_init(void);
 static int buspirate_quit(void);
 
@@ -123,10 +123,10 @@ static int buspirate_serial_read(int fd, char *buf, int size);
 static void buspirate_serial_close(int fd);
 static void buspirate_print_buffer(char *buf, int size);
 
-static int buspirate_execute_queue(void)
+static int buspirate_execute_queue(struct jtag_command *cmd_queue)
 {
 	/* currently processed command */
-	struct jtag_command *cmd = jtag_command_queue;
+	struct jtag_command *cmd = cmd_queue;
 	int scan_size;
 	enum scan_type type;
 	uint8_t *buffer;

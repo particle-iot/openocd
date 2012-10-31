@@ -181,9 +181,9 @@ static int aice_execute_command(struct jtag_command *cmd)
 
 /* aice has no need to implement jtag execution model
 */
-static int aice_execute_queue(void)
+static int aice_execute_queue(struct jtag_command *cmd_queue)
 {
-	struct jtag_command *cmd = jtag_command_queue;	/* currently processed command */
+	struct jtag_command *cmd = cmd_queue;	/* currently processed command */
 	int retval;
 
 	retval = ERROR_OK;

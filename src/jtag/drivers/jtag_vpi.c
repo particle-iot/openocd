@@ -328,12 +328,12 @@ static int jtag_vpi_stableclocks(int cycles)
 	return jtag_vpi_queue_tdi(NULL, cycles, TAP_SHIFT);
 }
 
-static int jtag_vpi_execute_queue(void)
+static int jtag_vpi_execute_queue(struct jtag_command *cmd_queue)
 {
 	struct jtag_command *cmd;
 	int retval = ERROR_OK;
 
-	for (cmd = jtag_command_queue; retval == ERROR_OK && cmd != NULL;
+	for (cmd = cmd_queue; retval == ERROR_OK && cmd != NULL;
 	     cmd = cmd->next) {
 		switch (cmd->type) {
 		case JTAG_RESET:

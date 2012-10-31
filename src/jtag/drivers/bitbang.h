@@ -25,6 +25,7 @@
 #define BITBANG_H
 
 #include <jtag/swd.h>
+#include <jtag/commands.h>
 
 struct bitbang_interface {
 	/* low level callbacks (for bitbang)
@@ -41,7 +42,7 @@ const struct swd_driver bitbang_swd;
 
 extern bool swd_mode;
 
-int bitbang_execute_queue(void);
+int bitbang_execute_queue(struct jtag_command *cmd_queue);
 
 extern struct bitbang_interface *bitbang_interface;
 void bitbang_switch_to_swd(void);

@@ -837,7 +837,7 @@ int default_interface_jtag_execute_queue(void)
 		return ERROR_FAIL;
 	}
 
-	return jtag->execute_queue();
+	return jtag->execute_queue(jtag_command_queue_get());
 }
 
 void jtag_execute_queue_noclear(void)

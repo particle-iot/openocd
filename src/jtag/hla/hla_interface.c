@@ -124,9 +124,11 @@ static int hl_interface_quit(void)
 	return ERROR_OK;
 }
 
-static int hl_interface_execute_queue(void)
+static int hl_interface_execute_queue(struct jtag_command *cmd_queue)
 {
 	LOG_DEBUG("hl_interface_execute_queue: ignored");
+
+	(void) cmd_queue; /* unused */
 
 	return ERROR_OK;
 }

@@ -28,6 +28,7 @@
 #include "config.h"
 #endif
 
+#include <jtag/jtag.h>      /* Added to avoid include loop in commands.h */
 #include "bitbang.h"
 #include <jtag/interface.h>
 #include <jtag/commands.h>
@@ -243,9 +244,9 @@ static void bitbang_scan(bool ir_scan, enum scan_type type, uint8_t *buffer, int
 	}
 }
 
-int bitbang_execute_queue(void)
+int bitbang_execute_queue(struct jtag_command *cmd_queue)
 {
-	struct jtag_command *cmd = jtag_command_queue;	/* currently processed command */
+	struct jtag_command *cmd = cmd_queue;	/* currently processed command */
 	int scan_size;
 	enum scan_type type;
 	uint8_t *buffer;

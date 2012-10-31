@@ -194,10 +194,10 @@ static int jlink_execute_command(struct jtag_command *cmd)
 	return ERROR_OK;
 }
 
-static int jlink_execute_queue(void)
+static int jlink_execute_queue(struct jtag_command *cmd_queue)
 {
 	int ret;
-	struct jtag_command *cmd = jtag_command_queue;
+	struct jtag_command *cmd = cmd_queue;
 
 	while (cmd != NULL) {
 		ret = jlink_execute_command(cmd);
