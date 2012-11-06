@@ -935,8 +935,39 @@ if test $build_ft2232_ftd2xx = yes -o $build_presto_ftd2xx = yes -o $build_usb_b
         AC_MSG_ERROR([You seem to be missing the FTD2xx driver header file.])
       ])
     AC_SEARCH_LIBS([FT_GetLibraryVersion],[ftd2xx],,[
-        AC_MSG_ERROR([You appear to be missing the FTD2xx driver library.])
-      ],[-lrt -lusb-1.0])
+	AC_MSG_WARN([
+
+You appear to be missing other libraries to use the FTD2xx driver library.
+
+The FTD2xx driver library uses clock_gettime() and in normal cases the
+linker will find the function in the libc library. But most older systems
+require to link with the librt library (glibc versions before 2.17).
+
+In some special circumstances the FTD2xx driver library will exist but
+depends on the libusb-1.0 to avoid mixed code (GPL with proprietary code).
+
+The library search will repeated with respect of this issues.
+	])
+	#
+	# result of previously failed test is cached, reset cache
+	unset ac_cv_search_FT_GetLibraryVersion
+	#
+	# check for libraries of which the FTD2xx driver library depends
+	PKG_CHECK_MODULES([LIBUSB1], [libusb-1.0], [
+	    PKG_CHECK_EXISTS([libusb-1.0 >= 1.0.9],,[
+	        AC_MSG_WARN([libusb-1.x older than 1.0.9 detected, consider updating])
+	    ])
+	    LIBS="$LIBS $LIBUSB1_LIBS"
+        ], [
+	    AC_MSG_WARN([libusb-1.x not found])
+	])
+	AC_SEARCH_LIBS([clock_gettime],[rt])
+	#
+	# rerun the test, now with other libraries in LIBS
+	AC_SEARCH_LIBS([FT_GetLibraryVersion],[ftd2xx],,[
+            AC_MSG_ERROR([You appear to be missing the FTD2xx driver library.])
+	],[])
+      ],[])
   fi
 fi
 fi # linux
