@@ -296,7 +296,7 @@ static int stm32lx_write_half_pages(struct flash_bank *bank, uint8_t *buffer,
 	LOG_DEBUG("allocated working area for data (%" PRIx32 " bytes)", buffer_size);
 
 	armv7m_info.common_magic = ARMV7M_COMMON_MAGIC;
-	armv7m_info.core_mode = ARMV7M_MODE_ANY;
+	armv7m_info.core_mode = ARM_MODE_ANY;
 	init_reg_param(&reg_params[0], "r0", 32, PARAM_OUT);
 	init_reg_param(&reg_params[1], "r1", 32, PARAM_OUT);
 	init_reg_param(&reg_params[2], "r2", 32, PARAM_OUT);
