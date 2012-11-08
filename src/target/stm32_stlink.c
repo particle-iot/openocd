@@ -47,7 +47,6 @@ static inline struct stlink_interface_s *target_to_stlink(struct target *target)
 }
 
 static int stm32_stlink_load_core_reg_u32(struct target *target,
-		enum armv7m_regtype type,
 		uint32_t num, uint32_t *value)
 {
 	int retval;
@@ -144,7 +143,6 @@ static int stm32_stlink_load_core_reg_u32(struct target *target,
 }
 
 static int stm32_stlink_store_core_reg_u32(struct target *target,
-		enum armv7m_regtype type,
 		uint32_t num, uint32_t value)
 {
 	int retval;
