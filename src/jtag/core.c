@@ -1549,7 +1549,11 @@ int jtag_init_reset(struct command_context *cmd_ctx)
 		if ((jtag_reset_config & RESET_SRST_PULLS_TRST) == 0)
 			jtag_add_reset(0, 1);
 	}
-	jtag_add_reset(0, 0);
+
+	if (jtag_reset_config & RESET_SRST_NO_GATING)
+		jtag_add_reset(0, 1);
+	else
+		jtag_add_reset(0, 0);
 	retval = jtag_execute_queue();
 	if (retval != ERROR_OK)
 		return retval;
@@ -1572,6 +1576,9 @@ int jtag_init(struct command_context *cmd_ctx)
 
 	/* guard against oddball hardware: force resets to be inactive */
 	jtag_add_reset(0, 0);
+
+	if (jtag_reset_config & RESET_SRST_NO_GATING)
+		jtag_add_reset(0, 1);
 	retval = jtag_execute_queue();
 	if (retval != ERROR_OK)
 		return retval;
