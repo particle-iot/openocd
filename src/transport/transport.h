@@ -78,10 +78,11 @@ typedef struct oocd_transport {
 	struct oocd_transport *next;
 } oocd_transport_t;
 
+int oocd_transport_register(oocd_transport_t *new_transport);
+int oocd_transport_register_all(void);
 int oocd_transport_select(struct command_context *ctx, const char *name);
 int oocd_transport_allow(struct command_context *ctx, const char **vector);
 bool oocd_transport_declared(void);
-int oocd_transport_register(oocd_transport_t *new_transport);
 oocd_transport_t *oocd_transport_current_get(void);
 int oocd_transport_register_commands(struct command_context *ctx);
 int oocd_transport_select_jim(Jim_Interp *interp, int argc, Jim_Obj * const *argv);
