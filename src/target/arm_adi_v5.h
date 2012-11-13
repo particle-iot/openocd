@@ -431,6 +431,7 @@ struct target;
 
 /* Put debug link into SWD mode */
 int dap_to_swd(struct target *target);
+extern oocd_transport_t swd_transport;
 
 /* Put debug link into JTAG mode */
 int dap_to_jtag(struct target *target);
