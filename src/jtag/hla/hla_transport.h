@@ -31,4 +31,8 @@ enum hl_transports {
 	HL_TRANSPORT_SWIM
 };
 
+extern struct transport hl_swd_transport;
+extern struct transport hl_jtag_transport;
+extern struct transport stlink_swim_transport;
+
 #endif /* _HL_TRANSPORT */

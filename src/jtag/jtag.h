@@ -26,6 +26,7 @@
 
 #include <helper/binarybuffer.h>
 #include <helper/log.h>
+#include <transport/transport.h>
 
 #ifdef _DEBUG_JTAG_IO_
 #define DEBUG_JTAG_IO(expr ...) \
@@ -671,6 +672,7 @@ void jtag_poll_set_enabled(bool value);
  * level APIs that are used in inner loops. */
 #include <jtag/minidriver.h>
 
+extern struct transport jtag_transport;
 bool transport_is_jtag(void);
 
 int jim_jtag_newtap(Jim_Interp *interp, int argc, Jim_Obj *const *argv);

@@ -78,10 +78,11 @@ struct transport {
 	struct transport *next;
 };
 
+int transport_register(struct transport *new_transport);
+int transport_register_all(void);
 int transport_select(struct command_context *ctx, const char *name);
 int allow_transports(struct command_context *ctx, const char **vector);
 bool transports_are_declared(void);
-int transport_register(struct transport *new_transport);
 struct transport *get_current_transport(void);
 int transport_register_commands(struct command_context *ctx);
 int jim_transport_select(Jim_Interp *interp, int argc, Jim_Obj * const *argv);
