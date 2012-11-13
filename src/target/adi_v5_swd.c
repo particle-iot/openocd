@@ -343,12 +343,6 @@ struct transport swd_transport = {
 	.init = swd_init,
 };
 
-static void swd_constructor(void) __attribute__((constructor));
-static void swd_constructor(void)
-{
-	transport_register(&swd_transport);
-}
-
 /** Returns true if the current debug session
  * is using SWD as its transport.
  */

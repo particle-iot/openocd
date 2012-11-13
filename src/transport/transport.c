@@ -53,6 +53,7 @@
 #include <transport/transport.h>
 #include <target/arm.h>
 #include <target/arm_adi_v5.h>
+#include <jtag/hla/hla_transport.h>
 #include <helper/log.h>
 
 extern struct command_context *global_cmd_ctx;
@@ -75,6 +76,28 @@ static const char **allowed_transports;
 
 /** * The transport being used for the current OpenOCD session.  */
 struct transport *session;
+
+/**
+ * Register all supported transport types with this one function at startup.
+ * This needs to be done like this in a function, not using contructors,
+ * because linking killed contructor function attributes.
+ * Registering them here gives more predictable behavior.
+ */
+
+int transport_register_all(void)
+{
+	if (transport_register(&jtag_transport) != ERROR_OK)
+		return ERROR_FAIL;
+	if (transport_register(&swd_transport) != ERROR_OK)
+		return ERROR_FAIL;
+	if (transport_register(&hl_swd_transport) != ERROR_OK)
+		return ERROR_FAIL;
+	if (transport_register(&hl_jtag_transport) != ERROR_OK)
+		return ERROR_FAIL;
+	if (transport_register(&stlink_swim_transport) != ERROR_OK)
+		return ERROR_FAIL;
+	return ERROR_OK;
+}
 
 int transport_select(struct command_context *ctx, const char *name)
 {
@@ -175,7 +198,7 @@ int transport_register(struct transport *new_transport)
 	/* splice this into the list */
 	new_transport->next = transport_list;
 	transport_list = new_transport;
-	LOG_DEBUG("register '%s'", new_transport->name);
+	LOG_DEBUG("Transport registered: %s", new_transport->name);
 
 	return ERROR_OK;
 }

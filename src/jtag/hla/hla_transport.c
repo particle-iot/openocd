@@ -200,30 +200,22 @@ static int hl_transport_select(struct command_context *ctx)
 	return ERROR_OK;
 }
 
-static struct transport hl_swd_transport = {
+struct transport hl_swd_transport = {
 	.name = "hla_swd",
 	.select = hl_transport_select,
 	.init = hl_transport_init,
 };
 
-static struct transport hl_jtag_transport = {
+struct transport hl_jtag_transport = {
 	.name = "hla_jtag",
 	.select = hl_transport_select,
 	.init = hl_transport_init,
 };
 
-static struct transport stlink_swim_transport = {
+struct transport stlink_swim_transport = {
 	.name = "stlink_swim",
 	.select = hl_transport_select,
 	.init = hl_transport_init,
 };
 
 const char *hl_transports[] = { "hla_swd", "hla_jtag", "stlink_swim", NULL };
-
-static void hl_constructor(void) __attribute__ ((constructor));
-static void hl_constructor(void)
-{
-	transport_register(&hl_swd_transport);
-	transport_register(&hl_jtag_transport);
-	transport_register(&stlink_swim_transport);
-}
