@@ -343,11 +343,13 @@ oocd_transport_t swd_transport = {
 	.init = swd_init,
 };
 
+/* TC: Transport registration moved to function from constructors...
 static void swd_constructor(void) __attribute__((constructor));
 static void swd_constructor(void)
 {
 	oocd_transport_register(&swd_transport);
 }
+*/
 
 /** Returns true if the current debug session
  * is using SWD as its transport.

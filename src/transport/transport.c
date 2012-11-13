@@ -50,6 +50,7 @@
 #include <target/arm.h>
 #include <target/arm_adi_v5.h>
 #include <helper/log.h>
+#include <jtag/jtag.h>
 
 extern struct command_context *global_cmd_ctx;
 
@@ -71,6 +72,20 @@ static const char **oocd_transport_list_allowed;
 
 /** * The transport being used for the current OpenOCD session.  */
 oocd_transport_t *session;
+
+/**
+ * Register all supported transport types with this one function at startup.
+ * This needs to be done like this in a function, not using contructors,
+ * because linking killed contructor function attributes.
+ * Registering them here gives more predictable behavior.
+ */
+int oocd_transport_register_all(void){
+	if (oocd_transport_register(&jtag_transport)!=ERROR_OK)
+		return ERROR_FAIL;
+	if (oocd_transport_register(&swd_transport)!=ERROR_OK)            
+		return ERROR_FAIL;
+	return ERROR_OK;
+}
 
 int oocd_transport_select(struct command_context *ctx, const char *name)
 {
@@ -156,7 +171,6 @@ bool oocd_transport_declared(void)
 int oocd_transport_register(oocd_transport_t *new_transport)
 {
 	oocd_transport_t *t;
-	printf("TRANSPORT REGISTER: %s\n", new_transport->name);
 
 	for (t = oocd_transport_list_all; t; t = t->next) {
 		if (strcmp(t->name, new_transport->name) == 0) {
@@ -171,7 +185,7 @@ int oocd_transport_register(oocd_transport_t *new_transport)
 	/* splice this into the list */
 	new_transport->next = oocd_transport_list_all;
 	oocd_transport_list_all = new_transport;
-	LOG_DEBUG("register '%s'", new_transport->name);
+	LOG_DEBUG("Transport registered: %s", new_transport->name);
 
 	return ERROR_OK;
 }
@@ -368,4 +382,3 @@ int oocd_transport_register_commands(struct command_context *ctx)
 {
 	return register_commands(ctx, NULL, oocd_transport_group);
 }
-

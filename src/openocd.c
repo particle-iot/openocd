@@ -8,6 +8,9 @@
  *   Copyright (C) 2008 Richard Missenden                                  *
  *   richard.missenden@googlemail.com                                      *
  *                                                                         *
+ *   Copyright (C) 2011-2012 Tomasz Boleslaw CEDRO                         *
+ *   cederom@tlen.pl, http://www.tomek.cedro.info                          *
+ *                                                                         *                                                                       
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
  *   the Free Software Foundation; either version 2 of the License, or     *
@@ -313,6 +316,11 @@ int openocd_main(int argc, char *argv[])
 	struct command_context *cmd_ctx;
 
 	cmd_ctx = setup_command_handler(NULL);
+
+	/* Register all supported transports before init */
+	ret = oocd_transport_register_all();
+	if (ERROR_OK != ret)
+		return ERROR_FAIL;
 
 	if (util_init(cmd_ctx) != ERROR_OK)
 		return EXIT_FAILURE;
