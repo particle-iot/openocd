@@ -1798,11 +1798,13 @@ oocd_transport_t jtag_transport = {
 	.init = jtag_init,
 };
 
+/* Transport are now setup with oocd_transport_register_all()
 static void jtag_constructor(void) __attribute__((constructor));
 static void jtag_constructor(void)
 {
 	oocd_transport_register(&jtag_transport);
 }
+*/
 
 /** Returns true if the current debug session
  * is using JTAG as its transport.
