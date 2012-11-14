@@ -1242,27 +1242,28 @@ int mips32_pracc_fastdata_xfer(struct mips_ejtag *ejtag_info, struct working_are
 	uint32_t handler_code[] = {
 		/* caution when editing, table is modified below */
 		/* r15 points to the start of this code */
-		MIPS32_SW(8, MIPS32_FASTDATA_HANDLER_SIZE - 4, 15),
+		MIPS32_SW(8, MIPS32_FASTDATA_HANDLER_SIZE - 4, 15),		/* save registers to ram */
 		MIPS32_SW(9, MIPS32_FASTDATA_HANDLER_SIZE - 8, 15),
 		MIPS32_SW(10, MIPS32_FASTDATA_HANDLER_SIZE - 12, 15),
 		MIPS32_SW(11, MIPS32_FASTDATA_HANDLER_SIZE - 16, 15),
-		/* start of fastdata area in t0 */
-		MIPS32_LUI(8, UPPER16(MIPS32_PRACC_FASTDATA_AREA)),
-		MIPS32_ORI(8, 8, LOWER16(MIPS32_PRACC_FASTDATA_AREA)),
+		/* start of fastdata area in t0, $8 */
+		MIPS32_LUI(8, UPPER16(MIPS32_PRACC_FASTDATA_AREA)),		/* load $8 with PRACC FASDATA address */
+
 		MIPS32_LW(9, 0, 8),								/* start addr in t1 */
-		MIPS32_LW(10, 0, 8),							/* end addr to t2 */
-														/* loop: */
-		/* 8 */ MIPS32_LW(11, 0, 0),					/* lw t3,[t8 | r9] */
-		/* 9 */ MIPS32_SW(11, 0, 0),					/* sw t3,[r9 | r8] */
+		MIPS32_LW(10, 0, 8),
+		/* end addr to t2 */
+															/* loop: */
+		/* 7 */ MIPS32_LW(11, 0, 0),					/* lw t3,[t8 | r9] */
+		/* 8 */ MIPS32_SW(11, 0, 0),					/* sw t3,[r9 | r8] */
 		MIPS32_BNE(10, 9, NEG16(3)),					/* bne $t2,t1,loop */
 		MIPS32_ADDI(9, 9, 4),							/* addi t1,t1,4 */
 
-		MIPS32_LW(8, MIPS32_FASTDATA_HANDLER_SIZE - 4, 15),
+		MIPS32_LW(8, MIPS32_FASTDATA_HANDLER_SIZE - 4, 15),		/* restore registers from ram */
 		MIPS32_LW(9, MIPS32_FASTDATA_HANDLER_SIZE - 8, 15),
 		MIPS32_LW(10, MIPS32_FASTDATA_HANDLER_SIZE - 12, 15),
 		MIPS32_LW(11, MIPS32_FASTDATA_HANDLER_SIZE - 16, 15),
 
-		MIPS32_LUI(15, UPPER16(MIPS32_PRACC_TEXT)),
+		MIPS32_LUI(15, UPPER16(MIPS32_PRACC_TEXT)),			/* load $15 with PRACC TEXT address */
 		MIPS32_ORI(15, 15, LOWER16(MIPS32_PRACC_TEXT)),
 		MIPS32_JR(15),								/* jr start */
 		MIPS32_MFC0(15, 31, 0),						/* move COP0 DeSave to $15 */
@@ -1276,23 +1277,31 @@ int mips32_pracc_fastdata_xfer(struct mips_ejtag *ejtag_info, struct working_are
 		MIPS32_NOP,
 	};
 
-	int retval, i;
-	uint32_t val, ejtag_ctrl, address;
+	uint8_t *spracc_buf;		/* buffer to save the scanned in fasdata field (spracc bit) */
+	spracc_buf = malloc(count);
+	if (spracc_buf == NULL) {
+		LOG_ERROR("Out of memory");
+		return ERROR_FAIL;
+	}
+
+	int retval;
 
 	if (source->size < MIPS32_FASTDATA_HANDLER_SIZE)
 		return ERROR_TARGET_RESOURCE_NOT_AVAILABLE;
 
 	if (write_t) {
-		handler_code[8] = MIPS32_LW(11, 0, 8);	/* load data from probe at fastdata area */
-		handler_code[9] = MIPS32_SW(11, 0, 9);	/* store data to RAM @ r9 */
+		handler_code[7] = MIPS32_LW(11, 0, 8);	/* load data from probe at fastdata area */
+		handler_code[8] = MIPS32_SW(11, 0, 9);	/* store data to RAM @ r9 */
 	} else {
-		handler_code[8] = MIPS32_LW(11, 0, 9);	/* load data from RAM @ r9 */
-		handler_code[9] = MIPS32_SW(11, 0, 8);	/* store data to probe at fastdata area */
+		handler_code[7] = MIPS32_LW(11, 0, 9);	/* load data from RAM @ r9 */
+		handler_code[8] = MIPS32_SW(11, 0, 8);	/* store data to probe at fastdata area */
 	}
 
 	/* write program into RAM */
 	if (write_t != ejtag_info->fast_access_save) {
-		mips32_pracc_write_mem32(ejtag_info, source->address, ARRAY_SIZE(handler_code), handler_code);
+		retval = mips32_pracc_write_mem32(ejtag_info, source->address, ARRAY_SIZE(handler_code), handler_code);
+		if (retval != ERROR_OK)
+			goto exit;
 		/* save previous operation to speed to any consecutive read/writes */
 		ejtag_info->fast_access_save = write_t;
 	}
@@ -1302,72 +1311,210 @@ int mips32_pracc_fastdata_xfer(struct mips_ejtag *ejtag_info, struct working_are
 	jmp_code[1] |= UPPER16(source->address);
 	jmp_code[2] |= LOWER16(source->address);
 
-	for (i = 0; i < (int) ARRAY_SIZE(jmp_code); i++) {
+	uint8_t *sp = spracc_buf;
+	uint32_t *buf_saved = buf;
+	int count_saved = count;
+
+	int i;
+	uint32_t val, ejtag_ctrl, address;
+
+	int get_delay = 1;	/* needs to be checked */
+	int clk_delay = 40;	/* initial delay */
+	int fastmode = 1;	/* try fastmode by default */
+
+	if (count < 32) {
+		get_delay = 0;
+		fastmode = 0;
+	}
+
+	do {
+		/* first execute de jump code, make the handler run, handler code already loaded in memory */
+		for (i = 0; i < (int) ARRAY_SIZE(jmp_code); i++) {
+			retval = wait_for_pracc_rw(ejtag_info, &ejtag_ctrl);
+			if (retval != ERROR_OK)
+				goto exit;
+
+			mips_ejtag_set_instr(ejtag_info, EJTAG_INST_DATA);
+			mips_ejtag_drscan_32_out(ejtag_info, jmp_code[i]);
+
+			/* Clear the access pending bit (let the processor eat!) */
+			ejtag_ctrl = ejtag_info->ejtag_ctrl & ~EJTAG_CTRL_PRACC;
+			mips_ejtag_set_instr(ejtag_info, EJTAG_INST_CONTROL);
+			mips_ejtag_drscan_32_out(ejtag_info, ejtag_ctrl);
+		}
+
 		retval = wait_for_pracc_rw(ejtag_info, &ejtag_ctrl);
 		if (retval != ERROR_OK)
-			return retval;
+			goto exit;
 
-		mips_ejtag_set_instr(ejtag_info, EJTAG_INST_DATA);
-		mips_ejtag_drscan_32_out(ejtag_info, jmp_code[i]);
-
-		/* Clear the access pending bit (let the processor eat!) */
-		ejtag_ctrl = ejtag_info->ejtag_ctrl & ~EJTAG_CTRL_PRACC;
-		mips_ejtag_set_instr(ejtag_info, EJTAG_INST_CONTROL);
-		mips_ejtag_drscan_32_out(ejtag_info, ejtag_ctrl);
-	}
-
-	retval = wait_for_pracc_rw(ejtag_info, &ejtag_ctrl);
-	if (retval != ERROR_OK)
-		return retval;
-
-	/* next fetch to dmseg should be in FASTDATA_AREA, check */
-	address = 0;
-	mips_ejtag_set_instr(ejtag_info, EJTAG_INST_ADDRESS);
-	retval = mips_ejtag_drscan_32(ejtag_info, &address);
-	if (retval != ERROR_OK)
-		return retval;
-
-	if (address != MIPS32_PRACC_FASTDATA_AREA)
-		return ERROR_FAIL;
-
-	/* wait PrAcc pending bit for FASTDATA write */
-	retval = wait_for_pracc_rw(ejtag_info, &ejtag_ctrl);
-	if (retval != ERROR_OK)
-		return retval;
-
-	/* Send the load start address */
-	val = addr;
-	mips_ejtag_set_instr(ejtag_info, EJTAG_INST_FASTDATA);
-	mips_ejtag_fastdata_scan(ejtag_info, 1, &val);
-
-	/* Send the load end address */
-	val = addr + (count - 1) * 4;
-	mips_ejtag_fastdata_scan(ejtag_info, 1, &val);
-
-	for (i = 0; i < count; i++) {
-		retval = mips_ejtag_fastdata_scan(ejtag_info, write_t, buf++);
+			/* next fetch to dmseg should be in FASTDATA_AREA, check */
+		address = 0;
+		mips_ejtag_set_instr(ejtag_info, EJTAG_INST_ADDRESS);
+		retval = mips_ejtag_drscan_32(ejtag_info, &address);
 		if (retval != ERROR_OK)
-			return retval;
-	}
+			goto exit;
 
-	retval = jtag_execute_queue();
-	if (retval != ERROR_OK) {
-		LOG_ERROR("fastdata load failed");
-		return retval;
-	}
+		if (address != MIPS32_PRACC_FASTDATA_AREA) {
+			retval = ERROR_FAIL;
+			goto exit;
+		}
 
-	retval = wait_for_pracc_rw(ejtag_info, &ejtag_ctrl);
-	if (retval != ERROR_OK)
-		return retval;
+		/* Send the load start address */
+		val = addr;
+		mips_ejtag_set_instr(ejtag_info, EJTAG_INST_FASTDATA);
+		mips_ejtag_fastdata_scan(ejtag_info, 1, &val, sp);
 
+		retval = wait_for_pracc_rw(ejtag_info, &ejtag_ctrl);
+		if (retval != ERROR_OK)
+			goto exit;
+
+		/* Send the load end address */
+		mips_ejtag_set_instr(ejtag_info, EJTAG_INST_FASTDATA);
+		val = addr + (count - 1) * 4;
+		mips_ejtag_fastdata_scan(ejtag_info, 1, &val, sp);
+
+		retval = wait_for_pracc_rw(ejtag_info, &ejtag_ctrl);
+		if (retval != ERROR_OK)
+			goto exit;
+
+		/* Handler running, address loaded and pracc pending, now check for a suitable delay, if not already done */
+		if (get_delay) {
+			int last_to_work = -1;
+			int last_to_fail = -1;
+
+			for (i = 0; i != 8; i++) {
+				mips_ejtag_set_instr(ejtag_info, EJTAG_INST_FASTDATA);
+				mips_ejtag_fastdata_scan(ejtag_info, write_t, buf++, &spracc_buf[0]);
+				jtag_add_clocks(clk_delay);
+				mips_ejtag_fastdata_scan(ejtag_info, write_t, buf++, &spracc_buf[1]);
+				jtag_add_clocks(40);
+				retval = wait_for_pracc_rw(ejtag_info, &ejtag_ctrl);
+				if (retval != ERROR_OK)
+					goto exit;
+
+				if (spracc_buf[1] & 1) {		/* on success reduce clk_delay */
+					last_to_work = clk_delay;
+					if (last_to_fail < 0)
+						clk_delay /= 2;
+					else
+						clk_delay -= (last_to_work - last_to_fail) / 2;
+					count -= 2;
+				} else {					/* on fail increase clk_delay */
+					last_to_fail = clk_delay;
+					if (last_to_work < 0)
+						clk_delay *= 2;
+					else
+						clk_delay += (1 + last_to_work - last_to_fail) / 2;
+					count--;
+					buf--;
+				}
+			}
+
+			if (last_to_work < 0) {		/* too slow...?, try safe mode */
+				clk_delay = 0;
+				fastmode = 0;
+			} else {
+				clk_delay = 1 + (11 * last_to_work) / 10;	/* increase clk_delay at least 10% */
+				LOG_DEBUG("clk delay: %d", clk_delay);		/* to lower probability of fail */
+			}
+			get_delay = 0; /* no need to do it again */
+		}
+
+		if (fastmode) {
+			sp = spracc_buf;
+			mips_ejtag_set_instr(ejtag_info, EJTAG_INST_FASTDATA);
+			for (i = 0; i < count; i++) {
+				mips_ejtag_fastdata_scan(ejtag_info, write_t, buf++, sp++);
+				jtag_add_clocks(clk_delay);
+			}
+
+			retval = jtag_execute_queue();
+			if (retval != ERROR_OK) {
+				LOG_ERROR("fastdata load failed");
+				goto exit;
+			}
+
+			int spracc_counter = 0;
+			for (i = 0; i != count; i++)			/* count transfer successes */
+				spracc_counter += spracc_buf[i] & 1;
+
+			retval = wait_for_pracc_rw(ejtag_info, &ejtag_ctrl);
+			if (retval != ERROR_OK)
+				goto exit;
+
+			if (spracc_counter < count) {			/* probably few fails..., if any */
+				int fails = count - spracc_counter;
+				LOG_DEBUG("Fastdata transfer failed, trying to recover. Num fails: %d", fails);
+
+				for (i = 0; i != fails; i++) {
+					mips_ejtag_set_instr(ejtag_info, EJTAG_INST_FASTDATA);
+					mips_ejtag_fastdata_scan(ejtag_info, write_t, &val, &spracc_buf[0]);
+					jtag_add_clocks(clk_delay);
+					retval = wait_for_pracc_rw(ejtag_info, &ejtag_ctrl);
+					if (retval != ERROR_OK)
+						goto exit;
+				}
+				/* verify that the handler has finished */
+				address = 0;
+				mips_ejtag_set_instr(ejtag_info, EJTAG_INST_ADDRESS);
+				retval = mips_ejtag_drscan_32(ejtag_info, &address);
+
+				if (address != MIPS32_PRACC_TEXT) {
+					LOG_ERROR("mini program did not return to start");
+					goto exit;
+				}
+
+				LOG_DEBUG("recover successful, trying safe mode");
+				buf = buf_saved;
+				count = count_saved;
+				fastmode = 0;
+				/* The handler is not running anymore, make it run again */
+				continue;
+			} else
+				goto final_check; /* ok, no fails, work done in fast mode */
+
+		} else {			/* safe mode */
+			while (count) {
+				mips_ejtag_set_instr(ejtag_info, EJTAG_INST_FASTDATA);
+
+				if (count >= 2) { /* 2 fasdata transfer, the first will ever success, PrAcc = 1 */
+					mips_ejtag_fastdata_scan(ejtag_info, write_t, buf++, &spracc_buf[0]);
+					jtag_add_clocks(clk_delay);
+					mips_ejtag_fastdata_scan(ejtag_info, write_t, buf++, &spracc_buf[1]);
+					jtag_add_clocks(clk_delay);
+					retval = wait_for_pracc_rw(ejtag_info, &ejtag_ctrl);
+					if (retval != ERROR_OK)
+						goto exit;
+
+					if (spracc_buf[1] & 1)	/* 2nd fasdata transfer success ? */
+						count -= 2;
+					else {
+						buf--;		/* on fail repeat the last */
+						count--;
+					}
+				} else {
+					mips_ejtag_fastdata_scan(ejtag_info, write_t, buf++, &spracc_buf[0]);
+					jtag_add_clocks(clk_delay);
+					retval = wait_for_pracc_rw(ejtag_info, &ejtag_ctrl);
+					if (retval != ERROR_OK)
+						goto exit;
+					count--;
+				}
+			}
+			goto final_check;	/* done in safe mode */
+		}
+	} while (1);
+
+final_check:
+	/* verify that the handler has finished */
 	address = 0;
 	mips_ejtag_set_instr(ejtag_info, EJTAG_INST_ADDRESS);
 	retval = mips_ejtag_drscan_32(ejtag_info, &address);
-	if (retval != ERROR_OK)
-		return retval;
 
 	if (address != MIPS32_PRACC_TEXT)
 		LOG_ERROR("mini program did not return to start");
 
+exit:
+	free(spracc_buf);
 	return retval;
 }
