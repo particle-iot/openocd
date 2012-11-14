@@ -107,6 +107,7 @@ struct stlink_usb_handle_s {
 #define STLINK_DFU_COMMAND				0xF3
 #define STLINK_SWIM_COMMAND				0xF4
 #define STLINK_GET_CURRENT_MODE			0xF5
+#define STLINK_GET_TARGET_VOLTAGE		0xF7
 
 #define STLINK_DEV_DFU_MODE				0x00
 #define STLINK_DEV_MASS_MODE			0x01
@@ -420,6 +421,40 @@ static int stlink_usb_version(void *handle)
 		h->version.swim,
 		h->vid,
 		h->pid);
+
+	return ERROR_OK;
+}
+
+static int stlink_usb_check_voltage(void *handle)
+{
+	struct stlink_usb_handle_s *h;
+	uint32_t adc_results[2];
+
+	h = (struct stlink_usb_handle_s *)handle;
+
+	/* only supported by stlink/v2 and for firmware >= 13 */
+	if (h->version.stlink == 1 || h->version.jtag < 13)
+		return ERROR_OK;
+
+	stlink_usb_init_buffer(handle, STLINK_RX_EP, 8);
+
+	h->cmdbuf[h->cmdidx++] = STLINK_GET_TARGET_VOLTAGE;
+
+	int result = stlink_usb_xfer(handle, h->databuf, 8);
+
+	if (result != ERROR_OK)
+		return result;
+
+	/* convert result */
+	adc_results[0] = le_to_h_u32(h->databuf);
+	adc_results[1] = le_to_h_u32(h->databuf + 4);
+
+	float target_voltage = 0;
+
+	if (adc_results[0])
+		target_voltage = 2 * ((float)adc_results[1]) * (float)(1.2 / adc_results[0]);
+
+	LOG_INFO("Target voltage: %f", (double)target_voltage);
 
 	return ERROR_OK;
 }
@@ -1257,6 +1292,14 @@ static int stlink_usb_open(struct stlink_interface_param_s *param, void **fd)
 
 	if (err != ERROR_OK) {
 		LOG_ERROR("init mode failed");
+		goto error_open;
+	}
+
+	/* check target voltage (if supported) */
+	err = stlink_usb_check_voltage(h);
+
+	if (err != ERROR_OK) {
+		LOG_ERROR("voltage check failed");
 		goto error_open;
 	}
 
