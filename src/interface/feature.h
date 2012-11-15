@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011-2012 Tomasz Boleslaw CEDRO
+ * Copyright (C) 2012 Tomasz Boleslaw CEDRO
  * cederom@tlen.pl, http://www.tomek.cedro.info
  *
  * This program is free software; you can redistribute it and/or modify
@@ -17,12 +17,31 @@
  * Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#ifndef INTERFACE_H
-#define INTERFACE_H
+#ifndef FEATURE_H
+#define FEATURE_H
 
-#include <jtag/interface.h>
-#include <interface/signal.h>
-#include <interface/bitbang.h>
-#include <interface/feature.h>
+#define FEATURE_NAME_MAXLEN 50
+#define FEATURE_DESCRIPTION_MAXLEN 80
+#define FEATURE_ARM_DAP "feature_arm_dap"
+
+struct feature {
+	/** Feature name. */
+	char name[FEATURE_NAME_MAXLEN];
+
+	/** Description is a one line feature summary. */
+	char description[FEATURE_DESCRIPTION_MAXLEN];
+
+	/** Body points to feature contents. */
+	void *body;
+
+	/** Next points to next feature on the list. */
+	struct feature *next;
+
+};
+
+int feature_add(struct feature *features, struct feature *feature);
+int feature_del(struct feature *features, char *name);
+int feature_update(struct feature *features, struct feature *feature);
+struct feature *feature_find(struct feature *features, char *name);
 
 #endif
