@@ -24,5 +24,6 @@
 
 #include <interface/signal.h>
 #include <interface/bitbang.h>
+#include <interface/feature.h>
 
 #endif
