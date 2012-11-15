@@ -16,12 +16,14 @@ CLEANFILES +=
 
 liboocdinterface_la_SOURCES = \
 	signal.c \
-	bitbang.c
+	bitbang.c \
+	feature.c
 
 noinst_HEADERS = \
 	interface.h \
 	signal.h \
-	bitbang.h
+	bitbang.h \
+	feature.h
 
 EXTRA_DIST =
 
