@@ -39,20 +39,20 @@ extern struct jtag_interface *jtag_interface;
  */
 oocd_interface_signal_t *oocd_interface_signal_find(char *name)
 {
-	/* LOG_DEBUG("Searching for interface signal \"%s\"", name); */
+	LOG_DEBUG("Interface signal - searching for '%s' signal...", name);
 	/* Check if interface already exists */
 	if (!jtag_interface) {
-		LOG_ERROR("Interface does not yet exist!");
+		LOG_ERROR("Interface signal - interface does not yet exist!");
 		return NULL;
 	}
 	/* Check if interface signal to already exists */
 	if (!jtag_interface->signal) {
-		LOG_DEBUG("No interface signals defined (yet?).");
+		LOG_DEBUG("Interface signal - not defined (yet?).");
 		return NULL;
 	}
 	/* Check if signal name is correct */
 	if (!name || strncmp(name, " ", 1) == 0) {
-		LOG_ERROR("Interface signal name cannot be empty.");
+		LOG_ERROR("Interface signal - name cannot be empty!");
 		return NULL;
 	}
 	/* Check if signal name already exist */
@@ -60,13 +60,13 @@ oocd_interface_signal_t *oocd_interface_signal_find(char *name)
 	sig = jtag_interface->signal;
 	while (sig) {
 		if (!strncasecmp(sig->name, name, 32)) {
-			LOG_DEBUG("Interface signal %s found.", sig->name);
+			LOG_DEBUG("Interface signal - '%s' found.", sig->name);
 			return sig;
 		}
 		sig = sig->next;
 	}
 	/* If signal is not found return null pointer. */
-	LOG_WARNING("Interface signal %s not found.", name);
+	LOG_DEBUG("Interface signal - '%s' not found.", name);
 	return NULL;
 }
 /** Add new signal to the interface.
@@ -84,7 +84,7 @@ oocd_interface_signal_t *oocd_interface_signal_find(char *name)
  */
 int oocd_interface_signal_add(char *name, unsigned int mask)
 {
-	LOG_DEBUG("Adding signal \"%s\"", name);
+	LOG_DEBUG("Interface signal - adding '%s'...", name);
 	/* Check if interface already exists */
 	if (!jtag_interface) {
 		LOG_ERROR("Interface does not yet exist!");
@@ -93,7 +93,7 @@ int oocd_interface_signal_add(char *name, unsigned int mask)
 
 	/* Check if name is correct string */
 	if (!name || strncmp(name, " ", 1) == 0) {
-		LOG_ERROR("Signal name cannot be empty");
+		LOG_ERROR("Interface signal - name cannot be empty!");
 		return ERROR_FAIL;
 	}
 
@@ -103,32 +103,32 @@ int oocd_interface_signal_add(char *name, unsigned int mask)
 	/* Check signal length (min=1, max=32 characters) */
 	snlen = strnlen(name, 32);
 	if (snlen < OOCD_INTERFACE_SIGNAL_NAME_MINLEN || snlen > OOCD_INTERFACE_SIGNAL_NAME_MAXLEN) {
-		LOG_ERROR("Signal name too short or too long!");
+		LOG_ERROR("Interface signal - name too short or too long!");
 		return ERROR_FAIL;
 	}
 
 	/* Check if signal name already exist and return error if so */
 	if (oocd_interface_signal_find(name)) {
-		LOG_ERROR("Specified signal already exist!");
+		LOG_ERROR("Interface signal - '%s' already exist!", name);
 		return ERROR_FAIL;
 	}
 
 	/* Allocate memory for new signal structure */
 	newsignal = (oocd_interface_signal_t *)calloc(1, sizeof(oocd_interface_signal_t));
 	if (!newsignal) {
-		LOG_ERROR("cannot allocate memory for new signal: %s", name);
+		LOG_ERROR("Interface signal - cannot allocate memory for new signal '%s'!", name);
 		return ERROR_FAIL;
 	}
 	newsignal->name = (char *)calloc(1, snlen + 1);
 	if (!newsignal->name) {
-		LOG_ERROR("cannot allocate memory for signal %s name", name);
+		LOG_ERROR("Interface signal - cannot allocate memory '%s' name!", name);
 		return ERROR_FAIL;
 	}
 
 	/* Initialize structure data and return or break on error */
 	for (;;) {
 		if (!strncpy(newsignal->name, name, snlen)) {
-			LOG_ERROR("cannot copy signal %s name!", name);
+			LOG_ERROR("Interface signal - cannot copy '%s' name!", name);
 			break;
 		}
 
@@ -143,7 +143,7 @@ int oocd_interface_signal_add(char *name, unsigned int mask)
 				lastsignal = lastsignal->next;
 			lastsignal->next = newsignal;
 		}
-		LOG_DEBUG("Signal \"%s\" added.", name);
+		LOG_INFO("Interface signal - '%s' added.", name);
 		return ERROR_OK;
 	}
 
@@ -160,21 +160,21 @@ int oocd_interface_signal_add(char *name, unsigned int mask)
  */
 int oocd_interface_signal_del(char *name)
 {
-	LOG_DEBUG("Deleting signal \"%s\"", name);
+	LOG_DEBUG("Interface signal: deleting signal '%s'...", name);
 	/* Check if interface already exists */
 	if (!jtag_interface) {
-		LOG_ERROR("Interface does not yet exist!");
+		LOG_ERROR("Interface signal - interface does not yet exist!");
 		return ERROR_FAIL;
 	}
 	/* Check if interface any signal exist */
 	if (!jtag_interface->signal) {
-		LOG_ERROR("Signal list is empty!");
+		LOG_ERROR("Interface signal - list is empty!");
 		return ERROR_FAIL;
 	}
 
 	/* Check if signal name is correct */
 	if (!name || strncmp(name, " ", 1) == 0) {
-		LOG_ERROR("Signal name cannot be empty.");
+		LOG_ERROR("Interface signal - name cannot be empty!");
 		return ERROR_FAIL;
 	}
 
@@ -185,7 +185,7 @@ int oocd_interface_signal_del(char *name)
 
 	/* return error if signal is not on the list */
 	if (!delsig) {
-		LOG_ERROR("Signal not found!");
+		LOG_ERROR("Interface signal - '%s' not found!", name);
 		return ERROR_FAIL;
 	}
 
@@ -206,7 +206,7 @@ int oocd_interface_signal_del(char *name)
 	/* now free memory of detached element */
 	free(delsig->name);
 	free(delsig);
-	LOG_DEBUG("Signal \"%s\" removed.", name);
+	LOG_INFO("Interface signal - '%s' deleted.", name);
 	return ERROR_OK;
 }
 
@@ -223,7 +223,7 @@ int oocd_interface_signal_del(char *name)
  */
 COMMAND_HANDLER(handle_oocd_interface_signal_command)
 {
-	LOG_DEBUG("entering function...");
+	LOG_DEBUG("Interface signal - entering tcl handler function...");
 
 	if (!jtag_interface) {
 		command_print(CMD_CTX, "You must initialize interface first!");
