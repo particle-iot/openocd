@@ -74,6 +74,10 @@
 #include "arm_adi_v5.h"
 #include <helper/time_support.h>
 
+//These two below are to be removed when transport is finished...
+extern const struct dap_ops jtag_dap_ops;
+extern struct jtag_interface *jtag_interface;
+
 /* ARM ADI Specification requires at least 10 bits used for TAR autoincrement  */
 
 /*
@@ -1101,7 +1105,7 @@ int ahbap_debugport_init(struct adiv5_dap *dap)
 	 * of link switchover
 	 */
 	if (!dap->ops)
-		dap->ops = &jtag_dp_ops;
+		dap->ops = &jtag_dap_ops;
 
 	/* Default MEM-AP setup.
 	 *

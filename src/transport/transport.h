@@ -50,31 +50,16 @@ typedef struct oocd_transport {
 	 */
 	const char *name;
 
-	/**
-	 * When a transport is selected, this method registers
-	 * its commands and activates the transport (e.g. resets
-	 * the link).
-	 *
-	 * After those commands are registered, they will often
-	 * be used for further configuration of the debug link.
-	 */
-	int (*select)(struct command_context *ctx);
+	/** Internal transport setup routines. */
+	int (*setup)(struct command_context *ctx);
 
-	/**
-	 * server startup uses this method to validate transport
-	 * configuration.  (For example, with JTAG this interrogates
-	 * the scan chain against the list of expected TAPs.)
-	 */
-	int (*init)(struct command_context *ctx);
-
-	/**
-	 * Quit makes resources free and destroys transport.
-	 */
+	/** Internal transport deinitialization routines. */ 
 	int (*quit)(struct command_context *ctx);
 
-	/**
-	 * Transports are stored in a singly linked list.
-	 */
+	/** Transport is configured and ready when this flag is set. */
+	int configured;
+
+	/** Transports are stored in a singly linked list. */
 	struct oocd_transport *next;
 } oocd_transport_t;
 

@@ -84,7 +84,10 @@
 
 /* project specific includes */
 #include <jtag/interface.h>
+#include <target/arm_adi_v5.h>
 #include <transport/transport.h>
+#include <transport/swd.h>
+#include <transport/swd_libswd.h>
 #include <helper/time_support.h>
 #include <interface/interface.h>
 
@@ -4510,6 +4513,7 @@ struct jtag_interface ft2232_interface = {
 	.supported = DEBUG_CAP_TMS_SEQ,
 	.commands = ft2232_command_handlers,
 	.transports = jtag_only,
+	.features = &oocd_transport_jtag_arm_dap_feature,
 
 	.init = ft2232_init,
 	.quit = ft2232_quit,
@@ -4525,6 +4529,7 @@ struct jtag_interface ft2232_interface_swd = {
 	.supported = DEBUG_CAP_TMS_SEQ,
 	.commands = ft2232_command_handlers,
 	.transports = swd_only,
+	.features = &oocd_transport_swd_libswd_arm_dap_feature,
 
 	.init = ft2232_init,
 	.quit = ft2232_quit,

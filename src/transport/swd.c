@@ -77,7 +77,7 @@ int oocd_transport_swd_setup(struct command_context *ctx){
 
 	jtag_interface->transport = &oocd_transport_swd;
 	if (jtag_interface->transport->configured){
-		LOG_WARNING("Transport '%s' already configured, skipping...", jtag_interface->transport->name);
+		LOG_WARNING("Transport - '%s' already configured on '%s' interface, skipping...", jtag_interface->transport->name, jtag_interface->name);
 		return ERROR_OK;
 	}
 
@@ -85,30 +85,35 @@ int oocd_transport_swd_setup(struct command_context *ctx){
 	feature_arm_dap = oocd_feature_find(jtag_interface->features, OOCD_FEATURE_ARM_DAP);
 	if (feature_arm_dap == NULL){
 		// If dedicated feature was not found, try to use generic one.
-		LOG_INFO("Selecting LibSWD as default SWD transport mechanism and interface features...");
+		LOG_INFO("Transport - selecting LibSWD as SWD transport mechanism and interface features...");
 		if (!jtag_interface->features){
 			jtag_interface->features = (oocd_feature_t*)calloc(1,sizeof(oocd_feature_t));
 			if (!jtag_interface->features) {
-				LOG_ERROR("Feature allocation memory failed!");
+				LOG_ERROR("Transport - feature allocation memory failed!");
 				return ERROR_FAIL;
 			}
 		}
-		oocd_feature_add(jtag_interface->features, &oocd_transport_swd_libswd_feature);
+		oocd_feature_add(jtag_interface->features, &oocd_transport_swd_libswd_arm_dap_feature);
 		feature_arm_dap = oocd_feature_find(jtag_interface->features, OOCD_FEATURE_ARM_DAP);
 		if (!feature_arm_dap){
-			LOG_WARNING("Transport features '%s' failed to attach to interface '%s'!", \
-				oocd_transport_swd_libswd_feature.name, jtag_interface->name);
-			LOG_ERROR("Interface '%s' does not provide/accept features required by transport '%s'!", \
+			LOG_WARNING("Transport - features '%s' failed to attach to interface '%s'!", \
+				oocd_transport_swd_libswd_arm_dap_feature.name, jtag_interface->name);
+			LOG_ERROR("Transport - interface '%s' does not provide/accept features required by transport '%s'!", \
 			jtag_interface->name, jtag_interface->transport->name);
 			return ERROR_FAIL;
 		}
-	} else LOG_INFO("Interface '%s' defines its own '%s' features.", jtag_interface->name, feature_arm_dap->name);
+	} else LOG_INFO("Transport - interface '%s' defines its own '%s' features.", jtag_interface->name, feature_arm_dap->name);
+	LOG_INFO("Transport - using '%s' features of the '%s' interface...", feature_arm_dap->name, jtag_interface->name);
 
 	struct dap_ops *dap = (struct dap_ops*)feature_arm_dap->body;
 	retval = dap->select(ctx);
+	if (retval != ERROR_OK){
+		LOG_ERROR("Transport - selecting '%s' transport on '%s' interface failed!", jtag_interface->transport->name, jtag_interface->name);
+		return ERROR_FAIL;
+	}
 	
 	if (oocd_transport_swd_register_commands(ctx) != ERROR_OK){
-		LOG_ERROR("Unable to select SWD transport!");
+		LOG_ERROR("Transport - unable to select SWD transport!");
 		return retval;
 	}
 	jtag_interface->transport->configured = 1;
@@ -146,7 +151,7 @@ const struct dap_ops oocd_target_arm_dap_ops_swd_default = {
 
 /**
  * Interface features template to add SWD support for your interface.
- * Attach to driver feature list by driver setup routine. 
+ * Attach to driver feature list by driver setup or interface definition. 
  */
 oocd_feature_t oocd_transport_swd_template_feature = {
 	.name        = OOCD_FEATURE_ARM_DAP,

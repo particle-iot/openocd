@@ -44,7 +44,7 @@
 #define OOCD_TRANSPORT_SWD_LIBSWD_H
 
 extern const struct dap_ops oocd_dap_ops_swd_libswd;
-extern oocd_feature_t oocd_transport_swd_libswd_feature;
+extern oocd_feature_t oocd_transport_swd_libswd_arm_dap_feature;
 
 int oocd_transport_swd_libswd_register_commands(struct command_context *cmd_ctx);
 

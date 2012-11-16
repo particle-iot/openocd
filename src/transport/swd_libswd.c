@@ -244,7 +244,7 @@ const struct dap_ops oocd_dap_ops_swd_libswd = {
 /**
  * Interface features adds SWD support using LibSWD as middleware. 
  */
-oocd_feature_t oocd_transport_swd_libswd_feature = {
+oocd_feature_t oocd_transport_swd_libswd_arm_dap_feature = {
 	.name        = OOCD_FEATURE_ARM_DAP,
 	.description = "ARM DAP SWD transport features based on LibSWD.",
 	.body        = (void*) &oocd_dap_ops_swd_libswd,
