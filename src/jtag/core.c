@@ -36,6 +36,7 @@
 #include "swd.h"
 #include "interface.h"
 #include <transport/transport.h>
+#include <target/arm_adi_v5.h>
 
 #ifdef HAVE_STRINGS_H
 #include <strings.h>
@@ -1771,7 +1772,76 @@ unsigned jtag_get_ntrst_assert_width(void)
 	return jtag_ntrst_assert_width;
 }
 
-static int jtag_select(struct command_context *ctx)
+/**
+ * This is a JTAG Transport setup routine.
+ * It should find interface-specific features and select them.
+ * Note that unlike in SWD that works only with ARM, JTAG can work
+ * with other targets, so we need to prepare all of them here.
+ */
+int jtag_setup(struct command_context *ctx)
+{
+	int retval;
+	retval = jtag_setup_arm(ctx);
+	if (retval != ERROR_OK) {
+		LOG_ERROR("Transport - JTAG for ARM setup failed!");
+		return retval;
+	}
+	return ERROR_OK;
+}
+
+int jtag_setup_arm(struct command_context *ctx)
+{
+	int retval;
+	struct feature *feature_arm_dap;
+
+	jtag_interface->transport = &jtag_transport;
+	if (jtag_interface->transport->configured) {
+		LOG_WARNING("Transport - '%s' already configured on '%s' interface, skipping...", \
+			 jtag_interface->transport->name, jtag_interface->name);
+		return ERROR_OK;
+	}
+
+	/* Some interfaces will have arm dap swd feature already defined, seatch for it... */
+	feature_arm_dap = feature_find(jtag_interface->features, FEATURE_ARM_DAP);
+	if (feature_arm_dap == NULL) {
+		/* If dedicated feature was not found, try to use generic one. */
+		LOG_INFO("Transport - selecting generic JTAG transport mechanism and interface features...");
+		if (!jtag_interface->features) {
+			jtag_interface->features = (struct feature *) calloc(1, sizeof(struct feature));
+			if (!jtag_interface->features) {
+				LOG_ERROR("Transport - feature allocation memory failed!");
+				return ERROR_FAIL;
+			}
+		}
+		feature_add(jtag_interface->features, &transport_jtag_arm_dap_feature);
+		feature_arm_dap = feature_find(jtag_interface->features, FEATURE_ARM_DAP);
+		if (!feature_arm_dap) {
+			LOG_WARNING("Transport - features '%s' failed to attach to interface '%s'!", \
+				transport_jtag_arm_dap_feature.name, jtag_interface->name);
+			LOG_ERROR("Transport - interface '%s' does not provide/accept features required by transport '%s'!", \
+			jtag_interface->name, jtag_interface->transport->name);
+			return ERROR_FAIL;
+		}
+	} else
+		LOG_INFO("Transport - interface '%s' defines its own '%s' features.", \
+			jtag_interface->name, feature_arm_dap->name);
+	LOG_INFO("Transport - using '%s' features of the '%s' interface...", \
+		feature_arm_dap->name, jtag_interface->name);
+
+	struct dap_ops *dap = (struct dap_ops *)feature_arm_dap->body;
+	retval = dap->select(ctx);
+	if (retval != ERROR_OK) {
+		LOG_ERROR("Transport - selecting '%s' transport on '%s' interface failed!", \
+			jtag_interface->transport->name, jtag_interface->name);
+		return ERROR_FAIL;
+	}
+
+	jtag_interface->transport->configured = 1;
+	return ERROR_OK;
+}
+
+
+int jtag_select(struct command_context *ctx)
 {
 	int retval;
 
@@ -1794,8 +1864,9 @@ static int jtag_select(struct command_context *ctx)
 
 struct transport jtag_transport = {
 	.name = "jtag",
-	.select = jtag_select,
-	.init = jtag_init,
+	.setup = jtag_setup,
+	.quit = NULL,
+	.next = NULL
 };
 
 /** Returns true if the current debug session

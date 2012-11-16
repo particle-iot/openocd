@@ -143,7 +143,31 @@ static int hl_transport_register_commands(struct command_context *cmd_ctx)
 				 stlink_transport_command_handlers);
 }
 
-static int hl_transport_init(struct command_context *cmd_ctx)
+static int hl_transport_select(struct command_context *cmd_ctx)
+{
+	LOG_DEBUG("hl_transport_select");
+
+	int retval;
+
+	/* NOTE:  interface init must already have been done.
+	 * That works with only C code ... no Tcl glue required.
+	 */
+
+	retval = hl_transport_register_commands(cmd_ctx);
+
+	if (retval != ERROR_OK)
+		return retval;
+
+	return ERROR_OK;
+}
+
+/*** TODO: TCedro changed this function because Transport has changed.
+ * There is not distinction between init/select anymore.
+ * Transport just needs to be setup().
+ * _init() was renamed to _setup() and calls old _select() at the end.
+ * Please if that does not break STLINK.
+ */
+static int hl_transport_setup(struct command_context *cmd_ctx)
 {
 	LOG_DEBUG("hl_transport_init");
 	struct target *t = get_current_target(cmd_ctx);
@@ -179,43 +203,26 @@ static int hl_transport_init(struct command_context *cmd_ctx)
 	if (retval != ERROR_OK)
 		return retval;
 
-	return hl_interface_init_target(t);
-}
-
-static int hl_transport_select(struct command_context *ctx)
-{
-	LOG_DEBUG("hl_transport_select");
-
-	int retval;
-
-	/* NOTE:  interface init must already have been done.
-	 * That works with only C code ... no Tcl glue required.
-	 */
-
-	retval = hl_transport_register_commands(ctx);
-
+	retval = hl_interface_init_target(t);
 	if (retval != ERROR_OK)
 		return retval;
 
-	return ERROR_OK;
+	return hl_transport_select(cmd_ctx);
 }
 
 struct transport hl_swd_transport = {
 	.name = "hla_swd",
-	.select = hl_transport_select,
-	.init = hl_transport_init,
+	.setup = hl_transport_setup,
 };
 
 struct transport hl_jtag_transport = {
 	.name = "hla_jtag",
-	.select = hl_transport_select,
-	.init = hl_transport_init,
+	.setup = hl_transport_setup,
 };
 
 struct transport stlink_swim_transport = {
 	.name = "stlink_swim",
-	.select = hl_transport_select,
-	.init = hl_transport_init,
+	.setup = hl_transport_setup,
 };
 
 const char *hl_transports[] = { "hla_swd", "hla_jtag", "stlink_swim", NULL };

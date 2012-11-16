@@ -313,7 +313,10 @@ void jtag_set_flush_queue_sleep(int ms);
  * Initialize JTAG chain using only a RESET reset. If init fails,
  * try reset + init.
  */
-int jtag_init(struct command_context *cmd_ctx);
+extern int jtag_init(struct command_context *cmd_ctx);
+extern int jtag_select(struct command_context *ctx);
+extern int jtag_setup(struct command_context *ctx);
+extern int jtag_setup_arm(struct command_context *ctx);
 
 /** reset, then initialize JTAG chain */
 int jtag_init_reset(struct command_context *cmd_ctx);
