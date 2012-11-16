@@ -125,6 +125,8 @@ struct stm32x_flash_bank {
 
 static int stm32x_mass_erase(struct flash_bank *bank);
 static int stm32x_get_device_id(struct flash_bank *bank, uint32_t *device_id);
+static int stm32x_write_block(struct flash_bank *bank, uint8_t *buffer,
+		uint32_t offset, uint32_t count);
 
 /* flash bank stm32x <base> <size> 0 0 <target#>
  */
@@ -252,14 +254,6 @@ static int stm32x_erase_options(struct flash_bank *bank)
 
 	stm32x_info = bank->driver_priv;
 
-	/* stlink is currently does not support 16bit
-	 * read/writes. so we cannot write option bytes */
-	struct armv7m_common *armv7m = target_to_armv7m(target);
-	if (armv7m && armv7m->stlink) {
-		LOG_ERROR("Option bytes currently unsupported for stlink");
-		return ERROR_FAIL;
-	}
-
 	/* read current options */
 	stm32x_read_options(bank);
 
@@ -327,57 +321,19 @@ static int stm32x_write_options(struct flash_bank *bank)
 	if (retval != ERROR_OK)
 		return retval;
 
-	/* write user option byte */
-	retval = target_write_u16(target, STM32_OB_USER, stm32x_info->option_bytes.user_options);
-	if (retval != ERROR_OK)
-		return retval;
+	uint16_t opt_bytes[] = {
+		stm32x_info->option_bytes.RDP,
+		stm32x_info->option_bytes.user_options,
+		0x00FF, 0x00FF,
+		stm32x_info->option_bytes.protection[0],
+		stm32x_info->option_bytes.protection[1],
+		stm32x_info->option_bytes.protection[2],
+		stm32x_info->option_bytes.protection[3]
+	};
 
-	retval = stm32x_wait_status_busy(bank, FLASH_WRITE_TIMEOUT);
-	if (retval != ERROR_OK)
-		return retval;
-
-	/* write protection byte 1 */
-	retval = target_write_u16(target, STM32_OB_WRP0, stm32x_info->option_bytes.protection[0]);
-	if (retval != ERROR_OK)
-		return retval;
-
-	retval = stm32x_wait_status_busy(bank, FLASH_WRITE_TIMEOUT);
-	if (retval != ERROR_OK)
-		return retval;
-
-	/* write protection byte 2 */
-	retval = target_write_u16(target, STM32_OB_WRP1, stm32x_info->option_bytes.protection[1]);
-	if (retval != ERROR_OK)
-		return retval;
-
-	retval = stm32x_wait_status_busy(bank, FLASH_WRITE_TIMEOUT);
-	if (retval != ERROR_OK)
-		return retval;
-
-	/* write protection byte 3 */
-	retval = target_write_u16(target, STM32_OB_WRP2, stm32x_info->option_bytes.protection[2]);
-	if (retval != ERROR_OK)
-		return retval;
-
-	retval = stm32x_wait_status_busy(bank, FLASH_WRITE_TIMEOUT);
-	if (retval != ERROR_OK)
-		return retval;
-
-	/* write protection byte 4 */
-	retval = target_write_u16(target, STM32_OB_WRP3, stm32x_info->option_bytes.protection[3]);
-	if (retval != ERROR_OK)
-		return retval;
-
-	retval = stm32x_wait_status_busy(bank, FLASH_WRITE_TIMEOUT);
-	if (retval != ERROR_OK)
-		return retval;
-
-	/* write readout protection bit */
-	retval = target_write_u16(target, STM32_OB_RDP, stm32x_info->option_bytes.RDP);
-	if (retval != ERROR_OK)
-		return retval;
-
-	retval = stm32x_wait_status_busy(bank, FLASH_WRITE_TIMEOUT);
+	uint32_t num_bytes = sizeof(opt_bytes) / 2;
+	uint32_t offset = STM32_OB_RDP - bank->base;
+	retval = stm32x_write_block(bank, (uint8_t *)opt_bytes, offset, num_bytes);
 	if (retval != ERROR_OK)
 		return retval;
 
