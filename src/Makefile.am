@@ -27,6 +27,12 @@ else
 openocd_LDADD += -ljim
 endif
 
+if INTERNAL_LIBSWD
+openocd_LDADD += $(top_builddir)/submodules/libswd/src/.libs/libswd.a
+else
+openocd_LDADD += -lswd
+endif
+
 if ULINK
 openocd_LDADD += -lm
 endif
