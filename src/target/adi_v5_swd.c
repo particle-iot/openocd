@@ -2,6 +2,9 @@
  *
  *   Copyright (C) 2010 by David Brownell
  *
+ *   Copyright (C) 2011-2012 Tomasz Boleslaw CEDRO
+ *   cederom@tlen.pl, http://www.tomek.cedro.info
+ *
  *   This program is free software; you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
  *   the Free Software Foundation; either version 2 of the License, or
@@ -113,78 +116,6 @@ static int swd_run(struct adiv5_dap *dap)
 	return ERROR_OK;
 }
 
-const struct dap_ops swd_dap_ops = {
-	.is_swd = true,
-
-	.queue_idcode_read = swd_queue_idcode_read,
-	.queue_dp_read = swd_queue_dp_read,
-	.queue_dp_write = swd_queue_dp_write,
-	.queue_ap_read = swd_queue_ap_read,
-	.queue_ap_write = swd_queue_ap_write,
-	.queue_ap_abort = swd_queue_ap_abort,
-	.run = swd_run,
-};
-
-/*
- * This represents the bits which must be sent out on TMS/SWDIO to
- * switch a DAP implemented using an SWJ-DP module into SWD mode.
- * These bits are stored (and transmitted) LSB-first.
- *
- * See the DAP-Lite specification, section 2.2.5 for information
- * about making the debug link select SWD or JTAG.  (Similar info
- * is in a few other ARM documents.)
- */
-static const uint8_t jtag2swd_bitseq[] = {
-	/* More than 50 TCK/SWCLK cycles with TMS/SWDIO high,
-	 * putting both JTAG and SWD logic into reset state.
-	 */
-	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-	/* Switching sequence enables SWD and disables JTAG
-	 * NOTE: bits in the DP's IDCODE may expose the need for
-	 * an old/obsolete/deprecated sequence (0xb6 0xed).
-	 */
-	0x9e, 0xe7,
-	/* More than 50 TCK/SWCLK cycles with TMS/SWDIO high,
-	 * putting both JTAG and SWD logic into reset state.
-	 */
-	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-};
-
-/**
- * Put the debug link into SWD mode, if the target supports it.
- * The link's initial mode may be either JTAG (for example,
- * with SWJ-DP after reset) or SWD.
- *
- * @param target Enters SWD mode (if possible).
- *
- * Note that targets using the JTAG-DP do not support SWD, and that
- * some targets which could otherwise support it may have have been
- * configured to disable SWD signaling
- *
- * @return ERROR_OK or else a fault code.
- */
-int dap_to_swd(struct target *target)
-{
-	struct arm *arm = target_to_arm(target);
-	int retval;
-
-	LOG_DEBUG("Enter SWD mode");
-
-	/* REVISIT it's ugly to need to make calls to a "jtag"
-	 * subsystem if the link may not be in JTAG mode...
-	 */
-
-	retval =  jtag_add_tms_seq(8 * sizeof(jtag2swd_bitseq),
-			jtag2swd_bitseq, TAP_INVALID);
-	if (retval == ERROR_OK)
-		retval = jtag_execute_queue();
-
-	/* set up the DAP's ops vector for SWD mode. */
-	arm->dap->ops = &swd_dap_ops;
-
-	return retval;
-}
-
 
 
 COMMAND_HANDLER(handle_swd_wcr)
@@ -270,7 +201,7 @@ static const struct command_registration swd_commands[] = {
 
 static const struct command_registration swd_handlers[] = {
 	{
-		.name = "swd",
+		.name = "oldswd",
 		.mode = COMMAND_ANY,
 		.help = "SWD command group",
 		.chain = swd_commands,
@@ -308,6 +239,11 @@ static int swd_select(struct command_context *ctx)
 	return retval;
 }
 
+static int swd_setup(struct command_context *ctx)
+{
+	return swd_select(ctx);
+}
+
 static int swd_init(struct command_context *ctx)
 {
 	struct target *target = get_current_target(ctx);
@@ -337,10 +273,85 @@ static int swd_init(struct command_context *ctx)
 }
 
 oocd_transport_t swd_transport = {
-	.name = "oldswd",
-	.select = swd_select,
-	.init = swd_init,
+	.name  = "oldswd",
+	.setup = swd_setup,
+	.quit  = NULL,
+	.next  = NULL
 };
+
+const struct dap_ops swd_dap_ops = {
+	.is_swd            = true,
+	.select            = swd_select,
+	.init              = swd_init,
+	.queue_idcode_read = swd_queue_idcode_read,
+	.queue_dp_read     = swd_queue_dp_read,
+	.queue_dp_write    = swd_queue_dp_write,
+	.queue_ap_read     = swd_queue_ap_read,
+	.queue_ap_write    = swd_queue_ap_write,
+	.queue_ap_abort    = swd_queue_ap_abort,
+	.run               = swd_run,
+};
+
+/*
+ * This represents the bits which must be sent out on TMS/SWDIO to
+ * switch a DAP implemented using an SWJ-DP module into SWD mode.
+ * These bits are stored (and transmitted) LSB-first.
+ *
+ * See the DAP-Lite specification, section 2.2.5 for information
+ * about making the debug link select SWD or JTAG.  (Similar info
+ * is in a few other ARM documents.)
+ */
+static const uint8_t jtag2swd_bitseq[] = {
+	/* More than 50 TCK/SWCLK cycles with TMS/SWDIO high,
+	 * putting both JTAG and SWD logic into reset state.
+	 */
+	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+	/* Switching sequence enables SWD and disables JTAG
+	 * NOTE: bits in the DP's IDCODE may expose the need for
+	 * an old/obsolete/deprecated sequence (0xb6 0xed).
+	 */
+	0x9e, 0xe7,
+	/* More than 50 TCK/SWCLK cycles with TMS/SWDIO high,
+	 * putting both JTAG and SWD logic into reset state.
+	 */
+	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+};
+
+/**
+ * Put the debug link into SWD mode, if the target supports it.
+ * The link's initial mode may be either JTAG (for example,
+ * with SWJ-DP after reset) or SWD.
+ *
+ * @param target Enters SWD mode (if possible).
+ *
+ * Note that targets using the JTAG-DP do not support SWD, and that
+ * some targets which could otherwise support it may have have been
+ * configured to disable SWD signaling
+ *
+ * @return ERROR_OK or else a fault code.
+ */
+int dap_to_swd(struct target *target)
+{
+	struct arm *arm = target_to_arm(target);
+	int retval;
+
+	LOG_DEBUG("Enter SWD mode");
+
+	/* REVISIT it's ugly to need to make calls to a "jtag"
+	 * subsystem if the link may not be in JTAG mode...
+	 */
+
+	retval =  jtag_add_tms_seq(8 * sizeof(jtag2swd_bitseq),
+			jtag2swd_bitseq, TAP_INVALID);
+	if (retval == ERROR_OK)
+		retval = jtag_execute_queue();
+
+	/* set up the DAP's ops vector for SWD mode. */
+	arm->dap->ops = &swd_dap_ops;
+
+	return retval;
+}
+
 
 /* TC: Transport registration moved to function from constructors...
 static void swd_constructor(void) __attribute__((constructor));
