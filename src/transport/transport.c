@@ -47,6 +47,8 @@
 
 #include <interface/interface.h>
 #include <transport/transport.h>
+#include <transport/swd.h>
+#include <transport/swd_libswd.h>
 #include <target/arm.h>
 #include <target/arm_adi_v5.h>
 #include <helper/log.h>
@@ -55,6 +57,8 @@
 extern struct command_context *global_cmd_ctx;
 
 /*-----------------------------------------------------------------------*/
+
+extern struct jtag_interface *jtag_interface;
 
 /*
  * Infrastructure internals
@@ -84,29 +88,29 @@ int oocd_transport_register_all(void){
 		return ERROR_FAIL;
 	if (oocd_transport_register(&swd_transport) != ERROR_OK)
 		return ERROR_FAIL;
+	if (oocd_transport_register(&oocd_transport_swd) != ERROR_OK)
+		return ERROR_FAIL;
 	return ERROR_OK;
 }
 
+/**
+ * Set and setup transport for current session.
+ * This will find transport by given name, verify its configuration,
+ * then call driver specific select() routine.
+ * Note that select() sets up the internals, init() talks to hardware.
+ */
 int oocd_transport_select(struct command_context *ctx, const char *name)
 {
-	LOG_INFO("TRANSPORT SELECT: %s", name);
-	/* name may only identify a known transport;
-	 * caller guarantees session's transport isn't yet set.*/
 	for (oocd_transport_t *t = oocd_transport_list_all; t; t = t->next) {
 		if (strcmp(t->name, name) == 0) {
-			int retval = t->select(ctx);
-			/* select() registers commands specific to this transport.
-			 * init() will make hardware talk and initialize the target.
-			 */
-			if (retval == ERROR_OK)
-				session = t;
-			else
-				LOG_ERROR("Error selecting '%s' as transport", t->name);
-			return retval;
+			if (t->setup(ctx) == ERROR_FAIL)
+				return ERROR_FAIL;
+			session = t;
+			return ERROR_OK;
 		}
 	}
 
-	LOG_ERROR("No transport named '%s' is available.", name);
+	LOG_ERROR("Transport '%s' is not available!", name);
 	return ERROR_FAIL;
 }
 
@@ -179,7 +183,7 @@ int oocd_transport_register(oocd_transport_t *new_transport)
 		}
 	}
 
-	if (!new_transport->select || !new_transport->init)
+	if (!new_transport->setup)
 		LOG_ERROR("invalid transport %s", new_transport->name);
 
 	/* splice this into the list */
@@ -271,7 +275,14 @@ COMMAND_HANDLER(handle_oocd_transport_init)
 		return ERROR_FAIL;
 	}
 
-	return session->init(CMD_CTX);
+	oocd_feature_t *arm_dap_ops;
+	arm_dap_ops = oocd_feature_find(jtag_interface->features, OOCD_FEATURE_ARM_DAP);
+	if (arm_dap_ops == NULL) {
+		LOG_ERROR("Transport features '%s' not found!", OOCD_FEATURE_ARM_DAP);
+		return ERROR_FAIL;
+	}
+	struct dap_ops *dap = (struct dap_ops *) arm_dap_ops->body;
+	return dap->init(CMD_CTX);
 }
 
 COMMAND_HANDLER(handle_oocd_transport_list)
