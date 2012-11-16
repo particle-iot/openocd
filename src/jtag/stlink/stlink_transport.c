@@ -140,7 +140,31 @@ static int stlink_transport_register_commands(struct command_context *cmd_ctx)
 				 stlink_transport_command_handlers);
 }
 
-static int stlink_transport_init(struct command_context *cmd_ctx)
+static int stlink_transport_select(struct command_context *ctx)
+{
+	LOG_DEBUG("stlink_transport_select");
+
+	int retval;
+
+	/* NOTE:  interface init must already have been done.
+	 * That works with only C code ... no Tcl glue required.
+	 */
+
+	retval = stlink_transport_register_commands(ctx);
+
+	if (retval != ERROR_OK)
+		return retval;
+
+	return ERROR_OK;
+}
+
+/*** TODO: TCedro changed this function because Transport has changed.
+ * There is not distinction between init/select anymore.
+ * Transport just needs to be setup().
+ * _init() was renamed to _setup() and calls old _select() at the end.
+ * Please if that does not break STLINK.
+ */
+static int stlink_transport_setup(struct command_context *cmd_ctx)
 {
 	LOG_DEBUG("stlink_transport_init");
 	struct target *t = get_current_target(cmd_ctx);
@@ -176,43 +200,26 @@ static int stlink_transport_init(struct command_context *cmd_ctx)
 	if (retval != ERROR_OK)
 		return retval;
 
-	return stlink_interface_init_target(t);
-}
-
-static int stlink_transport_select(struct command_context *ctx)
-{
-	LOG_DEBUG("stlink_transport_select");
-
-	int retval;
-
-	/* NOTE:  interface init must already have been done.
-	 * That works with only C code ... no Tcl glue required.
-	 */
-
-	retval = stlink_transport_register_commands(ctx);
-
+	retval = stlink_interface_init_target(t);
 	if (retval != ERROR_OK)
 		return retval;
 
-	return ERROR_OK;
+	return stlink_transport_select(cmd_ctx);
 }
 
 static oocd_transport_t stlink_swd_transport = {
 	.name = "stlink_swd",
-	.select = stlink_transport_select,
-	.init = stlink_transport_init,
+	.setup = stlink_transport_setup,
 };
 
 static oocd_transport_t stlink_jtag_transport = {
 	.name = "stlink_jtag",
-	.select = stlink_transport_select,
-	.init = stlink_transport_init,
+	.setup = stlink_transport_setup,
 };
 
 static oocd_transport_t stlink_swim_transport = {
 	.name = "stlink_swim",
-	.select = stlink_transport_select,
-	.init = stlink_transport_init,
+	.setup = stlink_transport_setup,
 };
 
 const char *stlink_transports[] = { "stlink_swd", "stlink_jtag", "stlink_swim", NULL };
