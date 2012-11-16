@@ -39,6 +39,7 @@
 #include "arm.h"
 #include "arm_adi_v5.h"
 #include <helper/time_support.h>
+#include <interface/feature.h>
 
 /* JTAG instructions/registers for JTAG-DP and SWJ-DP */
 #define JTAG_DP_ABORT		0x8
@@ -432,16 +433,28 @@ static int jtag_dp_run(struct adiv5_dap *dap)
 /* FIXME don't export ... just initialize as
  * part of DAP setup
 */
-const struct dap_ops jtag_dp_ops = {
-	.queue_idcode_read =	jtag_idcode_q_read,
-	.queue_dp_read =	jtag_dp_q_read,
-	.queue_dp_write =	jtag_dp_q_write,
-	.queue_ap_read =	jtag_ap_q_read,
-	.queue_ap_write =	jtag_ap_q_write,
-	.queue_ap_abort =	jtag_ap_q_abort,
-	.run =			jtag_dp_run,
+const struct dap_ops jtag_dap_ops = {
+	.select            = jtag_select,
+	.init              = jtag_init,
+	.queue_idcode_read = jtag_idcode_q_read,
+	.queue_dp_read     = jtag_dp_q_read,
+	.queue_dp_write    = jtag_dp_q_write,
+	.queue_ap_read     = jtag_ap_q_read,
+	.queue_ap_write    = jtag_ap_q_write,
+	.queue_ap_abort    = jtag_ap_q_abort,
+	.run               = jtag_dp_run,
 };
 
+/**
+ * Interface features that adds JTAG support for an interface.
+ * Attach to driver feature list by driver setup or interface definition.
+ */
+struct feature transport_jtag_arm_dap_feature = {
+	.name        = FEATURE_ARM_DAP,
+	.description = "JTAG transport feature to work with ARM DAP.",
+	.body        = (void *) &jtag_dap_ops,
+	.next        = NULL
+};
 
 static const uint8_t swd2jtag_bitseq[] = {
 	/* More than 50 TCK/SWCLK cycles with TMS/SWDIO high,

@@ -35,6 +35,7 @@
  */
 
 #include "arm_jtag.h"
+#include <interface/feature.h>
 
 /* FIXME remove these JTAG-specific decls when mem_ap_read_buf_u32()
  * is no longer JTAG-specific
@@ -205,6 +206,12 @@ struct dap_ops {
 	 */
 	bool	is_swd;
 
+	/** Transport dependent selection routine, setup mainly. */
+	int (*select)(struct command_context *ctx);
+
+	/** Transport dependent DAP initialization and detection routine. */
+	int (*init)(struct command_context *ctx);
+
 	/** Reads the DAP's IDCODe register. */
 	int (*queue_idcode_read)(struct adiv5_dap *dap,
 			uint8_t *ack, uint32_t *data);
@@ -229,6 +236,8 @@ struct dap_ops {
 	/** Executes all queued DAP operations. */
 	int (*run)(struct adiv5_dap *dap);
 };
+
+extern struct feature transport_jtag_arm_dap_feature;
 
 /**
  * Queue an IDCODE register read.  This is primarily useful for SWD
@@ -431,7 +440,7 @@ struct target;
 
 /* Put debug link into SWD mode */
 int dap_to_swd(struct target *target);
-extern struct transport swd_transport;
+extern struct transport swd_transport_old;
 
 /* Put debug link into JTAG mode */
 int dap_to_jtag(struct target *target);

@@ -91,7 +91,7 @@ int transport_swd_setup(struct command_context *ctx)
 		if (!jtag_interface->features) {
 			jtag_interface->features = (struct feature *)calloc(1, sizeof(struct feature));
 			if (!jtag_interface->features) {
-				LOG_ERROR("Feature allocation memory failed!");
+				LOG_ERROR("Transport - feature allocation memory failed!");
 				return ERROR_FAIL;
 			}
 		}
@@ -151,7 +151,7 @@ const struct dap_ops target_arm_dap_ops_swd_default = {
 
 /**
  * Interface features template to add SWD support for your interface.
- * Attach to driver feature list by driver setup routine.
+ * Attach to driver feature list by driver setup or interface definition.
  */
 
 struct feature transport_swd_template_feature = {
@@ -312,5 +312,6 @@ int transport_swd_init(struct command_context *ctx)
 
 bool transport_is_swd(void)
 {
-	return get_current_transport() == &swd_transport;
+	return (get_current_transport() == &swd_transport) ||
+			(get_current_transport() == &swd_transport_old);
 }

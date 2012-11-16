@@ -357,6 +357,10 @@ struct jtag_interface {
 	 */
 	struct target *target;
 
+	/**
+	 * Dynamic list of features allows adding features at runtime.
+	 */
+	struct feature *features;
 };
 
 extern const char *jtag_only[];
