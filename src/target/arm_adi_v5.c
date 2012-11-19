@@ -272,6 +272,7 @@ int mem_ap_write_buf_u32(struct adiv5_dap *dap, const uint8_t *buffer, int count
 	int wcount, blocksize, writecount, errorcount = 0, retval = ERROR_OK;
 	uint32_t adr = address;
 	const uint8_t *pBuffer = buffer;
+	uint32_t tmp;
 
 	count >>= 2;
 	wcount = count;
@@ -307,8 +308,8 @@ int mem_ap_write_buf_u32(struct adiv5_dap *dap, const uint8_t *buffer, int count
 			return retval;
 
 		for (writecount = 0; writecount < blocksize; writecount++) {
-			retval = dap_queue_ap_write(dap, AP_REG_DRW,
-				*(uint32_t *) ((void *) (buffer + 4 * writecount)));
+			tmp = buf_get_u32(buffer + 4 * writecount, 0, 32);
+			retval = dap_queue_ap_write(dap, AP_REG_DRW, tmp);
 			if (retval != ERROR_OK)
 				break;
 		}
