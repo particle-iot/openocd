@@ -109,7 +109,7 @@ int oocd_transport_select(struct command_context *ctx, const char *name)
 		}
 	}
 
-	LOG_ERROR("Transport '%s' is not available!", name);
+	LOG_ERROR("Transport - '%s' is not available!", name);
 	return ERROR_FAIL;
 }
 
@@ -131,7 +131,7 @@ int oocd_transport_allow(struct command_context *ctx, const char **vector)
 	 * can be used when all goes well.
 	 */
 	if (oocd_transport_list_allowed != NULL || session) {
-		LOG_ERROR("Can't modify the set of allowed transports.");
+		LOG_ERROR("Transport - can't modify the set of allowed transports.");
 		return ERROR_FAIL;
 	}
 
@@ -139,7 +139,7 @@ int oocd_transport_allow(struct command_context *ctx, const char **vector)
 
 	/* autoselect if there's no choice ... */
 	if (!vector[1]) {
-		LOG_INFO("only one transport option; autoselect '%s'", vector[0]);
+		LOG_INFO("Transport - autoselecting '%s' as the only option for '%s' interface.", vector[0], jtag_interface->name);
 		return oocd_transport_select(ctx, vector[0]);
 	}
 
@@ -177,18 +177,18 @@ int oocd_transport_register(oocd_transport_t *new_transport)
 
 	for (t = oocd_transport_list_all; t; t = t->next) {
 		if (strcmp(t->name, new_transport->name) == 0) {
-			LOG_ERROR("transport name already used");
+			LOG_ERROR("Transport - '%s' name already used!", new_transport->name);
 			return ERROR_FAIL;
 		}
 	}
 
 	if (!new_transport->setup)
-		LOG_ERROR("invalid transport %s", new_transport->name);
+		LOG_ERROR("Transport - '%s' has not setup procedure!", new_transport->name);
 
 	/* splice this into the list */
 	new_transport->next = oocd_transport_list_all;
 	oocd_transport_list_all = new_transport;
-	LOG_DEBUG("Transport registered: %s", new_transport->name);
+	LOG_DEBUG("Transport - registered '%s'.", new_transport->name);
 
 	return ERROR_OK;
 }
@@ -244,7 +244,7 @@ COMMAND_HELPER(oocd_transport_list_parse, char ***vector)
 			break;
 		}
 		if (!t) {
-			LOG_ERROR("no such transport '%s'", CMD_ARGV[i]);
+			LOG_ERROR("Transport - not found '%s'!", CMD_ARGV[i]);
 			goto fail;
 		}
 	}
@@ -263,12 +263,12 @@ COMMAND_HANDLER(handle_oocd_transport_init)
 {
 	LOG_DEBUG("%s", __func__);
 	if (!session) {
-		LOG_ERROR("session's transport is not selected.");
+		LOG_ERROR("Transport - session's transport is not selected!");
 
 		/* no session transport configured, print transports then fail */
 		const char **vector = oocd_transport_list_allowed;
 		while (*vector) {
-			LOG_ERROR("allow transport '%s'", *vector);
+			LOG_ERROR("Transport - '%s' is allowed.", *vector);
 			vector++;
 		}
 		return ERROR_FAIL;
@@ -277,7 +277,7 @@ COMMAND_HANDLER(handle_oocd_transport_init)
 	oocd_feature_t *arm_dap_ops;
 	arm_dap_ops=oocd_feature_find(jtag_interface->features, OOCD_FEATURE_ARM_DAP); 
 	if (arm_dap_ops == NULL){
-		LOG_ERROR("Transport features '%s' not found!", OOCD_FEATURE_ARM_DAP);
+		LOG_ERROR("Transport - features '%s' not found on '%s' interface!", OOCD_FEATURE_ARM_DAP, jtag_interface->name);
 		return ERROR_FAIL;
 	}
 	struct dap_ops *dap = (struct dap_ops*) arm_dap_ops->body;
@@ -308,7 +308,7 @@ int oocd_transport_select_jim(Jim_Interp *interp, int argc, Jim_Obj * const *arg
 	switch (argc) {
 		case 1:		/* return/display */
 			if (!session) {
-				LOG_ERROR("session's transport is not selected.");
+				LOG_ERROR("Transport - session's transport is not selected!");
 				return JIM_ERR;
 			} else {
 				Jim_SetResultString(interp, session->name, -1);
@@ -318,7 +318,7 @@ int oocd_transport_select_jim(Jim_Interp *interp, int argc, Jim_Obj * const *arg
 		case 2:		/* assign */
 			if (session) {
 				/* can't change session's transport after-the-fact */
-				LOG_ERROR("session's transport is already selected.");
+				LOG_ERROR("Transport - session's transport is already selected!");
 				return JIM_ERR;
 			}
 
@@ -329,7 +329,7 @@ int oocd_transport_select_jim(Jim_Interp *interp, int argc, Jim_Obj * const *arg
 			 * transports declared via C.
 			 */
 			if (!oocd_transport_list_allowed) {
-				LOG_ERROR("Debug adapter doesn't support any transports?");
+				LOG_ERROR("Transport - interface does not support any transports!");
 				return JIM_ERR;
 			}
 
@@ -339,7 +339,7 @@ int oocd_transport_select_jim(Jim_Interp *interp, int argc, Jim_Obj * const *arg
 					return oocd_transport_select(global_cmd_ctx, argv[1]->bytes);
 			}
 
-			LOG_ERROR("Debug adapter doesn't support '%s' transport", argv[1]->bytes);
+			LOG_ERROR("Transport - '%s' not supported by '%s' interface!", argv[1]->bytes, jtag_interface->name);
 			return JIM_ERR;
 			break;
 		default:
