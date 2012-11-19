@@ -124,7 +124,7 @@ int transport_select(struct command_context *ctx, const char *name)
 		}
 	}
 
-	LOG_ERROR("Transport '%s' is not available!", name);
+	LOG_ERROR("Transport - '%s' is not available!", name);
 	return ERROR_FAIL;
 }
 
@@ -146,7 +146,7 @@ int allow_transports(struct command_context *ctx, const char **vector)
 	 * can be used when all goes well.
 	 */
 	if (allowed_transports != NULL || session) {
-		LOG_ERROR("Can't modify the set of allowed transports.");
+		LOG_ERROR("Transport - can't modify the set of allowed transports.");
 		return ERROR_FAIL;
 	}
 
@@ -154,7 +154,8 @@ int allow_transports(struct command_context *ctx, const char **vector)
 
 	/* autoselect if there's no choice ... */
 	if (!vector[1]) {
-		LOG_INFO("only one transport option; autoselect '%s'", vector[0]);
+		LOG_INFO("Transport - autoselecting '%s' as the only option for '%s' interface.", \
+			 vector[0], jtag_interface->name);
 		return transport_select(ctx, vector[0]);
 	}
 
@@ -193,18 +194,18 @@ int transport_register(struct transport *new_transport)
 
 	for (t = transport_list; t; t = t->next) {
 		if (strcmp(t->name, new_transport->name) == 0) {
-			LOG_ERROR("transport name already used");
+			LOG_ERROR("Transport - '%s' name already used!", new_transport->name);
 			return ERROR_FAIL;
 		}
 	}
 
 	if (!new_transport->setup)
-		LOG_ERROR("invalid transport %s", new_transport->name);
+		LOG_ERROR("Transport - '%s' has not setup procedure!", new_transport->name);
 
 	/* splice this into the list */
 	new_transport->next = transport_list;
 	transport_list = new_transport;
-	LOG_DEBUG("Transport registered: %s", new_transport->name);
+	LOG_DEBUG("Transport - registered '%s'.", new_transport->name);
 
 	return ERROR_OK;
 }
@@ -260,7 +261,7 @@ COMMAND_HELPER(transport_list_parse, char ***vector)
 			break;
 		}
 		if (!t) {
-			LOG_ERROR("no such transport '%s'", CMD_ARGV[i]);
+			LOG_ERROR("Transport - not found '%s'!", CMD_ARGV[i]);
 			goto fail;
 		}
 	}
@@ -279,12 +280,12 @@ COMMAND_HANDLER(handle_transport_init)
 {
 	LOG_DEBUG("%s", __func__);
 	if (!session) {
-		LOG_ERROR("session's transport is not selected.");
+		LOG_ERROR("Transport - session's transport is not selected!");
 
 		/* no session transport configured, print transports then fail */
 		const char **vector = allowed_transports;
 		while (*vector) {
-			LOG_ERROR("allow transport '%s'", *vector);
+			LOG_ERROR("Transport - '%s' is allowed.", *vector);
 			vector++;
 		}
 		return ERROR_FAIL;
@@ -293,7 +294,8 @@ COMMAND_HANDLER(handle_transport_init)
 	struct feature *arm_dap_ops;
 	arm_dap_ops = feature_find(jtag_interface->features, FEATURE_ARM_DAP);
 	if (arm_dap_ops == NULL) {
-		LOG_ERROR("Transport features '%s' not found!", FEATURE_ARM_DAP);
+		LOG_ERROR("Transport - features '%s' not found on '%s' interface!", \
+			FEATURE_ARM_DAP, jtag_interface->name);
 		return ERROR_FAIL;
 	}
 	struct dap_ops *dap = (struct dap_ops *) arm_dap_ops->body;
@@ -324,7 +326,7 @@ int jim_transport_select(Jim_Interp *interp, int argc, Jim_Obj * const *argv)
 	switch (argc) {
 		case 1:		/* return/display */
 			if (!session) {
-				LOG_ERROR("session's transport is not selected.");
+				LOG_ERROR("Transport - session's transport is not selected!");
 				return JIM_ERR;
 			} else {
 				Jim_SetResultString(interp, session->name, -1);
@@ -334,7 +336,7 @@ int jim_transport_select(Jim_Interp *interp, int argc, Jim_Obj * const *argv)
 		case 2:		/* assign */
 			if (session) {
 				/* can't change session's transport after-the-fact */
-				LOG_ERROR("session's transport is already selected.");
+				LOG_ERROR("Transport - session's transport is already selected!");
 				return JIM_ERR;
 			}
 
@@ -345,7 +347,7 @@ int jim_transport_select(Jim_Interp *interp, int argc, Jim_Obj * const *argv)
 			 * transports declared via C.
 			 */
 			if (!allowed_transports) {
-				LOG_ERROR("Debug adapter doesn't support any transports?");
+				LOG_ERROR("Transport - interface does not support any transports!");
 				return JIM_ERR;
 			}
 
@@ -355,7 +357,7 @@ int jim_transport_select(Jim_Interp *interp, int argc, Jim_Obj * const *argv)
 					return transport_select(global_cmd_ctx, argv[1]->bytes);
 			}
 
-			LOG_ERROR("Debug adapter doesn't support '%s' transport", argv[1]->bytes);
+			LOG_ERROR("Transport - '%s' not supported by '%s' interface!", argv[1]->bytes, jtag_interface->name);
 			return JIM_ERR;
 			break;
 		default:
