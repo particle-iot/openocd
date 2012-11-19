@@ -552,8 +552,9 @@ extern int adi_jtag_dp_scan(struct adiv5_dap *dap,
  * @param count How many words to read.
  * @param address Memory address from which to read words; all the
  *	words must be readable by the currently selected MEM-AP.
+ * @Warning! THIS FUNCTION HAS JTAG CALLS HARDCODED!!!
  */
-int mem_ap_read_buf_u32(struct adiv5_dap *dap, uint8_t *buffer,
+int mem_ap_read_buf_u32_jtag(struct adiv5_dap *dap, uint8_t *buffer,
 		int count, uint32_t address)
 {
 	int wcount, blocksize, readcount, errorcount = 0, retval = ERROR_OK;
@@ -648,6 +649,143 @@ int mem_ap_read_buf_u32(struct adiv5_dap *dap, uint8_t *buffer,
 
 	return retval;
 }
+
+/**
+ * This is a SWD handler, maybe future transport independent implementation
+ * of mem_ap_read_buf_u32() that is responsible to read data from mem-ap.
+ */
+int mem_ap_read_buf_u32_swd(struct adiv5_dap *dap, uint8_t *buffer,
+		int count, uint32_t address)
+{
+	int wcount, blocksize, readcount, errorcount = 0, retval = ERROR_OK;
+	uint32_t adr = address;
+	uint8_t *pBuffer = buffer;
+
+	count >>= 2;
+	wcount = count;
+
+	while (wcount > 0) {
+		/* Adjust to read blocks within boundaries aligned to the
+		 * TAR autoincrement size (at least 2^10).  Autoincrement
+		 * mode avoids an extra per-word roundtrip to update TAR.
+		 */
+		blocksize = max_tar_block_size(dap->tar_autoincr_block,
+				address);
+		if (wcount < blocksize)
+			blocksize = wcount;
+
+		/* handle unaligned data at 4k boundary */
+		if (blocksize == 0)
+			blocksize = 1;
+
+		retval = dap_setup_accessport(dap, CSW_32BIT | CSW_ADDRINC_SINGLE,
+				address);
+		if (retval != ERROR_OK)
+			return retval;
+
+		/* FIXME remove these three calls to adi_jtag_dp_scan(),
+		 * so this routine becomes transport-neutral.  Be careful
+		 * not to cause performance problems with JTAG; would it
+		 * suffice to loop over dap_queue_ap_read(), or would that
+		 * be slower when JTAG is the chosen transport?
+		 */
+
+		/* Stage 1: Scan out first read to initiate memory operation. */
+		/*retval = adi_jtag_dp_scan(dap, JTAG_DP_APACC, AP_REG_DRW,   */
+		/*		DPAP_READ, 0, NULL, NULL);                          */
+		retval = dap_queue_ap_read(dap, AP_REG_DRW, NULL);
+		if (retval != ERROR_OK)
+			/*return retval;*/
+			goto mem_ap_read_buf_u32_swd_handle_errors;
+
+		/* Stage 2: Loop memory reads with TAR autoincrement. */
+		/* TODO: For SWD it might be possible to read data without
+		 * additional request-ack-data phase. Try it out :-) */
+		for (readcount = 0; readcount < blocksize - 1; readcount++) {
+			/* Scan out next read; scan in posted value for the
+			 * previous one.  Assumes read is acked "OK/FAULT",
+			 * and CTRL_STAT says that meant "OK".
+			 */
+			/*
+			 * retval = adi_jtag_dp_scan(dap, JTAG_DP_APACC, AP_REG_DRW,
+			 *		DPAP_READ, 0, buffer + 4 * readcount,
+			 *		&dap->ack);
+			 * TODO: IS THIS POINTER/MEMORY OPERATION VALID??
+			 */
+			retval = dap_queue_ap_read(dap, AP_REG_DRW, (uint32_t *)buffer+readcount);
+			/* TODO: For SWD we will get response after call. */
+			/* We need to react / retry operation in here.    */
+			if (retval != ERROR_OK)
+				/*return retval;*/
+				goto mem_ap_read_buf_u32_swd_handle_errors;
+		}
+
+		/* Stage 3: Scan in last posted value; RDBUFF has no other effect,
+		 * assuming ack is OK/FAULT and CTRL_STAT says "OK".
+		 */
+		/*
+		 * retval = adi_jtag_dp_scan(dap, JTAG_DP_DPACC, DP_RDBUFF,
+		 *		DPAP_READ, 0, buffer + 4 * readcount,
+		 *		&dap->ack);
+		 */
+		retval = dap_queue_ap_read(dap, DP_RDBUFF, (uint32_t *)buffer+readcount);
+		if (retval != ERROR_OK)
+			goto mem_ap_read_buf_u32_swd_handle_errors;
+
+		retval = dap_run(dap);
+
+mem_ap_read_buf_u32_swd_handle_errors:
+		if (retval != ERROR_OK) {
+			errorcount++;
+			if (errorcount <= 1) {
+				/* try again */
+				continue;
+			}
+			LOG_WARNING("Target - ARM DAP MEM-AP block read error address 0x%" PRIx32, address);
+			return retval;
+		}
+		wcount = wcount - blocksize;
+		address += 4 * blocksize;
+		buffer += 4 * blocksize;
+	}
+
+	/* if we have an unaligned access - reorder data */
+	if (adr & 0x3u) {
+		for (readcount = 0; readcount < count; readcount++) {
+			int i;
+			uint32_t data;
+			memcpy(&data, pBuffer, sizeof(uint32_t));
+
+			for (i = 0; i < 4; i++) {
+				*((uint8_t *)pBuffer) =
+						(data >> 8 * (adr & 0x3));
+				pBuffer++;
+				adr++;
+			}
+		}
+	}
+
+	return retval;
+}
+
+
+/**
+ * TEMPORARY WRAPPER WORKAROUND FOR MEM_AP_READ_BUF_U32
+ * UNTIL IT BECOMES TRANSPORT INDEPENDENT (ORIGINAL HAD JTAG CODE HARDCODED).
+ */
+int mem_ap_read_buf_u32(struct adiv5_dap *dap, uint8_t *buffer,
+		int count, uint32_t address)
+{
+	if (strncmp(jtag_interface->transport->name, "swd", 3) == 0) {
+		return mem_ap_read_buf_u32_swd(dap, buffer, count, address);
+	} else if (strncmp(jtag_interface->transport->name, "jtag", 4) == 0) {
+		return mem_ap_read_buf_u32_jtag(dap, buffer, count, address);
+	} else {
+		LOG_ERROR("Target - ARM ADI - unsupported transport selected!");
+		return ERROR_FAIL;
+	}
+}
+
 
 static int mem_ap_read_buf_packed_u16(struct adiv5_dap *dap,
 		uint8_t *buffer, int count, uint32_t address)
