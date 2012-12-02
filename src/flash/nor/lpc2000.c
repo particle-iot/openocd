@@ -58,12 +58,16 @@
  * lpc1700:
  * - 175x
  * - 176x (tested with LPC1768)
+ *
+ * lpc11u:
+ * - 11u14
  */
 
 typedef enum {
 	lpc2000_v1,
 	lpc2000_v2,
-	lpc1700
+	lpc1700,
+	lpc11u,
 } lpc2000_variant;
 
 struct lpc2000_flash_bank {
@@ -243,6 +247,32 @@ static int lpc2000_build_sector_list(struct flash_bank *bank)
 			bank->sectors[i].is_erased = -1;
 			bank->sectors[i].is_protected = 1;
 		}
+	} else if (lpc2000_info->variant == lpc11u) {
+		switch (bank->size) {
+			case 16 * 1024:
+				bank->num_sectors = 4;
+				break;
+			case 24 * 1024:
+				bank->num_sectors = 6;
+				break;
+			case 32 * 1024:
+				bank->num_sectors = 8;
+				break;
+			default:
+				LOG_ERROR("BUG: unknown bank->size encountered");
+				exit(-1);
+		}
+
+		bank->sectors = malloc(sizeof(struct flash_sector) * bank->num_sectors);
+
+		for (int i = 0; i < bank->num_sectors; i++) {
+			bank->sectors[i].offset = offset;
+			/* All sectors are 4kB-sized */
+			bank->sectors[i].size = 4 * 1024;
+			offset += bank->sectors[i].size;
+			bank->sectors[i].is_erased = -1;
+			bank->sectors[i].is_protected = 1;
+		}
 	} else {
 		LOG_ERROR("BUG: unknown lpc2000_info->variant encountered");
 		exit(-1);
@@ -273,6 +303,7 @@ static int lpc2000_iap_working_area_init(struct flash_bank *bank, struct working
 
 	/* write IAP code to working area */
 	switch (lpc2000_info->variant) {
+		case lpc11u:
 		case lpc1700:
 			target_buffer_set_u32(target, jump_gate, ARMV4_5_T_BX(12));
 			target_buffer_set_u32(target, jump_gate + 4, ARMV5_T_BKPT(0));
@@ -307,6 +338,7 @@ static int lpc2000_iap_call(struct flash_bank *bank, struct working_area *iap_wo
 	uint32_t iap_entry_point = 0;	/* to make compiler happier */
 
 	switch (lpc2000_info->variant) {
+		case lpc11u:
 		case lpc1700:
 			armv7m_info.common_magic = ARMV7M_COMMON_MAGIC;
 			armv7m_info.core_mode = ARMV7M_MODE_ANY;
@@ -352,6 +384,7 @@ static int lpc2000_iap_call(struct flash_bank *bank, struct working_area *iap_wo
 	buf_set_u32(reg_params[2].value, 0, 32, iap_entry_point);
 
 	switch (lpc2000_info->variant) {
+		case lpc11u:
 		case lpc1700:
 			/* IAP stack */
 			init_reg_param(&reg_params[3], "sp", 32, PARAM_OUT);
@@ -477,6 +510,12 @@ FLASH_BANK_COMMAND_HANDLER(lpc2000_flash_bank_command)
 		lpc2000_info->checksum_vector = 5;
 	} else if (strcmp(CMD_ARGV[6], "lpc1700") == 0) {
 		lpc2000_info->variant = lpc1700;
+		lpc2000_info->cmd51_dst_boundary = 256;
+		lpc2000_info->cmd51_can_256b = 1;
+		lpc2000_info->cmd51_can_8192b = 0;
+		lpc2000_info->checksum_vector = 7;
+	} else if (strcmp(CMD_ARGV[6], "lpc11u") == 0) {
+		lpc2000_info->variant = lpc11u;
 		lpc2000_info->cmd51_dst_boundary = 256;
 		lpc2000_info->cmd51_can_256b = 1;
 		lpc2000_info->cmd51_can_8192b = 0;
