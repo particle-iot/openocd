@@ -334,6 +334,53 @@ static int stm32lx_write_half_pages(struct flash_bank *bank, uint8_t *buffer,
 		count -= this_count;
 	}
 
+	if (retval == ERROR_TARGET_TIMEOUT) {
+
+		/* the stm32l15x devices seem to have an issue when blank.
+		 * if a ram loader is executed on a blank device it will
+		 * Hard Fault, this issue does not happen for a already programmed
+		 * device.
+		 * A related issue is described in the stm32l151xx errata (Doc ID 17721 Rev 6 - 2.1.3).
+		 * The workaround of handling the Hard Fault exception does work, but makes the
+		 * loader more complicated, as a compromise we manually write the pages, programming time
+		 * is reduced by 50% using this slower method.
+		 */
+
+		struct armv7m_common *armv7m = target_to_armv7m(target);
+		if (armv7m == NULL) {
+
+			/* something is very wrong if armv7m is NULL */
+			LOG_ERROR("unable to get armv7m target");
+			return retval;
+		}
+
+		if (armv7m->exception_number != 3) {
+			/* not a Hard Fault, so ignore */
+			return retval;
+		}
+
+		LOG_WARNING("couldn't use loader, falling back to page memory writes");
+
+		while (count > 0) {
+			uint32_t this_count;
+			this_count = (count > 128) ? 128 : count;
+
+			/* Write the next half pages */
+			retval = target_write_buffer(target, address, this_count, buffer);
+			if (retval != ERROR_OK)
+				break;
+
+			/* Wait while busy */
+			retval = stm32lx_wait_until_bsy_clear(bank);
+			if (retval != ERROR_OK)
+				break;
+
+			buffer += this_count;
+			address += this_count;
+			count -= this_count;
+		}
+	}
+
 	if (retval == ERROR_OK)
 		retval = stm32lx_lock_program_memory(bank);
 
