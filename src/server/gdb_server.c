@@ -85,6 +85,8 @@ struct gdb_connection {
 #define _DEBUG_GDB_IO_
 #endif
 
+static int remaining_xfer = -1;
+
 static struct gdb_connection *current_gdb_connection;
 
 static int gdb_breakpoint_override;
@@ -93,6 +95,7 @@ static enum breakpoint_type gdb_breakpoint_override_type;
 static int gdb_error(struct connection *connection, int retval);
 static const char *gdb_port;
 static const char *gdb_port_next;
+static const char *gdb_tdesc_path;
 static const char DIGITS[16] = "0123456789abcdef";
 
 static void gdb_log_callback(void *priv, const char *file, unsigned line,
@@ -1777,9 +1780,10 @@ static int gdb_query_packet(struct connection *connection,
 			&buffer,
 			&pos,
 			&size,
-			"PacketSize=%x;qXfer:memory-map:read%c;qXfer:features:read-;QStartNoAckMode+",
+			"PacketSize=%x;qXfer:memory-map:read%c;qXfer:features:read%c;QStartNoAckMode+",
 			(GDB_BUFFER_SIZE - 1),
-			((gdb_use_memory_map == 1) && (flash_get_bank_count() > 0)) ? '+' : '-');
+			((gdb_use_memory_map == 1) && (flash_get_bank_count() > 0)) ? '+' : '-',
+			(gdb_tdesc_path) ? '+' : '-');
 
 		if (retval != ERROR_OK) {
 			gdb_send_error(connection, 01);
@@ -1794,14 +1798,14 @@ static int gdb_query_packet(struct connection *connection,
 		   && (flash_get_bank_count() > 0))
 		return gdb_memory_map(connection, packet, packet_size);
 	else if (strncmp(packet, "qXfer:features:read:", 20) == 0) {
-		char *xml = NULL;
-		int size = 0;
-		int pos = 0;
 		int retval = ERROR_OK;
-
+		char *filebuffer = NULL;
 		int offset;
 		unsigned int length;
 		char *annex;
+		struct fileio fileio;
+		size_t read_bytes;
+		int filesize;
 
 		/* skip command character */
 		packet += 20;
@@ -1816,20 +1820,82 @@ static int gdb_query_packet(struct connection *connection,
 			return ERROR_OK;
 		}
 
-		xml_printf(&retval,
-			&xml,
-			&pos,
-			&size, \
-			"l < target version=\"1.0\">\n < architecture > arm</architecture>\n</target>\n");
+		/* Read the xml file */
+		retval = fileio_open(&fileio, gdb_tdesc_path, FILEIO_READ, FILEIO_BINARY);
 
 		if (retval != ERROR_OK) {
-			gdb_error(connection, retval);
-			return retval;
+			fileio_close(&fileio);
+			gdb_send_error(connection, 01);
+			return ERROR_OK;
 		}
 
-		gdb_put_packet(connection, xml, strlen(xml));
+		fileio_size(&fileio, &filesize);
 
-		free(xml);
+		if (remaining_xfer == -1)
+			remaining_xfer = DIV_ROUND_UP(filesize, QXFER_CHUNK_SIZE);
+
+		filebuffer = malloc(QXFER_CHUNK_SIZE + 1);
+		memset(filebuffer, 0, QXFER_CHUNK_SIZE + 1);
+
+		if (remaining_xfer > 1) {
+
+			filebuffer[0] = 'm';
+
+			retval = fileio_seek(&fileio, (DIV_ROUND_UP(filesize, QXFER_CHUNK_SIZE)
+						- remaining_xfer) * QXFER_CHUNK_SIZE);
+
+			if (retval != ERROR_OK) {
+				fileio_close(&fileio);
+				free(filebuffer);
+				gdb_send_error(connection, 01);
+				return ERROR_OK;
+			}
+
+			retval = fileio_read(&fileio, QXFER_CHUNK_SIZE, &filebuffer[1], &read_bytes);
+
+			if (retval != ERROR_OK) {
+				free(filebuffer);
+				fileio_close(&fileio);
+				gdb_send_error(connection, 01);
+				return ERROR_OK;
+			}
+
+			gdb_put_packet(connection, filebuffer, QXFER_CHUNK_SIZE + 1);
+			remaining_xfer--;
+
+		} else {
+
+			filebuffer = malloc(QXFER_CHUNK_SIZE + 1);
+			memset(filebuffer, 0, QXFER_CHUNK_SIZE + 1);
+
+			filebuffer[0] = 'l';
+
+			retval = fileio_seek(&fileio, filesize - (filesize % QXFER_CHUNK_SIZE));
+
+			if (retval != ERROR_OK) {
+				fileio_close(&fileio);
+				free(filebuffer);
+				gdb_send_error(connection, 01);
+				return ERROR_OK;
+			}
+
+			retval = fileio_read(&fileio, filesize % QXFER_CHUNK_SIZE,
+						&filebuffer[1], &read_bytes);
+
+			if (retval != ERROR_OK) {
+				fileio_close(&fileio);
+				free(filebuffer);
+				gdb_send_error(connection, 01);
+				return ERROR_OK;
+			}
+
+			gdb_put_packet(connection, filebuffer, (filesize % QXFER_CHUNK_SIZE) + 1);
+			remaining_xfer = -1;
+		}
+
+		free(filebuffer);
+		fileio_close(&fileio);
+
 		return ERROR_OK;
 	} else if (strncmp(packet, "QStartNoAckMode", 15) == 0) {
 		gdb_connection->noack_mode = 1;
@@ -2405,6 +2471,19 @@ COMMAND_HANDLER(handle_gdb_breakpoint_override_command)
 	return ERROR_OK;
 }
 
+/* gdb_tdesc_path */
+COMMAND_HANDLER(handle_gdb_tdesc_path)
+{
+	if (CMD_ARGC == 0) {
+		gdb_tdesc_path = NULL;
+	} else if (CMD_ARGC == 1) {
+		if (gdb_tdesc_path)
+			free((void *)gdb_tdesc_path);
+		gdb_tdesc_path = strdup(CMD_ARGV[0]);
+	}
+	return ERROR_OK;
+}
+
 static const struct command_registration gdb_command_handlers[] = {
 	{
 		.name = "gdb_sync",
@@ -2457,6 +2536,13 @@ static const struct command_registration gdb_command_handlers[] = {
 			"to be used by gdb 'break' commands.",
 		.usage = "('hard'|'soft'|'disable')"
 	},
+	{
+		.name = "gdb_tdesc_path",
+		.handler = handle_gdb_tdesc_path,
+		.mode = COMMAND_CONFIG,
+		.help = "Set or clear the path to the XML target description file",
+		.usage = ""
+	},
 	COMMAND_REGISTRATION_DONE
 };
 
@@ -2464,5 +2550,6 @@ int gdb_register_commands(struct command_context *cmd_ctx)
 {
 	gdb_port = strdup("3333");
 	gdb_port_next = strdup("3333");
+	gdb_tdesc_path = NULL;
 	return register_commands(cmd_ctx, NULL, gdb_command_handlers);
 }
