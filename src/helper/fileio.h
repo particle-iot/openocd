@@ -29,6 +29,8 @@
 
 #define FILEIO_MAX_ERROR_STRING		(128)
 
+#define FILE_EXIST			0
+
 enum fileio_type {
 	FILEIO_TEXT,
 	FILEIO_BINARY,
@@ -48,6 +50,7 @@ struct fileio {
 	struct fileio_internal *fp;
 };
 
+int fileio_exist(const char *url);
 int fileio_open(struct fileio *fileio,
 		const char *url, enum fileio_access access_type, enum fileio_type type);
 int fileio_close(struct fileio *fileio);
