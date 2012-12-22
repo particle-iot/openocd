@@ -100,6 +100,11 @@ static inline int fileio_open_local(struct fileio_internal *fileio)
 	return ERROR_OK;
 }
 
+int fileio_exist(const char *url)
+{
+	return access(url, F_OK);
+}
+
 int fileio_open(struct fileio *fileio_p,
 	const char *url,
 	enum fileio_access access_type,
