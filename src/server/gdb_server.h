@@ -36,6 +36,13 @@ struct reg;
 
 #define GDB_BUFFER_SIZE 16384
 
+/* The chunk size is coming from the GDB target_read_alloc_1 function.
+ * This function start by reading up to 4K at a time then the asked length
+ * is increased up to the GDB_BUFFER_SIZE limit. Make it simple and just
+ * always send 4K blocs.
+ */
+#define QXFER_CHUNK_SIZE	(4096 - 1)
+
 int gdb_target_add_all(struct target *target);
 int gdb_register_commands(struct command_context *command_context);
 
