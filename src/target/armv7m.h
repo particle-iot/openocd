@@ -224,7 +224,7 @@ int armv7m_mode_to_number(enum armv7m_mode mode);
 
 int armv7m_arch_state(struct target *target);
 int armv7m_get_gdb_reg_list(struct target *target,
-		struct reg **reg_list[], int *reg_list_size);
+		struct reg **reg_list[], int *reg_list_size, int list_type);
 
 int armv7m_init_arch_info(struct target *target, struct armv7m_common *armv7m);
 

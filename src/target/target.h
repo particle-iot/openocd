@@ -33,6 +33,10 @@
 #ifndef TARGET_H
 #define TARGET_H
 
+/* Values for target_get_gdb_reg_list list_type */
+#define FULL_LIST		0
+#define G_REGISTERS_LIST	1
+
 struct reg;
 struct trace;
 struct command_context;
@@ -393,7 +397,7 @@ int target_remove_watchpoint(struct target *target,
  * This routine is a wrapper for target->type->get_gdb_reg_list.
  */
 int target_get_gdb_reg_list(struct target *target,
-		struct reg **reg_list[], int *reg_list_size);
+		struct reg **reg_list[], int *reg_list_size, int list_type);
 
 /**
  * Step the target.

@@ -322,8 +322,7 @@ uint8_t gdb_reg_list_idx[] = {
 };
 
 static int dsp563xx_get_gdb_reg_list(struct target *target,
-	struct reg **reg_list[],
-	int *reg_list_size)
+	struct reg **reg_list[], int *reg_list_size, int list_type)
 {
 	int i;
 	struct dsp563xx_common *dsp563xx = target_to_dsp563xx(target);
