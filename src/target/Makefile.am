@@ -45,7 +45,8 @@ TARGET_CORE_SRC = \
 	target.c \
 	target_request.c \
 	testee.c \
-	smp.c
+	smp.c \
+	tdesc.c
 
 ARMV4_5_SRC = \
 	armv4_5.c \
