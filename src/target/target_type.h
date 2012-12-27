@@ -121,6 +121,12 @@ struct target_type {
 	 */
 	int (*get_gdb_general_reg_list)(struct target *target, struct reg **reg_list[], int *reg_list_size);
 
+	/**
+	 * Get target description for GDB.  Do @b not call this function
+	 * directly, use target_get_gdb_target_description() instead.
+	 */
+	int (*get_gdb_target_description)(struct target *target, char **xml, char *annex, int32_t offset, uint32_t length);
+
 	/* target memory access
 	* size: 1 = byte (8bit), 2 = half-word (16bit), 4 = word (32bit)
 	* count: number of items of <size>

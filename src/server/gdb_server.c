@@ -114,6 +114,11 @@ static int gdb_flash_program = 1;
  */
 static int gdb_report_data_abort;
 
+/* set if we are sending target descriptions to gdb
+ * via qXfer:features:read packet */
+/* disabled by default */
+static int gdb_use_target_description;
+
 static int gdb_last_signal(struct target *target)
 {
 	switch (target->debug_reason) {
@@ -1774,9 +1779,10 @@ static int gdb_query_packet(struct connection *connection,
 			&buffer,
 			&pos,
 			&size,
-			"PacketSize=%x;qXfer:memory-map:read%c;qXfer:features:read-;QStartNoAckMode+",
+			"PacketSize=%x;qXfer:memory-map:read%c;qXfer:features:read%c;QStartNoAckMode+",
 			(GDB_BUFFER_SIZE - 1),
-			((gdb_use_memory_map == 1) && (flash_get_bank_count() > 0)) ? '+' : '-');
+			((gdb_use_memory_map == 1) && (flash_get_bank_count() > 0)) ? '+' : '-',
+			(gdb_use_target_description == 1) ? '+' : '-');
 
 		if (retval != ERROR_OK) {
 			gdb_send_error(connection, 01);
@@ -1792,8 +1798,6 @@ static int gdb_query_packet(struct connection *connection,
 		return gdb_memory_map(connection, packet, packet_size);
 	else if (strncmp(packet, "qXfer:features:read:", 20) == 0) {
 		char *xml = NULL;
-		int size = 0;
-		int pos = 0;
 		int retval = ERROR_OK;
 
 		int offset;
@@ -1808,24 +1812,25 @@ static int gdb_query_packet(struct connection *connection,
 			return ERROR_OK;
 		}
 
-		if (strcmp(annex, "target.xml") != 0) {
-			gdb_send_error(connection, 01);
-			return ERROR_OK;
-		}
-
-		xml_printf(&retval,
-			&xml,
-			&pos,
-			&size, \
-			"l < target version=\"1.0\">\n < architecture > arm</architecture>\n</target>\n");
-
+		/* Target should prepare correct target description for annex.
+		 * The first character of returned xml is 'm' or 'l'. 'm' for
+		 * there are *more* chunks to transfer. 'l' for it is the *last*
+		 * chunk of target description.
+		 *
+		 * example of xml (as annex == "target.xml"):
+		 *
+		 * "l<?xml version=\"1.0\"?>" \
+		 * "<!DOCTYPE target SYSTEM \"gdb-target.dtd\">" \
+		 * "<target><architecture>arm</architecture>" \
+		 * "</target>
+		 */
+		retval = target_get_gdb_target_description(target, &xml, annex, offset, length);
 		if (retval != ERROR_OK) {
 			gdb_error(connection, retval);
 			return retval;
 		}
 
 		gdb_put_packet(connection, xml, strlen(xml));
-
 		free(xml);
 		return ERROR_OK;
 	} else if (strncmp(packet, "QStartNoAckMode", 15) == 0) {
@@ -2402,6 +2407,15 @@ COMMAND_HANDLER(handle_gdb_breakpoint_override_command)
 	return ERROR_OK;
 }
 
+COMMAND_HANDLER(handle_gdb_target_description_command)
+{
+	if (CMD_ARGC != 1)
+		return ERROR_COMMAND_SYNTAX_ERROR;
+
+	COMMAND_PARSE_ENABLE(CMD_ARGV[0], gdb_use_target_description);
+	return ERROR_OK;
+}
+
 static const struct command_registration gdb_command_handlers[] = {
 	{
 		.name = "gdb_sync",
@@ -2453,6 +2467,13 @@ static const struct command_registration gdb_command_handlers[] = {
 		.help = "Display or specify type of breakpoint "
 			"to be used by gdb 'break' commands.",
 		.usage = "('hard'|'soft'|'disable')"
+	},
+	{
+		.name = "gdb_target_description",
+		.handler = handle_gdb_target_description_command,
+		.mode = COMMAND_CONFIG,
+		.help = "enable or disable target description",
+		.usage = "('enable'|'disable')"
 	},
 	COMMAND_REGISTRATION_DONE
 };

@@ -60,6 +60,8 @@ static int target_read_buffer_default(struct target *target, uint32_t address,
 		uint32_t size, uint8_t *buffer);
 static int target_write_buffer_default(struct target *target, uint32_t address,
 		uint32_t size, const uint8_t *buffer);
+static int target_get_gdb_target_description_default(struct target *target, char **xml,
+		char *annex, int32_t offset, uint32_t length);
 static int target_array2mem(Jim_Interp *interp, struct target *target,
 		int argc, Jim_Obj * const *argv);
 static int target_mem2array(Jim_Interp *interp, struct target *target,
@@ -1060,6 +1062,16 @@ int target_get_gdb_general_reg_list(struct target *target,
 	return target->type->get_gdb_general_reg_list(target, reg_list, reg_list_size);
 }
 
+int target_get_gdb_target_description(struct target *target,
+		char **xml, char *annex, int32_t offset, uint32_t length)
+{
+	if (target->state != TARGET_HALTED) {
+		LOG_WARNING("target %s is not halted", target->cmd_name);
+		return ERROR_TARGET_NOT_HALTED;
+	}
+	return target->type->get_gdb_target_description(target, xml, annex, offset, length);
+}
+
 int target_step(struct target *target,
 		int current, uint32_t address, int handle_breakpoints)
 {
@@ -1151,6 +1163,9 @@ static int target_init_one(struct command_context *cmd_ctx,
 
 	if (target->type->bulk_write_memory == NULL)
 		target->type->bulk_write_memory = target_bulk_write_memory_default;
+
+	if (target->type->get_gdb_target_description == NULL)
+		target->type->get_gdb_target_description = target_get_gdb_target_description_default;
 
 	return ERROR_OK;
 }
@@ -1780,6 +1795,19 @@ static int target_write_buffer_default(struct target *target, uint32_t address, 
 	}
 
 	return retval;
+}
+
+static int target_get_gdb_target_description_default(struct target *target, char **xml,
+		char *annex, int32_t offset, uint32_t length)
+{
+	/* If users enable gdb target description through
+	 * "gdb_target_description enable", they should ensure
+	 * .get_gdb_target_description callback is implemented
+	 * for the target. If not implemented, return ERROR_FAIL. */
+	LOG_ERROR(".get_gdb_target_description callback is not implemented " \
+			"in the target. The target could not use gdb target " \
+			"description to exchange target information with gdb.");
+	return ERROR_FAIL;
 }
 
 /* Single aligned words are guaranteed to use 16 or 32 bit access
