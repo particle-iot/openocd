@@ -412,6 +412,14 @@ int target_get_gdb_general_reg_list(struct target *target,
 		struct reg **reg_list[], int *reg_list_size);
 
 /**
+ * Obtain target description for GDB.
+ *
+ * This routine is a wrapper for target->type->get_gdb_target_description.
+ */
+int target_get_gdb_target_description(struct target *target,
+		char **xml, char *annex, int32_t offset, uint32_t length);
+
+/**
  * Step the target.
  *
  * This routine is a wrapper for target->type->step.
