@@ -410,6 +410,14 @@ int target_get_gdb_reg_list(struct target *target,
 		struct reg **reg_list[], int *reg_list_size);
 
 /**
+ * Obtain general registers for GDB.
+ *
+ * This routine is a wrapper for target->type->get_gdb_general_reg_list.
+ */
+int target_get_gdb_general_reg_list(struct target *target,
+		struct reg **reg_list[], int *reg_list_size);
+
+/**
  * Step the target.
  *
  * This routine is a wrapper for target->type->step.

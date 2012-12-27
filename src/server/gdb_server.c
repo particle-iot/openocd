@@ -998,7 +998,7 @@ static int gdb_get_registers_packet(struct connection *connection,
 	if ((target->rtos != NULL) && (ERROR_OK == rtos_get_gdb_reg_list(connection)))
 		return ERROR_OK;
 
-	retval = target_get_gdb_reg_list(target, &reg_list, &reg_list_size);
+	retval = target_get_gdb_general_reg_list(target, &reg_list, &reg_list_size);
 	if (retval != ERROR_OK)
 		return gdb_error(connection, retval);
 
@@ -1057,7 +1057,7 @@ static int gdb_set_registers_packet(struct connection *connection,
 		return ERROR_SERVER_REMOTE_CLOSED;
 	}
 
-	retval = target_get_gdb_reg_list(target, &reg_list, &reg_list_size);
+	retval = target_get_gdb_general_reg_list(target, &reg_list, &reg_list_size);
 	if (retval != ERROR_OK)
 		return gdb_error(connection, retval);
 
