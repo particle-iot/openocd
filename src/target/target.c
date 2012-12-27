@@ -60,6 +60,8 @@ static int target_read_buffer_default(struct target *target, uint32_t address,
 		uint32_t size, uint8_t *buffer);
 static int target_write_buffer_default(struct target *target, uint32_t address,
 		uint32_t size, const uint8_t *buffer);
+static int target_get_gdb_target_description_default(struct target *target, char **xml,
+		char *annex, int32_t offset, uint32_t length);
 static int target_array2mem(Jim_Interp *interp, struct target *target,
 		int argc, Jim_Obj * const *argv);
 static int target_mem2array(Jim_Interp *interp, struct target *target,
@@ -1062,6 +1064,16 @@ int target_get_gdb_general_reg_list(struct target *target,
 	return target->type->get_gdb_general_reg_list(target, reg_list, reg_list_size);
 }
 
+int target_get_gdb_target_description(struct target *target,
+		char **xml, char *annex, int32_t offset, uint32_t length)
+{
+	if (target->state != TARGET_HALTED) {
+		LOG_WARNING("target %s is not halted", target->cmd_name);
+		return ERROR_TARGET_NOT_HALTED;
+	}
+	return target->type->get_gdb_target_description(target, xml, annex, offset, length);
+}
+
 int target_step(struct target *target,
 		int current, uint32_t address, int handle_breakpoints)
 {
@@ -1167,6 +1179,9 @@ static int target_init_one(struct command_context *cmd_ctx,
 
 	if (target->type->write_buffer == NULL)
 		target->type->write_buffer = target_write_buffer_default;
+
+	if (target->type->get_gdb_target_description == NULL)
+		target->type->get_gdb_target_description = target_get_gdb_target_description_default;
 
 	return ERROR_OK;
 }
@@ -1796,6 +1811,27 @@ static int target_write_buffer_default(struct target *target, uint32_t address, 
 	}
 
 	return retval;
+}
+
+static int target_get_gdb_target_description_default(struct target *target, char **xml,
+		char *annex, int32_t offset, uint32_t length)
+{
+	if (strcmp(annex, "target.xml") != 0)
+		return ERROR_FAIL;
+
+	const char *default_description = "l<?xml version=\"1.0\"?>" \
+					   "<!DOCTYPE target SYSTEM \"gdb-target.dtd\">" \
+					   "<target><architecture>arm</architecture>" \
+					   "</target>";
+	const int description_length = strlen(default_description);
+
+	*xml = realloc(*xml, description_length + 1);
+	if (*xml == NULL)
+		return ERROR_FAIL;
+
+	strcpy(*xml, default_description);
+
+	return ERROR_OK;
 }
 
 /* Single aligned words are guaranteed to use 16 or 32 bit access
