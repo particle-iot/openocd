@@ -226,7 +226,7 @@ static int linux_os_thread_reg_list(struct rtos *rtos,
 		/*LOG_INFO("thread %lx current on core %x",thread_id,
 		 * target->coreid);*/
 		retval =
-			target_get_gdb_reg_list(target, &reg_list, &reg_list_size);
+			target_get_gdb_general_reg_list(target, &reg_list, &reg_list_size);
 
 		if (retval != ERROR_OK)
 			return retval;
