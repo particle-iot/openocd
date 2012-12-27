@@ -1049,6 +1049,17 @@ int target_get_gdb_reg_list(struct target *target,
 {
 	return target->type->get_gdb_reg_list(target, reg_list, reg_list_size);
 }
+int target_get_gdb_general_reg_list(struct target *target,
+		struct reg **reg_list[], int *reg_list_size)
+{
+	/* For backward compatible. If no implement of get_gdb_general_reg_list, use
+	 * get_gdb_reg_list to return *all* registers */
+	if (target->type->get_gdb_general_reg_list == NULL)
+		return target->type->get_gdb_reg_list(target, reg_list, reg_list_size);
+
+	return target->type->get_gdb_general_reg_list(target, reg_list, reg_list_size);
+}
+
 int target_step(struct target *target,
 		int current, uint32_t address, int handle_breakpoints)
 {
