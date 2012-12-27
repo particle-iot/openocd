@@ -715,9 +715,6 @@ static void gdb_frontend_halted(struct target *target, struct connection *connec
 			uint32_t hit_wp_address;
 
 			if (watchpoint_hit(target, &hit_wp_type, &hit_wp_address) == ERROR_OK) {
-				uint32_t i;
-				uint8_t *buffer;
-
 				switch (hit_wp_type) {
 					case WPT_WRITE:
 						snprintf(sig_reply + 3, 7, "watch:");
@@ -733,14 +730,7 @@ static void gdb_frontend_halted(struct target *target, struct connection *connec
 						break;
 				}
 
-				buffer = (uint8_t *)&hit_wp_address;
-				for (i = 0; i < 4; i++) {
-					/* Reported address is big-endian */
-					uint8_t t = buffer[4 - i - 1];
-					sig_reply[sig_reply_len] = DIGITS[(t >> 4) & 0xf];
-					sig_reply[sig_reply_len + 1] = DIGITS[t & 0xf];
-					sig_reply_len += 2;
-				}
+				sig_reply_len += sprintf(sig_reply + sig_reply_len, "%08x", hit_wp_address);
 				sig_reply[sig_reply_len++] = ';';
 				sig_reply[sig_reply_len] = 0;
 			}
@@ -1007,7 +997,7 @@ static int gdb_get_registers_packet(struct connection *connection,
 	if ((target->rtos != NULL) && (ERROR_OK == rtos_get_gdb_reg_list(connection)))
 		return ERROR_OK;
 
-	retval = target_get_gdb_reg_list(target, &reg_list, &reg_list_size);
+	retval = target_get_gdb_general_reg_list(target, &reg_list, &reg_list_size);
 	if (retval != ERROR_OK)
 		return gdb_error(connection, retval);
 
@@ -1066,7 +1056,7 @@ static int gdb_set_registers_packet(struct connection *connection,
 		return ERROR_SERVER_REMOTE_CLOSED;
 	}
 
-	retval = target_get_gdb_reg_list(target, &reg_list, &reg_list_size);
+	retval = target_get_gdb_general_reg_list(target, &reg_list, &reg_list_size);
 	if (retval != ERROR_OK)
 		return gdb_error(connection, retval);
 

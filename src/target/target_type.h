@@ -104,6 +104,24 @@ struct target_type {
 	 */
 	int (*get_gdb_reg_list)(struct target *target, struct reg **reg_list[], int *reg_list_size);
 
+	/**
+	 * Target general register access for GDB.  Do @b not call this function
+	 * directly, use target_get_gdb_general_reg_list() instead.
+	 *
+	 * GDB has several groups of registers. In remote serial protocol, 'g' or
+	 * 'G' packets only query @b general registers, not @b all registers. So,
+	 * target needs a separate callback function to get @b general registers
+	 * only. It will improve responsiveness of gdb.
+	 *
+	 * Danger! this function will succeed even if the target is running
+	 * and return a register list with dummy values.
+	 *
+	 * The reason is that GDB connection will fail without a valid register
+	 * list, however it is after GDB is connected that monitor commands can
+	 * be run to properly initialize the target
+	 */
+	int (*get_gdb_general_reg_list)(struct target *target, struct reg **reg_list[], int *reg_list_size);
+
 	/* target memory access
 	* size: 1 = byte (8bit), 2 = half-word (16bit), 4 = word (32bit)
 	* count: number of items of <size>
