@@ -62,6 +62,10 @@ static int target_write_buffer_default(struct target *target, uint32_t address,
 		uint32_t size, const uint8_t *buffer);
 static int target_get_gdb_target_description_default(struct target *target, char **xml,
 		char *annex, int32_t offset, uint32_t length);
+static int target_get_gdb_fileio_info_default(struct target *target,
+		struct gdb_fileio_info *fileio_info);
+static int target_gdb_fileio_end_default(struct target *target, int retcode,
+		int fileio_errno, bool ctrl_c);
 static int target_array2mem(Jim_Interp *interp, struct target *target,
 		int argc, Jim_Obj * const *argv);
 static int target_mem2array(Jim_Interp *interp, struct target *target,
@@ -1078,6 +1082,24 @@ int target_step(struct target *target,
 	return target->type->step(target, current, address, handle_breakpoints);
 }
 
+int target_get_gdb_fileio_info(struct target *target, struct gdb_fileio_info *fileio_info)
+{
+	if (target->state != TARGET_HALTED) {
+		LOG_WARNING("target %s is not halted", target->cmd_name);
+		return ERROR_TARGET_NOT_HALTED;
+	}
+	return target->type->get_gdb_fileio_info(target, fileio_info);
+}
+
+int target_gdb_fileio_end(struct target *target, int retcode, int fileio_errno, bool ctrl_c)
+{
+	if (target->state != TARGET_HALTED) {
+		LOG_WARNING("target %s is not halted", target->cmd_name);
+		return ERROR_TARGET_NOT_HALTED;
+	}
+	return target->type->gdb_fileio_end(target, retcode, fileio_errno, ctrl_c);
+}
+
 /**
  * Reset the @c examined flag for the given target.
  * Pure paranoia -- targets are zeroed on allocation.
@@ -1166,6 +1188,12 @@ static int target_init_one(struct command_context *cmd_ctx,
 
 	if (target->type->get_gdb_target_description == NULL)
 		target->type->get_gdb_target_description = target_get_gdb_target_description_default;
+
+	if (target->type->get_gdb_fileio_info == NULL)
+		target->type->get_gdb_fileio_info = target_get_gdb_fileio_info_default;
+
+	if (target->type->gdb_fileio_end == NULL)
+		target->type->gdb_fileio_end = target_gdb_fileio_end_default;
 
 	return ERROR_OK;
 }
@@ -1808,6 +1836,18 @@ static int target_get_gdb_target_description_default(struct target *target, char
 			"in the target. The target could not use gdb target " \
 			"description to exchange target information with gdb.");
 	return ERROR_FAIL;
+}
+
+static int target_get_gdb_fileio_info_default(struct target *target, struct gdb_fileio_info *fileio_info)
+{
+	LOG_ERROR("Not implemented: %s", __func__);
+	return ERROR_FAIL;
+}
+
+static int target_gdb_fileio_end_default(struct target *target, int retcode, int fileio_errno, bool ctrl_c)
+{
+	LOG_ERROR("Not implemented: %s", __func__);
+	return ERROR_OK;
 }
 
 /* Single aligned words are guaranteed to use 16 or 32 bit access
