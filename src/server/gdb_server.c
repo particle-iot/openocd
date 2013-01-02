@@ -119,6 +119,9 @@ static int gdb_report_data_abort;
 /* disabled by default */
 static int gdb_use_target_description;
 
+/* current processing free-run type, used by file-I/O */
+static char gdb_running_type;
+
 static int gdb_last_signal(struct target *target)
 {
 	switch (target->debug_reason) {
@@ -685,6 +688,131 @@ static int gdb_output(struct command_context *context, const char *line)
 	return ERROR_OK;
 }
 
+static void gdb_signal_reply(struct target *target, struct connection *connection)
+{
+	struct gdb_connection *gdb_connection = connection->priv;
+	char sig_reply[20];
+	int sig_reply_len;
+	int signal_var;
+
+	if (gdb_connection->ctrl_c) {
+		signal_var = 0x2;
+		gdb_connection->ctrl_c = 0;
+	} else
+		signal_var = gdb_last_signal(target);
+
+	snprintf(sig_reply, 4, "T%2.2x", signal_var);
+	sig_reply_len = 3;
+
+	if (target->debug_reason == DBG_REASON_WATCHPOINT) {
+		enum watchpoint_rw hit_wp_type;
+		uint32_t hit_address;
+
+		if (watchpoint_hit(target, &hit_wp_type, &hit_address) == ERROR_OK) {
+
+			switch (hit_wp_type) {
+				case WPT_WRITE:
+					snprintf(sig_reply + 3, 7, "watch:");
+					sig_reply_len = 9;
+					break;
+				case WPT_READ:
+					snprintf(sig_reply + 3, 8, "rwatch:");
+					sig_reply_len = 10;
+					break;
+				case WPT_ACCESS:
+					snprintf(sig_reply + 3, 8, "awatch:");
+					sig_reply_len = 10;
+					break;
+			}
+
+			sig_reply_len += sprintf(sig_reply + sig_reply_len, "%08x", hit_address);
+			sig_reply[sig_reply_len++] = ';';
+			sig_reply[sig_reply_len] = 0;
+		}
+	}
+	gdb_put_packet(connection, sig_reply, sig_reply_len);
+	gdb_connection->frontend_state = TARGET_HALTED;
+	rtos_update_threads(target);
+}
+
+static void gdb_fileio_reply(struct target *target, struct connection *connection)
+{
+	struct gdb_connection *gdb_connection = connection->priv;
+	char fileio_command[256];
+	int command_len;
+
+	if (strcmp(target->fileio_info->identifier, "open") == 0)
+		sprintf(fileio_command, "F%s,%x/%x,%x,%x", target->fileio_info->identifier,
+				target->fileio_info->param_1,
+				target->fileio_info->param_2,
+				target->fileio_info->param_3,
+				target->fileio_info->param_4);
+	else if (strcmp(target->fileio_info->identifier, "close") == 0)
+		sprintf(fileio_command, "F%s,%x", target->fileio_info->identifier,
+				target->fileio_info->param_1);
+	else if (strcmp(target->fileio_info->identifier, "read") == 0)
+		sprintf(fileio_command, "F%s,%x,%x,%x", target->fileio_info->identifier,
+				target->fileio_info->param_1,
+				target->fileio_info->param_2,
+				target->fileio_info->param_3);
+	else if (strcmp(target->fileio_info->identifier, "write") == 0)
+		sprintf(fileio_command, "F%s,%x,%x,%x", target->fileio_info->identifier,
+				target->fileio_info->param_1,
+				target->fileio_info->param_2,
+				target->fileio_info->param_3);
+	else if (strcmp(target->fileio_info->identifier, "lseek") == 0)
+		sprintf(fileio_command, "F%s,%x,%x,%x", target->fileio_info->identifier,
+				target->fileio_info->param_1,
+				target->fileio_info->param_2,
+				target->fileio_info->param_3);
+	else if (strcmp(target->fileio_info->identifier, "rename") == 0)
+		sprintf(fileio_command, "F%s,%x/%x,%x/%x", target->fileio_info->identifier,
+				target->fileio_info->param_1,
+				target->fileio_info->param_2,
+				target->fileio_info->param_3,
+				target->fileio_info->param_4);
+	else if (strcmp(target->fileio_info->identifier, "unlink") == 0)
+		sprintf(fileio_command, "F%s,%x/%x", target->fileio_info->identifier,
+				target->fileio_info->param_1,
+				target->fileio_info->param_2);
+	else if (strcmp(target->fileio_info->identifier, "stat") == 0)
+		sprintf(fileio_command, "F%s,%x/%x,%x", target->fileio_info->identifier,
+				target->fileio_info->param_1,
+				target->fileio_info->param_2,
+				target->fileio_info->param_3);
+	else if (strcmp(target->fileio_info->identifier, "fstat") == 0)
+		sprintf(fileio_command, "F%s,%x,%x", target->fileio_info->identifier,
+				target->fileio_info->param_1,
+				target->fileio_info->param_2);
+	else if (strcmp(target->fileio_info->identifier, "gettimeofday") == 0)
+		sprintf(fileio_command, "F%s,%x,%x", target->fileio_info->identifier,
+				target->fileio_info->param_1,
+				target->fileio_info->param_2);
+	else if (strcmp(target->fileio_info->identifier, "isatty") == 0)
+		sprintf(fileio_command, "F%s,%x", target->fileio_info->identifier,
+				target->fileio_info->param_1);
+	else if (strcmp(target->fileio_info->identifier, "system") == 0)
+		sprintf(fileio_command, "F%s,%x/%x", target->fileio_info->identifier,
+				target->fileio_info->param_1,
+				target->fileio_info->param_2);
+	else if (strcmp(target->fileio_info->identifier, "exit") == 0)
+		sprintf(fileio_command, "W%02x", target->fileio_info->param_1);
+	else {
+		LOG_DEBUG("Unknown syscall: %s", target->fileio_info->identifier);
+
+		/* encounter unknown syscall, continue */
+		gdb_connection->frontend_state = TARGET_RUNNING;
+		target_resume(target, 1, 0x0, 0, 0);
+		return;
+	}
+
+	command_len = strlen(fileio_command);
+
+	gdb_put_packet(connection, fileio_command, command_len);
+	gdb_connection->frontend_state = TARGET_HALTED;
+	rtos_update_threads(target);
+}
+
 static void gdb_frontend_halted(struct target *target, struct connection *connection)
 {
 	struct gdb_connection *gdb_connection = connection->priv;
@@ -699,60 +827,14 @@ static void gdb_frontend_halted(struct target *target, struct connection *connec
 	 * that are to be ignored.
 	 */
 	if (gdb_connection->frontend_state == TARGET_RUNNING) {
-		char sig_reply[20];
-		int sig_reply_len;
-		int signal_var;
-
 		/* stop forwarding log packets! */
 		log_remove_callback(gdb_log_callback, connection);
 
-		if (gdb_connection->ctrl_c) {
-			signal_var = 0x2;
-			gdb_connection->ctrl_c = 0;
-		} else
-			signal_var = gdb_last_signal(target);
-
-		snprintf(sig_reply, 4, "T%2.2x", signal_var);
-		sig_reply_len = 3;
-
-		if (target->debug_reason == DBG_REASON_WATCHPOINT) {
-			enum watchpoint_rw hit_wp_type;
-			uint32_t hit_wp_address;
-
-			if (watchpoint_hit(target, &hit_wp_type, &hit_wp_address) == ERROR_OK) {
-				uint32_t i;
-				uint8_t *buffer;
-
-				switch (hit_wp_type) {
-					case WPT_WRITE:
-						snprintf(sig_reply + 3, 7, "watch:");
-						sig_reply_len = 9;
-						break;
-					case WPT_READ:
-						snprintf(sig_reply + 3, 8, "rwatch:");
-						sig_reply_len = 10;
-						break;
-					case WPT_ACCESS:
-						snprintf(sig_reply + 3, 8, "awatch:");
-						sig_reply_len = 10;
-						break;
-				}
-
-				buffer = (uint8_t *)&hit_wp_address;
-				for (i = 0; i < 4; i++) {
-					/* Reported address is big-endian */
-					uint8_t t = buffer[4 - i - 1];
-					sig_reply[sig_reply_len] = DIGITS[(t >> 4) & 0xf];
-					sig_reply[sig_reply_len + 1] = DIGITS[t & 0xf];
-					sig_reply_len += 2;
-				}
-				sig_reply[sig_reply_len++] = ';';
-				sig_reply[sig_reply_len] = 0;
-			}
-		}
-		gdb_put_packet(connection, sig_reply, sig_reply_len);
-		gdb_connection->frontend_state = TARGET_HALTED;
-		rtos_update_threads(target);
+		/* check fileio first */
+		if (target_get_gdb_fileio_info(target, target->fileio_info) == ERROR_OK)
+			gdb_fileio_reply(target, connection);
+		else
+			gdb_signal_reply(target, connection);
 	}
 }
 
@@ -1390,6 +1472,7 @@ static int gdb_step_continue_packet(struct connection *connection,
 	} else
 		current = 1;
 
+	gdb_running_type = packet[0];
 	if (packet[0] == 'c') {
 		LOG_DEBUG("continue");
 		/* resume at current address, don't handle breakpoints, not debugging */
@@ -1995,6 +2078,54 @@ static int gdb_detach(struct connection *connection)
 	return gdb_put_packet(connection, "OK", 2);
 }
 
+/* The format of 'F' response packet is
+ * Fretcode,errno,Ctrl-C flag;call-specific attachment
+ */
+static int gdb_fileio_response_packet(struct connection *connection,
+		char *packet, int packet_size)
+{
+	struct target *target = get_target_from_connection(connection);
+	char *separator;
+	char *parsing_point;
+	int fileio_retcode = strtoul(packet + 1, &separator, 16);
+	int fileio_errno = 0;
+	bool fileio_ctrl_c = false;
+	int retval;
+
+	LOG_DEBUG("-");
+
+	if (*separator == ',') {
+		parsing_point = separator + 1;
+		fileio_errno = strtoul(parsing_point, &separator, 16);
+		if (*separator == ',') {
+			if (*(separator + 1) == 'C') {
+				/* TODO: process ctrl-c */
+				fileio_ctrl_c = true;
+			}
+		}
+	}
+
+	LOG_DEBUG("File-I/O response, retcode: 0x%x, errno: 0x%x, ctrl-c: %s",
+			fileio_retcode, fileio_errno, fileio_ctrl_c ? "true" : "false");
+
+	retval = target_gdb_fileio_end(target, fileio_retcode, fileio_errno, fileio_ctrl_c);
+	if (retval != ERROR_OK)
+		return ERROR_FAIL;
+
+	/* After File-I/O ends, keep continue or step */
+	if (gdb_running_type == 'c')
+		retval = target_resume(target, 1, 0x0, 0, 0);
+	else if (gdb_running_type == 's')
+		retval = target_step(target, 1, 0x0, 0);
+	else
+		retval = ERROR_FAIL;
+
+	if (retval != ERROR_OK)
+		return ERROR_FAIL;
+
+	return ERROR_OK;
+}
+
 static void gdb_log_callback(void *priv, const char *file, unsigned line,
 		const char *function, const char *string)
 {
@@ -2219,6 +2350,19 @@ static int gdb_input_inner(struct connection *connection)
 					/* handle smp packet setting coreid to be played at next
 					 * resume to gdb */
 					gdb_write_smp_packet(connection, packet, packet_size);
+					break;
+
+				case 'F':
+					/* File-I/O extension */
+					/* After gdb uses host-side syscall to complete target file
+					 * I/O, gdb sends host-side syscall return value to target
+					 * by 'F' packet.
+					 * The format of 'F' response packet is
+					 * Fretcode,errno,Ctrl-C flag;call-specific attachment
+					 */
+					gdb_con->frontend_state = TARGET_RUNNING;
+					log_add_callback(gdb_log_callback, connection);
+					gdb_fileio_response_packet(connection, packet, packet_size);
 					break;
 
 				default:
