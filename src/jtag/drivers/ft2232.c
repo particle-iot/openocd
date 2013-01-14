@@ -2359,7 +2359,7 @@ static int ft2232_init(void)
 				more, &try_more);
 #elif BUILD_FT2232_LIBFTDI == 1
 		retval = ft2232_init_libftdi(ft2232_vid[i], ft2232_pid[i],
-                                more, &try_more, ft2232_channel);
+				more, &try_more, ft2232_channel);
 #endif
 		if (retval >= 0)
 			break;
@@ -3255,11 +3255,9 @@ COMMAND_HANDLER(ft2232_handle_latency_command)
 
 COMMAND_HANDLER(ft2232_handle_channel_command)
 {
-	if (CMD_ARGC == 1)
-	{
+	if (CMD_ARGC == 1) {
 		ft2232_channel = atoi(CMD_ARGV[0]);
-		if (ft2232_channel < 0 || ft2232_channel > 4)
-		{
+		if (ft2232_channel < 0 || ft2232_channel > 4) {
 			LOG_ERROR("ft2232_channel must be in the 0 to 4 range");
 		}
 	}
