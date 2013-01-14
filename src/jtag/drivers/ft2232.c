@@ -3257,9 +3257,8 @@ COMMAND_HANDLER(ft2232_handle_channel_command)
 {
 	if (CMD_ARGC == 1) {
 		ft2232_channel = atoi(CMD_ARGV[0]);
-		if (ft2232_channel < 0 || ft2232_channel > 4) {
+		if (ft2232_channel < 0 || ft2232_channel > 4)
 			LOG_ERROR("ft2232_channel must be in the 0 to 4 range");
-		}
 	}
 	else
 	{
