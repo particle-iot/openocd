@@ -93,7 +93,7 @@
 #define FLASH_PAGE_SIZE 256
 #define FLASH_SECTOR_SIZE 4096
 #define FLASH_PAGES_PER_SECTOR 16
-#define FLASH_BANK0_ADDRESS 0x08000000
+#define FLASH_BASE_ADDRESS 0x08000000
 
 /* stm32lx option byte register location */
 #define OB_RDP			0x1FF80000
@@ -541,31 +541,43 @@ static int stm32lx_probe(struct flash_bank *bank)
 		return ERROR_FAIL;
 	}
 
-	/* get flash size from target. */
+	/* Get the flash size from target. */
 	retval = target_read_u16(target, F_SIZE, &flash_size_in_kb);
 
-	/* failed reading flash size or flash size invalid (early silicon),
+	/* Failed reading flash size or flash size invalid (early silicon),
 	 * default to max target family */
 	if (retval != ERROR_OK || flash_size_in_kb == 0xffff || flash_size_in_kb == 0) {
 		LOG_WARNING("STM32 flash size failed, probe inaccurate - assuming %dk flash",
 			max_flash_size_in_kb);
 		flash_size_in_kb = max_flash_size_in_kb;
+	} else if (flash_size_in_kb > 384) {
+		LOG_WARNING("STM32 flash size assumed incorrect since FLASH_SIZE=%dk > 384k, - assuming %dk flash",
+			flash_size_in_kb, max_flash_size_in_kb);
+		flash_size_in_kb = max_flash_size_in_kb;
 	}
+
+	/* If this is a dual bank flash the bank size should be half of the total flash size */
+	if (384 == flash_size_in_kb || 256 == flash_size_in_kb)
+		flash_size_in_kb = flash_size_in_kb / 2;
 
 	/* STM32L - we have 32 sectors, 16 pages per sector -> 512 pages
 	 * 16 pages for a protection area */
 
 	/* calculate numbers of sectors (4kB per sector) */
 	int num_sectors = (flash_size_in_kb * 1024) / FLASH_SECTOR_SIZE;
-	LOG_INFO("flash size = %dkbytes", flash_size_in_kb);
+	LOG_INFO("flash bank %d size = %dkb", bank->bank_number, flash_size_in_kb);
 
 	if (bank->sectors) {
 		free(bank->sectors);
 		bank->sectors = NULL;
 	}
 
-	bank->base = FLASH_BANK0_ADDRESS;
 	bank->size = flash_size_in_kb * 1024;
+	if (0 == bank->bank_number)
+		bank->base = FLASH_BASE_ADDRESS;
+	else
+		bank->base = FLASH_BASE_ADDRESS + bank->size;
+	LOG_INFO("flash bank %d base address = 0x%08x", bank->bank_number, bank->base);
 	bank->num_sectors = num_sectors;
 	bank->sectors = malloc(sizeof(struct flash_sector) * num_sectors);
 	if (bank->sectors == NULL) {
@@ -936,6 +948,7 @@ static int stm32lx_wait_until_bsy_clear(struct flash_bank *bank)
 
 	if (status & FLASH_SR__WRPERR) {
 		LOG_ERROR("access denied / write protected");
+		LOG_ERROR("status=0x%x", status);
 		retval = ERROR_FAIL;
 	}
 
