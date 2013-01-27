@@ -262,6 +262,9 @@ struct target_type {
 	 * circumstances.
 	 */
 	int (*check_reset)(struct target *target);
+
+	/* The target can generate its tdesc file based on the register list */
+	int (*generate_tdesc_file)(struct target *target, const char *filename);
 };
 
 #endif /* TARGET_TYPE_H */

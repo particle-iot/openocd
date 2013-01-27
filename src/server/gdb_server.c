@@ -14,6 +14,9 @@
  *   Copyright (C) ST-Ericsson SA 2011                                     *
  *   michel.jaouen@stericsson.com : smp minimum support                    *
  *                                                                         *
+ *   Copyright (C) 2013 by Franck Jullien                                  *
+ *   elec4fun@gmail.com : target description file support                  *
+ *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
  *   the Free Software Foundation; either version 2 of the License, or     *
@@ -1698,6 +1701,78 @@ static int gdb_memory_map(struct connection *connection,
 	return ERROR_OK;
 }
 
+static int prepare_file_chunks(struct target *target, const char *filename,
+			       void *buffer, int *len)
+{
+	struct fileio fileio;
+	size_t read_bytes;
+	int filesize;
+	char *filebuffer;
+
+	filebuffer = (char *)buffer;
+
+	int retval = fileio_open(&fileio, filename, FILEIO_READ, FILEIO_BINARY);
+	if (retval != ERROR_OK) {
+		target->remaining_xfer = -1;
+		return retval;
+	}
+
+	retval = fileio_size(&fileio, &filesize);
+	if (retval != ERROR_OK)
+		goto error;
+
+	/* If there is no pending transfert, set the number of xfer to come. */
+	if (target->remaining_xfer == -1)
+		target->remaining_xfer = DIV_ROUND_UP(filesize, QXFER_CHUNK_SIZE);
+
+	memset(filebuffer, 0, QXFER_CHUNK_SIZE + 1);
+
+	/* This is not the last chunk of data, so prepare a 'm' packet. */
+	if (target->remaining_xfer > 1) {
+
+		filebuffer[0] = 'm';
+
+		retval = fileio_seek(&fileio, (DIV_ROUND_UP(filesize, QXFER_CHUNK_SIZE)
+					- target->remaining_xfer) * QXFER_CHUNK_SIZE);
+		if (retval != ERROR_OK)
+			goto error;
+
+		retval = fileio_read(&fileio, QXFER_CHUNK_SIZE, &filebuffer[1], &read_bytes);
+		if (retval != ERROR_OK)
+			goto error;
+
+		target->remaining_xfer--;
+
+		*len = QXFER_CHUNK_SIZE + 1;
+
+	/* This is the last chunk of data, so prepare a 'l' packet. */
+	} else {
+
+		filebuffer[0] = 'l';
+
+		retval = fileio_seek(&fileio, filesize - (filesize % QXFER_CHUNK_SIZE));
+		if (retval != ERROR_OK)
+			goto error;
+
+		retval = fileio_read(&fileio, filesize % QXFER_CHUNK_SIZE,
+					&filebuffer[1], &read_bytes);
+		if (retval != ERROR_OK)
+			goto error;
+
+		target->remaining_xfer = -1;
+
+		*len = (filesize % QXFER_CHUNK_SIZE) + 1;
+	}
+
+	fileio_close(&fileio);
+	return ERROR_OK;
+
+error:
+	target->remaining_xfer = -1;
+	fileio_close(&fileio);
+	return retval;
+}
+
 static int gdb_query_packet(struct connection *connection,
 		char *packet, int packet_size)
 {
@@ -1777,9 +1852,10 @@ static int gdb_query_packet(struct connection *connection,
 			&buffer,
 			&pos,
 			&size,
-			"PacketSize=%x;qXfer:memory-map:read%c;qXfer:features:read-;QStartNoAckMode+",
+			"PacketSize=%x;qXfer:memory-map:read%c;qXfer:features:read%c;QStartNoAckMode+",
 			(GDB_BUFFER_SIZE - 1),
-			((gdb_use_memory_map == 1) && (flash_get_bank_count() > 0)) ? '+' : '-');
+			((gdb_use_memory_map == 1) && (flash_get_bank_count() > 0)) ? '+' : '-',
+			(target->gdb_tdesc_path) ? '+' : '-');
 
 		if (retval != ERROR_OK) {
 			gdb_send_error(connection, 01);
@@ -1794,43 +1870,61 @@ static int gdb_query_packet(struct connection *connection,
 		   && (flash_get_bank_count() > 0))
 		return gdb_memory_map(connection, packet, packet_size);
 	else if (strncmp(packet, "qXfer:features:read:", 20) == 0) {
-		char *xml = NULL;
-		int size = 0;
-		int pos = 0;
 		int retval = ERROR_OK;
-
+		char filebuffer[QXFER_CHUNK_SIZE + 1];
 		int offset;
 		unsigned int length;
 		char *annex;
+		int len = 0;
+		char *tdesc_filename;
 
 		/* skip command character */
 		packet += 20;
 
-		if (decode_xfer_read(packet, &annex, &offset, &length) < 0) {
-			gdb_send_error(connection, 01);
-			return ERROR_OK;
+		if (decode_xfer_read(packet, &annex, &offset, &length) < 0)
+			goto error;
+
+		if (strcmp(annex, "target.xml") != 0)
+			goto error;
+
+		if (!strcmp(target->gdb_tdesc_path, "auto")) {
+
+			tdesc_filename = malloc(strlen(target->cmd_name) + 5);
+			if (tdesc_filename == NULL)
+				goto error;
+			snprintf(tdesc_filename, strlen(target->cmd_name) + 5,
+				 "%s.xml", target->cmd_name);
+
+			if (fileio_exist(tdesc_filename) != FILE_EXIST) {
+				retval = target_generate_tdesc_file(target, tdesc_filename);
+				if (retval != ERROR_OK) {
+					free(tdesc_filename);
+					goto error;
+				}
+				target->gdb_tdesc_path = realloc(target->gdb_tdesc_path, strlen(tdesc_filename));
+				strcpy(target->gdb_tdesc_path, tdesc_filename);
+			}
+		} else {
+			if (target->gdb_tdesc_path && strcmp(target->gdb_tdesc_path, ""))
+				tdesc_filename = strdup(target->gdb_tdesc_path);
+			else
+				goto error;
 		}
 
-		if (strcmp(annex, "target.xml") != 0) {
-			gdb_send_error(connection, 01);
-			return ERROR_OK;
-		}
+		retval = prepare_file_chunks(target, tdesc_filename, filebuffer, &len);
 
-		xml_printf(&retval,
-			&xml,
-			&pos,
-			&size, \
-			"l < target version=\"1.0\">\n < architecture > arm</architecture>\n</target>\n");
+		free(tdesc_filename);
 
-		if (retval != ERROR_OK) {
-			gdb_error(connection, retval);
-			return retval;
-		}
+		if (retval != ERROR_OK)
+			goto error;
 
-		gdb_put_packet(connection, xml, strlen(xml));
-
-		free(xml);
+		gdb_put_packet(connection, filebuffer, len);
 		return ERROR_OK;
+
+error:
+		gdb_send_error(connection, 01);
+		return ERROR_OK;
+
 	} else if (strncmp(packet, "QStartNoAckMode", 15) == 0) {
 		gdb_connection->noack_mode = 1;
 		gdb_put_packet(connection, "OK", 2);
