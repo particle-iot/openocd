@@ -582,11 +582,10 @@ static int lpc2000_erase(struct flash_bank *bank, int first, int last)
 	param_table[0] = first;
 	param_table[1] = last;
 
-	if (lpc2000_info->variant == lpc4300) {
+	if (lpc2000_info->variant == lpc4300)
 		param_table[2] = lpc2000_info->lpc4300_bank;
-	} else {
+	else
 		param_table[2] = lpc2000_info->cclk;
-	}
 
 	uint32_t result_table[4];
 	struct working_area *iap_working_area;
@@ -739,11 +738,10 @@ static int lpc2000_write(struct flash_bank *bank, uint8_t *buffer, uint32_t offs
 		param_table[0] = first_sector;
 		param_table[1] = last_sector;
 
-		if (lpc2000_info->variant == lpc4300) {
+		if (lpc2000_info->variant == lpc4300)
 			param_table[2] = lpc2000_info->lpc4300_bank;
-		} else {
+		else
 			param_table[2] = lpc2000_info->cclk;
-		}
 
 		int status_code = lpc2000_iap_call(bank, iap_working_area, 50, param_table, result_table);
 		switch (status_code) {
