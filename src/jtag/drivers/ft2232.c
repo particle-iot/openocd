@@ -4269,6 +4269,7 @@ struct jtag_interface ft2232_interface = {
 
 	.init = ft2232_init,
 	.quit = ft2232_quit,
+	.support_conf_speed = true,
 	.speed = ft2232_speed,
 	.speed_div = ft2232_speed_div,
 	.khz = ft2232_khz,

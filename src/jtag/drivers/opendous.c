@@ -194,6 +194,7 @@ struct jtag_interface opendous_interface = {
 	.name = "opendous",
 	.commands = opendous_command_handlers,
 	.execute_queue = opendous_execute_queue,
+	.support_conf_speed = true,
 	.speed = opendous_speed,
 	.speed_div = opendous_speed_div,
 	.khz = opendous_khz,

@@ -426,6 +426,7 @@ static const struct command_registration buspirate_command_handlers[] = {
 struct jtag_interface buspirate_interface = {
 	.name = "buspirate",
 	.execute_queue = buspirate_execute_queue,
+	.support_conf_speed = true,
 	.speed = buspirate_speed,
 	.khz = buspirate_khz,
 	.commands = buspirate_command_handlers,

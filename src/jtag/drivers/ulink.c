@@ -2294,6 +2294,7 @@ struct jtag_interface ulink_interface = {
 	.transports = jtag_only,
 
 	.execute_queue = ulink_execute_queue,
+	.support_conf_speed = true,
 	.khz = ulink_khz,
 	.speed = ulink_speed,
 	.speed_div = ulink_speed_div,

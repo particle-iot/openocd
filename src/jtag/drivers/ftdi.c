@@ -878,6 +878,7 @@ struct jtag_interface ftdi_interface = {
 
 	.init = ftdi_initialize,
 	.quit = ftdi_quit,
+	.support_conf_speed = true,
 	.speed = ftdi_speed,
 	.speed_div = ftdi_speed_div,
 	.khz = ftdi_khz,

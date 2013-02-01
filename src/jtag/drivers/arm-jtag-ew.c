@@ -501,6 +501,7 @@ struct jtag_interface armjtagew_interface = {
 	.commands = armjtagew_command_handlers,
 	.transports = jtag_only,
 	.execute_queue = armjtagew_execute_queue,
+	.support_conf_speed = true,
 	.speed = armjtagew_speed,
 	.speed_div = armjtagew_speed_div,
 	.khz = armjtagew_khz,

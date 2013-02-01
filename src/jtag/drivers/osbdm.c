@@ -690,32 +690,13 @@ static int osbdm_init(void)
 	return ERROR_OK;
 }
 
-static int osbdm_khz(int khz, int *speed)
-{
-	*speed = khz;
-	return ERROR_OK;
-}
-
-static int osbdm_speed(int speed)
-{
-	return ERROR_OK;
-}
-
-static int osbdm_speed_div(int speed, int *khz)
-{
-	*khz = speed;
-	return ERROR_OK;
-}
-
 struct jtag_interface osbdm_interface = {
 	.name = "osbdm",
 
 	.transports = jtag_only,
 	.execute_queue = osbdm_execute_queue,
 
-	.khz = osbdm_khz,
-	.speed = osbdm_speed,
-	.speed_div = osbdm_speed_div,
+	.support_conf_speed = false,
 
 	.init = osbdm_init,
 	.quit = osbdm_quit

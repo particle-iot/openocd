@@ -507,6 +507,7 @@ struct jtag_interface parport_interface = {
 
 	.init = parport_init,
 	.quit = parport_quit,
+	.support_conf_speed = true,
 	.khz = parport_khz,
 	.speed_div = parport_speed_div,
 	.speed = parport_speed,
