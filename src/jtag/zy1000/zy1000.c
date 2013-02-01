@@ -1255,6 +1255,7 @@ struct jtag_interface zy1000_interface = {
 	.name = "ZY1000",
 	.supported = DEBUG_CAP_TMS_SEQ,
 	.execute_queue = NULL,
+	.support_conf_speed = true,
 	.speed = zy1000_speed,
 	.commands = zy1000_commands,
 	.init = zy1000_init,

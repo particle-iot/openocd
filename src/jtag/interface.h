@@ -252,6 +252,11 @@ struct jtag_interface {
 	int (*quit)(void);
 
 	/**
+	 * Tells if the interface support configurable speed.
+	 */
+	bool support_conf_speed;
+
+	/**
 	 * Returns JTAG maxium speed for KHz. 0 = RTCK. The function returns
 	 *  a failure if it can't support the KHz/RTCK.
 	 *

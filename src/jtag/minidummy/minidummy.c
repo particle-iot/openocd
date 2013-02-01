@@ -31,6 +31,7 @@ struct jtag_interface minidummy_interface = {
 	.execute_queue = NULL,
 	.speed = NULL,
 	.commands = NULL,
+	.support_conf_speed = false,
 	.init = NULL,
 	.quit = NULL,
 	.khz = NULL,

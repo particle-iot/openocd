@@ -1678,6 +1678,7 @@ struct jtag_interface rlink_interface = {
 	.name = "rlink",
 	.init = rlink_init,
 	.quit = rlink_quit,
+	.support_conf_speed = true,
 	.speed = rlink_speed,
 	.speed_div = rlink_speed_div,
 	.khz = rlink_khz,

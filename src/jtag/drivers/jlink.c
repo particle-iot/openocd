@@ -1301,6 +1301,7 @@ struct jtag_interface jlink_interface = {
 	.transports = jtag_only,
 
 	.execute_queue = jlink_execute_queue,
+	.support_conf_speed = true,
 	.speed = jlink_speed,
 	.speed_div = jlink_speed_div,
 	.khz = jlink_khz,

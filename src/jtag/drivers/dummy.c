@@ -153,6 +153,7 @@ struct jtag_interface dummy_interface = {
 
 		.execute_queue = &bitbang_execute_queue,
 
+		.support_conf_speed = true,
 		.speed = &dummy_speed,
 		.khz = &dummy_khz,
 		.speed_div = &dummy_speed_div,

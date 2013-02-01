@@ -602,6 +602,7 @@ struct jtag_interface amt_jtagaccel_interface = {
 
 	.init = amt_jtagaccel_init,
 	.quit = amt_jtagaccel_quit,
+	.support_conf_speed = true,
 	.speed = amt_jtagaccel_speed,
 	.execute_queue = amt_jtagaccel_execute_queue,
 };

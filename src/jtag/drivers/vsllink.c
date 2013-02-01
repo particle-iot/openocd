@@ -842,6 +842,7 @@ struct jtag_interface vsllink_interface = {
 
 	.init = vsllink_init,
 	.quit = vsllink_quit,
+	.support_conf_speed = true,
 	.khz = vsllink_khz,
 	.speed = vsllink_speed,
 	.speed_div = vsllink_speed_div,
