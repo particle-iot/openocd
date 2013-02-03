@@ -68,6 +68,12 @@ enum nvp_assert {
 	NVP_ASSERT,
 };
 
+/* Values for target_get_gdb_reg_list list_type */
+enum list_type {
+	FULL_LIST,
+	G_REGISTERS_LIST,
+};
+
 enum target_reset_mode {
 	RESET_UNKNOWN = 0,
 	RESET_RUN = 1,		/* reset and let target run */
@@ -392,8 +398,8 @@ int target_remove_watchpoint(struct target *target,
  *
  * This routine is a wrapper for target->type->get_gdb_reg_list.
  */
-int target_get_gdb_reg_list(struct target *target,
-		struct reg **reg_list[], int *reg_list_size);
+int target_get_gdb_reg_list(struct target *target, struct reg **reg_list[],
+		int *reg_list_size, enum list_type list_type);
 
 /**
  * Step the target.

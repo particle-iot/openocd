@@ -102,7 +102,8 @@ struct target_type {
 	 * list, however it is after GDB is connected that monitor commands can
 	 * be run to properly initialize the target
 	 */
-	int (*get_gdb_reg_list)(struct target *target, struct reg **reg_list[], int *reg_list_size);
+	int (*get_gdb_reg_list)(struct target *target, struct reg **reg_list[],
+				int *reg_list_size, enum list_type list_type);
 
 	/* target memory access
 	* size: 1 = byte (8bit), 2 = half-word (16bit), 4 = word (32bit)
