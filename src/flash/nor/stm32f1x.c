@@ -943,6 +943,13 @@ static int stm32x_probe(struct flash_bank *bank)
 		flash_size_in_kb = max_flash_size_in_kb;
 	}
 
+	/* if the user sets the size manually then ignore the probed value
+	 * this allows us to work around devices that have a invalid flash size register value */
+	if (bank->size) {
+		LOG_INFO("ignoring flash probed value, using configured bank size");
+		flash_size_in_kb = bank->size / 1024;
+	}
+
 	if (stm32x_info->has_dual_banks) {
 		/* split reported size into matching bank */
 		if (bank->base != 0x08080000) {
