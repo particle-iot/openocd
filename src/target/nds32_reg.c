@@ -27,8 +27,8 @@ static bool nds32_reg_init_done;
 static struct nds32_reg_s nds32_regs[TOTAL_REG_NUM];
 
 static inline void nds32_reg_set(uint32_t number, const char *simple_mnemonic,
-					const char *symbolic_mnemonic, uint32_t sr_index,
-					enum nds32_reg_type_s type, uint8_t size)
+		const char *symbolic_mnemonic, uint32_t sr_index,
+		enum nds32_reg_type_s type, uint8_t size)
 {
 	nds32_regs[number].simple_mnemonic = simple_mnemonic;
 	nds32_regs[number].symbolic_mnemonic = symbolic_mnemonic;
