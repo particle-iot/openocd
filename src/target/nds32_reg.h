@@ -24,8 +24,7 @@
 #define NDS32_REGISTER_DISABLE		(0x0)
 
 enum nds32_reg_number_s {
-	/* general registers */
-	R0 = 0,
+	R0 = 0, /* general registers */
 	R1,
 	R2,
 	R3,
@@ -64,9 +63,7 @@ enum nds32_reg_number_s {
 	D1HI,
 	ITB,
 	IFC_LP,
-
-	/* system registers */
-	CR0,
+	CR0, /* system registers */
 	CR1,
 	CR2,
 	CR3,
@@ -180,9 +177,7 @@ enum nds32_reg_number_s {
 	IDR0,
 	IDR1,
 	SECUR0,
-
-	/* audio registers */
-	D0L24,
+	D0L24, /* audio registers */
 	D1L24,
 	I0,
 	I1,
@@ -214,9 +209,7 @@ enum nds32_reg_number_s {
 	CBE1,
 	CBE2,
 	CBE3,
-
-	/* fpu */
-	FPCSR,
+	FPCSR, /* fpu */
 	FPCFG,
 	FS0,
 	FS1,
