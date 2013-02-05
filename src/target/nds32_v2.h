@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2012 by Hsiangkai Wang                                  *
+ *   Copyright (C) 2012 Andes technology.                                  *
  *   Hsiangkai Wang <hkwang@andestech.com>                                 *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
@@ -17,31 +17,28 @@
  *   Free Software Foundation, Inc.,                                       *
  *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
  ***************************************************************************/
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
+#ifndef __NDS32_V2_H__
+#define __NDS32_V2_H__
 
-#include "aice_usb.h"
-#include "aice_pipe.h"
-#include "aice_port.h"
+#include "nds32.h"
 
-static const struct aice_port aice_ports[] = {
-	{
-		.name = "aice_usb",
-		.type = AICE_PORT_AICE_USB,
-		.api = &aice_usb_api,
-	},
-	{
-		.name = "aice_pipe",
-		.type = AICE_PORT_AICE_PIPE,
-		.api = &aice_pipe,
-	},
-	{.name = NULL, /* END OF TABLE */ },
+struct nds32_v2_common {
+	struct nds32 nds32;
+
+	uint32_t backup_ir0;
+
+	/** number of hardware breakpoints */
+	int32_t n_hbr;
+
+	/** next hardware breakpoint index */
+	/** increase from low index to high index */
+	int32_t next_hbr_index;
 };
 
-/** */
-const struct aice_port *aice_port_get_list(void)
+static inline struct nds32_v2_common *target_to_nds32_v2(struct target *target)
 {
-	return aice_ports;
+	return container_of(target->arch_info, struct nds32_v2_common, nds32);
 }
 
+
+#endif	/* __NDS32_V2_H__ */

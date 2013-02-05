@@ -74,6 +74,7 @@ enum nds32_tdesc_type {
 #define NDS32_STRUCT_TIMEVAL_SIZE 8
 
 enum nds32_syscall_id {
+	NDS32_SYSCALL_UNDEFINED = 0,
 	NDS32_SYSCALL_EXIT = 1,
 	NDS32_SYSCALL_OPEN = 2,
 	NDS32_SYSCALL_CLOSE = 3,
@@ -173,10 +174,10 @@ struct nds32_memory {
 	int dlm_end;
 
 	/** Memory access method */
-	enum aice_memory_access access_channel;
+	enum nds_memory_access access_channel;
 
 	/** Memory access mode */
-	enum aice_memory_mode mode;
+	enum nds_memory_select mode;
 
 	/** Address translation */
 	bool address_translation;
@@ -275,7 +276,7 @@ struct nds32 {
 	/** Backup target registers may be modified in debug state */
 	int (*enter_debug_state)(struct nds32 *nds32, bool enable_watchpoint);
 
-	/** Get address hitted watchpoint */
+	/** Get address hit watchpoint */
 	int (*get_watched_address)(struct nds32 *nds32, uint32_t *address, uint32_t reason);
 
 	/** maximum interrupt level */
@@ -348,27 +349,27 @@ extern int nds32_init_arch_info(struct target *target, struct nds32 *nds32);
 extern int nds32_full_context(struct nds32 *nds32);
 extern int nds32_arch_state(struct target *target);
 extern int nds32_add_software_breakpoint(struct target *target,
-					struct breakpoint *breakpoint);
+		struct breakpoint *breakpoint);
 extern int nds32_remove_software_breakpoint(struct target *target,
-					struct breakpoint *breakpoint);
+		struct breakpoint *breakpoint);
 
 extern int nds32_get_gdb_general_reg_list(struct target *target,
-					struct reg **reg_list[], int *reg_list_size);
+		struct reg **reg_list[], int *reg_list_size);
 extern int nds32_get_gdb_reg_list(struct target *target,
-				struct reg **reg_list[], int *reg_list_size);
+		struct reg **reg_list[], int *reg_list_size);
 extern int nds32_get_gdb_target_description(struct target *target, char **xml,
-					char *annex, int32_t offset, uint32_t length);
+		char *annex, int32_t offset, uint32_t length);
 
 extern int nds32_write_buffer(struct target *target, uint32_t address,
-				uint32_t size, const uint8_t *buffer);
+		uint32_t size, const uint8_t *buffer);
 extern int nds32_read_buffer(struct target *target, uint32_t address,
-				uint32_t size, uint8_t *buffer);
+		uint32_t size, uint8_t *buffer);
 extern int nds32_bulk_write_memory(struct target *target,
-					uint32_t address, uint32_t count, const uint8_t *buffer);
+		uint32_t address, uint32_t count, const uint8_t *buffer);
 extern int nds32_read_memory(struct target *target, uint32_t address,
-				uint32_t size, uint32_t count, uint8_t *buffer);
+		uint32_t size, uint32_t count, uint8_t *buffer);
 extern int nds32_write_memory(struct target *target, uint32_t address,
-				uint32_t size, uint32_t count, const uint8_t *buffer);
+		uint32_t size, uint32_t count, const uint8_t *buffer);
 
 extern int nds32_init_register_table(struct nds32 *nds32);
 extern int nds32_init_memory_info(struct nds32 *nds32);
@@ -382,24 +383,24 @@ extern int nds32_cache_sync(struct target *target, uint32_t address, uint32_t le
 extern int nds32_mmu(struct target *target, int *enabled);
 extern int nds32_virtual_to_physical(struct target *target, uint32_t address, uint32_t *physical);
 extern int nds32_read_phys_memory(struct target *target, uint32_t address,
-					uint32_t size, uint32_t count, uint8_t *buffer);
+		uint32_t size, uint32_t count, uint8_t *buffer);
 extern int nds32_write_phys_memory(struct target *target, uint32_t address,
-					uint32_t size, uint32_t count, const uint8_t *buffer);
+		uint32_t size, uint32_t count, const uint8_t *buffer);
 extern int nds32_soft_reset_halt(struct target *target);
 extern uint32_t nds32_nextpc(struct nds32 *nds32, int current, uint32_t address);
 extern int nds32_examine_debug_reason(struct nds32 *nds32);
 extern int nds32_step(struct target *target, int current,
-			uint32_t address, int handle_breakpoints);
+		uint32_t address, int handle_breakpoints);
 extern int nds32_target_state(struct nds32 *nds32, enum target_state *state);
 extern int nds32_halt(struct target *target);
 extern int nds32_poll(struct target *target);
 extern int nds32_resume(struct target *target, int current,
-			uint32_t address, int handle_breakpoints, int debug_execution);
+		uint32_t address, int handle_breakpoints, int debug_execution);
 extern int nds32_assert_reset(struct target *target);
 extern int nds32_init(struct nds32 *nds32);
 extern int nds32_get_gdb_fileio_info(struct target *target, struct gdb_fileio_info *fileio_info);
 extern int nds32_gdb_fileio_write_memory(struct nds32 *nds32, uint32_t address,
-						uint32_t size, const uint8_t *buffer);
+		uint32_t size, const uint8_t *buffer);
 extern int nds32_gdb_fileio_end(struct target *target, int retcode, int fileio_errno, bool ctrl_c);
 extern int nds32_reset_halt(struct nds32 *nds32);
 

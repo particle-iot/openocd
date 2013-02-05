@@ -21,6 +21,8 @@
 #ifndef _AICE_PORT_H_
 #define _AICE_PORT_H_
 
+#include <target/nds32_edm.h>
+
 #define ERROR_AICE_DISCONNECT  (-200)
 #define ERROR_AICE_TIMEOUT     (-201)
 
@@ -73,18 +75,6 @@ enum aice_error_s {
 	AICE_ERROR,
 };
 
-enum aice_memory_access {
-	AICE_MEMORY_ACC_BUS = 0,
-	AICE_MEMORY_ACC_CPU,
-};
-
-enum aice_memory_mode {
-	AICE_MEMORY_MODE_AUTO = 0,
-	AICE_MEMORY_MODE_MEM = 1,
-	AICE_MEMORY_MODE_ILM = 2,
-	AICE_MEMORY_MODE_DLM = 3,
-};
-
 enum aice_cache_ctl_type {
 	AICE_CACHE_CTL_L1D_INVALALL = 0,
 	AICE_CACHE_CTL_L1D_VA_INVAL,
@@ -93,9 +83,6 @@ enum aice_cache_ctl_type {
 	AICE_CACHE_CTL_L1I_INVALALL,
 	AICE_CACHE_CTL_L1I_VA_INVAL,
 };
-
-extern const char *AICE_MEMORY_ACCESS_NAME[];
-extern const char *AICE_MEMORY_MODE_NAME[];
 
 struct aice_port_param_s {
 	/** */
@@ -174,9 +161,9 @@ struct aice_port_api_s {
 	int (*select_target)(uint32_t target_id);
 
 	/** */
-	int (*memory_access)(enum aice_memory_access a_access);
+	int (*memory_access)(enum nds_memory_access a_access);
 	/** */
-	int (*memory_mode)(enum aice_memory_mode mode);
+	int (*memory_mode)(enum nds_memory_select select);
 
 	/** */
 	int (*read_tlb)(uint32_t virtual_address, uint32_t *physical_address);
