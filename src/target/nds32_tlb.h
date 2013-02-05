@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2012 by Hsiangkai Wang                                  *
+ *   Copyright (C) 2012 Andes technology.                                  *
  *   Hsiangkai Wang <hkwang@andestech.com>                                 *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
@@ -17,31 +17,30 @@
  *   Free Software Foundation, Inc.,                                       *
  *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
  ***************************************************************************/
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
+#ifndef __NDS32_TLB_H__
+#define __NDS32_TLB_H__
 
-#include "aice_usb.h"
-#include "aice_pipe.h"
-#include "aice_port.h"
+#include "nds32.h"
 
-static const struct aice_port aice_ports[] = {
-	{
-		.name = "aice_usb",
-		.type = AICE_PORT_AICE_USB,
-		.api = &aice_usb_api,
-	},
-	{
-		.name = "aice_pipe",
-		.type = AICE_PORT_AICE_PIPE,
-		.api = &aice_pipe,
-	},
-	{.name = NULL, /* END OF TABLE */ },
+enum {
+	PAGE_SIZE_4K = 0,
+	PAGE_SIZE_8K,
+	PAGE_SIZE_NUM,
 };
 
-/** */
-const struct aice_port *aice_port_get_list(void)
-{
-	return aice_ports;
-}
+struct page_table_walker_info_s {
 
+	uint32_t L1_offset_mask;
+	uint32_t L1_offset_shift;
+	uint32_t L2_offset_mask;
+	uint32_t L2_offset_shift;
+	uint32_t va_offset_mask;
+	uint32_t L1_base_mask;
+	uint32_t L2_base_mask;
+	uint32_t ppn_mask;
+};
+
+extern int nds32_probe_tlb(struct nds32 *nds32, const uint32_t virtual_address, uint32_t *physical_address);
+extern int nds32_walk_page_table(struct nds32 *nds32, const uint32_t virtual_address, uint32_t *physical_address);
+
+#endif

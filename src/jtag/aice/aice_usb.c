@@ -28,7 +28,6 @@
 #include <jtag/jtag.h>
 #include <target/nds32_insn.h>
 #include <target/nds32_reg.h>
-#include <target/nds32_edm.h>
 #include "aice_usb.h"
 
 
@@ -1156,8 +1155,8 @@ static uint32_t target_dtr_backup;
 static uint32_t edmsw_backup;
 static bool host_dtr_valid;
 static bool target_dtr_valid;
-static enum aice_memory_access access_channel = AICE_MEMORY_ACC_CPU;
-static enum aice_memory_mode memory_mode = AICE_MEMORY_MODE_AUTO;
+static enum nds_memory_access access_channel = NDS_MEMORY_ACC_CPU;
+static enum nds_memory_select memory_select = NDS_MEMORY_SELECT_AUTO;
 static bool memory_mode_auto_select;
 static enum aice_target_state_s core_state = AICE_TARGET_RUNNING;
 static uint32_t edm_version;
@@ -2079,7 +2078,7 @@ static int aice_usb_read_memory_unit(uint32_t addr, uint32_t size, uint32_t coun
 {
 	LOG_DEBUG("aice_usb_read_memory_unit, addr: 0x%08x, size: %d, count: %d", addr, size, count);
 
-	if (AICE_MEMORY_ACC_CPU == access_channel)
+	if (NDS_MEMORY_ACC_CPU == access_channel)
 		aice_usb_set_address_dim(addr);
 
 	uint32_t value;
@@ -2088,7 +2087,7 @@ static int aice_usb_read_memory_unit(uint32_t addr, uint32_t size, uint32_t coun
 
 	switch (size) {
 		case 1:
-			if (AICE_MEMORY_ACC_BUS == access_channel)
+			if (NDS_MEMORY_ACC_BUS == access_channel)
 				read_mem_func = aice_usb_read_mem_b_bus;
 			else
 				read_mem_func = aice_usb_read_mem_b_dim;
@@ -2100,7 +2099,7 @@ static int aice_usb_read_memory_unit(uint32_t addr, uint32_t size, uint32_t coun
 			}
 			break;
 		case 2:
-			if (AICE_MEMORY_ACC_BUS == access_channel)
+			if (NDS_MEMORY_ACC_BUS == access_channel)
 				read_mem_func = aice_usb_read_mem_h_bus;
 			else
 				read_mem_func = aice_usb_read_mem_h_dim;
@@ -2114,7 +2113,7 @@ static int aice_usb_read_memory_unit(uint32_t addr, uint32_t size, uint32_t coun
 			}
 			break;
 		case 4:
-			if (AICE_MEMORY_ACC_BUS == access_channel)
+			if (NDS_MEMORY_ACC_BUS == access_channel)
 				read_mem_func = aice_usb_read_mem_w_bus;
 			else
 				read_mem_func = aice_usb_read_mem_w_dim;
@@ -2195,7 +2194,7 @@ static int aice_usb_write_memory_unit(uint32_t addr, uint32_t size, uint32_t cou
 {
 	LOG_DEBUG("aice_usb_write_memory_unit, addr: 0x%08x, size: %d, count: %d", addr, size, count);
 
-	if (AICE_MEMORY_ACC_CPU == access_channel)
+	if (NDS_MEMORY_ACC_CPU == access_channel)
 		aice_usb_set_address_dim(addr);
 
 	size_t i;
@@ -2203,7 +2202,7 @@ static int aice_usb_write_memory_unit(uint32_t addr, uint32_t size, uint32_t cou
 
 	switch (size) {
 		case 1:
-			if (AICE_MEMORY_ACC_BUS == access_channel)
+			if (NDS_MEMORY_ACC_BUS == access_channel)
 				write_mem_func = aice_usb_write_mem_b_bus;
 			else
 				write_mem_func = aice_usb_write_mem_b_dim;
@@ -2215,7 +2214,7 @@ static int aice_usb_write_memory_unit(uint32_t addr, uint32_t size, uint32_t cou
 			}
 			break;
 		case 2:
-			if (AICE_MEMORY_ACC_BUS == access_channel)
+			if (NDS_MEMORY_ACC_BUS == access_channel)
 				write_mem_func = aice_usb_write_mem_h_bus;
 			else
 				write_mem_func = aice_usb_write_mem_h_dim;
@@ -2230,7 +2229,7 @@ static int aice_usb_write_memory_unit(uint32_t addr, uint32_t size, uint32_t cou
 			}
 			break;
 		case 4:
-			if (AICE_MEMORY_ACC_BUS == access_channel)
+			if (NDS_MEMORY_ACC_BUS == access_channel)
 				write_mem_func = aice_usb_write_mem_w_bus;
 			else
 				write_mem_func = aice_usb_write_mem_w_dim;
@@ -2301,10 +2300,10 @@ static int aice_usb_bulk_read_mem(uint32_t addr, uint32_t length, uint8_t *buffe
 
 	int retval;
 
-	if (AICE_MEMORY_ACC_CPU == access_channel)
+	if (NDS_MEMORY_ACC_CPU == access_channel)
 		aice_usb_set_address_dim(addr);
 
-	if (AICE_MEMORY_ACC_CPU == access_channel)
+	if (NDS_MEMORY_ACC_CPU == access_channel)
 		retval = aice_usb_read_memory_unit(addr, 4, length / 4, buffer);
 	else
 		retval = aice_bulk_read_mem(addr, length / 4, buffer);
@@ -2318,10 +2317,10 @@ static int aice_usb_bulk_write_mem(uint32_t addr, uint32_t length, const uint8_t
 
 	int retval;
 
-	if (AICE_MEMORY_ACC_CPU == access_channel)
+	if (NDS_MEMORY_ACC_CPU == access_channel)
 		aice_usb_set_address_dim(addr);
 
-	if (AICE_MEMORY_ACC_CPU == access_channel)
+	if (NDS_MEMORY_ACC_CPU == access_channel)
 		retval = aice_usb_write_memory_unit(addr, 4, length / 4, buffer);
 	else
 		retval = aice_bulk_write_mem(addr, length / 4, buffer);
@@ -2369,26 +2368,26 @@ static int aice_usb_select_target(uint32_t target_id)
 	return ERROR_OK;
 }
 
-static int aice_usb_memory_access(enum aice_memory_access channel)
+static int aice_usb_memory_access(enum nds_memory_access channel)
 {
-	LOG_DEBUG("aice_usb_memory_access, access channel: %s", AICE_MEMORY_ACCESS_NAME[channel]);
+	LOG_DEBUG("aice_usb_memory_access, access channel: %d", channel);
 
 	access_channel = channel;
 
 	return ERROR_OK;
 }
 
-static int aice_usb_memory_mode(enum aice_memory_mode mode)
+static int aice_usb_memory_mode(enum nds_memory_select select)
 {
-	LOG_DEBUG("aice_usb_memory_mode, memory mode: %s", AICE_MEMORY_MODE_NAME[mode]);
+	LOG_DEBUG("aice_usb_memory_mode, memory select: %d", select);
 
-	memory_mode = mode;
+	memory_select = select;
 
-	if (AICE_MEMORY_MODE_AUTO != memory_mode) {
-		aice_write_misc(current_target_id, NDS_EDM_MISC_ACC_CTL, memory_mode - 1);
+	if (NDS_MEMORY_SELECT_AUTO != memory_select) {
+		aice_write_misc(current_target_id, NDS_EDM_MISC_ACC_CTL, memory_select - 1);
 		memory_mode_auto_select = false;
 	} else {
-		aice_write_misc(current_target_id, NDS_EDM_MISC_ACC_CTL, AICE_MEMORY_MODE_MEM - 1);
+		aice_write_misc(current_target_id, NDS_EDM_MISC_ACC_CTL, NDS_MEMORY_SELECT_MEM - 1);
 		memory_mode_auto_select = true;
 	}
 

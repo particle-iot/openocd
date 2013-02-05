@@ -19,8 +19,6 @@
  ***************************************************************************/
 #ifndef __NDS32_EDM_H__
 #define __NDS32_EDM_H__
-#include <jtag/aice/aice_port.h>
-#include "nds32.h"
 
 /**
  * @file
@@ -88,6 +86,18 @@ enum nds_edm_system_reg {
 	NDS_EDM_SR_TECR1 = 0x71,
 };
 
+enum nds_memory_access {
+	NDS_MEMORY_ACC_BUS = 0,
+	NDS_MEMORY_ACC_CPU,
+};
+
+enum nds_memory_select {
+	NDS_MEMORY_SELECT_AUTO = 0,
+	NDS_MEMORY_SELECT_MEM = 1,
+	NDS_MEMORY_SELECT_ILM = 2,
+	NDS_MEMORY_SELECT_DLM = 3,
+};
+
 #define NDS_DBGER_DEX		(0x1)
 #define NDS_DBGER_DPED		(0x2)
 #define NDS_DBGER_CRST		(0x4)
@@ -97,9 +107,5 @@ enum nds_edm_system_reg {
 
 #define NDS_EDMSW_WDV		(1 << 0)
 #define NDS_EDMSW_RDV		(1 << 1)
-
-#define NDS_MEM_SEL_BUS		(0)
-#define NDS_MEM_SEL_ILM		(1)
-#define NDS_MEM_SEL_DLM		(2)
 
 #endif /* __NDS32_EDM_H__ */

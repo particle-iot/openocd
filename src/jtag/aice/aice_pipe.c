@@ -760,7 +760,7 @@ static int aice_pipe_select_target(uint32_t target_id)
 		return ERROR_FAIL;
 }
 
-static int aice_pipe_memory_access(enum aice_memory_access access_channel)
+static int aice_pipe_memory_access(enum nds_memory_access access_channel)
 {
 	char line[AICE_PIPE_MAXLINE];
 	char command[AICE_PIPE_MAXLINE];
@@ -780,13 +780,13 @@ static int aice_pipe_memory_access(enum aice_memory_access access_channel)
 		return ERROR_FAIL;
 }
 
-static int aice_pipe_memory_mode(enum aice_memory_mode mode)
+static int aice_pipe_memory_mode(enum nds_memory_select select)
 {
 	char line[AICE_PIPE_MAXLINE];
 	char command[AICE_PIPE_MAXLINE];
 
 	command[0] = AICE_MEMORY_MODE;
-	set_u32(command + 1, mode);
+	set_u32(command + 1, select);
 
 	if (aice_pipe_write(command, 5) != 5)
 		return ERROR_FAIL;
