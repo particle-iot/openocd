@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2012 by Hsiangkai Wang                                  *
+ *   Copyright (C) 2012 Andes technology.                                  *
  *   Hsiangkai Wang <hkwang@andestech.com>                                 *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
@@ -17,31 +17,11 @@
  *   Free Software Foundation, Inc.,                                       *
  *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
  ***************************************************************************/
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
 
-#include "aice_usb.h"
-#include "aice_pipe.h"
-#include "aice_port.h"
+#ifndef __NDS32_CMD_H__
+#define __NDS32_CMD_H__
+#include <helper/command.h>
 
-static const struct aice_port aice_ports[] = {
-	{
-		.name = "aice_usb",
-		.type = AICE_PORT_AICE_USB,
-		.api = &aice_usb_api,
-	},
-	{
-		.name = "aice_pipe",
-		.type = AICE_PORT_AICE_PIPE,
-		.api = &aice_pipe,
-	},
-	{.name = NULL, /* END OF TABLE */ },
-};
+extern const struct command_registration nds32_command_handlers[];
 
-/** */
-const struct aice_port *aice_port_get_list(void)
-{
-	return aice_ports;
-}
-
+#endif /* __NDS32_CMD_H__ */

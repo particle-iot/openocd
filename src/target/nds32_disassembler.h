@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2012 by Hsiangkai Wang                                  *
+ *   Copyright (C) 2012 Andes technology.                                  *
  *   Hsiangkai Wang <hkwang@andestech.com>                                 *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
@@ -17,31 +17,42 @@
  *   Free Software Foundation, Inc.,                                       *
  *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
  ***************************************************************************/
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
 
-#include "aice_usb.h"
-#include "aice_pipe.h"
-#include "aice_port.h"
+#ifndef __NDS32_DISASSEMBLER_H__
+#define __NDS32_DISASSEMBLER_H__
 
-static const struct aice_port aice_ports[] = {
-	{
-		.name = "aice_usb",
-		.type = AICE_PORT_AICE_USB,
-		.api = &aice_usb_api,
-	},
-	{
-		.name = "aice_pipe",
-		.type = AICE_PORT_AICE_PIPE,
-		.api = &aice_pipe,
-	},
-	{.name = NULL, /* END OF TABLE */ },
+#include <target/nds32.h>
+
+enum nds32_instruction_type {
+	NDS32_INSN_DATA_PROC = 0,
+	NDS32_INSN_LOAD_STORE,
+	NDS32_INSN_JUMP_BRANCH,
+	NDS32_INSN_RESOURCE_ACCESS,
+	NDS32_INSN_MISC,
 };
 
-/** */
-const struct aice_port *aice_port_get_list(void)
-{
-	return aice_ports;
-}
+struct nds32_instruction {
+	enum nds32_instruction_type type;
+	char text[128];
+	uint32_t opcode;
+	uint8_t instruction_size;
+	uint32_t access_start;
+	uint32_t access_end;
 
+	struct {
+		uint8_t opc_6;
+		uint8_t rt;
+		uint8_t ra;
+		uint8_t rb;
+		uint8_t rd;
+		uint8_t sub_opc;
+		int32_t imm;
+	} info;
+
+};
+
+int nds32_read_opcode(struct nds32 *nds32, uint32_t address, uint32_t *value);
+int nds32_evaluate_opcode(struct nds32 *nds32, uint32_t opcode, uint32_t address,
+		struct nds32_instruction *instruction);
+
+#endif /* __NDS32_DISASSEMBLER_H__ */

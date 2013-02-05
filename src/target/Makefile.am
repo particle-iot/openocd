@@ -109,7 +109,14 @@ MIPS32_SRC = \
 	mips_ejtag.c
 
 NDS32_SRC = \
-	nds32_reg.c
+	nds32.c \
+	nds32_reg.c \
+	nds32_cmd.c \
+	nds32_disassembler.c \
+	nds32_tlb.c \
+	nds32_v2.c \
+	nds32_v3.c \
+	nds32_v3m.c
 
 
 noinst_HEADERS = \
@@ -168,9 +175,15 @@ noinst_HEADERS = \
 	avr32_mem.h \
 	avr32_regs.h \
 	nds32.h \
+	nds32_cmd.h \
+	nds32_disassembler.h \
 	nds32_edm.h \
 	nds32_insn.h \
-	nds32_reg.h
+	nds32_reg.h \
+	nds32_tlb.h \
+	nds32_v2.h \
+	nds32_v3.h \
+	nds32_v3m.h
 
 ocddatadir = $(pkglibdir)
 nobase_dist_ocddata_DATA =
