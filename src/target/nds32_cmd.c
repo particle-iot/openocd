@@ -395,6 +395,21 @@ COMMAND_HANDLER(handle_nds32_decode_command)
 	return ERROR_OK;
 }
 
+COMMAND_HANDLER(handle_nds32_query_target_command)
+{
+	struct target *target = get_current_target(CMD_CTX);
+	struct nds32 *nds32 = target_to_nds32(target);
+
+	if (!is_nds32(nds32)) {
+		command_print(CMD_CTX, "current target isn't an Andes core");
+		return ERROR_FAIL;
+	}
+
+	command_print(CMD_CTX, "OCD");
+
+	return ERROR_OK;
+}
+
 static int jim_nds32_bulk_write(Jim_Interp *interp, int argc, Jim_Obj * const *argv)
 {
 	const char *cmd_name = Jim_GetString(argv[0], NULL);
@@ -578,6 +593,18 @@ static int jim_nds32_write_edm_sr(Jim_Interp *interp, int argc, Jim_Obj * const 
 	return ERROR_OK;
 }
 
+static const struct command_registration nds32_query_command_handlers[] = {
+	{
+		.name = "target",
+		.handler = handle_nds32_query_target_command,
+		.mode = COMMAND_EXEC,
+		.usage = "",
+		.help = "reply 'OCD' for gdb to identify server-side is OpenOCD",
+	},
+
+	COMMAND_REGISTRATION_DONE
+};
+
 static const struct command_registration nds32_exec_command_handlers[] = {
 	{
 		.name = "dssim",
@@ -686,6 +713,13 @@ static const struct command_registration nds32_exec_command_handlers[] = {
 		.mode = COMMAND_EXEC,
 		.help = "Write EDM system register",
 		.usage = "['edm_dtr'] value",
+	},
+	{
+		.name = "query",
+		.mode = COMMAND_ANY,
+		.help = "Andes query command group",
+		.usage = "",
+		.chain = nds32_query_command_handlers,
 	},
 
 	COMMAND_REGISTRATION_DONE
