@@ -32,6 +32,9 @@ enum nds_edm_misc_reg {
 	NDS_EDM_MISC_EDM_CMDR,
 	NDS_EDM_MISC_DBGER,
 	NDS_EDM_MISC_ACC_CTL,
+	NDS_EDM_MISC_EDM_PROBE,
+	NDS_EDM_MISC_GEN_PORT0,
+	NDS_EDM_MISC_GEN_PORT1,
 };
 
 /* EDM system registers */
@@ -102,6 +105,7 @@ enum nds_memory_select {
 #define NDS_DBGER_DPED		(0x2)
 #define NDS_DBGER_CRST		(0x4)
 #define NDS_DBGER_AT_MAX	(0x8)
+#define NDS_DBGER_ILL_SEC_ACC	(0x10)
 #define NDS_DBGER_ALL_SUPRS_EX	(0x40000000)
 #define NDS_DBGER_RESACC	(0x80000000)
 #define NDS_DBGER_CLEAR_ALL	(0x1F)
