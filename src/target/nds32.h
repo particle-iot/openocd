@@ -398,7 +398,6 @@ extern int nds32_read_phys_memory(struct target *target, uint32_t address,
 		uint32_t size, uint32_t count, uint8_t *buffer);
 extern int nds32_write_phys_memory(struct target *target, uint32_t address,
 		uint32_t size, uint32_t count, const uint8_t *buffer);
-extern int nds32_soft_reset_halt(struct target *target);
 extern uint32_t nds32_nextpc(struct nds32 *nds32, int current, uint32_t address);
 extern int nds32_examine_debug_reason(struct nds32 *nds32);
 extern int nds32_step(struct target *target, int current,
