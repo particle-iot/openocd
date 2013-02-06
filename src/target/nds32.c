@@ -1594,6 +1594,9 @@ int nds32_edm_config(struct nds32 *nds32)
 	else
 		nds32->edm.direct_access_local_memory = false;
 
+	if (nds32->edm.version <= 0x20)
+		nds32->edm.direct_access_local_memory = false;
+
 	aice->port->api->read_debug_reg(NDS_EDM_SR_EDM_CTL, &edm_ctl);
 	if (edm_ctl & (0x1 << 29))
 		nds32->edm.support_max_stop = true;
