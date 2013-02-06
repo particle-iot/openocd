@@ -32,6 +32,9 @@ enum nds_edm_misc_reg {
 	NDS_EDM_MISC_EDM_CMDR,
 	NDS_EDM_MISC_DBGER,
 	NDS_EDM_MISC_ACC_CTL,
+	NDS_EDM_MISC_EDM_PROBE,
+	NDS_EDM_MISC_GEN_PORT0,
+	NDS_EDM_MISC_GEN_PORT1,
 };
 
 /* EDM system registers */
