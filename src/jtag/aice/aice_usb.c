@@ -1894,12 +1894,20 @@ static int aice_usb_assert_srst(enum aice_srst_type_s srst)
 				NDS_DBGER_DEX | NDS_DBGER_DPED | NDS_DBGER_CRST) != ERROR_OK)
 		return ERROR_FAIL;
 
+	int result = ERROR_OK;
 	if (AICE_SRST == srst)
-		return aice_issue_srst();
+		result = aice_issue_srst();
 	else
-		return aice_issue_reset_hold();
+		result = aice_issue_reset_hold();
 
-	return ERROR_OK;
+	/* Clear DBGER.CRST after reset to avoid 'core-reset checking' errors.
+	 * assert_srst is user-intentional reset behavior, so we could clear DBGER.CRST
+	 * safely.
+	 */
+	if (aice_write_misc(current_target_id, NDS_EDM_MISC_DBGER, NDS_DBGER_CRST) != ERROR_OK)
+		return ERROR_FAIL;
+
+	return result;
 }
 
 static int aice_usb_run(void)
