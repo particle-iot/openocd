@@ -2055,8 +2055,8 @@ int nds32_poll(struct target *target)
 int nds32_resume(struct target *target, int current,
 		uint32_t address, int handle_breakpoints, int debug_execution)
 {
-	/*	LOG_DEBUG("current %d  address %08x  handle_breakpoints %d  debug_execution %d", */
-	/*	current, address, handle_breakpoints, debug_execution); */
+	LOG_DEBUG("current %d  address %08x  handle_breakpoints %d  debug_execution %d",
+			current, address, handle_breakpoints, debug_execution);
 
 	struct nds32 *nds32 = target_to_nds32(target);
 
@@ -2072,20 +2072,13 @@ int nds32_resume(struct target *target, int current,
 	if (!debug_execution)
 		target_free_all_working_areas(target);
 
-	/* Should we skip over breakpoints matching the PC? */
-	/*
-	   if (handle_breakpoints) {
-	   struct breakpoint *bp;
-
-	   for (bp = target->breakpoints; bp; bp = bp->next) {
-	   if (bp->address == address) {
-	   LOG_DEBUG("must step over %08" PRIx32 "", bp->address);
-	   target->type->step(target, 1, 0, 0);
-	   break;
-	   }
-	   }
-	   }
-	   */
+	/* Disable HSS to avoid users misuse HSS */
+	if (nds32_reach_max_interrupt_level(nds32) == false) {
+		uint32_t value_ir0;
+		nds32_get_mapped_reg(nds32, IR0, &value_ir0);
+		value_ir0 &= ~(0x1 << 11);
+		nds32_set_mapped_reg(nds32, IR0, value_ir0);
+	}
 
 	CHECK_RETVAL(nds32->leave_debug_state(nds32, true));
 	CHECK_RETVAL(target_call_event_callbacks(target, TARGET_EVENT_RESUMED));
