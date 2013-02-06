@@ -173,6 +173,9 @@ struct aice_port_api_s {
 
 	/** */
 	int (*set_retry_times)(uint32_t a_retry_times);
+
+	/** */
+	int (*program_edm)(char *command_sequence);
 };
 
 #define AICE_PORT_UNKNOWN	0
