@@ -311,6 +311,8 @@ struct nds32 {
 	/** reset-halt as target examine */
 	bool reset_halt_as_examine;
 
+	char *edm_passcode;
+
 	/** Period to wait after SRST. */
 	uint32_t boot_time;
 
@@ -405,6 +407,7 @@ extern int nds32_gdb_fileio_write_memory(struct nds32 *nds32, uint32_t address,
 		uint32_t size, const uint8_t *buffer);
 extern int nds32_gdb_fileio_end(struct target *target, int retcode, int fileio_errno, bool ctrl_c);
 extern int nds32_reset_halt(struct nds32 *nds32);
+extern int nds32_login(struct nds32 *nds32);
 
 /** Convert target handle to generic Andes target state handle. */
 static inline struct nds32 *target_to_nds32(struct target *target)

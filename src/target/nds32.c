@@ -1058,8 +1058,8 @@ static int nds32_init_option_registers(struct nds32 *nds32)
 
 	if (mmu_config->memory_protection == 1) {
 		((struct nds32_reg *)reg_cache->reg_list[MR4].arch_info)->enable = true;
-		((struct nds32_reg *)reg_cache->reg_list[MR11].arch_info)->enable = true;
 
+		((struct nds32_reg *)reg_cache->reg_list[MR11].arch_info)->enable = true;
 		((struct nds32_reg *)reg_cache->reg_list[SECUR0].arch_info)->enable = true;
 
 		((struct nds32_reg *)reg_cache->reg_list[IR20].arch_info)->enable = true;
@@ -1106,7 +1106,6 @@ static int nds32_init_option_registers(struct nds32 *nds32)
 		for (int i = 0 ; i < dr_reg_n ; i++)
 			((struct nds32_reg *)reg_cache->reg_list[DR0 + i].arch_info)->enable = true;
 
-		((struct nds32_reg *)reg_cache->reg_list[DR40].arch_info)->enable = true;
 		((struct nds32_reg *)reg_cache->reg_list[DR41].arch_info)->enable = true;
 		((struct nds32_reg *)reg_cache->reg_list[DR43].arch_info)->enable = true;
 		((struct nds32_reg *)reg_cache->reg_list[DR44].arch_info)->enable = true;
@@ -1603,6 +1602,9 @@ int nds32_edm_config(struct nds32 *nds32)
 	else
 		nds32->edm.support_max_stop = false;
 
+	/* set passcode for secure MCU */
+	nds32_login(nds32);
+
 	return ERROR_OK;
 }
 
@@ -1669,6 +1671,7 @@ int nds32_init_arch_info(struct target *target, struct nds32 *nds32)
 	nds32->auto_convert_hw_bp = true;
 	nds32->global_stop = false;
 	nds32->soft_reset_halt = false;
+	nds32->edm_passcode = NULL;
 	nds32->boot_time = 2500;
 	nds32->reset_halt_as_examine = false;
 	nds32->virtual_hosting = false;
@@ -1964,6 +1967,42 @@ int nds32_examine_debug_reason(struct nds32 *nds32)
 	return ERROR_OK;
 }
 
+int nds32_login(struct nds32 *nds32)
+{
+	struct target *target = nds32->target;
+	struct aice_port_s *aice = target_to_aice(target);
+	uint32_t passcode_length = strlen(nds32->edm_passcode);
+	char command_sequence[129];
+	char command_str[33];
+	char code_str[9];
+	uint32_t copy_length;
+	uint32_t code;
+	uint32_t i;
+
+	if (nds32->edm_passcode != NULL) {
+		/* convert EDM passcode to command sequences */
+		command_sequence[0] = '\0';
+		for (i = 0; i < passcode_length; i += 8) {
+			if (passcode_length - i < 8)
+				copy_length = passcode_length - i;
+			else
+				copy_length = 8;
+
+			strncpy(code_str, nds32->edm_passcode + i, copy_length);
+			code_str[copy_length] = '\0';
+			code = strtoul(code_str, NULL, 16);
+
+			sprintf(command_str, "write_misc gen_port0 0x%x;", code);
+			strcat(command_sequence, command_str);
+		}
+
+		if (ERROR_OK != aice->port->api->program_edm(command_sequence))
+			return ERROR_FAIL;
+	}
+
+	return ERROR_OK;
+}
+
 int nds32_halt(struct target *target)
 {
 	struct nds32 *nds32 = target_to_nds32(target);
@@ -2100,6 +2139,9 @@ int nds32_assert_reset(struct target *target)
 		aice->port->api->assert_srst(AICE_SRST);
 		alive_sleep(nds32->boot_time);
 	}
+
+	/* set passcode for secure MCU after core reset */
+	nds32_login(nds32);
 
 	/* registers are now invalid */
 	register_cache_invalidate(nds32->core_cache);
