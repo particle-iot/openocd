@@ -30,8 +30,16 @@
 #include <jtag/drivers/libusb_common.h>
 #include "aice_usb.h"
 
-#define AICE_KHZ_TO_SPEED_MAP_SIZE	8
+#define AICE_KHZ_TO_SPEED_MAP_SIZE	16
 static int aice_khz_to_speed_map[AICE_KHZ_TO_SPEED_MAP_SIZE] = {
+	30000,
+	15000,
+	7500,
+	3750,
+	1875,
+	937,
+	468,
+	234,
 	48000,
 	24000,
 	12000,
@@ -184,8 +192,7 @@ static int aice_speed(int speed)
 /* convert jtag adapter frequency(base frequency/frequency divider) to human readable KHz value */
 static int aice_speed_div(int speed, int *khz)
 {
-	int map_index = speed & 0x7;   /* remove AICE_TCK_CONTROL_TCK3048 */
-	*khz = aice_khz_to_speed_map[map_index];
+	*khz = aice_khz_to_speed_map[speed];
 
 	return ERROR_OK;
 }
@@ -195,8 +202,11 @@ static int aice_khz(int khz, int *jtag_speed)
 {
 	int i;
 	for (i = 0 ; i < AICE_KHZ_TO_SPEED_MAP_SIZE ; i++) {
-		if (khz >= aice_khz_to_speed_map[i]) {
-			*jtag_speed = i | AICE_TCK_CONTROL_TCK3048;
+		if (khz == aice_khz_to_speed_map[i]) {
+			if (8 <= i)
+				*jtag_speed = i | AICE_TCK_CONTROL_TCK3048;
+			else
+				*jtag_speed = i;
 			break;
 		}
 	}
