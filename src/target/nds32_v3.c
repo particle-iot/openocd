@@ -232,7 +232,7 @@ static int nds32_v3_check_interrupt_stack(struct nds32_v3_common *nds32_v3)
 	nds32_get_mapped_reg(nds32, IR0, &val_ir0);
 	nds32->current_interrupt_level = (val_ir0 >> 1) & 0x3;
 
-	if (nds32->max_interrupt_level == nds32->current_interrupt_level) {
+	if (nds32_reach_max_interrupt_level(nds32)) {
 		LOG_INFO("Reaching the max interrupt stack level %d", nds32->current_interrupt_level);
 
 		return ERROR_FAIL;
@@ -326,8 +326,6 @@ static int nds32_v3_debug_entry(struct nds32 *nds32, bool enable_watchpoint)
 		return ERROR_FAIL;
 	}
 
-	/* TODO save DTR */
-
 	/* Save registers. */
 	nds32_full_context(nds32);
 
@@ -388,8 +386,6 @@ static int nds32_v3_leave_debug_state(struct nds32 *nds32, bool enable_watchpoin
 	 * registers.
 	 */
 	CHECK_RETVAL(nds32_restore_context(target));
-
-	/* TODO restore DTR */
 
 	if (nds32->virtual_hosting) {
 		/** enable virtual hosting */
