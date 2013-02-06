@@ -1024,6 +1024,9 @@ static int nds32_init_option_registers(struct nds32 *nds32)
 		((struct nds32_reg *)reg_cache->reg_list[IR9].arch_info)->enable = false;
 	}
 
+	if (nds32->privilege_level != 0)
+		((struct nds32_reg *)reg_cache->reg_list[IR3].arch_info)->enable = false;
+
 	if (misc_config->mcu == true)
 		((struct nds32_reg *)reg_cache->reg_list[IR4].arch_info)->enable = false;
 
@@ -1056,20 +1059,26 @@ static int nds32_init_option_registers(struct nds32 *nds32)
 	if (misc_config->ifc)
 		((struct nds32_reg *)reg_cache->reg_list[IFC_LP].arch_info)->enable = true;
 
+	if (nds32->privilege_level != 0)
+		((struct nds32_reg *)reg_cache->reg_list[MR0].arch_info)->enable = false;
+
 	if (mmu_config->memory_protection == 1) {
 		((struct nds32_reg *)reg_cache->reg_list[MR4].arch_info)->enable = true;
 
-		((struct nds32_reg *)reg_cache->reg_list[MR11].arch_info)->enable = true;
-		((struct nds32_reg *)reg_cache->reg_list[SECUR0].arch_info)->enable = true;
-
-		((struct nds32_reg *)reg_cache->reg_list[IR20].arch_info)->enable = true;
-		((struct nds32_reg *)reg_cache->reg_list[IR22].arch_info)->enable = true;
-		((struct nds32_reg *)reg_cache->reg_list[IR24].arch_info)->enable = true;
+		if (nds32->privilege_level == 0) {
+			((struct nds32_reg *)reg_cache->reg_list[MR11].arch_info)->enable = true;
+			((struct nds32_reg *)reg_cache->reg_list[SECUR0].arch_info)->enable = true;
+			((struct nds32_reg *)reg_cache->reg_list[IR20].arch_info)->enable = true;
+			((struct nds32_reg *)reg_cache->reg_list[IR22].arch_info)->enable = true;
+			((struct nds32_reg *)reg_cache->reg_list[IR24].arch_info)->enable = true;
+		}
 
 		if (misc_config->shadow == 1) {
-			((struct nds32_reg *)reg_cache->reg_list[IR21].arch_info)->enable = true;
-			((struct nds32_reg *)reg_cache->reg_list[IR23].arch_info)->enable = true;
-			((struct nds32_reg *)reg_cache->reg_list[IR25].arch_info)->enable = true;
+			if (nds32->privilege_level == 0) {
+				((struct nds32_reg *)reg_cache->reg_list[IR21].arch_info)->enable = true;
+				((struct nds32_reg *)reg_cache->reg_list[IR23].arch_info)->enable = true;
+				((struct nds32_reg *)reg_cache->reg_list[IR25].arch_info)->enable = true;
+			}
 		}
 	} else if (mmu_config->memory_protection == 2) {
 		((struct nds32_reg *)reg_cache->reg_list[MR1].arch_info)->enable = true;
@@ -1086,10 +1095,12 @@ static int nds32_init_option_registers(struct nds32 *nds32)
 	}
 
 	if (memory_config->ilm_base != 0)
-		((struct nds32_reg *)reg_cache->reg_list[MR6].arch_info)->enable = true;
+		if (nds32->privilege_level == 0)
+			((struct nds32_reg *)reg_cache->reg_list[MR6].arch_info)->enable = true;
 
 	if (memory_config->dlm_base != 0)
-		((struct nds32_reg *)reg_cache->reg_list[MR7].arch_info)->enable = true;
+		if (nds32->privilege_level == 0)
+			((struct nds32_reg *)reg_cache->reg_list[MR7].arch_info)->enable = true;
 
 	if ((memory_config->icache.line_size != 0) && (memory_config->dcache.line_size != 0))
 		((struct nds32_reg *)reg_cache->reg_list[MR8].arch_info)->enable = true;
@@ -1116,15 +1127,6 @@ static int nds32_init_option_registers(struct nds32 *nds32)
 		((struct nds32_reg *)reg_cache->reg_list[DR46].arch_info)->enable = true;
 		((struct nds32_reg *)reg_cache->reg_list[DR47].arch_info)->enable = true;
 	}
-
-
-	/* TODO
-	   if (CONDITION_LOW_INTERFERE_PROFILE_EXIST)
-	   {
-	   add_register (xml_document, "dr48", XML_REG_32_BITS, XML_REG_GROUP_DR, dr48);
-	   reg_db_->enable_register (dr48, "dr48", MFSR(0, SRIDX(3, 11, 0)), MTSR(0, SRIDX(3, 11, 0)), REGTYPE_DR);
-	   }
-	   */
 
 	if (misc_config->performance_monitor) {
 		((struct nds32_reg *)reg_cache->reg_list[PFR0].arch_info)->enable = true;
@@ -1672,6 +1674,7 @@ int nds32_init_arch_info(struct target *target, struct nds32 *nds32)
 	nds32->global_stop = false;
 	nds32->soft_reset_halt = false;
 	nds32->edm_passcode = NULL;
+	nds32->privilege_level = 0;
 	nds32->boot_time = 2500;
 	nds32->reset_halt_as_examine = false;
 	nds32->virtual_hosting = false;
@@ -1971,7 +1974,7 @@ int nds32_login(struct nds32 *nds32)
 {
 	struct target *target = nds32->target;
 	struct aice_port_s *aice = target_to_aice(target);
-	uint32_t passcode_length = strlen(nds32->edm_passcode);
+	uint32_t passcode_length;
 	char command_sequence[129];
 	char command_str[33];
 	char code_str[9];
@@ -1981,6 +1984,7 @@ int nds32_login(struct nds32 *nds32)
 
 	if (nds32->edm_passcode != NULL) {
 		/* convert EDM passcode to command sequences */
+		passcode_length = strlen(nds32->edm_passcode);
 		command_sequence[0] = '\0';
 		for (i = 0; i < passcode_length; i += 8) {
 			if (passcode_length - i < 8)
@@ -1998,6 +2002,12 @@ int nds32_login(struct nds32 *nds32)
 
 		if (ERROR_OK != aice->port->api->program_edm(command_sequence))
 			return ERROR_FAIL;
+
+		/* get current privilege level */
+		uint32_t value_edmsw;
+		aice->port->api->read_debug_reg(NDS_EDM_SR_EDMSW, &value_edmsw);
+		nds32->privilege_level = (value_edmsw >> 16) & 0x3;
+		LOG_INFO("Current privilege level: %d", nds32->privilege_level);
 	}
 
 	return ERROR_OK;

@@ -311,7 +311,11 @@ struct nds32 {
 	/** reset-halt as target examine */
 	bool reset_halt_as_examine;
 
+	/** EDM passcode for debugging secure MCU */
 	char *edm_passcode;
+
+	/** current privilege_level if using secure MCU. value 0 is the highest level.  */
+	int privilege_level;
 
 	/** Period to wait after SRST. */
 	uint32_t boot_time;
