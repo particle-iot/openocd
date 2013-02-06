@@ -1665,6 +1665,7 @@ int nds32_init_arch_info(struct target *target, struct nds32 *nds32)
 	nds32->init_arch_info_after_halted = false;
 	nds32->auto_convert_hw_bp = true;
 	nds32->global_stop = false;
+	nds32->soft_reset_halt = false;
 	nds32->boot_time = 2500;
 	nds32->reset_halt_as_examine = false;
 	nds32->virtual_hosting = false;
@@ -1753,26 +1754,6 @@ int nds32_cache_sync(struct target *target, uint32_t address, uint32_t length)
 				return result;
 		}
 	}
-
-	return ERROR_OK;
-}
-
-int nds32_soft_reset_halt(struct target *target)
-{
-	struct nds32 *nds32 = target_to_nds32(target);
-	struct aice_port_s *aice = target_to_aice(target);
-
-	aice->port->api->assert_srst(AICE_SRST);
-
-	/* halt core and set pc to 0x0 */
-	int retval = target_halt(target);
-	if (retval != ERROR_OK)
-		return retval;
-
-	CHECK_RETVAL(target->type->poll(target));
-
-	/* start fetching from 0x0 */
-	nds32_set_mapped_reg(nds32, PC, 0x0);
 
 	return ERROR_OK;
 }
@@ -2108,8 +2089,10 @@ int nds32_assert_reset(struct target *target)
 	struct aice_port_s *aice = target_to_aice(target);
 
 	if (target->reset_halt) {
-		aice->port->api->assert_srst(AICE_RESET_HOLD);
-
+		if (nds32->soft_reset_halt)
+			target->type->soft_reset_halt(target);
+		else
+			aice->port->api->assert_srst(AICE_RESET_HOLD);
 	} else {
 		aice->port->api->assert_srst(AICE_SRST);
 		alive_sleep(nds32->boot_time);
