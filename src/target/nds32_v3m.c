@@ -302,6 +302,12 @@ static int nds32_v3m_init_edm(struct target *target)
 	return ERROR_OK;
 }
 
+static int nds32_v3m_soft_reset_halt(struct target *target)
+{
+	struct aice_port_s *aice = target_to_aice(target);
+	return aice->port->api->assert_srst(AICE_RESET_HOLD);
+}
+
 static int nds32_v3m_deassert_reset(struct target *target)
 {
 	int retval;
@@ -598,7 +604,7 @@ struct target_type nds32_v3m_target = {
 
 	.assert_reset = nds32_assert_reset,
 	.deassert_reset = nds32_v3m_deassert_reset,
-	.soft_reset_halt = nds32_soft_reset_halt,
+	.soft_reset_halt = nds32_v3m_soft_reset_halt,
 
 	/* register access */
 	.get_gdb_general_reg_list = nds32_get_gdb_general_reg_list,
