@@ -93,6 +93,9 @@ COMMAND_HANDLER(handle_nds32_memory_mode_command)
 		} else if (nds32->edm.direct_access_local_memory == false) {
 			command_print(CMD_CTX, "Target does not support direct access local memory. Set memory mode to MEMORY");
 			nds32->memory.mode = AICE_MEMORY_MODE_MEM;
+
+			/* set to ACC_CTL */
+			aice->port->api->memory_mode(nds32->memory.mode);
 		} else {
 			if (strcmp(CMD_ARGV[0], "auto") == 0) {
 				nds32->memory.mode = AICE_MEMORY_MODE_AUTO;
@@ -109,10 +112,10 @@ COMMAND_HANDLER(handle_nds32_memory_mode_command)
 				else
 					nds32->memory.mode = AICE_MEMORY_MODE_DLM;
 			}
-		}
 
-		/* set to ACC_CTL */
-		aice->port->api->memory_mode(nds32->memory.mode);
+			/* set to ACC_CTL */
+			aice->port->api->memory_mode(nds32->memory.mode);
+		}
 	}
 
 	command_print(CMD_CTX, "memory mode: %s", AICE_MEMORY_MODE_NAME[nds32->memory.mode]);
