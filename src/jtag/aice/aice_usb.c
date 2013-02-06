@@ -2677,6 +2677,61 @@ static int aice_usb_set_retry_times(uint32_t a_retry_times)
 	return ERROR_OK;
 }
 
+static int aice_usb_program_edm(char *command_sequence)
+{
+	char *command_str;
+	char *reg_name_0;
+	char *reg_name_1;
+	uint32_t data_value;
+	int i;
+
+	/* init strtok() */
+	command_str = strtok(command_sequence, ";");
+	if (command_str == NULL)
+		return ERROR_OK;
+
+	do {
+		i = 0;
+		/* process one command */
+		while (command_str[i] == ' ' ||
+				command_str[i] == '\n' ||
+				command_str[i] == '\r' ||
+				command_str[i] == '\t')
+			i++;
+
+		/* skip ' ', '\r', '\n', '\t' */
+		command_str = command_str + i;
+
+		if (strncmp(command_str, "write_misc", 10) == 0) {
+			reg_name_0 = strstr(command_str, "gen_port0");
+			reg_name_1 = strstr(command_str, "gen_port1");
+
+			if (reg_name_0 != NULL) {
+				data_value = strtoul(reg_name_0 + 9, NULL, 0);
+
+				if (aice_write_misc(current_target_id, NDS_EDM_MISC_GEN_PORT0, data_value) != ERROR_OK)
+					return ERROR_FAIL;
+
+			} else if (reg_name_1 != NULL) {
+				data_value = strtoul(reg_name_1 + 9, NULL, 0);
+
+				if (aice_write_misc(current_target_id, NDS_EDM_MISC_GEN_PORT1, data_value) != ERROR_OK)
+					return ERROR_FAIL;
+			} else {
+				LOG_ERROR("program EDM, unsupported misc register: %s", command_str);
+			}
+		} else {
+			LOG_ERROR("program EDM, unsupported command: %s", command_str);
+		}
+
+		/* update command_str */
+		command_str = strtok(NULL, ";");
+
+	} while (command_str != NULL);
+
+	return ERROR_OK;
+}
+
 /** */
 struct aice_port_api_s aice_usb_api = {
 	/** */
@@ -2731,4 +2786,6 @@ struct aice_port_api_s aice_usb_api = {
 	.cache_ctl = aice_usb_cache_ctl,
 	/** */
 	.set_retry_times = aice_usb_set_retry_times,
+	/** */
+	.program_edm = aice_usb_program_edm,
 };

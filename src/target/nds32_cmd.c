@@ -303,6 +303,23 @@ COMMAND_HANDLER(handle_nds32_boot_time_command)
 	return ERROR_OK;
 }
 
+COMMAND_HANDLER(handle_nds32_edm_passcode_command)
+{
+	struct target *target = get_current_target(CMD_CTX);
+	struct nds32 *nds32 = target_to_nds32(target);
+
+	if (!is_nds32(nds32)) {
+		command_print(CMD_CTX, "current target isn't an Andes core");
+		return ERROR_FAIL;
+	}
+
+	nds32->edm_passcode = strdup(CMD_ARGV[0]);
+
+	LOG_INFO("set EDM passcode: %s", nds32->edm_passcode);
+
+	return ERROR_OK;
+}
+
 COMMAND_HANDLER(handle_nds32_max_stop_command)
 {
 	struct target *target = get_current_target(CMD_CTX);
@@ -686,6 +703,13 @@ static const struct command_registration nds32_exec_command_handlers[] = {
 		.mode = COMMAND_ANY,
 		.usage = "milliseconds",
 		.help = "set the period to wait after srst.",
+	},
+	{
+		.name = "edm_passcode",
+		.handler = handle_nds32_edm_passcode_command,
+		.mode = COMMAND_ANY,
+		.usage = "passcode",
+		.help = "set EDM passcode for secure MCU debugging.",
 	},
 	{
 		.name = "max_stop",

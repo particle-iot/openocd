@@ -282,7 +282,7 @@ static int aice_pipe_open(struct aice_port_param_s *param)
 	if (pid < 0) {
 		LOG_ERROR("Fork new process failed");
 		return ERROR_FAIL;
-	} else if (pid == 0)
+	} else if (pid == 0) {
 		if (aice_pipe_child_init(param) != ERROR_OK) {
 			LOG_ERROR("AICE_PIPE child process initial error");
 			return ERROR_FAIL;
@@ -292,6 +292,7 @@ static int aice_pipe_open(struct aice_port_param_s *param)
 				return ERROR_FAIL;
 			}
 		}
+	}
 
 	return ERROR_OK;
 }
@@ -590,9 +591,9 @@ static int aice_pipe_read_mem_bulk(uint32_t addr, uint32_t length, uint8_t *buff
 	char command[AICE_PIPE_MAXLINE];
 	uint32_t remain_len = length;
 	uint32_t prepare_len;
-	uint32_t read_len;
 	char *received_line;
 	uint32_t received_len;
+	int read_len;
 
 	command[0] = AICE_READ_MEM_BULK;
 	set_u32(command + 1, addr);
