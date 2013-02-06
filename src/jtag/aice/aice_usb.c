@@ -1878,7 +1878,10 @@ static int aice_issue_reset_hold(void)
 			return ERROR_FAIL;
 
 		aice_usb_halt();
-		aice_write_reg(PC, 0x0);
+
+		uint32_t value_ir3;
+		aice_read_reg(IR3, &value_ir3);
+		aice_write_reg(PC, value_ir3 & 0xFFFF0000);
 	}
 
 	return ERROR_FAIL;

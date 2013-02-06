@@ -259,6 +259,31 @@ COMMAND_HANDLER(handle_nds32_global_stop_command)
 	return ERROR_OK;
 }
 
+COMMAND_HANDLER(handle_nds32_soft_reset_halt_command)
+{
+	struct target *target = get_current_target(CMD_CTX);
+	struct nds32 *nds32 = target_to_nds32(target);
+
+	if (!is_nds32(nds32)) {
+		command_print(CMD_CTX, "current target isn't an Andes core");
+		return ERROR_FAIL;
+	}
+
+	if (CMD_ARGC > 0) {
+		if (strcmp(CMD_ARGV[0], "on") == 0)
+			nds32->soft_reset_halt = true;
+		if (strcmp(CMD_ARGV[0], "off") == 0)
+			nds32->soft_reset_halt = false;
+	}
+
+	if (nds32->soft_reset_halt)
+		LOG_INFO("soft-reset-halt: on");
+	else
+		LOG_INFO("soft-reset-halt: off");
+
+	return ERROR_OK;
+}
+
 COMMAND_HANDLER(handle_nds32_boot_time_command)
 {
 	struct target *target = get_current_target(CMD_CTX);
@@ -643,6 +668,14 @@ static const struct command_registration nds32_exec_command_handlers[] = {
 		.usage = "['on'|'off']",
 		.help = "turn on/off global stop. After turning on, every load/store" \
 			 "instructions will be stopped to check memory access.",
+	},
+	{
+		.name = "soft_reset_halt",
+		.handler = handle_nds32_soft_reset_halt_command,
+		.mode = COMMAND_ANY,
+		.usage = "['on'|'off']",
+		.help = "as issuing rest-halt, to use soft-reset-halt or not." \
+			 "the feature is for backward-compatible.",
 	},
 	{
 		.name = "boot_time",

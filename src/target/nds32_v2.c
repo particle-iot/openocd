@@ -365,6 +365,30 @@ static int nds32_v2_init_edm(struct target *target)
 	return ERROR_OK;
 }
 
+static int nds32_v2_soft_reset_halt(struct target *target)
+{
+	/* TODO: test it */
+	struct nds32 *nds32 = target_to_nds32(target);
+	struct aice_port_s *aice = target_to_aice(target);
+
+	aice->port->api->assert_srst(AICE_SRST);
+
+	/* init EDM */
+	nds32_v2_init_edm(target);
+
+	/* halt core and set pc to 0x0 */
+	int retval = target_halt(target);
+	if (retval != ERROR_OK)
+		return retval;
+
+	/* start fetching from IVB */
+	uint32_t value_ir3;
+	nds32_get_mapped_reg(nds32, IR3, &value_ir3);
+	nds32_set_mapped_reg(nds32, PC, value_ir3 & 0xFFFF0000);
+
+	return ERROR_OK;
+}
+
 static int nds32_v2_deassert_reset(struct target *target)
 {
 	int retval;
@@ -723,7 +747,7 @@ struct target_type nds32_v2_target = {
 
 	.assert_reset = nds32_assert_reset,
 	.deassert_reset = nds32_v2_deassert_reset,
-	.soft_reset_halt = nds32_soft_reset_halt,
+	.soft_reset_halt = nds32_v2_soft_reset_halt,
 
 	/* register access */
 	.get_gdb_general_reg_list = nds32_get_gdb_general_reg_list,
