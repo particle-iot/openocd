@@ -295,8 +295,6 @@ static int nds32_v2_debug_entry(struct nds32 *nds32, bool enable_watchpoint)
 	/* REVISIT entire cache should already be invalid !!! */
 	register_cache_invalidate(nds32->core_cache);
 
-	/* TODO save DTR */
-
 	/* check interrupt level before .full_context(), because
 	 * get_mapped_reg needs current_interrupt_level information */
 	nds32_v2_check_interrupt_stack(nds32_v2);
@@ -353,8 +351,6 @@ static int nds32_v2_leave_debug_state(struct nds32 *nds32, bool enable_watchpoin
 	CHECK_RETVAL(nds32_restore_context(nds32->target));
 
 	register_cache_invalidate(nds32->core_cache);
-
-	/* TODO restore DTR */
 
 	return ERROR_OK;
 }
