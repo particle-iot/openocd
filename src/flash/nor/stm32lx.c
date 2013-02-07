@@ -557,6 +557,14 @@ static int stm32lx_probe(struct flash_bank *bank)
 	if (bank->size) {
 		LOG_INFO("ignoring flash probed value, using configured bank size");
 		flash_size_in_kb = bank->size / 1024;
+	} else {
+
+		/* we have seen some rogue stm32l parts that report they have > 6M of flash
+		 * perform a sanity check using 1MB as a upper limit */
+		if (flash_size_in_kb > 1024) {
+			LOG_WARNING("possible incorrect flash size detected, " \
+					"if this size is incorrect please manually configure the flash bank size");
+		}
 	}
 
 	/* STM32L - we have 32 sectors, 16 pages per sector -> 512 pages
