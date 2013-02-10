@@ -169,3 +169,21 @@ int arm11_run_instr_data_to_core_noack_inner(struct jtag_tap *tap, uint32_t opco
 			uint32_t opcode, uint32_t *data, size_t count);
 	return arm11_run_instr_data_to_core_noack_inner_default(tap, opcode, data, count);
 }
+
+
+
+
+int interface_swd_add_sequence(uint8_t *seq, uint16_t len)
+{
+	/* add swd sequence */
+}
+int interface_swd_add_transact_out(uint8_t apndp, uint8_t rnw,
+		uint8_t reg, uint32_t out_value, uint8_t *ack)
+{
+	/* add swd out transact */
+}
+int interface_swd_add_transact_in(uint8_t apndp, uint8_t rnw,
+		uint8_t reg, uint32_t *in_value, uint8_t *ack)
+{
+	/* add swd in transact */
+}
