@@ -1264,3 +1264,34 @@ struct jtag_interface zy1000_interface = {
 	.power_dropout = zy1000_power_dropout,
 	.srst_asserted = zy1000_srst_asserted,
 };
+
+
+/**
+ * see swd_add_sequence()
+ *
+ */
+int interface_swd_add_sequence(uint8_t *seq, uint16_t len)
+{
+	return ERROR_OK;
+}
+
+/**
+ * see swd_add_transact_out()
+ *
+ */
+int interface_swd_add_transact_out(uint8_t apndp, uint8_t rnw, uint8_t reg, uint32_t out_value, uint8_t *ack)
+{
+
+	return ERROR_OK;
+}
+
+/**
+ * see swd_add_transact_in()
+ *
+ */
+int interface_swd_add_transact_in(uint8_t apndp, uint8_t rnw, uint8_t reg, uint32_t *in_value, uint8_t *ack)
+{
+
+
+	return ERROR_OK;
+}

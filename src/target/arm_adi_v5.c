@@ -1074,6 +1074,7 @@ int dap_syssec(struct adiv5_dap *dap)
  * part of DAP transport setup
 */
 extern const struct dap_ops jtag_dp_ops;
+extern const struct dap_ops swd_dp_ops;
 
 /*--------------------------------------------------------------------------*/
 
@@ -1097,12 +1098,26 @@ int ahbap_debugport_init(struct adiv5_dap *dap)
 
 	LOG_DEBUG(" ");
 
+	/* test for initialized low level jtag hardware
+		 * this always fails for stlink hardware
+		 */
+	if (!dap->jtag_info) {
+		LOG_DEBUG("No low level jtag hardware found");
+		return ERROR_OK;
+	}
+
 	/* JTAG-DP or SWJ-DP, in JTAG mode
 	 * ... for SWD mode this is patched as part
 	 * of link switchover
 	 */
-	if (!dap->ops)
+	if (transport_is_swd()) {
+		dap->ops = &swd_dp_ops;
+
+		dap_to_swd(NULL);
+		dap_queue_idcode_read(dap, NULL, NULL);
+	} else {
 		dap->ops = &jtag_dp_ops;
+	}
 
 	/* Default MEM-AP setup.
 	 *
@@ -1119,9 +1134,15 @@ int ahbap_debugport_init(struct adiv5_dap *dap)
 	if (retval != ERROR_OK)
 		return retval;
 
-	retval = dap_queue_dp_write(dap, DP_CTRL_STAT, SSTICKYERR);
-	if (retval != ERROR_OK)
-		return retval;
+	if (transport_is_swd())	{
+		retval = dap_queue_dp_write(dap, DP_ABORT, DAPABORT | STKERRCLR | WDERRCLR | ORUNERRCLR);
+		if (retval != ERROR_OK)
+			return retval;
+	} else {
+		retval = dap_queue_dp_write(dap, DP_CTRL_STAT, SSTICKYERR);
+		if (retval != ERROR_OK)
+			return retval;
+	}
 
 	retval = dap_queue_dp_read(dap, DP_CTRL_STAT, NULL);
 	if (retval != ERROR_OK)

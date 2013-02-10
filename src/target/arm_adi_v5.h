@@ -39,10 +39,14 @@
 #define JTAG_DP_DPACC		0xA
 #define JTAG_DP_APACC		0xB
 
+#define SWD_DP_DPACC		0
+#define SWD_DP_APACC		1
+
+
 /* three-bit ACK values for SWD access (sent LSB first) */
-#define SWD_ACK_OK		0x4
+#define SWD_ACK_OK		0x1
 #define SWD_ACK_WAIT		0x2
-#define SWD_ACK_FAULT		0x1
+#define SWD_ACK_FAULT		0x4
 
 #define DPAP_WRITE		0
 #define DPAP_READ		1
@@ -219,6 +223,11 @@ struct dap_ops {
 
 	/** AP operation abort. */
 	int (*queue_ap_abort)(struct adiv5_dap *dap, uint8_t *ack);
+
+	/** low level DP Scan */
+	int (*queue_dp_scan)(struct adiv5_dap *dap,
+			uint8_t instr, uint8_t reg_addr, uint8_t RnW,
+			uint8_t *outvalue, uint8_t *invalue, uint8_t *ack);
 
 	/** Executes all queued DAP operations. */
 	int (*run)(struct adiv5_dap *dap);

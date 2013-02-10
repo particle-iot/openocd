@@ -136,4 +136,6 @@ void swd_add_reset(int req_srst);
 
 bool transport_is_swd(void);
 
+extern uint32_t swd_wcr_register;
+
 #endif /* SWD_H */
