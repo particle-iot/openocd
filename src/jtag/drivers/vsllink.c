@@ -302,7 +302,7 @@ static int vsllink_init(void)
 	}
 
 	/* malloc buffer size for tap */
-	tap_buffer_size = versaloon_interface.usb_setting.buf_size - 32;
+	tap_buffer_size = versaloon_interface.usb_setting.buf_size / 2 - 32;
 	vsllink_free_buffer();
 	tdi_buffer = (uint8_t *)malloc(tap_buffer_size);
 	tdo_buffer = (uint8_t *)malloc(tap_buffer_size);
@@ -672,12 +672,16 @@ static uint8_t usb_check_string(usb_dev_handle *usb, uint8_t stringidx,
 	len = usb_get_string_simple(usb, stringidx, (char *)buff, buf_size);
 	if ((len < 0) || (len != ((int)strlen((const char *)buff)))) {
 		ret = 0;
+                if (len)
+                LOG_ERROR("Mismatch: %d: %s <> %s", stringidx, buff, string);
+                else LOG_ERROR("LEN == 0");
 		goto free_and_return;
 	}
 
 	buff[len] = '\0';
 	if ((string != NULL) && strcmp((const char *)buff, string)) {
 		ret = 0;
+                LOG_ERROR("Mismatch: %s <> %s", buff, string);
 		goto free_and_return;
 	}
 
@@ -753,9 +757,10 @@ static struct vsllink *vsllink_usb_open(void)
 			versaloon_interface.usb_setting.pid,
 			versaloon_interface.usb_setting.interface,
 			0, NULL, 2, "Versaloon");
-	if (NULL == dev)
+	if (NULL == dev) {
+                LOG_ERROR("No Versaloon found!");
 		return NULL;
-
+        }
 	struct vsllink *result = malloc(sizeof(struct vsllink));
 	result->usb_handle = dev;
 	return result;
