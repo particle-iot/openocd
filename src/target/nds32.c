@@ -1185,7 +1185,16 @@ static int nds32_init_option_registers(struct nds32 *nds32)
 		((struct nds32_reg *)reg_cache->reg_list[SHFT_CTL1].arch_info)->enable = true;
 
 		uint32_t value_mod;
+		uint32_t fucpr_backup;
+		/* enable fpu and get configuration */
+		nds32_get_mapped_reg(nds32, FUCPR, &fucpr_backup);
+		if ((fucpr_backup & 0x80000000) == 0)
+			nds32_set_mapped_reg(nds32, FUCPR, fucpr_backup | 0x80000000);
 		nds32_get_mapped_reg(nds32, MOD, &value_mod);
+		/* restore origin fucpr value */
+		if ((fucpr_backup & 0x80000000) == 0)
+			nds32_set_mapped_reg(nds32, FUCPR, fucpr_backup);
+
 		if ((value_mod >> 6) & 0x1) {
 			((struct nds32_reg *)reg_cache->reg_list[CB_CTL].arch_info)->enable = true;
 			((struct nds32_reg *)reg_cache->reg_list[CBB0].arch_info)->enable = true;
@@ -1420,7 +1429,8 @@ static int nds32_generate_fpu_desc(struct nds32 *nds32)
 	}
 
 	/* restore origin fucpr value */
-	nds32_set_mapped_reg(nds32, FUCPR, fucpr_backup);
+	if ((fucpr_backup & 0x1) == 0)
+		nds32_set_mapped_reg(nds32, FUCPR, fucpr_backup);
 
 	nds32_xml_printf(&retval, &tdesc, &pos, &size, "</feature>");
 
