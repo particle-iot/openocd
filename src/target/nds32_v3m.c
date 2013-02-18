@@ -293,15 +293,6 @@ static int nds32_v3m_leave_debug_state(struct nds32 *nds32, bool enable_watchpoi
 	return ERROR_OK;
 }
 
-static int nds32_v3m_init_edm(struct target *target)
-{
-	struct aice_port_s *aice = target_to_aice(target);
-
-	aice->port->api->write_debug_reg(NDS_EDM_SR_EDM_CTL, 0xA000004F);
-
-	return ERROR_OK;
-}
-
 static int nds32_v3m_soft_reset_halt(struct target *target)
 {
 	struct aice_port_s *aice = target_to_aice(target);
@@ -311,9 +302,6 @@ static int nds32_v3m_soft_reset_halt(struct target *target)
 static int nds32_v3m_deassert_reset(struct target *target)
 {
 	int retval;
-
-	/* init EDM */
-	nds32_v3m_init_edm(target);
 
 	CHECK_RETVAL(nds32_poll(target));
 
