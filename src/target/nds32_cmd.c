@@ -385,6 +385,26 @@ COMMAND_HANDLER(handle_nds32_reset_halt_as_init_command)
 	return ERROR_OK;
 }
 
+COMMAND_HANDLER(handle_nds32_keep_target_edm_ctl_command)
+{
+	struct target *target = get_current_target(CMD_CTX);
+	struct nds32 *nds32 = target_to_nds32(target);
+
+	if (!is_nds32(nds32)) {
+		command_print(CMD_CTX, "current target isn't an Andes core");
+		return ERROR_FAIL;
+	}
+
+	if (CMD_ARGC > 0) {
+		if (strcmp(CMD_ARGV[0], "on") == 0)
+			nds32->keep_target_edm_ctl = true;
+		if (strcmp(CMD_ARGV[0], "off") == 0)
+			nds32->keep_target_edm_ctl = false;
+	}
+
+	return ERROR_OK;
+}
+
 COMMAND_HANDLER(handle_nds32_decode_command)
 {
 	struct target *target = get_current_target(CMD_CTX);
@@ -451,6 +471,42 @@ COMMAND_HANDLER(handle_nds32_query_target_command)
 	}
 
 	command_print(CMD_CTX, "OCD");
+
+	return ERROR_OK;
+}
+
+COMMAND_HANDLER(handle_nds32_query_endian_command)
+{
+	struct target *target = get_current_target(CMD_CTX);
+	struct nds32 *nds32 = target_to_nds32(target);
+
+	if (!is_nds32(nds32)) {
+		command_print(CMD_CTX, "current target isn't an Andes core");
+		return ERROR_FAIL;
+	}
+
+	uint32_t value_psw;
+	nds32_get_mapped_reg(nds32, IR0, &value_psw);
+
+	if (value_psw & 0x20)
+		command_print(CMD_CTX, "BE");
+	else
+		command_print(CMD_CTX, "LE");
+
+	return ERROR_OK;
+}
+
+COMMAND_HANDLER(handle_nds32_query_cpuid_command)
+{
+	struct target *target = get_current_target(CMD_CTX);
+	struct nds32 *nds32 = target_to_nds32(target);
+
+	if (!is_nds32(nds32)) {
+		command_print(CMD_CTX, "current target isn't an Andes core");
+		return ERROR_FAIL;
+	}
+
+	command_print(CMD_CTX, "CPUID: %s", target_name(target));
 
 	return ERROR_OK;
 }
@@ -646,6 +702,20 @@ static const struct command_registration nds32_query_command_handlers[] = {
 		.usage = "",
 		.help = "reply 'OCD' for gdb to identify server-side is OpenOCD",
 	},
+	{
+		.name = "endian",
+		.handler = handle_nds32_query_endian_command,
+		.mode = COMMAND_EXEC,
+		.usage = "",
+		.help = "query target endian",
+	},
+	{
+		.name = "cpuid",
+		.handler = handle_nds32_query_cpuid_command,
+		.mode = COMMAND_EXEC,
+		.usage = "",
+		.help = "query CPU ID",
+	},
 
 	COMMAND_REGISTRATION_DONE
 };
@@ -738,6 +808,13 @@ static const struct command_registration nds32_exec_command_handlers[] = {
 		.mode = COMMAND_ANY,
 		.usage = "['on'|'off']",
 		.help = "reset halt as openocd init.",
+	},
+	{
+		.name = "keep_target_edm_ctl",
+		.handler = handle_nds32_keep_target_edm_ctl_command,
+		.mode = COMMAND_ANY,
+		.usage = "['on'|'off']",
+		.help = "Backup/Restore target EDM_CTL register.",
 	},
 	{
 		.name = "decode",
