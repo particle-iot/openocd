@@ -311,6 +311,9 @@ struct nds32 {
 	/** reset-halt as target examine */
 	bool reset_halt_as_examine;
 
+	/** backup/restore target EDM_CTL value. As debugging target debug handler, it should be true. */
+	bool keep_target_edm_ctl;
+
 	/** EDM passcode for debugging secure MCU */
 	char *edm_passcode;
 

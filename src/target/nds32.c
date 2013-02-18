@@ -1675,8 +1675,9 @@ int nds32_init_arch_info(struct target *target, struct nds32 *nds32)
 	nds32->soft_reset_halt = false;
 	nds32->edm_passcode = NULL;
 	nds32->privilege_level = 0;
-	nds32->boot_time = 2500;
+	nds32->boot_time = 1500;
 	nds32->reset_halt_as_examine = false;
+	nds32->keep_target_edm_ctl = false;
 	nds32->virtual_hosting = false;
 	nds32->hit_syscall = false;
 	nds32->active_syscall_id = NDS32_SYSCALL_UNDEFINED;
@@ -1803,9 +1804,6 @@ int nds32_step(struct target *target, int current,
 		ir14_value &= ~(0x1 << 31);
 	nds32_set_mapped_reg(nds32, IR14, ir14_value);
 
-	/* TODO: enable watchpoints */
-	/* if (handle_breakpoints) ; */
-
 	/* check hit_syscall before leave_debug_state() because
 	 * leave_debug_state() may clear hit_syscall flag */
 	bool no_step = false;
@@ -1835,9 +1833,6 @@ int nds32_step(struct target *target, int current,
 		ir14_value &= ~(0x1 << 31);
 		nds32_set_mapped_reg(nds32, IR14, ir14_value);
 	}
-
-	/** TODO: disable watchpoints */
-	/* if (handle_breakpoints) ; */
 
 	CHECK_RETVAL(target_call_event_callbacks(target, TARGET_EVENT_HALTED));
 
@@ -2161,10 +2156,76 @@ int nds32_assert_reset(struct target *target)
 	return ERROR_OK;
 }
 
+static uint32_t nds32_backup_edm_ctl;
+static bool gdb_attached;
+
+static int nds32_gdb_attach(struct nds32 *nds32)
+{
+	LOG_DEBUG("nds32_gdb_attach");
+
+	if (gdb_attached == false) {
+
+		if (nds32->keep_target_edm_ctl) {
+			/* backup target EDM_CTL */
+			struct aice_port_s *aice = target_to_aice(nds32->target);
+			aice->port->api->read_debug_reg(NDS_EDM_SR_EDM_CTL, &nds32_backup_edm_ctl);
+		}
+
+		target_halt(nds32->target);
+
+		gdb_attached = true;
+	}
+
+	return ERROR_OK;
+}
+
+static int nds32_gdb_detach(struct nds32 *nds32)
+{
+	LOG_DEBUG("nds32_gdb_detach");
+
+	if (gdb_attached) {
+
+		target_resume(nds32->target, 1, 0, 0, 0);
+
+		if (nds32->keep_target_edm_ctl) {
+			/* restore target EDM_CTL */
+			struct aice_port_s *aice = target_to_aice(nds32->target);
+			aice->port->api->write_debug_reg(NDS_EDM_SR_EDM_CTL, nds32_backup_edm_ctl);
+		}
+
+		gdb_attached = false;
+	}
+
+	return ERROR_OK;
+}
+
+static int nds32_callback_event_handler(struct target *target,
+		enum target_event event, void *priv)
+{
+	int retval = ERROR_OK;
+	struct nds32 *nds32 = priv;
+
+	switch (event) {
+		case TARGET_EVENT_GDB_ATTACH:
+			retval = nds32_gdb_attach(nds32);
+			break;
+		case TARGET_EVENT_GDB_DETACH:
+			retval = nds32_gdb_detach(nds32);
+			break;
+		default:
+			break;
+	}
+
+	return retval;
+}
+
 int nds32_init(struct nds32 *nds32)
 {
 	/* Initialize anything we can set up without talking to the target */
 	nds32->memory.access_channel = NDS_MEMORY_ACC_CPU;
+
+	/* register event callback */
+	target_register_event_callback(nds32_callback_event_handler, nds32);
 
 	return ERROR_OK;
 }

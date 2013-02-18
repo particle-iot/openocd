@@ -450,16 +450,6 @@ static int nds32_v3_leave_debug_state(struct nds32 *nds32, bool enable_watchpoin
 	return ERROR_OK;
 }
 
-static int nds32_v3_init_edm(struct target *target)
-{
-	struct aice_port_s *aice = target_to_aice(target);
-
-	aice->port->api->write_debug_reg(NDS_EDM_SR_DIMBR, 0xFFFF0000);
-	aice->port->api->write_debug_reg(NDS_EDM_SR_EDM_CTL, 0xA000004F); /* enable DEH_SEL, MAX_STOP, V3_EDM_MODE */
-
-	return ERROR_OK;
-}
-
 static int nds32_v3_deassert_reset(struct target *target)
 {
 	int retval;
@@ -475,9 +465,6 @@ static int nds32_v3_deassert_reset(struct target *target)
 			switch_to_v3_stack = true;
 	} else
 		switch_to_v3_stack = false;
-
-	/* init EDM */
-	nds32_v3_init_edm(target);
 
 	CHECK_RETVAL(nds32_poll(target));
 
