@@ -355,16 +355,6 @@ static int nds32_v2_leave_debug_state(struct nds32 *nds32, bool enable_watchpoin
 	return ERROR_OK;
 }
 
-static int nds32_v2_init_edm(struct target *target)
-{
-	struct aice_port_s *aice = target_to_aice(target);
-
-	aice->port->api->write_debug_reg(NDS_EDM_SR_DIMBR, 0xFFFF0000);
-	aice->port->api->write_debug_reg(NDS_EDM_SR_EDM_CTL, 0x8000000F);
-
-	return ERROR_OK;
-}
-
 static int nds32_v2_soft_reset_halt(struct target *target)
 {
 	/* TODO: test it */
@@ -372,9 +362,6 @@ static int nds32_v2_soft_reset_halt(struct target *target)
 	struct aice_port_s *aice = target_to_aice(target);
 
 	aice->port->api->assert_srst(AICE_SRST);
-
-	/* init EDM */
-	nds32_v2_init_edm(target);
 
 	/* halt core and set pc to 0x0 */
 	int retval = target_halt(target);
@@ -392,9 +379,6 @@ static int nds32_v2_soft_reset_halt(struct target *target)
 static int nds32_v2_deassert_reset(struct target *target)
 {
 	int retval;
-
-	/* init EDM */
-	nds32_v2_init_edm(target);
 
 	CHECK_RETVAL(nds32_poll(target));
 

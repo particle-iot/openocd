@@ -455,6 +455,42 @@ COMMAND_HANDLER(handle_nds32_query_target_command)
 	return ERROR_OK;
 }
 
+COMMAND_HANDLER(handle_nds32_query_endian_command)
+{
+	struct target *target = get_current_target(CMD_CTX);
+	struct nds32 *nds32 = target_to_nds32(target);
+
+	if (!is_nds32(nds32)) {
+		command_print(CMD_CTX, "current target isn't an Andes core");
+		return ERROR_FAIL;
+	}
+
+	uint32_t value_psw;
+	nds32_get_mapped_reg(nds32, IR0, &value_psw);
+
+	if (value_psw & 0x20)
+		command_print(CMD_CTX, "BE");
+	else
+		command_print(CMD_CTX, "LE");
+
+	return ERROR_OK;
+}
+
+COMMAND_HANDLER(handle_nds32_query_cpuid_command)
+{
+	struct target *target = get_current_target(CMD_CTX);
+	struct nds32 *nds32 = target_to_nds32(target);
+
+	if (!is_nds32(nds32)) {
+		command_print(CMD_CTX, "current target isn't an Andes core");
+		return ERROR_FAIL;
+	}
+
+	command_print(CMD_CTX, target_name(target));
+
+	return ERROR_OK;
+}
+
 static int jim_nds32_bulk_write(Jim_Interp *interp, int argc, Jim_Obj * const *argv)
 {
 	const char *cmd_name = Jim_GetString(argv[0], NULL);
@@ -645,6 +681,20 @@ static const struct command_registration nds32_query_command_handlers[] = {
 		.mode = COMMAND_EXEC,
 		.usage = "",
 		.help = "reply 'OCD' for gdb to identify server-side is OpenOCD",
+	},
+	{
+		.name = "endian",
+		.handler = handle_nds32_query_endian_command,
+		.mode = COMMAND_EXEC,
+		.usage = "",
+		.help = "query target endian",
+	},
+	{
+		.name = "cpuid",
+		.handler = handle_nds32_query_cpuid_command,
+		.mode = COMMAND_EXEC,
+		.usage = "",
+		.help = "query CPU ID",
 	},
 
 	COMMAND_REGISTRATION_DONE
