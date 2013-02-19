@@ -2202,6 +2202,9 @@ static int nds32_gdb_detach(struct nds32 *nds32)
 			aice->port->api->write_debug_reg(NDS_EDM_SR_EDM_CTL, nds32_backup_edm_ctl);
 		}
 
+		/* turn off polling */
+		jtag_poll_set_enabled(false);
+
 		gdb_attached = false;
 	}
 
@@ -2232,6 +2235,9 @@ int nds32_init(struct nds32 *nds32)
 {
 	/* Initialize anything we can set up without talking to the target */
 	nds32->memory.access_channel = NDS_MEMORY_ACC_CPU;
+
+	/* turn off polling by default */
+	jtag_poll_set_enabled(false);
 
 	/* register event callback */
 	target_register_event_callback(nds32_callback_event_handler, nds32);
