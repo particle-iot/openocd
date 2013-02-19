@@ -1161,7 +1161,7 @@ static bool target_dtr_valid;
 static enum nds_memory_access access_channel = NDS_MEMORY_ACC_CPU;
 static enum nds_memory_select memory_select = NDS_MEMORY_SELECT_AUTO;
 static bool memory_mode_auto_select;
-static enum aice_target_state_s core_state = AICE_TARGET_RUNNING;
+static enum aice_target_state_s core_state = AICE_TARGET_UNKNOWN;
 static uint32_t edm_version;
 static struct cache_info icache = {0, 0, 0, 0, 0};
 static struct cache_info dcache = {0, 0, 0, 0, 0};
@@ -1545,7 +1545,7 @@ static int aice_edm_init(void)
 	aice_write_edmsr(current_target_id, NDS_EDM_SR_EDM_CTL, edm_ctl_value | 0x00000040);
 
 	aice_write_misc(current_target_id, NDS_EDM_MISC_DBGER,
-			NDS_DBGER_DEX | NDS_DBGER_DPED | NDS_DBGER_CRST | NDS_DBGER_AT_MAX);
+			NDS_DBGER_DPED | NDS_DBGER_CRST | NDS_DBGER_AT_MAX);
 	aice_write_misc(current_target_id, NDS_EDM_MISC_DIMIR, 0);
 
 	/* get EDM version */
@@ -1727,114 +1727,6 @@ static int aice_usb_idcode(uint32_t *idcode, uint8_t *num_of_idcode)
 	return aice_scan_chain(idcode, num_of_idcode);
 }
 
-static int aice_usb_state(enum aice_target_state_s *state)
-{
-	uint32_t dbger_value;
-	uint32_t ice_state;
-
-	int result = aice_read_misc(current_target_id, NDS_EDM_MISC_DBGER, &dbger_value);
-
-	if (ERROR_AICE_TIMEOUT == result) {
-		if (aice_read_ctrl(AICE_READ_CTRL_GET_ICE_STATE, &ice_state) != ERROR_OK) {
-			LOG_INFO("USB is disconnected");
-			return ERROR_FAIL;
-		}
-
-		if ((ice_state & 0x20) == 0) {
-			LOG_INFO("Target is disconnected");
-			return ERROR_FAIL;
-		} else {
-			return ERROR_FAIL;
-		}
-	} else if (ERROR_AICE_DISCONNECT == result) {
-		LOG_INFO("USB is disconnected");
-		return ERROR_FAIL;
-	}
-
-	if ((dbger_value & NDS_DBGER_DEX) == NDS_DBGER_DEX) {
-		if (AICE_TARGET_RUNNING == core_state) {
-			/* enter debug mode, init EDM registers */
-			/* backup EDM registers */
-			aice_backup_edm_registers();
-			/* init EDM for host debugging */
-			aice_init_edm_registers();
-			aice_backup_tmp_registers();
-			core_state = AICE_TARGET_HALTED;
-		}
-		*state = AICE_TARGET_HALTED;
-	} else if ((dbger_value & NDS_DBGER_CRST) == NDS_DBGER_CRST) {
-		core_state = AICE_TARGET_RUNNING;
-		*state = AICE_TARGET_RESET;
-	} else if ((dbger_value & NDS_DBGER_AT_MAX) == NDS_DBGER_AT_MAX) {
-		uint32_t ir11_value;
-
-		/* Clear AT_MAX */
-		aice_write_misc(current_target_id, NDS_EDM_MISC_DBGER, NDS_DBGER_AT_MAX);
-
-		/* Issue DBGI to enter debug mode */
-		aice_write_misc(current_target_id, NDS_EDM_MISC_EDM_CMDR, 0);
-
-		/* Read OIPC to find out the trigger point */
-		aice_read_reg(IR11, &ir11_value);
-
-		LOG_INFO("Stall due to max_stop, trigger point: 0x%08x", ir11_value);
-
-		*state = AICE_TARGET_HALTED;
-	} else {
-		*state = AICE_TARGET_RUNNING;
-	}
-
-	return ERROR_OK;
-}
-
-static int aice_usb_reset(void)
-{
-	if (aice_write_ctrl(AICE_WRITE_CTRL_CLEAR_TIMEOUT_STATUS, 0x1) != ERROR_OK)
-		return ERROR_FAIL;
-
-	if (aice_write_ctrl(AICE_WRITE_CTRL_JTAG_PIN_CONTROL, AICE_JTAG_PIN_CONTROL_TRST) != ERROR_OK)
-		return ERROR_FAIL;
-
-	if (aice_write_ctrl(AICE_WRITE_CTRL_TCK_CONTROL, AICE_TCK_CONTROL_TCK_SCAN) != ERROR_OK)
-		return ERROR_FAIL;
-
-	if (aice_usb_set_clock(jtag_clock) != ERROR_OK)
-		return ERROR_FAIL;
-
-	return ERROR_OK;
-}
-
-static int aice_issue_srst(void)
-{
-	LOG_DEBUG("aice_issue_srst");
-
-	/* After issuing srst, target will be running. So we need to restore EDM_CTL. */
-	aice_restore_edm_registers();
-
-	if (aice_write_ctrl(AICE_WRITE_CTRL_JTAG_PIN_CONTROL, AICE_JTAG_PIN_CONTROL_SRST) != ERROR_OK)
-		return ERROR_FAIL;
-
-	uint32_t dbger_value;
-	int i = 0;
-	while (1) {
-		if (aice_read_misc(current_target_id, NDS_EDM_MISC_DBGER, &dbger_value) != ERROR_OK)
-			return ERROR_FAIL;
-
-		if (dbger_value & NDS_DBGER_CRST)
-			break;
-
-		if ((i % 30) == 0)
-			keep_alive();
-		i++;
-	}
-
-	host_dtr_valid = false;
-	target_dtr_valid = false;
-
-	core_state = AICE_TARGET_RUNNING;
-	return ERROR_OK;
-}
-
 static int aice_usb_halt(void)
 {
 	if (core_state == AICE_TARGET_HALTED) {
@@ -1920,6 +1812,119 @@ static int aice_usb_halt(void)
 	return ERROR_OK;
 }
 
+static int aice_usb_state(enum aice_target_state_s *state)
+{
+	uint32_t dbger_value;
+	uint32_t ice_state;
+
+	int result = aice_read_misc(current_target_id, NDS_EDM_MISC_DBGER, &dbger_value);
+
+	if (ERROR_AICE_TIMEOUT == result) {
+		if (aice_read_ctrl(AICE_READ_CTRL_GET_ICE_STATE, &ice_state) != ERROR_OK) {
+			LOG_INFO("USB is disconnected");
+			return ERROR_FAIL;
+		}
+
+		if ((ice_state & 0x20) == 0) {
+			LOG_INFO("Target is disconnected");
+			return ERROR_FAIL;
+		} else {
+			return ERROR_FAIL;
+		}
+	} else if (ERROR_AICE_DISCONNECT == result) {
+		LOG_INFO("USB is disconnected");
+		return ERROR_FAIL;
+	}
+
+	if ((dbger_value & NDS_DBGER_DEX) == NDS_DBGER_DEX) {
+		if (AICE_TARGET_RUNNING == core_state) {
+			/* enter debug mode, init EDM registers */
+			/* backup EDM registers */
+			aice_backup_edm_registers();
+			/* init EDM for host debugging */
+			aice_init_edm_registers();
+			aice_backup_tmp_registers();
+			core_state = AICE_TARGET_HALTED;
+		} else if (AICE_TARGET_UNKNOWN == core_state) {
+			/* debug 'debug mode', use force debug to halt core */
+			aice_usb_halt();
+		}
+		*state = AICE_TARGET_HALTED;
+	} else if ((dbger_value & NDS_DBGER_CRST) == NDS_DBGER_CRST) {
+		*state = AICE_TARGET_RESET;
+		core_state = AICE_TARGET_RUNNING;
+	} else if ((dbger_value & NDS_DBGER_AT_MAX) == NDS_DBGER_AT_MAX) {
+		uint32_t ir11_value;
+
+		/* Clear AT_MAX */
+		aice_write_misc(current_target_id, NDS_EDM_MISC_DBGER, NDS_DBGER_AT_MAX);
+
+		/* Issue DBGI to enter debug mode */
+		aice_write_misc(current_target_id, NDS_EDM_MISC_EDM_CMDR, 0);
+
+		/* Read OIPC to find out the trigger point */
+		aice_read_reg(IR11, &ir11_value);
+
+		LOG_INFO("Stall due to max_stop, trigger point: 0x%08x", ir11_value);
+
+		*state = AICE_TARGET_HALTED;
+		core_state = AICE_TARGET_HALTED;
+	} else {
+		*state = AICE_TARGET_RUNNING;
+		core_state = AICE_TARGET_RUNNING;
+	}
+
+	return ERROR_OK;
+}
+
+static int aice_usb_reset(void)
+{
+	if (aice_write_ctrl(AICE_WRITE_CTRL_CLEAR_TIMEOUT_STATUS, 0x1) != ERROR_OK)
+		return ERROR_FAIL;
+
+	if (aice_write_ctrl(AICE_WRITE_CTRL_JTAG_PIN_CONTROL, AICE_JTAG_PIN_CONTROL_TRST) != ERROR_OK)
+		return ERROR_FAIL;
+
+	if (aice_write_ctrl(AICE_WRITE_CTRL_TCK_CONTROL, AICE_TCK_CONTROL_TCK_SCAN) != ERROR_OK)
+		return ERROR_FAIL;
+
+	if (aice_usb_set_clock(jtag_clock) != ERROR_OK)
+		return ERROR_FAIL;
+
+	return ERROR_OK;
+}
+
+static int aice_issue_srst(void)
+{
+	LOG_DEBUG("aice_issue_srst");
+
+	/* After issuing srst, target will be running. So we need to restore EDM_CTL. */
+	aice_restore_edm_registers();
+
+	if (aice_write_ctrl(AICE_WRITE_CTRL_JTAG_PIN_CONTROL, AICE_JTAG_PIN_CONTROL_SRST) != ERROR_OK)
+		return ERROR_FAIL;
+
+	uint32_t dbger_value;
+	int i = 0;
+	while (1) {
+		if (aice_read_misc(current_target_id, NDS_EDM_MISC_DBGER, &dbger_value) != ERROR_OK)
+			return ERROR_FAIL;
+
+		if (dbger_value & NDS_DBGER_CRST)
+			break;
+
+		if ((i % 30) == 0)
+			keep_alive();
+		i++;
+	}
+
+	host_dtr_valid = false;
+	target_dtr_valid = false;
+
+	core_state = AICE_TARGET_RUNNING;
+	return ERROR_OK;
+}
+
 static int aice_issue_reset_hold(void)
 {
 	LOG_DEBUG("aice_issue_reset_hold");
@@ -1962,9 +1967,7 @@ static int aice_issue_reset_hold(void)
 		}
 
 		/* do software reset-and-hold */
-		if (aice_write_ctrl(AICE_WRITE_CTRL_JTAG_PIN_CONTROL, AICE_JTAG_PIN_CONTROL_SRST) != ERROR_OK)
-			return ERROR_FAIL;
-
+		aice_issue_srst();
 		aice_usb_halt();
 
 		uint32_t value_ir3;
@@ -1982,7 +1985,7 @@ static int aice_usb_assert_srst(enum aice_srst_type_s srst)
 
 	/* clear DBGER */
 	if (aice_write_misc(current_target_id, NDS_EDM_MISC_DBGER,
-				NDS_DBGER_DEX | NDS_DBGER_DPED | NDS_DBGER_CRST) != ERROR_OK)
+				NDS_DBGER_DEX | NDS_DBGER_DPED | NDS_DBGER_CRST | NDS_DBGER_AT_MAX) != ERROR_OK)
 		return ERROR_FAIL;
 
 	int result = ERROR_OK;
@@ -2500,6 +2503,7 @@ static int aice_usb_read_tlb(uint32_t virtual_address, uint32_t *physical_addres
 	uint32_t value_mr4;
 	uint32_t access_page_size;
 	uint32_t virtual_offset;
+	uint32_t physical_page_number;
 
 	aice_write_dtr(current_target_id, virtual_address);
 
@@ -2525,21 +2529,25 @@ static int aice_usb_read_tlb(uint32_t virtual_address, uint32_t *physical_addres
 	instructions[3] = BEQ_MINUS_12;
 	aice_execute_dim(instructions, 4);
 
+	/* TODO: it should backup mr3, mr4 */
 	aice_read_reg(MR3, &value_mr3);
 	aice_read_reg(MR4, &value_mr4);
 
 	access_page_size = value_mr4 & 0xF;
 	if (0 == access_page_size) { /* 4K page */
 		virtual_offset = virtual_address & 0x00000FFF;
+		physical_page_number = value_mr3 & 0xFFFFF000;
 	} else if (1 == access_page_size) { /* 8K page */
 		virtual_offset = virtual_address & 0x00001FFF;
+		physical_page_number = value_mr3 & 0xFFFFE000;
 	} else if (5 == access_page_size) { /* 1M page */
 		virtual_offset = virtual_address & 0x000FFFFF;
+		physical_page_number = value_mr3 & 0xFFF00000;
 	} else {
 		return ERROR_FAIL;
 	}
 
-	*physical_address = (value_mr3 & 0xFFFFF000) | virtual_offset;
+	*physical_address = physical_page_number | virtual_offset;
 
 	return ERROR_OK;
 }
