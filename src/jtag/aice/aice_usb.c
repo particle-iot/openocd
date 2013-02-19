@@ -1564,25 +1564,30 @@ static bool is_v2_edm(void)
 		return false;
 }
 
-static int aice_init_edm_registers(void)
+static int aice_init_edm_registers(bool clear_dex_use_psw)
 {
-	LOG_DEBUG("aice_init_edm_registers -");
+	uint32_t host_edm_ctl = edm_ctl_backup | 0x8000004F; /* enable DEH_SEL & V3_EDM_MODE & DBGI_MASK */
+	if (clear_dex_use_psw)
+		host_edm_ctl &= ~(0x40000000);
 
-	int result = aice_write_edmsr(current_target_id, NDS_EDM_SR_EDM_CTL, edm_ctl_backup | 0x8000004F);
+	LOG_DEBUG("aice_init_edm_registers - EDM_CTL: 0x%08x", host_edm_ctl);
+
+	int result = aice_write_edmsr(current_target_id, NDS_EDM_SR_EDM_CTL, host_edm_ctl);
 
 	return result;
 }
 
 static int aice_backup_edm_registers(void)
 {
-	LOG_DEBUG("aice_backup_edm_registers -");
-
 	int result = aice_read_edmsr(current_target_id, NDS_EDM_SR_EDM_CTL, &edm_ctl_backup);
 
 	if (edm_ctl_backup & 0x40000000)
 		dex_use_psw_on = true;
 	else
 		dex_use_psw_on = false;
+
+	LOG_DEBUG("aice_backup_edm_registers - EDM_CTL: 0x%08x, DEX_USE_PSW: %s",
+			edm_ctl_backup, dex_use_psw_on ? "on" : "off");
 
 	return result;
 }
@@ -1739,7 +1744,8 @@ static int aice_usb_halt(void)
 	/** backup EDM registers */
 	aice_backup_edm_registers();
 	/** init EDM for host debugging */
-	aice_init_edm_registers();
+	/** no need to clear dex_use_psw, because dbgi will clear it */
+	aice_init_edm_registers(false);
 
 	/** Clear EDM_CTL.DBGIM & EDM_CTL.DBGACKM */
 	uint32_t edm_ctl_value;
@@ -1842,7 +1848,7 @@ static int aice_usb_state(enum aice_target_state_s *state)
 			/* backup EDM registers */
 			aice_backup_edm_registers();
 			/* init EDM for host debugging */
-			aice_init_edm_registers();
+			aice_init_edm_registers(true);
 			aice_backup_tmp_registers();
 			core_state = AICE_TARGET_HALTED;
 		} else if (AICE_TARGET_UNKNOWN == core_state) {
