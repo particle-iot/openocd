@@ -1310,6 +1310,12 @@ static int aice_usb_read_reg(uint32_t num, uint32_t *val)
 		*val = r0_backup;
 	} else if (num == R1) {
 		*val = r1_backup;
+	} else if (num == DR41) {
+		*val = edmsw_backup;
+	} else if (num == DR42) {
+		*val = edm_ctl_backup;
+	} else if ((target_dtr_valid == true) && (num == DR43)) {
+		*val = target_dtr_backup;
 	} else {
 		if (ERROR_OK != aice_read_reg(num, val))
 			*val = 0xBBADBEEF;
@@ -1391,6 +1397,10 @@ static int aice_usb_write_reg(uint32_t num, uint32_t val)
 		r0_backup = val;
 	else if (num == R1)
 		r1_backup = val;
+	else if (num == DR42)
+		edm_ctl_backup = val;
+	else if ((target_dtr_valid == true) && (num == DR43))
+		target_dtr_backup = val;
 	else
 		return aice_write_reg(num, val);
 
@@ -1564,11 +1574,9 @@ static bool is_v2_edm(void)
 		return false;
 }
 
-static int aice_init_edm_registers(bool clear_dex_use_psw)
+static int aice_init_edm_registers(void)
 {
 	uint32_t host_edm_ctl = edm_ctl_backup | 0x8000004F; /* enable DEH_SEL & V3_EDM_MODE & DBGI_MASK */
-	if (clear_dex_use_psw)
-		host_edm_ctl &= ~(0x40000000);
 
 	LOG_DEBUG("aice_init_edm_registers - EDM_CTL: 0x%08x", host_edm_ctl);
 
@@ -1744,8 +1752,7 @@ static int aice_usb_halt(void)
 	/** backup EDM registers */
 	aice_backup_edm_registers();
 	/** init EDM for host debugging */
-	/** no need to clear dex_use_psw, because dbgi will clear it */
-	aice_init_edm_registers(false);
+	aice_init_edm_registers();
 
 	/** Clear EDM_CTL.DBGIM & EDM_CTL.DBGACKM */
 	uint32_t edm_ctl_value;
@@ -1848,7 +1855,7 @@ static int aice_usb_state(enum aice_target_state_s *state)
 			/* backup EDM registers */
 			aice_backup_edm_registers();
 			/* init EDM for host debugging */
-			aice_init_edm_registers(true);
+			aice_init_edm_registers();
 			aice_backup_tmp_registers();
 			core_state = AICE_TARGET_HALTED;
 		} else if (AICE_TARGET_UNKNOWN == core_state) {
