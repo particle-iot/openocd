@@ -2031,6 +2031,9 @@ static int aice_usb_run(void)
 	aice_write_misc(current_target_id, NDS_EDM_MISC_DBGER,
 			NDS_DBGER_DEX | NDS_DBGER_DPED | NDS_DBGER_CRST | NDS_DBGER_AT_MAX);
 
+	/** restore EDM registers */
+	aice_restore_edm_registers();
+
 	/** execute instructions in DIM */
 	uint32_t instructions[4] = {
 		NOP,
@@ -2039,9 +2042,6 @@ static int aice_usb_run(void)
 		IRET
 	};
 	int result = aice_execute_dim(instructions, 4);
-
-	/** restore EDM registers */
-	aice_restore_edm_registers();
 
 	return result;
 }
