@@ -90,13 +90,13 @@ static int mips_m4k_debug_entry(struct target *target)
 	/* make sure stepping disabled, SSt bit in CP0 debug register cleared */
 	mips_ejtag_config_step(ejtag_info, 0);
 
+	mips32_save_context(target);
+
 	/* make sure break unit configured */
 	mips32_configure_break_unit(target);
 
 	/* attempt to find halt reason */
 	mips_m4k_examine_debug_reason(target);
-
-	mips32_save_context(target);
 
 	/* default to mips32 isa, it will be changed below if required */
 	mips32->isa_mode = MIPS32_ISA_MIPS32;
