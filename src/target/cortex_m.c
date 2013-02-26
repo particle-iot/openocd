@@ -528,15 +528,8 @@ static int cortex_m3_poll(struct target *target)
 	}
 
 	if (cortex_m3->dcb_dhcsr & S_RESET_ST) {
-		/* check if still in reset */
-		retval = mem_ap_read_atomic_u32(swjdp, DCB_DHCSR, &cortex_m3->dcb_dhcsr);
-		if (retval != ERROR_OK)
-			return retval;
-
-		if (cortex_m3->dcb_dhcsr & S_RESET_ST) {
-			target->state = TARGET_RESET;
-			return ERROR_OK;
-		}
+		target->state = TARGET_RESET;
+		return ERROR_OK;
 	}
 
 	if (target->state == TARGET_RESET) {
@@ -545,7 +538,11 @@ static int cortex_m3_poll(struct target *target)
 		 */
 		LOG_DEBUG("Exit from reset with dcb_dhcsr 0x%" PRIx32,
 			cortex_m3->dcb_dhcsr);
-		cortex_m3_endreset_event(target);
+		retval = cortex_m3_endreset_event(target);
+		if (retval != ERROR_OK) {
+			target->state = TARGET_UNKNOWN;
+			return retval;
+		}
 		target->state = TARGET_RUNNING;
 		prev_target_state = TARGET_RUNNING;
 	}
@@ -973,6 +970,9 @@ static int cortex_m3_assert_reset(struct target *target)
 	LOG_DEBUG("target->state: %s",
 		target_state_name(target));
 
+	if (target->state == TARGET_RESET)
+		return ERROR_OK;
+
 	enum reset_types jtag_reset_config = jtag_get_reset_config();
 
 	if (target_has_event_action(target, TARGET_EVENT_RESET_ASSERT)) {
@@ -1099,6 +1099,9 @@ static int cortex_m3_deassert_reset(struct target *target)
 {
 	LOG_DEBUG("target->state: %s",
 		target_state_name(target));
+
+	if (target->state != TARGET_RESET)
+		return ERROR_OK;
 
 	/* deassert reset lines */
 	adapter_deassert_reset();
