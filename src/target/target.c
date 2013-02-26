@@ -214,6 +214,7 @@ static const Jim_Nvp nvp_target_debug_reason[] = {
 	{ .name = "single-step"              , .value = DBG_REASON_SINGLESTEP },
 	{ .name = "target-not-halted"        , .value = DBG_REASON_NOTHALTED  },
 	{ .name = "undefined"                , .value = DBG_REASON_UNDEFINED },
+	{ .name = "vector-catch"             , .value = DBG_REASON_VECTORCATCH },
 	{ .name = NULL, .value = -1 },
 };
 
