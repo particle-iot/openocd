@@ -380,9 +380,9 @@ struct target *get_target(const char *id)
 
 	/* try as tcltarget name */
 	for (target = all_targets; target; target = target->next) {
-		if (target->cmd_name == NULL)
+		if (target_name(target) == NULL)
 			continue;
-		if (strcmp(id, target->cmd_name) == 0)
+		if (strcmp(id, target_name(target)) == 0)
 			return target;
 	}
 
@@ -396,7 +396,7 @@ struct target *get_target(const char *id)
 	for (target = all_targets; target; target = target->next) {
 		if (target->target_number == (int)num) {
 			LOG_WARNING("use '%s' as target identifier, not '%u'",
-					target->cmd_name, num);
+					target_name(target), num);
 			return target;
 		}
 	}
@@ -983,7 +983,7 @@ int target_add_breakpoint(struct target *target,
 		struct breakpoint *breakpoint)
 {
 	if ((target->state != TARGET_HALTED) && (breakpoint->type != BKPT_HARD)) {
-		LOG_WARNING("target %s is not halted", target->cmd_name);
+		LOG_WARNING("target %s is not halted", target_name(target));
 		return ERROR_TARGET_NOT_HALTED;
 	}
 	return target->type->add_breakpoint(target, breakpoint);
@@ -993,7 +993,7 @@ int target_add_context_breakpoint(struct target *target,
 		struct breakpoint *breakpoint)
 {
 	if (target->state != TARGET_HALTED) {
-		LOG_WARNING("target %s is not halted", target->cmd_name);
+		LOG_WARNING("target %s is not halted", target_name(target));
 		return ERROR_TARGET_NOT_HALTED;
 	}
 	return target->type->add_context_breakpoint(target, breakpoint);
@@ -1003,7 +1003,7 @@ int target_add_hybrid_breakpoint(struct target *target,
 		struct breakpoint *breakpoint)
 {
 	if (target->state != TARGET_HALTED) {
-		LOG_WARNING("target %s is not halted", target->cmd_name);
+		LOG_WARNING("target %s is not halted", target_name(target));
 		return ERROR_TARGET_NOT_HALTED;
 	}
 	return target->type->add_hybrid_breakpoint(target, breakpoint);
@@ -1019,7 +1019,7 @@ int target_add_watchpoint(struct target *target,
 		struct watchpoint *watchpoint)
 {
 	if (target->state != TARGET_HALTED) {
-		LOG_WARNING("target %s is not halted", target->cmd_name);
+		LOG_WARNING("target %s is not halted", target_name(target));
 		return ERROR_TARGET_NOT_HALTED;
 	}
 	return target->type->add_watchpoint(target, watchpoint);
@@ -5063,7 +5063,7 @@ static int jim_target_current(Jim_Interp *interp, int argc, Jim_Obj *const *argv
 	struct command_context *cmd_ctx = current_command_context(interp);
 	assert(cmd_ctx != NULL);
 
-	Jim_SetResultString(interp, get_current_target(cmd_ctx)->cmd_name, -1);
+	Jim_SetResultString(interp, target_name(get_current_target(cmd_ctx)), -1);
 	return JIM_OK;
 }
 
