@@ -59,6 +59,9 @@ struct pracc_access {
 	uint8_t in_scan[12];		/* scanned in value, ctrl, data and addr */
 };
 
+void pracc_queue_fetch(struct pracc_access *p, uint32_t instr);
+int mips32_pracc_exec_queue(struct mips_ejtag *ejtag_info, struct pracc_access *pqueue, int num_access);
+
 int mips32_pracc_read_mem(struct mips_ejtag *ejtag_info,
 		uint32_t addr, int size, int count, void *buf);
 int mips32_pracc_write_mem(struct mips_ejtag *ejtag_info,
