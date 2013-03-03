@@ -99,6 +99,30 @@ static int mips_ejtag_get_impcode(struct mips_ejtag *ejtag_info, uint32_t *impco
 	return ERROR_OK;
 }
 
+void mips_ejtag_add_scan_96(struct mips_ejtag *ejtag_info, uint32_t *ctrl, uint32_t *data, uint8_t *buf)
+{
+	struct jtag_tap *tap;
+	tap = ejtag_info->tap;
+	assert(tap != NULL);
+
+	struct scan_field fields[1];
+	uint8_t t[12];
+
+	/* processor access "all" register 96 bit */
+	fields[0].num_bits = 96;
+
+	fields[0].out_value = t;
+	buf_set_u32(t, 0, 32, *ctrl);
+	buf_set_u32(t + 4, 0, 32, *data);
+	buf_set_u32(t + 8, 0, 32, 0);
+
+	fields[0].in_value = buf;
+
+	jtag_add_dr_scan(tap, 1, fields, TAP_IDLE);
+
+	keep_alive();
+}
+
 int mips_ejtag_drscan_32(struct mips_ejtag *ejtag_info, uint32_t *data)
 {
 	struct jtag_tap *tap;
@@ -302,6 +326,7 @@ int mips_ejtag_init(struct mips_ejtag *ejtag_info)
 	/* set initial state for ejtag control reg */
 	ejtag_info->ejtag_ctrl = EJTAG_CTRL_ROCC | EJTAG_CTRL_PRACC | EJTAG_CTRL_PROBEN | EJTAG_CTRL_SETDEV;
 	ejtag_info->fast_access_save = -1;
+	ejtag_info->scan_delay = 20;
 
 	return ERROR_OK;
 }
