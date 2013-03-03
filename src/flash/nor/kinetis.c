@@ -95,6 +95,15 @@ const struct {
 	{ 4<<10, 4<<10, 4 }
 };
 
+#define FLEXRAM		0x14000000
+#define FTFx_FSTAT	0x40020000
+#define FTFx_FCNFG	0x40020001
+#define FTFx_FCCOB3	0x40020004
+#define FTFx_FPROT3	0x40020010
+#define SIM_SDID	0x40048024
+#define SIM_FCFG1	0x4004804c
+#define SIM_FCFG2	0x40048050
+
 struct kinetis_flash_bank {
 	unsigned granularity;
 	unsigned bank_ordinal;
@@ -160,8 +169,8 @@ static int kinetis_protect_check(struct flash_bank *bank)
 		uint32_t fprot, psec;
 		int i, b;
 
-		/* read protection register FTFx_FPROT */
-		result = target_read_memory(bank->target, 0x40020010, 1, 4, buffer);
+		/* read protection register */
+		result = target_read_memory(bank->target, FTFx_FPROT3, 1, 4, buffer);
 
 		if (result != ERROR_OK)
 			return result;
@@ -204,7 +213,7 @@ static int kinetis_ftfx_command(struct flash_bank *bank, uint32_t w0,
 	/* wait for done */
 	for (i = 0; i < 50; i++) {
 		result =
-			target_read_memory(bank->target, 0x40020000, 1, 1, buffer);
+			target_read_memory(bank->target, FTFx_FSTAT, 1, 1, buffer);
 
 		if (result != ERROR_OK)
 			return result;
@@ -219,7 +228,7 @@ static int kinetis_ftfx_command(struct flash_bank *bank, uint32_t w0,
 		/* reset error flags */
 		buffer[0] = 0x30;
 		result =
-			target_write_memory(bank->target, 0x40020000, 1, 1, buffer);
+			target_write_memory(bank->target, FTFx_FSTAT, 1, 1, buffer);
 		if (result != ERROR_OK)
 			return result;
 	}
@@ -228,21 +237,21 @@ static int kinetis_ftfx_command(struct flash_bank *bank, uint32_t w0,
 	target_buffer_set_u32(bank->target, buffer + 4, w1);
 	target_buffer_set_u32(bank->target, buffer + 8, w2);
 
-	result = target_write_memory(bank->target, 0x40020004, 4, 3, buffer);
+	result = target_write_memory(bank->target, FTFx_FCCOB3, 4, 3, buffer);
 
 	if (result != ERROR_OK)
 		return result;
 
 	/* start command */
 	buffer[0] = 0x80;
-	result = target_write_memory(bank->target, 0x40020000, 1, 1, buffer);
+	result = target_write_memory(bank->target, FTFx_FSTAT, 1, 1, buffer);
 	if (result != ERROR_OK)
 		return result;
 
 	/* wait for done */
 	for (i = 0; i < 50; i++) {
 		result =
-			target_read_memory(bank->target, 0x40020000, 1, 1, ftfx_fstat);
+			target_read_memory(bank->target, FTFx_FSTAT, 1, 1, ftfx_fstat);
 
 		if (result != ERROR_OK)
 			return result;
@@ -330,7 +339,7 @@ static int kinetis_write(struct flash_bank *bank, uint8_t *buffer,
 			return ERROR_FLASH_OPERATION_FAILED;
 
 		/* check if ram ready */
-		result = target_read_memory(bank->target, 0x40020001, 1, 1, buf);
+		result = target_read_memory(bank->target, FTFx_FCNFG, 1, 1, buf);
 
 		if (result != ERROR_OK)
 			return result;
@@ -396,7 +405,7 @@ static int kinetis_write(struct flash_bank *bank, uint8_t *buffer,
 				  offset + i, (count - i));
 
 			/* write data to flexram as whole-words */
-			result = target_write_memory(bank->target, 0x14000000, 4, wc,
+			result = target_write_memory(bank->target, FLEXRAM, 4, wc,
 						     buffer + i);
 
 			if (result != ERROR_OK) {
@@ -407,7 +416,7 @@ static int kinetis_write(struct flash_bank *bank, uint8_t *buffer,
 			/* write the residual words to the flexram */
 			if (residual_wc) {
 				result = target_write_memory(bank->target,
-							     0x14000000+4*wc,
+							     FLEXRAM+4*wc,
 							     4, residual_wc,
 							     residual_buffer);
 
@@ -467,16 +476,18 @@ static int kinetis_read_part_info(struct flash_bank *bank)
 		first_nvm_bank = 0, reassign = 0;
 	struct kinetis_flash_bank *kinfo = bank->driver_priv;
 
-	result = target_read_memory(bank->target, 0x40048024, 1, 4, buf);
+	result = target_read_memory(bank->target, SIM_SDID, 1, 4, buf);
 	if (result != ERROR_OK)
 		return result;
 	kinfo->sim_sdid = target_buffer_get_u32(bank->target, buf);
 	granularity = (kinfo->sim_sdid >> 7) & 0x03;
-	result = target_read_memory(bank->target, 0x4004804c, 1, 4, buf);
+
+	result = target_read_memory(bank->target, SIM_FCFG1, 1, 4, buf);
 	if (result != ERROR_OK)
 		return result;
 	kinfo->sim_fcfg1 = target_buffer_get_u32(bank->target, buf);
-	result = target_read_memory(bank->target, 0x40048050, 1, 4, buf);
+
+	result = target_read_memory(bank->target, SIM_FCFG2, 1, 4, buf);
 	if (result != ERROR_OK)
 		return result;
 	kinfo->sim_fcfg2 = target_buffer_get_u32(bank->target, buf);
@@ -625,7 +636,7 @@ static int kinetis_read_part_info(struct flash_bank *bank)
 				} else if (bank->size != ee_size) {
 					LOG_WARNING("FlexRAM size mismatch");
 					reassign = 1;
-				} else if (bank->base != 0x14000000) {
+				} else if (bank->base != FLEXRAM) {
 					LOG_WARNING("FlexRAM address mismatch");
 					reassign = 1;
 				} else if (kinfo->sector_size !=
