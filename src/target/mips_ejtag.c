@@ -218,26 +218,26 @@ int mips_ejtag_config_step(struct mips_ejtag *ejtag_info, int enable_step)
 {
 	int code_len = enable_step ? 6 : 7;
 
-	uint32_t *code = malloc(code_len * sizeof(uint32_t));
-	if (code == NULL) {
+	struct pracc_access *pqueue = malloc(code_len * sizeof(struct pracc_access));
+	if (pqueue == NULL) {
 		LOG_ERROR("Out of memory");
 		return ERROR_FAIL;
 	}
-	uint32_t *code_p = code;
+	struct pracc_access *p = pqueue;
 
-	*code_p++ = MIPS32_MTC0(1, 31, 0);			/* move $1 to COP0 DeSave */
-	*code_p++ = MIPS32_MFC0(1, 23, 0),			/* move COP0 Debug to $1 */
-	*code_p++ = MIPS32_ORI(1, 1, 0x0100);			/* set SSt bit in debug reg */
+	pracc_queue_fetch(p++, MIPS32_MTC0(1, 31, 0));			/* move $1 to COP0 DeSave */
+	pracc_queue_fetch(p++, MIPS32_MFC0(1, 23, 0));			/* move COP0 Debug to $1 */
+	pracc_queue_fetch(p++, MIPS32_ORI(1, 1, 0x0100));			/* set SSt bit in debug reg */
 	if (!enable_step)
-		*code_p++ = MIPS32_XORI(1, 1, 0x0100);		/* clear SSt bit in debug reg */
+		pracc_queue_fetch(p++, MIPS32_XORI(1, 1, 0x0100));		/* clear SSt bit in debug reg */
 
-	*code_p++ = MIPS32_MTC0(1, 23, 0);			/* move $1 to COP0 Debug */
-	*code_p++ = MIPS32_B(NEG16((code_len - 1)));		/* jump to start */
-	*code_p = MIPS32_MFC0(1, 31, 0);			/* move COP0 DeSave to $1 */
+	pracc_queue_fetch(p++, MIPS32_MTC0(1, 23, 0));			/* move $1 to COP0 Debug */
+	pracc_queue_fetch(p++, MIPS32_B(NEG16((code_len - 1))));		/* jump to start */
+	pracc_queue_fetch(p, MIPS32_MFC0(1, 31, 0));			/* move COP0 DeSave to $1 */
 
-	int retval = mips32_pracc_exec(ejtag_info, code_len, code, 0, NULL, 0, NULL, 1);
+	int retval = mips32_pracc_exec_queue(ejtag_info, pqueue, code_len);
 
-	free(code);
+	free(pqueue);
 	return retval;
 }
 
@@ -264,11 +264,11 @@ int mips_ejtag_enter_debug(struct mips_ejtag *ejtag_info)
 
 int mips_ejtag_exit_debug(struct mips_ejtag *ejtag_info)
 {
-	uint32_t inst;
-	inst = MIPS32_DRET;
+	struct pracc_access pqueue;
+	pracc_queue_fetch(&pqueue, MIPS32_DRET);
 
 	/* execute our dret instruction */
-	int retval = mips32_pracc_exec(ejtag_info, 1, &inst, 0, NULL, 0, NULL, 0);
+	int retval = mips32_pracc_exec_queue(ejtag_info, &pqueue, 1);
 
 	jtag_add_sleep(1000);
 	return retval;
