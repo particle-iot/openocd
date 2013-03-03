@@ -81,6 +81,9 @@
 #include "mips32.h"
 #include "mips32_pracc.h"
 
+#define PRACC_FETCH 0
+#define PRACC_STORE 1
+
 struct mips32_pracc_context {
 	uint32_t *local_iparam;
 	int num_iparam;
@@ -270,24 +273,104 @@ int mips32_pracc_exec(struct mips_ejtag *ejtag_info, int code_len, const uint32_
 	return ERROR_OK;
 }
 
-static int mips32_pracc_read_u32(struct mips_ejtag *ejtag_info, uint32_t addr, uint32_t *buf)
+void pracc_queue_fetch(struct pracc_access *p, uint32_t instr)
 {
-	uint32_t code[] = {
-														/* start: */
-		MIPS32_MTC0(15, 31, 0),						/* move $15 to COP0 DeSave */
-		MIPS32_LUI(15, PRACC_UPPER_BASE_ADDR),				/* $15 = MIPS32_PRACC_BASE_ADDR */
+	p->access_type = PRACC_FETCH;
+	p->instr = instr;
+}
 
-		MIPS32_LUI(8, UPPER16((addr + 0x8000))),                        /* load  $8 with modified upper address */
-		MIPS32_LW(8, LOWER16(addr), 8),					/* lw $8, LOWER16(addr)($8) */
-		MIPS32_SW(8, PRACC_OUT_OFFSET, 15),				/* sw $8,PRACC_OUT_OFFSET($15) */
+void pracc_queue_store(struct pracc_access *p, uint32_t *data_in, uint32_t addr)
+{
+	p->access_type = PRACC_STORE;
+	p->instr = 0;
+	p->data = data_in;
+	p->addr = addr;
+}
 
-		MIPS32_LUI(8, UPPER16(ejtag_info->reg8)),				/* restore upper 16 bits of reg 8 */
-		MIPS32_ORI(8, 8, LOWER16(ejtag_info->reg8)),				/* restore lower 16 bits of reg 8 */
-		MIPS32_B(NEG16(8)),							/* b start */
-		MIPS32_MFC0(15, 31, 0),						/* move COP0 DeSave to $15 */
-	};
+int mips32_pracc_exec_queue(struct mips_ejtag *ejtag_info, struct pracc_access *pqueue, int num_access)
+{
+	int i;
+	int retval;
+	uint32_t ejtag_ctrl, data, addr;
+	uint32_t fetch_addr = MIPS32_PRACC_TEXT;		/* start address */
 
-	return mips32_pracc_exec(ejtag_info, ARRAY_SIZE(code), code, 0, NULL, 1, buf, 1);
+	ejtag_ctrl = ejtag_info->ejtag_ctrl & ~EJTAG_CTRL_PRACC;
+	mips_ejtag_set_instr(ejtag_info, EJTAG_INST_ALL);
+
+	for (i = 0; i != num_access; i++) {			/* queue every scan */
+		jtag_add_clocks(ejtag_info->scan_delay);
+
+		mips_ejtag_add_scan_96(ejtag_info, &ejtag_ctrl, &pqueue[i].instr, pqueue[i].in_scan);
+
+		if (pqueue[i].access_type == PRACC_FETCH) {	/* fill fetch address and increase it */
+			pqueue[i].addr = fetch_addr;
+			fetch_addr += 4;
+		}
+	}
+
+	retval = jtag_execute_queue();		/* execute queued scans */
+	if (retval != ERROR_OK)
+		return retval;
+
+	for (i = 0; i != num_access; i++) {				/* verify every pracc access */
+		ejtag_ctrl = buf_get_u32(pqueue[i].in_scan, 0, 32);
+		if (!(ejtag_ctrl & EJTAG_CTRL_PRACC)) {
+			LOG_ERROR("Error: access not pending  count: %d", i);
+			return ERROR_FAIL;
+		}
+		addr = buf_get_u32(pqueue[i].in_scan + 8, 0, 32);
+		if (pqueue[i].access_type == PRACC_FETCH) {		/* fetch access */
+			if (ejtag_ctrl & EJTAG_CTRL_PRNW) {
+				LOG_ERROR("Not a fetch/read access");
+				return ERROR_FAIL;
+			}
+			if (addr != pqueue[i].addr) {
+				LOG_ERROR("Fetch addr mismatch, read: %x expected: %x count: %d", addr, pqueue[i].addr, i);
+				return ERROR_FAIL;
+			}
+		} else {						/* a store access */
+			if (!(ejtag_ctrl & EJTAG_CTRL_PRNW)) {
+				LOG_ERROR("Not a store/write access");
+				return ERROR_FAIL;
+			}
+			if (addr != pqueue[i].addr) {
+				LOG_ERROR("Store address mismatch, read: %x expected: %x count: %d", addr, pqueue[i].addr, i);
+				return ERROR_FAIL;
+			}
+			data = buf_get_u32(pqueue[i].in_scan + 4, 0, 32);
+			*pqueue[i].data = data;
+		}
+	}
+	return ERROR_OK;
+}
+
+int mips32_pracc_read_u32(struct mips_ejtag *ejtag_info, uint32_t addr, uint32_t *buf)
+{
+	struct pracc_access *pqueue, *p;
+	pqueue = malloc(sizeof(struct pracc_access) * 10);
+	if (pqueue == NULL) {
+		LOG_ERROR("Out of memory");
+		return ERROR_FAIL;
+	}
+	p = pqueue;
+
+	pracc_queue_fetch(p++, MIPS32_MTC0(15, 31, 0));					/* move $15 to COP0 DeSave */
+	pracc_queue_fetch(p++, MIPS32_LUI(15, PRACC_UPPER_BASE_ADDR));			/* $15 = MIPS32_PRACC_BASE_ADDR */
+
+	pracc_queue_fetch(p++, MIPS32_LUI(8, UPPER16((addr + 0x8000))));		/* load  $8 with modified upper address */
+	pracc_queue_fetch(p++, MIPS32_LW(8, LOWER16(addr), 8));				/* lw $8, LOWER16(addr)($8) */
+	pracc_queue_fetch(p++, MIPS32_SW(8, PRACC_OUT_OFFSET, 15));			/* sw $8,PRACC_OUT_OFFSET($15) */
+	pracc_queue_fetch(p++, MIPS32_LUI(8, UPPER16(ejtag_info->reg8)));		/* restore upper 16 of $8 */
+
+	pracc_queue_store(p++, buf, MIPS32_PRACC_PARAM_OUT);				/* store access from $8 */
+
+	pracc_queue_fetch(p++, MIPS32_ORI(8, 8, LOWER16(ejtag_info->reg8)));		/* restore lower 16 of $8 */
+	pracc_queue_fetch(p++, MIPS32_B(NEG16(8)));					/* jump to start */
+	pracc_queue_fetch(p, MIPS32_MFC0(15, 31, 0));					/* move COP0 DeSave to $15 */
+
+	int retval = mips32_pracc_exec_queue(ejtag_info, pqueue, 10);
+	free(pqueue);
+	return retval;
 }
 
 int mips32_pracc_read_mem(struct mips_ejtag *ejtag_info, uint32_t addr, int size, int count, void *buf)
