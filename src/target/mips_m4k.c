@@ -1187,6 +1187,14 @@ COMMAND_HANDLER(mips_m4k_handle_cp0_command)
 		if (CMD_ARGC == 2) {
 			uint32_t value;
 
+			if (cp0_reg == 200) {
+				value = ejtag_info->scan_delay;
+				ejtag_info->scan_delay = cp0_sel;
+				command_print(CMD_CTX, "scan_delay new value: %" PRIi32 "  previous value: %" PRIi32,
+						      cp0_sel, value);
+				return ERROR_OK;
+			}
+
 			retval = mips32_cp0_read(ejtag_info, &value, cp0_reg, cp0_sel);
 			if (retval != ERROR_OK) {
 				command_print(CMD_CTX,
