@@ -51,6 +51,14 @@
 #define NEG16(v)						(((~(v)) + 1) & 0xFFFF)
 /*#define NEG18(v) (((~(v)) + 1) & 0x3FFFF)*/
 
+struct pracc_access {
+	char access_type;		/* PRACC_FETCH, PRACC_STORE */
+	uint32_t instr;			/* instruction for fetch access */
+	uint32_t *data;			/* pointer to data in a store processor access */
+	uint32_t addr;			/* processor access address for testing */
+	uint8_t in_scan[12];		/* scanned in value, ctrl, data and addr */
+};
+
 int mips32_pracc_read_mem(struct mips_ejtag *ejtag_info,
 		uint32_t addr, int size, int count, void *buf);
 int mips32_pracc_write_mem(struct mips_ejtag *ejtag_info,
