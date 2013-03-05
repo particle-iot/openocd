@@ -1166,6 +1166,8 @@ static uint32_t edm_version;
 static struct cache_info icache = {0, 0, 0, 0, 0};
 static struct cache_info dcache = {0, 0, 0, 0, 0};
 static bool cache_init;
+static bool fpu_enable;
+static bool audio_enable;
 
 static int aice_read_reg(uint32_t num, uint32_t *val);
 static int aice_write_reg(uint32_t num, uint32_t val);
@@ -1248,6 +1250,11 @@ static int aice_read_reg(uint32_t num, uint32_t *val)
 		instructions[2] = DSB;
 		instructions[3] = BEQ_MINUS_12;
 	} else if (NDS32_REG_TYPE_AUMR == nds32_reg_type(num)) { /* audio registers */
+		if (audio_enable == false) {
+			*val = 0;
+			return ERROR_OK;
+		}
+
 		if ((CB_CTL <= num) && (num <= CBE3)) {
 			instructions[0] = AMFAR2(0, nds32_reg_sr_index(num));
 			instructions[1] = MTSR_DTR(0);
@@ -1260,6 +1267,11 @@ static int aice_read_reg(uint32_t num, uint32_t *val)
 			instructions[3] = BEQ_MINUS_12;
 		}
 	} else if (NDS32_REG_TYPE_FPU == nds32_reg_type(num)) { /* fpu registers */
+		if (fpu_enable == false) {
+			*val = 0;
+			return ERROR_OK;
+		}
+
 		if (FPCSR == num) {
 			instructions[0] = FMFCSR;
 			instructions[1] = MTSR_DTR(0);
@@ -1326,7 +1338,7 @@ static int aice_usb_read_reg(uint32_t num, uint32_t *val)
 
 static int aice_write_reg(uint32_t num, uint32_t val)
 {
-	LOG_DEBUG("aice_write_reg, reg_no: 0x%08x, value: 0x%08x\n", num, val);
+	LOG_DEBUG("aice_write_reg, reg_no: 0x%08x, value: 0x%08x", num, val);
 
 	uint32_t instructions[4]; /** execute instructions in DIM */
 	uint32_t value_edmsw;
@@ -1589,6 +1601,11 @@ static int aice_backup_edm_registers(void)
 {
 	int result = aice_read_edmsr(current_target_id, NDS_EDM_SR_EDM_CTL, &edm_ctl_backup);
 
+	/* To call aice_backup_edm_registers() after DEX on, DEX_USE_PSW may be not correct.
+	 * (For example, hit breakpoint, then backup EDM_CTL. EDM_CTL.DEX_USE_PSW will be cleared.)
+	 * Because debug interrupt will clear DEX_USE_PSW, DEX_USE_PSW is always off after DEX is on.
+	 * It only backups correct value before OpenOCD issues DBGI. (Backup EDM_CTL, then issue
+	 * DBGI actively (refer aice_usb_halt())) */
 	if (edm_ctl_backup & 0x40000000)
 		dex_use_psw_on = true;
 	else
@@ -1652,6 +1669,28 @@ static int aice_backup_tmp_registers(void)
 	}
 
 	LOG_DEBUG("r0: 0x%08x, r1: 0x%08x", r0_backup, r1_backup);
+
+	return ERROR_OK;
+}
+
+static int aice_get_resource_setting(void)
+{
+	uint32_t value_fucpr;
+
+	if (aice_read_reg(FUCPR, &value_fucpr) == ERROR_OK) {
+		if (value_fucpr & 0x1)
+			fpu_enable = true;
+		else
+			fpu_enable = false;
+
+		if (value_fucpr & 0x80000000)
+			audio_enable = true;
+		else
+			audio_enable = false;
+	} else {
+		fpu_enable = false;
+		audio_enable = false;
+	}
 
 	return ERROR_OK;
 }
@@ -1820,6 +1859,7 @@ static int aice_usb_halt(void)
 
 	/* backup r0 & r1 */
 	aice_backup_tmp_registers();
+	aice_get_resource_setting();
 	core_state = AICE_TARGET_HALTED;
 
 	return ERROR_OK;
@@ -1857,6 +1897,7 @@ static int aice_usb_state(enum aice_target_state_s *state)
 			/* init EDM for host debugging */
 			aice_init_edm_registers();
 			aice_backup_tmp_registers();
+			aice_get_resource_setting();
 			core_state = AICE_TARGET_HALTED;
 		} else if (AICE_TARGET_UNKNOWN == core_state) {
 			/* debug 'debug mode', use force debug to halt core */
@@ -1958,6 +1999,7 @@ static int aice_issue_reset_hold(void)
 
 	if ((NDS_DBGER_CRST | NDS_DBGER_DEX) == (dbger_value & (NDS_DBGER_CRST | NDS_DBGER_DEX))) {
 		aice_backup_tmp_registers();
+		aice_get_resource_setting();
 		core_state = AICE_TARGET_HALTED;
 
 		return ERROR_OK;
@@ -1974,6 +2016,7 @@ static int aice_issue_reset_hold(void)
 
 		if ((NDS_DBGER_CRST | NDS_DBGER_DEX) == (dbger_value & (NDS_DBGER_CRST | NDS_DBGER_DEX))) {
 			aice_backup_tmp_registers();
+			aice_get_resource_setting();
 			core_state = AICE_TARGET_HALTED;
 
 			return ERROR_OK;
