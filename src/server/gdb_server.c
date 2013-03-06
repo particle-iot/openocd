@@ -695,41 +695,46 @@ static void gdb_signal_reply(struct target *target, struct connection *connectio
 	int sig_reply_len;
 	int signal_var;
 
-	if (gdb_connection->ctrl_c) {
-		signal_var = 0x2;
-		gdb_connection->ctrl_c = 0;
-	} else
-		signal_var = gdb_last_signal(target);
+	if (target->debug_reason == DBG_REASON_EXIT) {
+		snprintf(sig_reply, 4, "W00");
+		sig_reply_len = 3;
+	} else {
+		if (gdb_connection->ctrl_c) {
+			signal_var = 0x2;
+			gdb_connection->ctrl_c = 0;
+		} else
+			signal_var = gdb_last_signal(target);
 
-	snprintf(sig_reply, 4, "T%2.2x", signal_var);
-	sig_reply_len = 3;
+		snprintf(sig_reply, 4, "T%2.2x", signal_var);
+		sig_reply_len = 3;
 
-	if (target->debug_reason == DBG_REASON_WATCHPOINT) {
-		enum watchpoint_rw hit_wp_type;
-		uint32_t hit_address;
+		if (target->debug_reason == DBG_REASON_WATCHPOINT) {
+			enum watchpoint_rw hit_wp_type;
+			uint32_t hit_address;
 
-		if (watchpoint_hit(target, &hit_wp_type, &hit_address) == ERROR_OK) {
+			if (watchpoint_hit(target, &hit_wp_type, &hit_address) == ERROR_OK) {
+				switch (hit_wp_type) {
+					case WPT_WRITE:
+						snprintf(sig_reply + 3, 7, "watch:");
+						sig_reply_len = 9;
+						break;
+					case WPT_READ:
+						snprintf(sig_reply + 3, 8, "rwatch:");
+						sig_reply_len = 10;
+						break;
+					case WPT_ACCESS:
+						snprintf(sig_reply + 3, 8, "awatch:");
+						sig_reply_len = 10;
+						break;
+				}
 
-			switch (hit_wp_type) {
-				case WPT_WRITE:
-					snprintf(sig_reply + 3, 7, "watch:");
-					sig_reply_len = 9;
-					break;
-				case WPT_READ:
-					snprintf(sig_reply + 3, 8, "rwatch:");
-					sig_reply_len = 10;
-					break;
-				case WPT_ACCESS:
-					snprintf(sig_reply + 3, 8, "awatch:");
-					sig_reply_len = 10;
-					break;
+				sig_reply_len += sprintf(sig_reply + sig_reply_len, "%08x", hit_address);
+				sig_reply[sig_reply_len++] = ';';
+				sig_reply[sig_reply_len] = 0;
 			}
-
-			sig_reply_len += sprintf(sig_reply + sig_reply_len, "%08x", hit_address);
-			sig_reply[sig_reply_len++] = ';';
-			sig_reply[sig_reply_len] = 0;
 		}
 	}
+
 	gdb_put_packet(connection, sig_reply, sig_reply_len);
 	gdb_connection->frontend_state = TARGET_HALTED;
 	rtos_update_threads(target);
