@@ -2135,11 +2135,13 @@ static int nds32_parse_group_6_insn(struct nds32 *nds32, uint32_t opcode, uint32
 						break;
 					case 10: /* BREAK */
 						instruction->type = NDS32_INSN_MISC;
+						instruction->info.sub_opc = imm & 0x1F;
+						instruction->info.imm = (imm >> 5) & 0x7FFF;
 						snprintf(instruction->text,
 								128,
 								"0x%8.8" PRIx32 "\t0x%8.8" PRIx32 "\tBREAK\t#%d",
 								address,
-								opcode, (imm >> 5) & 0x7FFF);
+								opcode, instruction->info.imm);
 						break;
 					case 11: /* SYSCALL */
 						instruction->type = NDS32_INSN_MISC;

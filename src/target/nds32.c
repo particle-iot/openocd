@@ -26,6 +26,7 @@
 #include <helper/binarybuffer.h>
 #include "nds32.h"
 #include "nds32_tlb.h"
+#include "nds32_disassembler.h"
 
 const int NDS32_BREAK_16 = 0x00EA;      /* 0xEA00 */
 const int NDS32_BREAK_32 = 0x0A000064;  /* 0x6400000A */
@@ -1938,7 +1939,26 @@ int nds32_examine_debug_reason(struct nds32 *nds32)
 		case NDS32_DEBUG_BREAK:
 		case NDS32_DEBUG_BREAK_16:
 		case NDS32_DEBUG_INST_BREAK:
-			target->debug_reason = DBG_REASON_BREAKPOINT;
+			{
+				uint32_t value_pc;
+				uint32_t opcode;
+				struct nds32_instruction instruction;
+
+				nds32_get_mapped_reg(nds32, PC, &value_pc);
+
+				if (ERROR_OK != nds32_read_opcode(nds32, value_pc, &opcode))
+					return ERROR_FAIL;
+				if (ERROR_OK != nds32_evaluate_opcode(nds32, opcode, value_pc, &instruction))
+					return ERROR_FAIL;
+
+				/* hit 'break 0x7FFF' */
+				if ((instruction.info.opc_6 == 0x32) &&
+					(instruction.info.sub_opc == 0xA) &&
+					(instruction.info.imm == 0x7FFF)) {
+					target->debug_reason = DBG_REASON_EXIT;
+				} else
+					target->debug_reason = DBG_REASON_BREAKPOINT;
+			}
 			break;
 		case NDS32_DEBUG_DATA_ADDR_WATCHPOINT_PRECISE:
 		case NDS32_DEBUG_DATA_VALUE_WATCHPOINT_PRECISE:

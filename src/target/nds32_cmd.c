@@ -486,7 +486,7 @@ COMMAND_HANDLER(handle_nds32_query_cpuid_command)
 		return ERROR_FAIL;
 	}
 
-	command_print(CMD_CTX, target_name(target));
+	command_print(CMD_CTX, "CPUID: %s", target_name(target));
 
 	return ERROR_OK;
 }
