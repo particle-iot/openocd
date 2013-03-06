@@ -963,7 +963,39 @@ static int target_read_phys_memory(struct target *target,
 int target_write_memory(struct target *target,
 		uint32_t address, uint32_t size, uint32_t count, const uint8_t *buffer)
 {
-	return target->type->write_memory(target, address, size, count, buffer);
+	int retval;
+
+	if (count < 3)
+		return target->type->write_memory(target, address, size, count, buffer);
+
+	switch (size) {
+	case 1:
+		if ((count == 1) || (address & 1))
+		{
+			retval = target->type->write_memory(target, address, size, 1, buffer);
+			if (retval)
+				return retval;
+			address++;
+		}
+		count = count >> 1;
+		size = size << 1;
+	case 2:
+		if ((count == 2) || (address & 2))	
+		{
+			retval = target->type->write_memory(target, address, size, 1, buffer);
+			if (retval)
+				return retval;
+			address+=2;
+		}
+		count = count >> 1;
+		size = size << 1;
+	default:
+		if (count)
+			return target->type->write_memory(target, address, size, count, buffer);
+		else
+			return retval;
+
+	}
 }
 
 static int target_write_phys_memory(struct target *target,
