@@ -326,7 +326,7 @@ static int kinetis_write(struct flash_bank *bank, uint8_t *buffer,
 {
 	unsigned int i, result, fallback = 0;
 	uint8_t buf[8];
-	uint32_t wc;
+	uint32_t wc, max_progsize;
 	struct kinetis_flash_bank *kinfo = bank->driver_priv;
 
 	if (bank->target->state != TARGET_HALTED) {
@@ -366,7 +366,10 @@ static int kinetis_write(struct flash_bank *bank, uint8_t *buffer,
 	/* program section command */
 	if (fallback == 0) {
 		unsigned prog_section_bytes = kinfo->sector_size >> 8;
-		for (i = 0; i < count; i += kinfo->sector_size) {
+
+		max_progsize = MIN(1024, kinfo->sector_size);
+
+		for (i = 0; i < count; i += max_progsize) {
 			/*
 			 * The largest possible Kinetis "section" is
 			 * 16 bytes.  A full Kinetis sector is always
@@ -374,14 +377,14 @@ static int kinetis_write(struct flash_bank *bank, uint8_t *buffer,
 			 */
 			uint8_t residual_buffer[16];
 			uint8_t ftfx_fstat;
-			uint32_t section_count = 256;
+			uint32_t section_count = 1024/(kinfo->sector_size/256);
 			uint32_t residual_wc = 0;
 
 			/*
 			 * Assume the word count covers an entire
 			 * sector.
 			 */
-			wc = kinfo->sector_size / 4;
+			wc = max_progsize / 4;
 
 			/*
 			 * If bytes to be programmed are less than the
@@ -390,7 +393,7 @@ static int kinetis_write(struct flash_bank *bank, uint8_t *buffer,
 			 * residual buffer so that a full "section"
 			 * may always be programmed.
 			 */
-			if ((count - i) < kinfo->sector_size) {
+			if ((count - i) < max_progsize) {
 				/* number of bytes to program beyond full section */
 				unsigned residual_bc = (count-i) % prog_section_bytes;
 
