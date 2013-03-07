@@ -85,7 +85,7 @@ float duration_elapsed(struct duration *duration)
 	return t;
 }
 
-float duration_kbps(struct duration *duration, size_t count)
+float duration_kbps(struct duration *duration, target_ulong count)
 {
 	return count / (1024.0 * duration_elapsed(duration));
 }

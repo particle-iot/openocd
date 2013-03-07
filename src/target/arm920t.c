@@ -244,7 +244,7 @@ static int arm920t_execute_cp15(struct target *target, uint32_t cp15_opcode,
 }
 
 static int arm920t_read_cp15_interpreted(struct target *target,
-	uint32_t cp15_opcode, uint32_t address, uint32_t *value)
+	uint32_t cp15_opcode, target_ulong address, uint32_t *value)
 {
 	struct arm *arm = target_to_arm(target);
 	uint32_t *regs_p[1];
@@ -293,7 +293,7 @@ static int arm920t_read_cp15_interpreted(struct target *target,
 
 static
 int arm920t_write_cp15_interpreted(struct target *target,
-	uint32_t cp15_opcode, uint32_t value, uint32_t address)
+	uint32_t cp15_opcode, uint32_t value, target_ulong address)
 {
 	uint32_t cp15c15 = 0x0;
 	struct arm *arm = target_to_arm(target);
@@ -555,7 +555,7 @@ static int arm920_mmu(struct target *target, int *enabled)
 }
 
 static int arm920_virt2phys(struct target *target,
-	uint32_t virt, uint32_t *phys)
+	target_ulong virt, target_ulong *phys)
 {
 	uint32_t cb;
 	struct arm920t_common *arm920t = target_to_arm920(target);
@@ -570,8 +570,8 @@ static int arm920_virt2phys(struct target *target,
 }
 
 /** Reads a buffer, in the specified word size, with current MMU settings. */
-int arm920t_read_memory(struct target *target, uint32_t address,
-	uint32_t size, uint32_t count, uint8_t *buffer)
+int arm920t_read_memory(struct target *target, target_ulong address,
+	target_ulong size, target_ulong count, uint8_t *buffer)
 {
 	int retval;
 
@@ -582,8 +582,8 @@ int arm920t_read_memory(struct target *target, uint32_t address,
 
 
 static int arm920t_read_phys_memory(struct target *target,
-	uint32_t address, uint32_t size,
-	uint32_t count, uint8_t *buffer)
+	target_ulong address, target_ulong size,
+	target_ulong count, uint8_t *buffer)
 {
 	struct arm920t_common *arm920t = target_to_arm920(target);
 
@@ -592,8 +592,8 @@ static int arm920t_read_phys_memory(struct target *target,
 }
 
 static int arm920t_write_phys_memory(struct target *target,
-	uint32_t address, uint32_t size,
-	uint32_t count, const uint8_t *buffer)
+	target_ulong address, target_ulong size,
+	target_ulong count, const uint8_t *buffer)
 {
 	struct arm920t_common *arm920t = target_to_arm920(target);
 
@@ -602,8 +602,8 @@ static int arm920t_write_phys_memory(struct target *target,
 }
 
 /** Writes a buffer, in the specified word size, with current MMU settings. */
-int arm920t_write_memory(struct target *target, uint32_t address,
-	uint32_t size, uint32_t count, const uint8_t *buffer)
+int arm920t_write_memory(struct target *target, target_ulong address,
+	target_ulong size, target_ulong count, const uint8_t *buffer)
 {
 	int retval;
 	const uint32_t cache_mask = ~0x1f;	/* cache line size : 32 byte */
@@ -1568,7 +1568,7 @@ COMMAND_HANDLER(arm920t_handle_cp15i_command)
 				return ERROR_OK;
 			}
 			command_print(CMD_CTX, "%8.8" PRIx32 ": %8.8" PRIx32
-				" %8.8" PRIx32, opcode, value, address);
+				" %" PRIx32, opcode, value, address);
 		}
 	} else
 		return ERROR_COMMAND_SYNTAX_ERROR;

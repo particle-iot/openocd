@@ -81,8 +81,8 @@ struct armv7a_mmu_common {
 	uint32_t ttbr0_mask;/*  masked to be used  */
 	uint32_t os_border;
 
-	int (*read_physical_memory)(struct target *target, uint32_t address, uint32_t size,
-			uint32_t count, uint8_t *buffer);
+	int (*read_physical_memory)(struct target *target, target_ulong address, target_ulong size,
+			target_ulong count, uint8_t *buffer);
 	struct armv7a_cache_common armv7a_cache;
 	uint32_t mmu_enabled;
 };
