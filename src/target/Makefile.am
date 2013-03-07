@@ -113,6 +113,7 @@ MIPS32_SRC = \
 
 MIPS64_SRC = \
 	mips64.c \
+	mips64_5kc.c \
 	mips64_pracc.c \
 	mips64_dmaacc.c
 
