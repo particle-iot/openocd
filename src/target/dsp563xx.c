@@ -1073,7 +1073,7 @@ static int dsp563xx_halt(struct target *target)
 
 static int dsp563xx_resume(struct target *target,
 	int current,
-	uint32_t address,
+	target_ulong address,
 	int handle_breakpoints,
 	int debug_execution)
 {
@@ -1130,7 +1130,7 @@ static int dsp563xx_resume(struct target *target,
 
 static int dsp563xx_step_ex(struct target *target,
 	int current,
-	uint32_t address,
+	target_ulong address,
 	int handle_breakpoints,
 	int steps)
 {
@@ -1246,7 +1246,7 @@ static int dsp563xx_step_ex(struct target *target,
 
 static int dsp563xx_step(struct target *target,
 	int current,
-	uint32_t address,
+	target_ulong address,
 	int handle_breakpoints)
 {
 	int err;
@@ -1336,7 +1336,7 @@ static int dsp563xx_soft_reset_halt(struct target *target)
 static int dsp563xx_run_algorithm(struct target *target,
 	int num_mem_params, struct mem_param *mem_params,
 	int num_reg_params, struct reg_param *reg_params,
-	uint32_t entry_point, uint32_t exit_point,
+	target_ulong entry_point, target_ulong exit_point,
 	int timeout_ms, void *arch_info)
 {
 	int i;
@@ -1463,9 +1463,9 @@ static int dsp563xx_get_default_memory(void)
 
 static int dsp563xx_read_memory_core(struct target *target,
 	int mem_type,
-	uint32_t address,
-	uint32_t size,
-	uint32_t count,
+	target_ulong address,
+	target_ulong size,
+	target_ulong count,
 	uint8_t *buffer)
 {
 	int err;
@@ -1475,7 +1475,7 @@ static int dsp563xx_read_memory_core(struct target *target,
 	uint8_t *b;
 
 	LOG_DEBUG(
-		"memtype: %d address: 0x%8.8" PRIx32 ", size: 0x%8.8" PRIx32 ", count: 0x%8.8" PRIx32 "",
+		"memtype: %d address: 0x%" PRIX ", size: 0x%" PRIX ", count: 0x%" PRIX "",
 		mem_type,
 		address,
 		size,
@@ -1554,9 +1554,9 @@ static int dsp563xx_read_memory_core(struct target *target,
 
 static int dsp563xx_read_memory(struct target *target,
 	int mem_type,
-	uint32_t address,
-	uint32_t size,
-	uint32_t count,
+	target_ulong address,
+	target_ulong size,
+	target_ulong count,
 	uint8_t *buffer)
 {
 	int err;
@@ -1622,9 +1622,9 @@ static int dsp563xx_read_memory(struct target *target,
 }
 
 static int dsp563xx_read_memory_default(struct target *target,
-	uint32_t address,
-	uint32_t size,
-	uint32_t count,
+	target_ulong address,
+	target_ulong size,
+	target_ulong count,
 	uint8_t *buffer)
 {
 
@@ -1633,8 +1633,8 @@ static int dsp563xx_read_memory_default(struct target *target,
 }
 
 static int dsp563xx_read_buffer_default(struct target *target,
-	uint32_t address,
-	uint32_t size,
+	target_ulong address,
+	target_ulong size,
 	uint8_t *buffer)
 {
 
@@ -1644,9 +1644,9 @@ static int dsp563xx_read_buffer_default(struct target *target,
 
 static int dsp563xx_write_memory_core(struct target *target,
 	int mem_type,
-	uint32_t address,
-	uint32_t size,
-	uint32_t count,
+	target_ulong address,
+	target_ulong size,
+	target_ulong count,
 	const uint8_t *buffer)
 {
 	int err;
@@ -1656,7 +1656,7 @@ static int dsp563xx_write_memory_core(struct target *target,
 	const uint8_t *b;
 
 	LOG_DEBUG(
-		"memtype: %d address: 0x%8.8" PRIx32 ", size: 0x%8.8" PRIx32 ", count: 0x%8.8" PRIx32 "",
+		"memtype: %d address: 0x%" PRIXX ", size: 0x%" PRIX ", count: 0x%" PRIX "",
 		mem_type,
 		address,
 		size,
@@ -1728,9 +1728,9 @@ static int dsp563xx_write_memory_core(struct target *target,
 
 static int dsp563xx_write_memory(struct target *target,
 	int mem_type,
-	uint32_t address,
-	uint32_t size,
-	uint32_t count,
+	target_ulong address,
+	target_ulong size,
+	target_ulong count,
 	const uint8_t *buffer)
 {
 	int err;
@@ -1796,9 +1796,9 @@ static int dsp563xx_write_memory(struct target *target,
 }
 
 static int dsp563xx_write_memory_default(struct target *target,
-	uint32_t address,
-	uint32_t size,
-	uint32_t count,
+	target_ulong address,
+	target_ulong size,
+	target_ulong count,
 	const uint8_t *buffer)
 {
 	return dsp563xx_write_memory(target,
@@ -1806,8 +1806,8 @@ static int dsp563xx_write_memory_default(struct target *target,
 }
 
 static int dsp563xx_write_buffer_default(struct target *target,
-	uint32_t address,
-	uint32_t size,
+	target_ulong address,
+	target_ulong size,
 	const uint8_t *buffer)
 {
 	return dsp563xx_write_memory(target, dsp563xx_get_default_memory(), address, size, 0,
@@ -1815,8 +1815,8 @@ static int dsp563xx_write_buffer_default(struct target *target,
 }
 
 static int dsp563xx_bulk_write_memory_default(struct target *target,
-	uint32_t address,
-	uint32_t count,
+	target_ulong address,
+	target_ulong count,
 	const uint8_t *buffer)
 {
 	return dsp563xx_write_memory(target,
@@ -1845,7 +1845,7 @@ static int dsp563xx_remove_watchpoint(struct target *target, struct watchpoint *
 
 static void handle_md_output(struct command_context *cmd_ctx,
 	struct target *target,
-	uint32_t address,
+	target_ulong address,
 	unsigned size,
 	unsigned count,
 	const uint8_t *buffer)

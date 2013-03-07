@@ -806,8 +806,8 @@ int image_open(struct image *image, const char *url, const char *type_string)
 
 int image_read_section(struct image *image,
 	int section,
-	uint32_t offset,
-	uint32_t size,
+	target_ulong offset,
+	target_ulong size,
 	uint8_t *buffer,
 	size_t *size_read)
 {
@@ -816,7 +816,7 @@ int image_read_section(struct image *image,
 	/* don't read past the end of a section */
 	if (offset + size > image->sections[section].size) {
 		LOG_DEBUG(
-			"read past end of section: 0x%8.8" PRIx32 " + 0x%8.8" PRIx32 " > 0x%8.8" PRIx32 "",
+			"read past end of section: 0x%" PRIX " + 0x%" PRIX " > 0x%" PRIX "",
 			offset,
 			size,
 			image->sections[section].size);
@@ -899,7 +899,7 @@ int image_read_section(struct image *image,
 	return ERROR_OK;
 }
 
-int image_add_section(struct image *image, uint32_t base, uint32_t size, int flags, uint8_t *data)
+int image_add_section(struct image *image, target_ulong base, uint32_t size, int flags, uint8_t *data)
 {
 	struct imagesection *section;
 

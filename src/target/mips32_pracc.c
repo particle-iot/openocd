@@ -194,7 +194,11 @@ static int mips32_pracc_exec_write(struct mips32_pracc_context *ctx, uint32_t ad
 	if (retval != ERROR_OK)
 		return retval;
 
-	if ((address >= MIPS32_PRACC_PARAM_OUT)
+	if ((address >= MIPS32_PRACC_PARAM_IN)
+		&& (address < MIPS32_PRACC_PARAM_IN + ctx->num_iparam * 4)) {
+		offset = (address - MIPS32_PRACC_PARAM_IN) / 4;
+		ctx->local_iparam[offset] = data;
+	} else if ((address >= MIPS32_PRACC_PARAM_OUT)
 		&& (address < MIPS32_PRACC_PARAM_OUT + ctx->num_oparam * 4)) {
 		offset = (address - MIPS32_PRACC_PARAM_OUT) / 4;
 		ctx->local_oparam[offset] = data;
@@ -242,6 +246,7 @@ int mips32_pracc_exec(struct mips_ejtag *ejtag_info, int code_len, const uint32_
 		if (retval != ERROR_OK)
 			return retval;
 
+		address |= 0xFF200000;
 		/* Check for read or write */
 		if (ejtag_ctrl & EJTAG_CTRL_PRNW) {
 			retval = mips32_pracc_exec_write(&ctx, address);
@@ -925,7 +930,7 @@ int mips32_pracc_fastdata_xfer(struct mips_ejtag *ejtag_info, struct working_are
 		ejtag_info->fast_access_save = write_t;
 	}
 
-	LOG_DEBUG("%s using 0x%.8" PRIx32 " for write handler", __func__, source->address);
+	LOG_DEBUG("%s using 0x%.8" PRIX " for write handler", __func__, source->address);
 
 	jmp_code[1] |= UPPER16(source->address);
 	jmp_code[2] |= LOWER16(source->address);
@@ -955,6 +960,7 @@ int mips32_pracc_fastdata_xfer(struct mips_ejtag *ejtag_info, struct working_are
 	if (retval != ERROR_OK)
 		return retval;
 
+	address |= 0xFF200000;
 	if (address != MIPS32_PRACC_FASTDATA_AREA)
 		return ERROR_FAIL;
 
@@ -994,6 +1000,7 @@ int mips32_pracc_fastdata_xfer(struct mips_ejtag *ejtag_info, struct working_are
 	if (retval != ERROR_OK)
 		return retval;
 
+	address |= 0xFF200000;
 	if (address != MIPS32_PRACC_TEXT)
 		LOG_ERROR("mini program did not return to start");
 
