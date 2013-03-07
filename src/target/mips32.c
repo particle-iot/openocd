@@ -338,8 +338,8 @@ static int mips32_run_and_wait(struct target *target, uint32_t entry_point,
 
 int mips32_run_algorithm(struct target *target, int num_mem_params,
 		struct mem_param *mem_params, int num_reg_params,
-		struct reg_param *reg_params, uint32_t entry_point,
-		uint32_t exit_point, int timeout_ms, void *arch_info)
+		struct reg_param *reg_params, target_ulong entry_point,
+		target_ulong exit_point, int timeout_ms, void *arch_info)
 {
 	struct mips32_common *mips32 = target_to_mips32(target);
 	struct mips32_algorithm *mips32_algorithm_info = arch_info;
@@ -565,8 +565,8 @@ int mips32_enable_interrupts(struct target *target, int enable)
 	return ERROR_OK;
 }
 
-int mips32_checksum_memory(struct target *target, uint32_t address,
-		uint32_t count, uint32_t *checksum)
+int mips32_checksum_memory(struct target *target, target_ulong address,
+		target_ulong count, uint32_t *checksum)
 {
 	struct working_area *crc_algorithm;
 	struct reg_param reg_params[2];
@@ -646,7 +646,7 @@ int mips32_checksum_memory(struct target *target, uint32_t address,
 
 /** Checks whether a memory region is zeroed. */
 int mips32_blank_check_memory(struct target *target,
-		uint32_t address, uint32_t count, uint32_t *blank)
+		target_ulong address, target_ulong count, target_ulong *blank)
 {
 	struct working_area *erase_check_algorithm;
 	struct reg_param reg_params[3];
