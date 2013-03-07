@@ -649,7 +649,7 @@ static int at91sam7_erase_check(struct flash_bank *bank)
 {
 	struct target *target = bank->target;
 	uint16_t retval;
-	uint32_t blank;
+	target_ulong blank;
 	uint16_t fast_check;
 	uint8_t *buffer;
 	uint16_t nSector;
@@ -667,8 +667,8 @@ static int at91sam7_erase_check(struct flash_bank *bank)
 	fast_check = 1;
 	for (nSector = 0; nSector < bank->num_sectors; nSector++) {
 		retval = target_blank_check_memory(target,
-				bank->base + bank->sectors[nSector].offset,
-				bank->sectors[nSector].size,
+				(target_ulong)bank->base + (target_ulong)bank->sectors[nSector].offset,
+				(target_ulong)bank->sectors[nSector].size,
 				&blank);
 		if (retval != ERROR_OK) {
 			fast_check = 0;
