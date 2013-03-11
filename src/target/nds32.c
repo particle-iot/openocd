@@ -1043,7 +1043,9 @@ static int nds32_init_option_registers(struct nds32 *nds32)
 			((struct nds32_reg *)reg_cache->reg_list[IR7].arch_info)->enable = true;
 	}
 
-	if ((cpu_version->cpu_id_family == 0xA) || (cpu_version->cpu_id_family == 0xC) ||
+	if ((cpu_version->cpu_id_family == 0x9) ||
+			(cpu_version->cpu_id_family == 0xA) ||
+			(cpu_version->cpu_id_family == 0xC) ||
 			(cpu_version->cpu_id_family == 0xD))
 		((struct nds32_reg *)reg_cache->reg_list[IR8].arch_info)->enable = true;
 
@@ -1209,11 +1211,16 @@ static int nds32_init_option_registers(struct nds32 *nds32)
 		}
 	}
 
-	if (cpu_version->cpu_id_family == 0xC) {
-		if (cpu_version->revision != 0x0C)
-			((struct nds32_reg *)reg_cache->reg_list[IDR0].arch_info)->enable = true;
+	if ((cpu_version->cpu_id_family == 0x9) ||
+			(cpu_version->cpu_id_family == 0xA) ||
+			(cpu_version->cpu_id_family == 0xC) ||
+			(cpu_version->cpu_id_family == 0xD)) {
 
+		((struct nds32_reg *)reg_cache->reg_list[IDR0].arch_info)->enable = true;
 		((struct nds32_reg *)reg_cache->reg_list[IDR1].arch_info)->enable = true;
+
+		if ((cpu_version->cpu_id_family == 0xC) && (cpu_version->revision == 0x0C))
+			((struct nds32_reg *)reg_cache->reg_list[IDR0].arch_info)->enable = false;
 	}
 
 	return ERROR_OK;
