@@ -113,7 +113,7 @@ static int oocd_trace_init(struct etm_context *etm_ctx)
 	tcgetattr(oocd_trace->tty_fd, &oocd_trace->oldtio); /* save current port settings */
 
 	bzero(&oocd_trace->newtio, sizeof(oocd_trace->newtio));
-	oocd_trace->newtio.c_cflag = CS8 | CLOCAL | CREAD | B2500000;
+	oocd_trace->newtio.c_cflag = CS8 | CLOCAL | CREAD | B230400;
 
 	oocd_trace->newtio.c_iflag = IGNPAR | IGNBRK | IXON | IXOFF;
 	oocd_trace->newtio.c_oflag = 0;
