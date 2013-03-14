@@ -370,7 +370,7 @@ static int efm32x_read_lock_data(struct flash_bank *bank)
 	data_size = bank->num_sectors / 8; /* number of data bytes */
 	data_size /= 4; /* ...and data dwords */
 
-	ptr = (uint32_t *)efm32x_info->lb_page;
+	ptr = (uint32_t *)(void *)efm32x_info->lb_page;
 
 	for (i = 0; i < data_size; i++, ptr++) {
 		ret = target_read_u32(target, EFM32_MSC_LOCK_BITS+i*4, ptr);
@@ -383,7 +383,7 @@ static int efm32x_read_lock_data(struct flash_bank *bank)
 	/* also, read ULW, DLW and MLW */
 
 	/* ULW, word 126 */
-	ptr = ((uint32_t *)efm32x_info->lb_page) + 126;
+	ptr = ((uint32_t *)(void *)efm32x_info->lb_page) + 126;
 	ret = target_read_u32(target, EFM32_MSC_LOCK_BITS+126*4, ptr);
 	if (ERROR_OK != ret) {
 		LOG_ERROR("Failed to read ULW");
@@ -391,7 +391,7 @@ static int efm32x_read_lock_data(struct flash_bank *bank)
 	}
 
 	/* DLW, word 127 */
-	ptr = ((uint32_t *)efm32x_info->lb_page) + 127;
+	ptr = ((uint32_t *)(void *)efm32x_info->lb_page) + 127;
 	ret = target_read_u32(target, EFM32_MSC_LOCK_BITS+127*4, ptr);
 	if (ERROR_OK != ret) {
 		LOG_ERROR("Failed to read DLW");
@@ -399,7 +399,7 @@ static int efm32x_read_lock_data(struct flash_bank *bank)
 	}
 
 	/* MLW, word 125, present in GG and LG */
-	ptr = ((uint32_t *)efm32x_info->lb_page) + 125;
+	ptr = ((uint32_t *)(void *)efm32x_info->lb_page) + 125;
 	ret = target_read_u32(target, EFM32_MSC_LOCK_BITS+125*4, ptr);
 	if (ERROR_OK != ret) {
 		LOG_ERROR("Failed to read MLW");
@@ -427,7 +427,7 @@ static int efm32x_write_lock_data(struct flash_bank *bank)
 static int efm32x_get_page_lock(struct flash_bank *bank, size_t page)
 {
 	struct efm32x_flash_bank *efm32x_info = bank->driver_priv;
-	uint32_t dw = ((uint32_t *)efm32x_info->lb_page)[page >> 5];
+	uint32_t dw = ((uint32_t *)(void *)efm32x_info->lb_page)[page >> 5];
 	uint32_t mask = 0;
 
 	mask = 1 << (page & 0x1f);
@@ -438,7 +438,7 @@ static int efm32x_get_page_lock(struct flash_bank *bank, size_t page)
 static int efm32x_set_page_lock(struct flash_bank *bank, size_t page, int set)
 {
 	struct efm32x_flash_bank *efm32x_info = bank->driver_priv;
-	uint32_t *dw = &((uint32_t *)efm32x_info->lb_page)[page >> 5];
+	uint32_t *dw = &((uint32_t *)(void *)efm32x_info->lb_page)[page >> 5];
 	uint32_t mask = 0;
 
 	mask = 1 << (page & 0x1f);
