@@ -1542,7 +1542,7 @@ static int jlink_usb_message(struct jlink *jlink, int out_length, int in_length)
 		return ERROR_JTAG_DEVICE_ERROR;
 	}
 
-	result = jlink_usb_read(jlink, in_length);
+	result = jlink_usb_read(jlink, in_length+1);
 	if ((result != in_length) && (result != (in_length + 1))) {
 		LOG_ERROR("usb_bulk_read failed (requested=%d, result=%d)",
 				in_length, result);
@@ -1572,7 +1572,7 @@ static int jlink_usb_message(struct jlink *jlink, int out_length, int in_length)
 		result2 = usb_emu_result_buffer[0];
 	} else {
 		/* Save the result, then remove it from return value */
-		result2 = usb_in_buffer[result--];
+		result2 = usb_in_buffer[--result];
 	}
 
 	if (result2) {
