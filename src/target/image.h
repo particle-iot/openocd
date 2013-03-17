@@ -48,8 +48,8 @@ enum image_type {
 };
 
 struct imagesection {
-	uint32_t base_address;
-	uint32_t size;
+	target_ulong base_address;
+	target_ulong size;
 	int flags;
 	void *private;		/* private data */
 };
@@ -59,10 +59,10 @@ struct image {
 	void *type_private;		/* type private data */
 	int num_sections;		/* number of sections contained in the image */
 	struct imagesection *sections;	/* array of sections */
-	int base_address_set;	/* whether the image has a base address set (for relocation purposes) */
+	target_long base_address_set;	/* whether the image has a base address set (for relocation purposes) */
 	long long base_address;		/* base address, if one is set */
-	int start_address_set;	/* whether the image has a start address (entry point) associated */
-	uint32_t start_address;		/* start address, if one is set */
+	target_ulong start_address_set;	/* whether the image has a start address (entry point) associated */
+	target_ulong start_address;		/* start address, if one is set */
 };
 
 struct image_binary {
@@ -94,11 +94,11 @@ struct image_mot {
 };
 
 int image_open(struct image *image, const char *url, const char *type_string);
-int image_read_section(struct image *image, int section, uint32_t offset,
-		uint32_t size, uint8_t *buffer, size_t *size_read);
+int image_read_section(struct image *image, int section, target_ulong offset,
+		target_ulong size, uint8_t *buffer, size_t *size_read);
 void image_close(struct image *image);
 
-int image_add_section(struct image *image, uint32_t base, uint32_t size,
+int image_add_section(struct image *image, target_ulong base, uint32_t size,
 		int flags, uint8_t *data);
 
 int image_calculate_checksum(uint8_t *buffer, uint32_t nbytes,

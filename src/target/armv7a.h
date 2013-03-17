@@ -81,8 +81,8 @@ struct armv7a_mmu_common {
 	uint32_t ttbr0_mask;/*  masked to be used  */
 	uint32_t os_border;
 
-	int (*read_physical_memory)(struct target *target, uint32_t address, uint32_t size,
-			uint32_t count, uint8_t *buffer);
+	int (*read_physical_memory)(struct target *target, target_ulong address, target_ulong size,
+			target_ulong count, uint8_t *buffer);
 	struct armv7a_cache_common armv7a_cache;
 	uint32_t mmu_enabled;
 };
@@ -161,8 +161,8 @@ target_to_armv7a(struct target *target)
 int armv7a_arch_state(struct target *target);
 int armv7a_identify_cache(struct target *target);
 int armv7a_init_arch_info(struct target *target, struct armv7a_common *armv7a);
-int armv7a_mmu_translate_va_pa(struct target *target, uint32_t va,
-		uint32_t *val, int meminfo);
+int armv7a_mmu_translate_va_pa(struct target *target, target_ulong va,
+		target_ulong *val, int meminfo);
 int armv7a_mmu_translate_va(struct target *target,  uint32_t va, uint32_t *val);
 
 int armv7a_handle_cache_info_command(struct command_context *cmd_ctx,

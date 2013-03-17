@@ -25,7 +25,7 @@ struct target;
 struct command_context;
 
 struct trace_point {
-	uint32_t address;
+	target_ulong address;
 	uint64_t hit_counter;
 };
 

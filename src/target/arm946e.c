@@ -381,8 +381,8 @@ void arm946e_pre_restore_context(struct target *target)
 	}	/* if preserve_cache */
 }
 
-uint32_t arm946e_invalidate_dcache(struct target *target, uint32_t address,
-	uint32_t size, uint32_t count)
+uint32_t arm946e_invalidate_dcache(struct target *target, target_ulong address,
+	target_ulong size, target_ulong count)
 {
 	uint32_t cur_addr = 0x0;
 	uint32_t cp15_idx, set, way, dtag;
@@ -442,8 +442,8 @@ uint32_t arm946e_invalidate_dcache(struct target *target, uint32_t address,
 	return ERROR_OK;
 }
 
-uint32_t arm946e_invalidate_icache(struct target *target, uint32_t address,
-	uint32_t size, uint32_t count)
+uint32_t arm946e_invalidate_icache(struct target *target, target_ulong address,
+	target_ulong size, target_ulong count)
 {
 	uint32_t cur_addr = 0x0;
 	uint32_t cp15_idx, set, way, itag;
@@ -489,8 +489,8 @@ uint32_t arm946e_invalidate_icache(struct target *target, uint32_t address,
 }
 
 /** Writes a buffer, in the specified word size, with current MMU settings. */
-int arm946e_write_memory(struct target *target, uint32_t address,
-	uint32_t size, uint32_t count, const uint8_t *buffer)
+int arm946e_write_memory(struct target *target, target_ulong address,
+	target_ulong size, target_ulong count, const uint8_t *buffer)
 {
 	int retval;
 
@@ -537,8 +537,8 @@ int arm946e_write_memory(struct target *target, uint32_t address,
 
 }
 
-int arm946e_read_memory(struct target *target, uint32_t address,
-	uint32_t size, uint32_t count, uint8_t *buffer)
+int arm946e_read_memory(struct target *target, target_ulong address,
+	target_ulong size, target_ulong count, uint8_t *buffer)
 {
 	int retval;
 
