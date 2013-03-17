@@ -115,8 +115,8 @@ int armv4_5_mmu_translate_va(struct target *target,
 }
 
 int armv4_5_mmu_read_physical(struct target *target,
-		struct armv4_5_mmu_common *armv4_5_mmu, uint32_t address,
-		uint32_t size, uint32_t count, uint8_t *buffer)
+		struct armv4_5_mmu_common *armv4_5_mmu, target_ulong address,
+		target_ulong size, target_ulong count, uint8_t *buffer)
 {
 	int retval;
 
@@ -143,8 +143,8 @@ int armv4_5_mmu_read_physical(struct target *target,
 }
 
 int armv4_5_mmu_write_physical(struct target *target,
-		struct armv4_5_mmu_common *armv4_5_mmu, uint32_t address,
-		uint32_t size, uint32_t count, const uint8_t *buffer)
+		struct armv4_5_mmu_common *armv4_5_mmu, target_ulong address,
+		target_ulong size, target_ulong count, const uint8_t *buffer)
 {
 	int retval;
 

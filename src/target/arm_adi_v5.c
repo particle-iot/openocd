@@ -311,9 +311,8 @@ int mem_ap_write_buf_u32(struct adiv5_dap *dap, const uint8_t *buffer, int count
 			return retval;
 
 		for (writecount = 0; writecount < blocksize; writecount++) {
-			uint32_t tmp;
-			tmp = buf_get_u32(buffer + 4 * writecount, 0, 32);
-			retval = dap_queue_ap_write(dap, AP_REG_DRW, tmp);
+			retval = dap_queue_ap_write(dap, AP_REG_DRW,
+				*(uint32_t *) ((void *) (buffer + 4 * writecount)));
 			if (retval != ERROR_OK)
 				break;
 		}

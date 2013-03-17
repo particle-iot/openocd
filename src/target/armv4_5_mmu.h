@@ -27,8 +27,10 @@ struct target;
 
 struct armv4_5_mmu_common {
 	int (*get_ttb)(struct target *target, uint32_t *result);
-	int (*read_memory)(struct target *target, uint32_t address, uint32_t size, uint32_t count, uint8_t *buffer);
-	int (*write_memory)(struct target *target, uint32_t address, uint32_t size, uint32_t count, const uint8_t *buffer);
+	int (*read_memory)(struct target *target, target_ulong address,
+		target_ulong size, target_ulong count, uint8_t *buffer);
+	int (*write_memory)(struct target *target, target_ulong address,
+		target_ulong size, target_ulong count, const uint8_t *buffer);
 	int (*disable_mmu_caches)(struct target *target, int mmu, int d_u_cache, int i_cache);
 	int (*enable_mmu_caches)(struct target *target, int mmu, int d_u_cache, int i_cache);
 	struct armv4_5_cache_common armv4_5_cache;
@@ -42,11 +44,11 @@ int armv4_5_mmu_translate_va(struct target *target,
 
 int armv4_5_mmu_read_physical(struct target *target,
 		struct armv4_5_mmu_common *armv4_5_mmu,
-		uint32_t address, uint32_t size, uint32_t count, uint8_t *buffer);
+		target_ulong address, target_ulong size, target_ulong count, uint8_t *buffer);
 
 int armv4_5_mmu_write_physical(struct target *target,
 		struct armv4_5_mmu_common *armv4_5_mmu,
-		uint32_t address, uint32_t size, uint32_t count, const uint8_t *buffer);
+		target_ulong address, target_ulong size, target_ulong count, const uint8_t *buffer);
 
 enum {
 	ARMV4_5_MMU_ENABLED = 0x1,

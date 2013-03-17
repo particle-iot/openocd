@@ -1108,7 +1108,7 @@ static int armv4_5_run_algorithm_completion(struct target *target,
 int armv4_5_run_algorithm_inner(struct target *target,
 	int num_mem_params, struct mem_param *mem_params,
 	int num_reg_params, struct reg_param *reg_params,
-	uint32_t entry_point, uint32_t exit_point,
+	target_ulong entry_point, target_ulong exit_point,
 	int timeout_ms, void *arch_info,
 	int (*run_it)(struct target *target, uint32_t exit_point,
 	int timeout_ms, void *arch_info))
@@ -1290,8 +1290,8 @@ int armv4_5_run_algorithm(struct target *target,
 	struct mem_param *mem_params,
 	int num_reg_params,
 	struct reg_param *reg_params,
-	uint32_t entry_point,
-	uint32_t exit_point,
+	target_ulong entry_point,
+	target_ulong exit_point,
 	int timeout_ms,
 	void *arch_info)
 {
@@ -1312,7 +1312,7 @@ int armv4_5_run_algorithm(struct target *target,
  *
  */
 int arm_checksum_memory(struct target *target,
-	uint32_t address, uint32_t count, uint32_t *checksum)
+	target_ulong address, target_ulong count, uint32_t *checksum)
 {
 	struct working_area *crc_algorithm;
 	struct arm_algorithm arm_algo;
@@ -1413,7 +1413,7 @@ int arm_checksum_memory(struct target *target,
  *
  */
 int arm_blank_check_memory(struct target *target,
-	uint32_t address, uint32_t count, uint32_t *blank)
+	target_ulong address, target_ulong count, target_ulong *blank)
 {
 	struct working_area *check_algorithm;
 	struct reg_param reg_params[3];
