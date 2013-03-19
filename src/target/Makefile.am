@@ -151,6 +151,7 @@ noinst_HEADERS = \
 	mips32_pracc.h \
 	mips32_dmaacc.h \
 	mips64.h \
+	mips64_pracc.h \
 	oocd_trace.h \
 	register.h \
 	target.h \
