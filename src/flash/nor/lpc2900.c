@@ -656,7 +656,7 @@ COMMAND_HANDLER(lpc2900_handle_write_custom_command)
 	if ((image.sections[0].base_address != 0) ||
 			(image.sections[0].size != ISS_CUSTOMER_SIZE)) {
 		LOG_ERROR("Incorrect image file size. Expected %d, "
-			"got %" PRIu32,
+			"got %" PRIU,
 			ISS_CUSTOMER_SIZE, image.sections[0].size);
 		return ERROR_COMMAND_SYNTAX_ERROR;
 	}
