@@ -27,7 +27,26 @@
 #endif
 
 #include "mips32.h"
+#include "mips64.h"
 #include "mips_ejtag.h"
+
+void mips64_ejtag_set_instr(struct mips_ejtag *ejtag_info, int new_instr)
+{
+	struct jtag_tap *tap;
+
+	tap = ejtag_info->tap;
+	assert(tap != NULL);
+
+	struct scan_field field;
+	uint8_t t[4];
+
+	field.num_bits = tap->ir_length;
+	field.out_value = t;
+	buf_set_u32(t, 0, field.num_bits, new_instr);
+	field.in_value = NULL;
+
+	jtag_add_ir_scan(tap, &field, TAP_IDLE);
+}
 
 void mips_ejtag_set_instr(struct mips_ejtag *ejtag_info, int new_instr)
 {
@@ -99,6 +118,36 @@ static int mips_ejtag_get_impcode(struct mips_ejtag *ejtag_info, uint32_t *impco
 	return ERROR_OK;
 }
 
+int mips_ejtag_drscan_64(struct mips_ejtag *ejtag_info, uint64_t *data)
+{
+	struct jtag_tap *tap;
+	tap  = ejtag_info->tap;
+	assert(tap != NULL);
+
+	struct scan_field field;
+	uint8_t t[8], r[8];
+	int retval;
+
+	field.num_bits = 64;
+	field.out_value = t;
+	buf_set_u64(t, 0, field.num_bits, *data);
+	field.in_value = r;
+
+	jtag_add_dr_scan(tap, 1, &field, TAP_IDLE);
+
+	retval = jtag_execute_queue();
+	if (retval != ERROR_OK) {
+		LOG_ERROR("register read failed");
+		return retval;
+	}
+
+	*data = buf_get_u64(field.in_value, 0, 64);
+
+	keep_alive();
+
+	return ERROR_OK;
+}
+
 int mips_ejtag_drscan_32(struct mips_ejtag *ejtag_info, uint32_t *data)
 {
 	struct jtag_tap *tap;
@@ -129,6 +178,24 @@ int mips_ejtag_drscan_32(struct mips_ejtag *ejtag_info, uint32_t *data)
 	return ERROR_OK;
 }
 
+void mips_ejtag_drscan_64_out(struct mips_ejtag *ejtag_info, uint64_t data)
+{
+	uint8_t t[8];
+	struct jtag_tap *tap;
+	tap  = ejtag_info->tap;
+	assert(tap != NULL);
+
+	struct scan_field field;
+
+	field.num_bits = 64;
+	field.out_value = t;
+	buf_set_u64(t, 0, field.num_bits, data);
+
+	field.in_value = NULL;
+
+	jtag_add_dr_scan(tap, 1, &field, TAP_IDLE);
+}
+
 void mips_ejtag_drscan_32_out(struct mips_ejtag *ejtag_info, uint32_t data)
 {
 	uint8_t t[4];
@@ -145,6 +212,34 @@ void mips_ejtag_drscan_32_out(struct mips_ejtag *ejtag_info, uint32_t data)
 	field.in_value = NULL;
 
 	jtag_add_dr_scan(tap, 1, &field, TAP_IDLE);
+}
+
+int mips64_ejtag_drscan_8(struct mips_ejtag *ejtag_info, uint64_t *data)
+{
+	struct jtag_tap *tap;
+	tap  = ejtag_info->tap;
+	assert(tap != NULL);
+
+	struct scan_field field;
+	uint8_t t[8] = {0, 0, 0, 0, 0, 0, 0, 0}, r[8];
+	int retval;
+
+	field.num_bits = 8;
+	field.out_value = t;
+	buf_set_u64(t, 0, field.num_bits, *data);
+	field.in_value = r;
+
+	jtag_add_dr_scan(tap, 1, &field, TAP_IDLE);
+
+	retval = jtag_execute_queue();
+	if (retval != ERROR_OK) {
+		LOG_ERROR("register read failed");
+		return retval;
+	}
+
+	*data = buf_get_u64(field.in_value, 0, 64);
+
+	return ERROR_OK;
 }
 
 int mips_ejtag_drscan_8(struct mips_ejtag *ejtag_info, uint32_t *data)
@@ -188,6 +283,33 @@ void mips_ejtag_drscan_8_out(struct mips_ejtag *ejtag_info, uint8_t data)
 	field.in_value = NULL;
 
 	jtag_add_dr_scan(tap, 1, &field, TAP_IDLE);
+}
+
+/* Set (to enable) or clear (to disable stepping) the SSt bit (bit 8) in Cp0 Debug reg (reg 23, sel 0) */
+int mips64_ejtag_config_step(struct mips_ejtag *ejtag_info, int enable_step)
+{
+	int code_len = enable_step ? 6 : 7;
+
+	uint32_t *code = malloc(code_len * sizeof(uint32_t));
+	if (code == NULL) {
+		LOG_ERROR("Out of memory");
+		return ERROR_FAIL;
+	}
+	uint32_t *code_p = code;
+
+	*code_p++ = MIPS64_DMTC0(1, 31, 0);			/* move $1 to COP0 DeSave */
+	*code_p++ = MIPS64_DMFC0(1, 23, 0),			/* move COP0 Debug to $1 */
+	*code_p++ = MIPS64_ORI(1, 1, 0x0100);			/* set SSt bit in debug reg */
+	if (!enable_step)
+		*code_p++ = MIPS64_XORI(1, 1, 0x0100);		/* clear SSt bit in debug reg */
+
+	*code_p++ = MIPS64_DMTC0(1, 23, 0);			/* move $1 to COP0 Debug */
+	*code_p++ = MIPS64_B(NEG16((code_len - 1)));		/* jump to start */
+	*code_p = MIPS64_DMFC0(1, 31, 0);			/* move COP0 DeSave to $1 */
+	int retval = mips64_pracc_exec(ejtag_info, code_len, code, 0, NULL, 0, NULL, 1);
+
+	free(code);
+	return retval;
 }
 
 /* Set (to enable) or clear (to disable stepping) the SSt bit (bit 8) in Cp0 Debug reg (reg 23, sel 0) */
@@ -237,6 +359,21 @@ int mips_ejtag_enter_debug(struct mips_ejtag *ejtag_info)
 	}
 
 	return ERROR_OK;
+}
+
+int mips64_ejtag_exit_debug(struct mips_ejtag *ejtag_info)
+{
+	uint32_t inst;
+	uint32_t ejtag_ctrl;
+	inst = MIPS64_DRET;
+
+	/* execute our dret instruction */
+	mips64_pracc_exec(ejtag_info, 1, &inst, 0, NULL, 0, NULL, 0);
+	/* Clear access pending bit */
+	ejtag_ctrl = ejtag_info->ejtag_ctrl & ~EJTAG_CTRL_PRACC;
+	mips64_ejtag_set_instr(ejtag_info, EJTAG_INST_CONTROL);
+	mips_ejtag_drscan_32_out(ejtag_info, ejtag_ctrl);
+	return 0;
 }
 
 int mips_ejtag_exit_debug(struct mips_ejtag *ejtag_info)
@@ -299,6 +436,43 @@ int mips_ejtag_init(struct mips_ejtag *ejtag_info)
 	/* set initial state for ejtag control reg */
 	ejtag_info->ejtag_ctrl = EJTAG_CTRL_ROCC | EJTAG_CTRL_PRACC | EJTAG_CTRL_PROBEN | EJTAG_CTRL_SETDEV;
 	ejtag_info->fast_access_save = -1;
+
+	return ERROR_OK;
+}
+
+int mips64_ejtag_fastdata_scan(struct mips_ejtag *ejtag_info, int write_t, uint64_t *data)
+{
+	struct jtag_tap *tap;
+
+	tap = ejtag_info->tap;
+	assert(tap != NULL);
+
+	struct scan_field fields[2];
+	uint8_t spracc = 0;
+	uint8_t t[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+
+	/* fastdata 1-bit register */
+	fields[0].num_bits = 1;
+	fields[0].out_value = &spracc;
+	fields[0].in_value = NULL;
+
+	/* processor access data register 32 bit */
+	fields[1].num_bits = 64;
+	fields[1].out_value = t;
+
+	if (write_t) {
+		fields[1].in_value = NULL;
+		buf_set_u64(t, 0, 64, *data);
+	} else
+		fields[1].in_value = (void *) data;
+
+	jtag_add_dr_scan(tap, 2, fields, TAP_IDLE);
+
+	if (!write_t && data)
+		jtag_add_callback(mips_le_to_h_u64,
+			(jtag_callback_data_t) data);
+
+	keep_alive();
 
 	return ERROR_OK;
 }
