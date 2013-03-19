@@ -307,7 +307,7 @@ int default_flash_blank_check(struct flash_bank *bank)
 	int i;
 	int retval;
 	int fast_check = 0;
-	uint32_t blank;
+	target_ulong blank;
 
 	if (bank->target->state != TARGET_HALTED) {
 		LOG_ERROR("Target not halted");
@@ -315,8 +315,8 @@ int default_flash_blank_check(struct flash_bank *bank)
 	}
 
 	for (i = 0; i < bank->num_sectors; i++) {
-		uint32_t address = bank->base + bank->sectors[i].offset;
-		uint32_t size = bank->sectors[i].size;
+		target_ulong address = bank->base + bank->sectors[i].offset;
+		target_ulong size = bank->sectors[i].size;
 
 		retval = target_blank_check_memory(target, address, size, &blank);
 		if (retval != ERROR_OK) {

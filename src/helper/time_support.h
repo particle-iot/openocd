@@ -57,6 +57,6 @@ int duration_measure(struct duration *duration);
 /** @returns Elapsed time in seconds. */
 float duration_elapsed(struct duration *duration);
 /** @returns KB/sec for the elapsed @a duration and @a count bytes. */
-float duration_kbps(struct duration *duration, size_t count);
+float duration_kbps(struct duration *duration, target_ulong count);
 
 #endif	/* TIME_SUPPORT_H */
