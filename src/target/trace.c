@@ -55,7 +55,7 @@ COMMAND_HANDLER(handle_trace_point_command)
 		uint32_t i;
 
 		for (i = 0; i < trace->num_trace_points; i++) {
-			command_print(CMD_CTX, "trace point 0x%8.8" PRIx32 " (%lld times hit)",
+			command_print(CMD_CTX, "trace point 0x%" PRIX " (%lld times hit)",
 					trace->trace_points[i].address,
 					(long long)trace->trace_points[i].hit_counter);
 		}
@@ -128,9 +128,9 @@ COMMAND_HANDLER(handle_trace_history_command)
 
 		for (i = first; (i % trace->trace_history_size) != last; i++) {
 			if (trace->trace_history[i % trace->trace_history_size] < trace->num_trace_points) {
-				uint32_t address;
+				target_ulong address;
 				address = trace->trace_points[trace->trace_history[i % trace->trace_history_size]].address;
-				command_print(CMD_CTX, "trace point %i: 0x%8.8" PRIx32 "",
+				command_print(CMD_CTX, "trace point %i: 0x%" PRIX "",
 						(int)(trace->trace_history[i % trace->trace_history_size]),
 						address);
 			} else

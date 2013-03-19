@@ -223,8 +223,8 @@ done:
 }
 
 /*  V7 method VA TO PA  */
-int armv7a_mmu_translate_va_pa(struct target *target, uint32_t va,
-	uint32_t *val, int meminfo)
+int armv7a_mmu_translate_va_pa(struct target *target, target_ulong va,
+	target_ulong *val, int meminfo)
 {
 	int retval = ERROR_FAIL;
 	struct armv7a_common *armv7a = target_to_armv7a(target);
@@ -244,7 +244,7 @@ int armv7a_mmu_translate_va_pa(struct target *target, uint32_t va,
 		goto done;
 	retval = dpm->instr_read_data_r0(dpm,
 			ARMV4_5_MRC(15, 0, 0, 7, 4, 0),
-			val);
+			(uint32_t *)val);
 	/* decode memory attribute */
 	NOS = (*val >> 10) & 1;	/*  Not Outer shareable */
 	NS = (*val >> 9) & 1;	/* Non secure */
@@ -257,7 +257,7 @@ int armv7a_mmu_translate_va_pa(struct target *target, uint32_t va,
 	if (*val == va)
 		LOG_WARNING("virt = phys  : MMU disable !!");
 	if (meminfo) {
-		LOG_INFO("%x : %x %s outer shareable %s secured",
+		LOG_INFO("%"PRIX" : %"PRIX" %s outer shareable %s secured",
 			va, *val,
 			NOS == 1 ? "not" : " ",
 			NS == 1 ? "not" : "");
