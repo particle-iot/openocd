@@ -30,7 +30,9 @@ libtarget_la_SOURCES = \
 	$(ARMV7_SRC) \
 	$(ARM_MISC_SRC) \
 	$(AVR32_SRC) \
+	$(MIPS_COMMON_SRC) \
 	$(MIPS32_SRC) \
+	$(MIPS64_SRC) \
 	avrt.c \
 	dsp563xx.c \
 	dsp563xx_once.c \
@@ -100,12 +102,18 @@ AVR32_SRC = \
 	avr32_mem.c \
 	avr32_regs.c
 
+MIPS_COMMON_SRC = \
+	mips_ejtag.c
+
 MIPS32_SRC = \
 	mips32.c \
 	mips_m4k.c \
 	mips32_pracc.c \
-	mips32_dmaacc.c \
-	mips_ejtag.c
+	mips32_dmaacc.c
+
+MIPS64_SRC = \
+	mips64.c \
+	mips64_pracc.c
 
 
 noinst_HEADERS = \

@@ -105,17 +105,28 @@
 #define EJTAG_DCR_MIPS64		(1 << 0)
 
 /* Debug Control Register DCR */
+#if BUILD_TARGET64 == 1
+#define EJTAG_DCR				0xFFFFFFFFFF300000
+#else
 #define EJTAG_DCR				0xFF300000
+#endif
 #define EJTAG_DCR_ENM			(1 << 29)
 #define EJTAG_DCR_DB			(1 << 17)
 #define EJTAG_DCR_IB			(1 << 16)
 #define EJTAG_DCR_INTE			(1 << 4)
 
 /* breakpoint support */
+#if BUILD_TARGET64 == 1
+#define EJTAG_IBS				0xFFFFFFFFFF301000
+#define EJTAG_IBA1				0xFFFFFFFFFF301100
+#define EJTAG_DBS				0xFFFFFFFFFF302000
+#define EJTAG_DBA1				0xFFFFFFFFFF302100
+#else
 #define EJTAG_IBS				0xFF301000
 #define EJTAG_IBA1				0xFF301100
 #define EJTAG_DBS				0xFF302000
 #define EJTAG_DBA1				0xFF302100
+#endif
 #define	EJTAG_DBCn_NOSB			(1 << 13)
 #define	EJTAG_DBCn_NOLB			(1 << 12)
 #define	EJTAG_DBCn_BLM_MASK		0xff
@@ -132,22 +143,37 @@ struct mips_ejtag {
 
 void mips_ejtag_set_instr(struct mips_ejtag *ejtag_info,
 		int new_instr);
+void mips64_ejtag_set_instr(struct mips_ejtag *ejtag_info,
+		int new_instr);
 int mips_ejtag_enter_debug(struct mips_ejtag *ejtag_info);
 int mips_ejtag_exit_debug(struct mips_ejtag *ejtag_info);
+int mips64_ejtag_exit_debug(struct mips_ejtag *ejtag_info);
 int mips_ejtag_get_idcode(struct mips_ejtag *ejtag_info, uint32_t *idcode);
 void mips_ejtag_drscan_32_out(struct mips_ejtag *ejtag_info, uint32_t data);
 int mips_ejtag_drscan_32(struct mips_ejtag *ejtag_info, uint32_t *data);
+void mips_ejtag_drscan_64_out(struct mips_ejtag *ejtag_info, uint64_t data);
+int mips_ejtag_drscan_64(struct mips_ejtag *ejtag_info, uint64_t *data);
 void mips_ejtag_drscan_8_out(struct mips_ejtag *ejtag_info, uint8_t data);
 int mips_ejtag_drscan_8(struct mips_ejtag *ejtag_info, uint32_t *data);
+int mips64_ejtag_drscan_8(struct mips_ejtag *ejtag_info, uint64_t *data);
 int mips_ejtag_fastdata_scan(struct mips_ejtag *ejtag_info, int write_t, uint32_t *data);
+int mips64_ejtag_fastdata_scan(struct mips_ejtag *ejtag_info, int write_t, uint64_t *data);
 
 int mips_ejtag_init(struct mips_ejtag *ejtag_info);
+int mips64_ejtag_init(struct mips_ejtag *ejtag_info);
 int mips_ejtag_config_step(struct mips_ejtag *ejtag_info, int enable_step);
+int mips64_ejtag_config_step(struct mips_ejtag *ejtag_info, int enable_step);
 
 static inline void mips_le_to_h_u32(jtag_callback_data_t arg)
 {
 	uint8_t *in = (uint8_t *)arg;
 	*((uint32_t *)arg) = le_to_h_u32(in);
+}
+
+static inline void mips_le_to_h_u64(jtag_callback_data_t arg)
+{
+	uint8_t *in = (uint8_t *)arg;
+	*((uint64_t *)arg) = le_to_h_u64(in);
 }
 
 #endif /* MIPS_EJTAG */
