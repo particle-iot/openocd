@@ -184,6 +184,10 @@ static int nds32_set_core_reg(struct reg *reg, uint8_t *buf)
 		return ERROR_TARGET_NOT_HALTED;
 	}
 
+	/* ignore values that will generate exception */
+	if (nds32_reg_exception(reg_arch_info->num, value))
+		return ERROR_OK;
+
 	buf_set_u32(reg->value, 0, 32, value);
 
 	/* update registers to take effect right now */
