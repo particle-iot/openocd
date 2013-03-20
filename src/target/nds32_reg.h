@@ -303,11 +303,19 @@ struct nds32_reg_s {
 	uint8_t size;
 };
 
+struct nds32_reg_exception_s {
+	uint32_t reg_num;
+	uint32_t ex_value_bit_pos;
+	uint32_t ex_value_mask;
+	uint32_t ex_value;
+};
+
 void nds32_reg_init(void);
 uint32_t nds32_reg_sr_index(uint32_t number);
 enum nds32_reg_type_s nds32_reg_type(uint32_t number);
 uint8_t nds32_reg_size(uint32_t number);
 const char *nds32_reg_simple_name(uint32_t number);
 const char *nds32_reg_symbolic_name(uint32_t number);
+bool nds32_reg_exception(uint32_t number, uint32_t value);
 
 #endif
