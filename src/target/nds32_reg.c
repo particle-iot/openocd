@@ -21,10 +21,18 @@
 #include "config.h"
 #endif
 
+#include <helper/log.h>
 #include "nds32_reg.h"
 
 static bool nds32_reg_init_done;
 static struct nds32_reg_s nds32_regs[TOTAL_REG_NUM];
+static struct nds32_reg_exception_s nds32_ex_reg_values[] = {
+	{MR3, 1, 0x7, 0},
+	{MR3, 1, 0x7, 4},
+	{MR3, 1, 0x7, 6},
+	{MR3, 8, 0x7, 3},
+	{0, 0, 0, 0},
+};
 
 static inline void nds32_reg_set(uint32_t number, const char *simple_mnemonic,
 		const char *symbolic_mnemonic, uint32_t sr_index,
@@ -334,4 +342,29 @@ const char *nds32_reg_simple_name(uint32_t number)
 const char *nds32_reg_symbolic_name(uint32_t number)
 {
 	return nds32_regs[number].symbolic_mnemonic;
+}
+
+bool nds32_reg_exception(uint32_t number, uint32_t value)
+{
+	int i;
+	struct nds32_reg_exception_s *ex_reg_value;
+	uint32_t field_value;
+
+	i = 0;
+	while (nds32_ex_reg_values[i].reg_num != 0) {
+		ex_reg_value = nds32_ex_reg_values + i;
+
+		if (ex_reg_value->reg_num == number) {
+			field_value = (value >> ex_reg_value->ex_value_bit_pos) & ex_reg_value->ex_value_mask;
+			if (field_value == ex_reg_value->ex_value) {
+				LOG_WARNING("It will generate exceptions as setting %d to %s",
+						value, nds32_regs[number].simple_mnemonic);
+				return true;
+			}
+		}
+
+		i++;
+	}
+
+	return false;
 }
