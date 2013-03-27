@@ -1275,7 +1275,7 @@ static int check_suppressed_exception(uint32_t dbger_value)
 	uint32_t ir6_value;
 
 	if ((dbger_value & NDS_DBGER_ALL_SUPRS_EX) == NDS_DBGER_ALL_SUPRS_EX) {
-		LOG_INFO("Exception is detected and suppressed");
+		LOG_ERROR("<-- TARGET ERROR! Exception is detected and suppressed. -->");
 
 		aice_read_reg(IR4, &ir4_value);
 		/* Clear IR6.SUPRS_EXC, IR6.IMP_EXC */
@@ -1300,6 +1300,19 @@ static int check_suppressed_exception(uint32_t dbger_value)
 	return ERROR_OK;
 }
 
+static int check_privilege(uint32_t dbger_value)
+{
+	if ((dbger_value & NDS_DBGER_ILL_SEC_ACC) == NDS_DBGER_ILL_SEC_ACC) {
+		LOG_ERROR("<-- TARGET ERROR! Insufficient security privilege to execute the debug operations. -->");
+
+		/* Clear DBGER.ILL_SEC_ACC */
+		if (aice_write_misc(current_target_id, NDS_EDM_MISC_DBGER, NDS_DBGER_ILL_SEC_ACC) != ERROR_OK)
+			return ERROR_FAIL;
+	}
+
+	return ERROR_OK;
+}
+
 static int aice_check_dbger(uint32_t expect_status)
 {
 	uint32_t i = 0;
@@ -1310,6 +1323,8 @@ static int aice_check_dbger(uint32_t expect_status)
 
 		if ((value_dbger & expect_status) == expect_status) {
 			if (ERROR_OK != check_suppressed_exception(value_dbger))
+				return ERROR_FAIL;
+			if (ERROR_OK != check_privilege(value_dbger))
 				return ERROR_FAIL;
 			return ERROR_OK;
 		}
@@ -1345,7 +1360,11 @@ static int aice_execute_dim(uint32_t *insts, uint8_t n_inst)
 
 	/** read DBGER.DPED */
 	if (aice_check_dbger(NDS_DBGER_DPED) != ERROR_OK) {
-		LOG_ERROR("ERROR! DIM execution is not done");
+		LOG_ERROR("<-- TARGET ERROR! Debug operations do not finish properly: 0x%08x 0x%08x 0x%08x 0x%08x. -->",
+				insts[0],
+				insts[1],
+				insts[2],
+				insts[3]);
 		return ERROR_FAIL;
 	}
 
@@ -1417,8 +1436,10 @@ static int aice_read_reg(uint32_t num, uint32_t *val)
 	aice_read_edmsr(current_target_id, NDS_EDM_SR_EDMSW, &value_edmsw);
 	if (value_edmsw & NDS_EDMSW_WDV)
 		aice_read_dtr(current_target_id, val);
-	else
+	else {
+		LOG_ERROR("<-- TARGET ERROR! The debug target failed to update the DTR register. -->");
 		return ERROR_FAIL;
+	}
 
 	return ERROR_OK;
 }
@@ -1459,8 +1480,10 @@ static int aice_write_reg(uint32_t num, uint32_t val)
 
 	aice_write_dtr(current_target_id, val);
 	aice_read_edmsr(current_target_id, NDS_EDM_SR_EDMSW, &value_edmsw);
-	if (0 == (value_edmsw & NDS_EDMSW_RDV))
+	if (0 == (value_edmsw & NDS_EDMSW_RDV)) {
+		LOG_ERROR("<-- TARGET ERROR! AICE failed to write to the DTR register. -->");
 		return ERROR_FAIL;
+	}
 
 	if (NDS32_REG_TYPE_GPR == nds32_reg_type(num)) { /* general registers */
 		instructions[0] = MFSR_DTR(num);
@@ -2022,7 +2045,7 @@ static int aice_usb_halt(void)
 	}
 
 	if (aice_check_dbger(NDS_DBGER_DEX) != ERROR_OK) {
-		LOG_ERROR("ERROR! Cannot hold core through DBGI.");
+		LOG_ERROR("<-- TARGET ERROR! Unable to stop the debug target through DBGI. -->");
 		return ERROR_FAIL;
 	}
 
@@ -2061,18 +2084,18 @@ static int aice_usb_state(enum aice_target_state_s *state)
 
 	if (ERROR_AICE_TIMEOUT == result) {
 		if (aice_read_ctrl(AICE_READ_CTRL_GET_ICE_STATE, &ice_state) != ERROR_OK) {
-			LOG_INFO("USB is disconnected");
+			LOG_ERROR("<-- AICE ERROR! AICE is unplugged. -->");
 			return ERROR_FAIL;
 		}
 
 		if ((ice_state & 0x20) == 0) {
-			LOG_INFO("Target is disconnected");
+			LOG_ERROR("<-- TARGET ERROR! Target is disconnected with AICE. -->");
 			return ERROR_FAIL;
 		} else {
 			return ERROR_FAIL;
 		}
 	} else if (ERROR_AICE_DISCONNECT == result) {
-		LOG_INFO("USB is disconnected");
+		LOG_ERROR("<-- AICE ERROR! AICE is unplugged. -->");
 		return ERROR_FAIL;
 	}
 
@@ -2091,8 +2114,13 @@ static int aice_usb_state(enum aice_target_state_s *state)
 		}
 		*state = AICE_TARGET_HALTED;
 	} else if ((dbger_value & NDS_DBGER_CRST) == NDS_DBGER_CRST) {
+		LOG_DEBUG("DBGER.CRST is on.");
+
 		*state = AICE_TARGET_RESET;
 		core_state = AICE_TARGET_RUNNING;
+
+		/* Clear CRST */
+		aice_write_misc(current_target_id, NDS_EDM_MISC_DBGER, NDS_DBGER_CRST);
 	} else if ((dbger_value & NDS_DBGER_AT_MAX) == NDS_DBGER_AT_MAX) {
 		uint32_t ir11_value;
 
@@ -2105,10 +2133,19 @@ static int aice_usb_state(enum aice_target_state_s *state)
 		/* Read OIPC to find out the trigger point */
 		aice_read_reg(IR11, &ir11_value);
 
-		LOG_INFO("Stall due to max_stop, trigger point: 0x%08x", ir11_value);
+		LOG_ERROR("<-- TARGET ERROR! Reaching the max interrupt stack level; "
+				"CPU is stalled at 0x%08x for debugging. -->", ir11_value);
 
 		*state = AICE_TARGET_HALTED;
 		core_state = AICE_TARGET_HALTED;
+	} else if ((dbger_value & NDS_DBGER_ILL_SEC_ACC) == NDS_DBGER_ILL_SEC_ACC) {
+		LOG_ERROR("<-- TARGET ERROR! Insufficient security privilege. -->");
+
+		/* Clear ILL_SEC_ACC */
+		aice_write_misc(current_target_id, NDS_EDM_MISC_DBGER, NDS_DBGER_ILL_SEC_ACC);
+
+		*state = AICE_TARGET_RUNNING;
+		core_state = AICE_TARGET_RUNNING;
 	} else {
 		*state = AICE_TARGET_RUNNING;
 		core_state = AICE_TARGET_RUNNING;
@@ -2156,6 +2193,7 @@ static int aice_issue_srst(void)
 			return ERROR_FAIL;
 	}
 
+	/* wait CRST infinitely */
 	uint32_t dbger_value;
 	int i = 0;
 	while (1) {
@@ -2270,7 +2308,7 @@ static int aice_usb_run(void)
 		return ERROR_FAIL;
 
 	if ((dbger_value & NDS_DBGER_DEX) != NDS_DBGER_DEX) {
-		LOG_WARNING("WARNING! Target exited debug mode unexpectedly.");
+		LOG_WARNING("<-- TARGET WARNING! The debug target exited the debug mode unexpectedly. -->");
 		return ERROR_FAIL;
 	}
 
@@ -3148,7 +3186,12 @@ static int aice_usb_execute(uint32_t *instructions, uint32_t instruction_num)
 
 		/** check DBGER.DPED */
 		if (aice_check_dbger(NDS_DBGER_DPED) != ERROR_OK) {
-			LOG_ERROR("ERROR! DIM execution is not done.");
+
+			LOG_ERROR("<-- TARGET ERROR! Debug operations do not finish properly: 0x%08x 0x%08x 0x%08x 0x%08x. -->",
+					dim_instructions[0],
+					dim_instructions[1],
+					dim_instructions[2],
+					dim_instructions[3]);
 			return ERROR_FAIL;
 		}
 	}

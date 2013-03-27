@@ -233,7 +233,7 @@ static int nds32_v3_check_interrupt_stack(struct nds32_v3_common *nds32_v3)
 	nds32->current_interrupt_level = (val_ir0 >> 1) & 0x3;
 
 	if (nds32_reach_max_interrupt_level(nds32)) {
-		LOG_INFO("Reaching the max interrupt stack level %d", nds32->current_interrupt_level);
+		LOG_ERROR("<-- TARGET ERROR! Reaching the max interrupt stack level %d. -->", nds32->current_interrupt_level);
 
 		return ERROR_FAIL;
 	}
@@ -542,8 +542,13 @@ static int nds32_v3_add_breakpoint(struct target *target,
 
 	if (breakpoint->type == BKPT_HARD) {
 		/* check hardware resource */
-		if (nds32_v3->n_hbr <= nds32_v3->next_hbr_index)
+		if (nds32_v3->n_hbr <= nds32_v3->next_hbr_index) {
+			LOG_WARNING("<-- TARGET WARNING! Insert too many "
+					"hardware breakpoints/watchpoints! "
+					"The limit of combined hardware "
+					"breakpoints/watchpoints is %d. -->", nds32_v3->n_hbr);
 			return ERROR_TARGET_RESOURCE_NOT_AVAILABLE;
+		}
 
 		/* update next place to put hardware breakpoint */
 		nds32_v3->next_hbr_index++;
@@ -599,8 +604,17 @@ static int nds32_v3_add_watchpoint(struct target *target,
 	/* check hardware resource */
 	if (nds32_v3->n_hbr <= nds32_v3->next_hbr_index) {
 		/* No hardware resource */
-		if (nds32_v3->nds32.global_stop)
+		if (nds32_v3->nds32.global_stop) {
+			LOG_WARNING("<-- TARGET WARNING! The number of "
+					"watchpoints exceeds the hardware "
+					"resources. Stop at every load/store "
+					"instruction to check for watchpoint matches. -->");
 			return ERROR_OK;
+		}
+
+		LOG_WARNING("<-- TARGET WARNING! Insert too many hardware "
+				"breakpoints/watchpoints! The limit of combined "
+				"hardware breakpoints/watchpoints is %d. -->", nds32_v3->n_hbr);
 
 		return ERROR_TARGET_RESOURCE_NOT_AVAILABLE;
 	}
