@@ -1934,6 +1934,12 @@ int nds32_examine_debug_reason(struct nds32 *nds32)
 	uint32_t reason;
 	struct target *target = nds32->target;
 
+	if (nds32->hit_syscall == true) {
+		LOG_DEBUG("Hit syscall breakpoint");
+		target->debug_reason = DBG_REASON_BREAKPOINT;
+		return ERROR_OK;
+	}
+
 	nds32->get_debug_reason(nds32, &reason);
 
 	LOG_DEBUG("nds32 examines debug reason: %s", nds32_debug_type_name[reason]);
