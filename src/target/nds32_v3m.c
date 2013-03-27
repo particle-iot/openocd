@@ -178,7 +178,7 @@ static int nds32_v3m_check_interrupt_stack(struct nds32_v3m_common *nds32_v3m)
 	nds32->current_interrupt_level = (val_ir0 >> 1) & 0x3;
 
 	if (nds32_reach_max_interrupt_level(nds32))
-		LOG_INFO("Reaching the max interrupt stack level %d", nds32->current_interrupt_level);
+		LOG_ERROR("Reaching the max interrupt stack level %d", nds32->current_interrupt_level);
 
 	/* backup $ir6 to avoid suppressed exception overwrite */
 	nds32_get_mapped_reg(nds32, IR6, &value);
@@ -345,8 +345,13 @@ static int nds32_v3m_add_breakpoint(struct target *target,
 
 	if (breakpoint->type == BKPT_HARD) {
 		/* check hardware resource */
-		if (nds32_v3m->next_hbr_index < nds32_v3m->next_hwp_index)
+		if (nds32_v3m->next_hbr_index < nds32_v3m->next_hwp_index) {
+			LOG_WARNING("<-- TARGET WARNING! Insert too many "
+					"hardware breakpoints/watchpoints! "
+					"The limit of combined hardware "
+					"breakpoints/watchpoints is %d. -->", nds32_v3m->n_hbr);
 			return ERROR_TARGET_RESOURCE_NOT_AVAILABLE;
+		}
 
 		/* update next place to put hardware breakpoint */
 		nds32_v3m->next_hbr_index--;
@@ -400,11 +405,19 @@ static int nds32_v3m_add_watchpoint(struct target *target,
 	struct nds32_v3m_common *nds32_v3m = target_to_nds32_v3m(target);
 
 	/* check hardware resource */
-	if (nds32_v3m->next_hwp_index >= nds32_v3m->n_hwp)
+	if (nds32_v3m->next_hwp_index >= nds32_v3m->n_hwp) {
+		LOG_WARNING("<-- TARGET WARNING! Insert too many hardware "
+				"watchpoints! The limit of hardware watchpoints "
+				"is %d. -->", nds32_v3m->n_hwp);
 		return ERROR_TARGET_RESOURCE_NOT_AVAILABLE;
+	}
 
-	if (nds32_v3m->next_hwp_index > nds32_v3m->next_hbr_index)
+	if (nds32_v3m->next_hwp_index > nds32_v3m->next_hbr_index) {
+		LOG_WARNING("<-- TARGET WARNING! Insert too many hardware "
+				"breakpoints/watchpoints! The limit of combined "
+				"hardware breakpoints/watchpoints is %d. -->", nds32_v3m->n_hbr);
 		return ERROR_TARGET_RESOURCE_NOT_AVAILABLE;
+	}
 
 	/* update next place to put hardware watchpoint */
 	nds32_v3m->next_hwp_index++;
@@ -584,6 +597,9 @@ static int nds32_v3m_examine(struct target *target)
 	nds32->target->debug_reason = DBG_REASON_NOTHALTED;
 
 	target_set_examined(target);
+
+	/* TODO: remove this message */
+	LOG_INFO("ICEman is ready to run.");
 
 	return ERROR_OK;
 }

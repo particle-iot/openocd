@@ -392,9 +392,9 @@ COMMAND_HANDLER(handle_nds32_max_stop_command)
 	aice->port->api->read_debug_reg(NDS_EDM_SR_EDM_CTL, &edm_ctl_value);
 
 	if ((edm_ctl_value & (0x1 << 29)) != 0)
-		command_print(CMD_CTX, "global stop: on");
+		command_print(CMD_CTX, "max stop: on");
 	else
-		command_print(CMD_CTX, "global stop: off");
+		command_print(CMD_CTX, "max stop: off");
 
 	return ERROR_OK;
 }
