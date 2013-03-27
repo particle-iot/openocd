@@ -38,7 +38,7 @@ int nds32_read_opcode(struct nds32 *nds32, uint32_t address, uint32_t *value)
 		return ERROR_FAIL;
 	}
 
-	int retval = target_read_memory(target, address, 1, 4, value_buf);
+	int retval = target_read_buffer(target, address, 4, value_buf);
 
 	if (retval == ERROR_OK) {
 		/* instructions are always big-endian */
