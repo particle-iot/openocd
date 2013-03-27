@@ -190,24 +190,18 @@ static int nds32_set_core_reg(struct reg *reg, uint8_t *buf)
 
 	buf_set_u32(reg->value, 0, 32, value);
 
-	/* update registers to take effect right now */
-	if ((MR6 == reg_arch_info->num) ||
-			(MR7 == reg_arch_info->num)) {
-		LOG_DEBUG("writing register %i "
-				"with value 0x%8.8" PRIx32, reg_arch_info->num, value);
-		aice->port->api->write_reg(reg_arch_info->num, reg_arch_info->value);
-		reg->valid = true;
-		reg->dirty = false;
+	LOG_DEBUG("writing register %i(%s) with value 0x%8.8" PRIx32,
+			reg_arch_info->num, reg->name, value);
 
+	aice->port->api->write_reg(reg_arch_info->num, reg_arch_info->value);
+	reg->valid = true;
+	reg->dirty = false;
+
+	/* update registers to take effect right now */
+	if ((MR6 == reg_arch_info->num) || (MR7 == reg_arch_info->num)) {
 		/* update lm information */
 		nds32_update_lm_info(nds32);
 	} else if (FUCPR == reg_arch_info->num) {
-		LOG_DEBUG("writing register %i "
-				"with value 0x%8.8" PRIx32, reg_arch_info->num, value);
-		aice->port->api->write_reg(reg_arch_info->num, reg_arch_info->value);
-		reg->valid = true;
-		reg->dirty = false;
-
 		/* update audio/fpu setting */
 		if (value & 0x1)
 			nds32->fpu_enable = true;
@@ -218,9 +212,6 @@ static int nds32_set_core_reg(struct reg *reg, uint8_t *buf)
 			nds32->audio_enable = true;
 		else
 			nds32->audio_enable = false;
-	} else {
-		reg->valid = true;
-		reg->dirty = true;
 	}
 
 	return ERROR_OK;
