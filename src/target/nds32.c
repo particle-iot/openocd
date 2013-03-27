@@ -86,8 +86,11 @@ static int nds32_get_core_reg(struct reg *reg)
 		return ERROR_TARGET_NOT_HALTED;
 	}
 
-	if (reg->valid)
+	if (reg->valid) {
+		LOG_DEBUG("reading register(cached) %i(%s), value: 0x%8.8" PRIx32,
+				reg_arch_info->num, reg->name, reg_arch_info->value);
 		return ERROR_OK;
+	}
 
 	if (reg_arch_info->enable == false) {
 		reg_arch_info->value = NDS32_REGISTER_DISABLE;
@@ -104,6 +107,10 @@ static int nds32_get_core_reg(struct reg *reg)
 		} else {
 			retval = aice->port->api->read_reg(reg_arch_info->num, &(reg_arch_info->value));
 		}
+
+		LOG_DEBUG("reading register %i(%s), value: 0x%8.8" PRIx32,
+				reg_arch_info->num, reg->name, reg_arch_info->value);
+	}
 
 	if (retval == ERROR_OK) {
 		reg->valid = true;
@@ -2135,6 +2142,7 @@ int nds32_halt(struct target *target)
 		return ERROR_FAIL;
 
 	if (TARGET_HALTED != state)
+		/* TODO: if state == TARGET_HALTED, check ETYPE is DBGI or not */
 		if (ERROR_OK != aice->port->api->halt())
 			return ERROR_FAIL;
 
@@ -2163,7 +2171,7 @@ int nds32_poll(struct target *target)
 				return ERROR_OK;
 			}
 
-			LOG_DEBUG("enter TARGET_HALTED");
+			LOG_DEBUG("Change target state to TARGET_HALTED.");
 
 			target_call_event_callbacks(target, TARGET_EVENT_HALTED);
 		}
@@ -2176,12 +2184,11 @@ int nds32_poll(struct target *target)
 			/* TODO: deassert srst */
 		} else if (target->state == TARGET_RUNNING) {
 			/* reset as running */
-			/* TODO: output messages */
-			;
+			LOG_WARNING("<-- TARGET WARNING! The debug target has been reset. -->");
 		}
 	} else {
 		if (target->state != TARGET_RUNNING && target->state != TARGET_DEBUG_RUNNING) {
-			LOG_DEBUG("enter TARGET_RUNNING");
+			LOG_DEBUG("Change target state to TARGET_RUNNING.");
 			target->state = TARGET_RUNNING;
 			target->debug_reason = DBG_REASON_NOTHALTED;
 		}
