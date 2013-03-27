@@ -75,6 +75,7 @@ static int nds32_get_core_reg(struct reg *reg)
 	int retval;
 	struct nds32_reg *reg_arch_info = reg->arch_info;
 	struct target *target = reg_arch_info->target;
+	struct nds32 *nds32 = target_to_nds32(target);
 	struct aice_port_s *aice = target_to_aice(target);
 
 	if (target->state != TARGET_HALTED) {
@@ -88,8 +89,19 @@ static int nds32_get_core_reg(struct reg *reg)
 	if (reg_arch_info->enable == false) {
 		reg_arch_info->value = NDS32_REGISTER_DISABLE;
 		retval = ERROR_FAIL;
-	} else
-		retval = aice->port->api->read_reg(reg_arch_info->num, &(reg_arch_info->value));
+	} else {
+		if ((nds32->fpu_enable == false) &&
+			(NDS32_REG_TYPE_FPU == nds32_reg_type(reg_arch_info->num))) {
+			reg_arch_info->value = 0;
+			retval = ERROR_OK;
+		} else if ((nds32->audio_enable == false) &&
+			(NDS32_REG_TYPE_AUMR == nds32_reg_type(reg_arch_info->num))) {
+			reg_arch_info->value = 0;
+			retval = ERROR_OK;
+		} else {
+			retval = aice->port->api->read_reg(reg_arch_info->num, &(reg_arch_info->value));
+		}
+	}
 
 	if (retval == ERROR_OK) {
 		reg->valid = true;
@@ -104,6 +116,7 @@ static int nds32_get_core_reg_64(struct reg *reg)
 	int retval;
 	struct nds32_reg *reg_arch_info = reg->arch_info;
 	struct target *target = reg_arch_info->target;
+	struct nds32 *nds32 = target_to_nds32(target);
 	struct aice_port_s *aice = target_to_aice(target);
 
 	if (target->state != TARGET_HALTED) {
@@ -117,8 +130,15 @@ static int nds32_get_core_reg_64(struct reg *reg)
 	if (reg_arch_info->enable == false) {
 		reg_arch_info->value_64 = NDS32_REGISTER_DISABLE;
 		retval = ERROR_FAIL;
-	} else
-		retval = aice->port->api->read_reg_64(reg_arch_info->num, &(reg_arch_info->value_64));
+	} else {
+		if ((nds32->fpu_enable == false) &&
+			((FD0 <= reg_arch_info->num) && (reg_arch_info->num <= FD31))) {
+			reg_arch_info->value_64 = 0;
+			retval = ERROR_OK;
+		} else {
+			retval = aice->port->api->read_reg_64(reg_arch_info->num, &(reg_arch_info->value_64));
+		}
+	}
 
 	if (retval == ERROR_OK) {
 		reg->valid = true;
@@ -188,12 +208,23 @@ static int nds32_set_core_reg(struct reg *reg, uint8_t *buf)
 	if (nds32_reg_exception(reg_arch_info->num, value))
 		return ERROR_OK;
 
-	buf_set_u32(reg->value, 0, 32, value);
-
 	LOG_DEBUG("writing register %i(%s) with value 0x%8.8" PRIx32,
 			reg_arch_info->num, reg->name, value);
 
-	aice->port->api->write_reg(reg_arch_info->num, reg_arch_info->value);
+	if ((nds32->fpu_enable == false) &&
+		(NDS32_REG_TYPE_FPU == nds32_reg_type(reg_arch_info->num))) {
+
+		buf_set_u32(reg->value, 0, 32, 0);
+	} else if ((nds32->audio_enable == false) &&
+		(NDS32_REG_TYPE_AUMR == nds32_reg_type(reg_arch_info->num))) {
+
+		buf_set_u32(reg->value, 0, 32, 0);
+	} else {
+
+		buf_set_u32(reg->value, 0, 32, value);
+		aice->port->api->write_reg(reg_arch_info->num, reg_arch_info->value);
+	}
+
 	reg->valid = true;
 	reg->dirty = false;
 
@@ -221,6 +252,7 @@ static int nds32_set_core_reg_64(struct reg *reg, uint8_t *buf)
 {
 	struct nds32_reg *reg_arch_info = reg->arch_info;
 	struct target *target = reg_arch_info->target;
+	struct nds32 *nds32 = target_to_nds32(target);
 	uint32_t low_part = buf_get_u32(buf, 0, 32);
 	uint32_t high_part = buf_get_u32(buf, 32, 32);
 
@@ -229,11 +261,21 @@ static int nds32_set_core_reg_64(struct reg *reg, uint8_t *buf)
 		return ERROR_TARGET_NOT_HALTED;
 	}
 
-	buf_set_u32(reg->value, 0, 32, low_part);
-	buf_set_u32(reg->value, 32, 32, high_part);
+	if ((nds32->fpu_enable == false) &&
+		((FD0 <= reg_arch_info->num) && (reg_arch_info->num <= FD31))) {
 
-	reg->valid = true;
-	reg->dirty = true;
+		buf_set_u32(reg->value, 0, 32, 0);
+		buf_set_u32(reg->value, 32, 32, 0);
+
+		reg->valid = true;
+		reg->dirty = false;
+	} else {
+		buf_set_u32(reg->value, 0, 32, low_part);
+		buf_set_u32(reg->value, 32, 32, high_part);
+
+		reg->valid = true;
+		reg->dirty = true;
+	}
 
 	return ERROR_OK;
 }
@@ -1623,6 +1665,13 @@ int nds32_edm_config(struct nds32 *nds32)
 	return ERROR_OK;
 }
 
+/**
+ * If fpu/audio is disabled, to access fpu/audio registers will cause
+ * exceptions. So, we need to check if fpu/audio is enabled or not as
+ * target is halted. If fpu/audio is disabled, as users access fpu/audio
+ * registers, OpenOCD will return fake value 0 instead of accessing
+ * registers through DIM.
+ */
 int nds32_check_extension(struct nds32 *nds32)
 {
 	uint32_t value;
