@@ -68,8 +68,12 @@ int aice_init_target(struct target *t)
 
 	if (aice_num_of_target_id_codes == 0) {
 		res = aice.port->api->idcode(aice_target_id_codes, &aice_num_of_target_id_codes);
-		if (res != ERROR_OK)
+		if (res != ERROR_OK) {
+			LOG_ERROR("<-- TARGET ERROR! Failed to identify AndesCore "
+					"JTAG Manufacture ID in the JTAG scan chain. "
+					"Failed to access EDM registers. -->");
 			return res;
+		}
 	}
 
 	t->tap->idcode = aice_target_id_codes[t->tap->abs_chain_position];

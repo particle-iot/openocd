@@ -105,6 +105,7 @@ enum nds_memory_select {
 #define NDS_DBGER_DPED		(0x2)
 #define NDS_DBGER_CRST		(0x4)
 #define NDS_DBGER_AT_MAX	(0x8)
+#define NDS_DBGER_ILL_SEC_ACC	(0x10)
 #define NDS_DBGER_ALL_SUPRS_EX	(0x40000000)
 #define NDS_DBGER_RESACC	(0x80000000)
 
