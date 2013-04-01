@@ -559,6 +559,58 @@ static int jim_nds32_bulk_write(Jim_Interp *interp, int argc, Jim_Obj * const *a
 	return result;
 }
 
+static int jim_nds32_multi_write(Jim_Interp *interp, int argc, Jim_Obj * const *argv)
+{
+	const char *cmd_name = Jim_GetString(argv[0], NULL);
+
+	Jim_GetOptInfo goi;
+	Jim_GetOpt_Setup(&goi, interp, argc - 1, argv + 1);
+
+	if (goi.argc < 3) {
+		Jim_SetResultFormatted(goi.interp,
+				"usage: %s # of pairs [<address> <data>]+", cmd_name);
+		return JIM_ERR;
+	}
+
+	int e;
+	jim_wide num_of_pairs;
+	e = Jim_GetOpt_Wide(&goi, &num_of_pairs);
+	if (e != JIM_OK)
+		return e;
+
+	struct target *target = Jim_CmdPrivData(goi.interp);
+	struct aice_port_s *aice = target_to_aice(target);
+	int result;
+	uint32_t address;
+	uint32_t data;
+	jim_wide i;
+
+	aice->port->api->pack_command(true);
+	for (i = 0; i < num_of_pairs; i++) {
+		jim_wide tmp;
+		e = Jim_GetOpt_Wide(&goi, &tmp);
+		if (e != JIM_OK)
+			break;
+		address = (uint32_t)tmp;
+
+		e = Jim_GetOpt_Wide(&goi, &tmp);
+		if (e != JIM_OK)
+			break;
+		data = (uint32_t)tmp;
+
+		result = target_write_buffer(target, address, 4, (const uint8_t *)&data);
+		if (result != ERROR_OK)
+			break;
+	}
+	aice->port->api->pack_command(false);
+
+	/* all args must be consumed */
+	if (goi.argc != 0)
+		return JIM_ERR;
+
+	return ERROR_OK;
+}
+
 static int jim_nds32_bulk_read(Jim_Interp *interp, int argc, Jim_Obj * const *argv)
 {
 	const char *cmd_name = Jim_GetString(argv[0], NULL);
@@ -829,6 +881,13 @@ static const struct command_registration nds32_exec_command_handlers[] = {
 		.mode = COMMAND_EXEC,
 		.help = "Write multiple 32-bit words to target memory",
 		.usage = "address count data",
+	},
+	{
+		.name = "multi_write",
+		.jim_handler = jim_nds32_multi_write,
+		.mode = COMMAND_EXEC,
+		.help = "Write multiple addresses/words to target memory",
+		.usage = "num_of_pairs [address data]+",
 	},
 	{
 		.name = "bulk_read",
