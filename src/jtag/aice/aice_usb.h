@@ -28,6 +28,8 @@
 /* AICE USB buffer size */
 #define AICE_IN_BUFFER_SIZE			2048
 #define AICE_OUT_BUFFER_SIZE			2048
+#define AICE_IN_PACKETS_BUFFER_SIZE		2048
+#define AICE_OUT_PACKETS_BUFFER_SIZE		2048
 
 /* Constants for AICE command */
 #define AICE_CMD_SCAN_CHAIN			0x00
