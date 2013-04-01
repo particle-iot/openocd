@@ -163,7 +163,7 @@ struct aice_port_api_s {
 	/** */
 	int (*memory_access)(enum nds_memory_access a_access);
 	/** */
-	int (*memory_mode)(enum nds_memory_select select);
+	int (*memory_mode)(enum nds_memory_select mem_select);
 
 	/** */
 	int (*read_tlb)(uint32_t virtual_address, uint32_t *physical_address);
@@ -176,6 +176,9 @@ struct aice_port_api_s {
 
 	/** */
 	int (*program_edm)(char *command_sequence);
+
+	/** */
+	int (*pack_command)(bool enable_pack_command);
 };
 
 #define AICE_PORT_UNKNOWN	0
