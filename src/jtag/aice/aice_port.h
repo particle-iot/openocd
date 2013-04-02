@@ -67,6 +67,10 @@ enum aice_api_s {
 	AICE_MEMORY_MODE,
 	AICE_READ_TLB,
 	AICE_CACHE_CTL,
+	AICE_SET_RETRY_TIMES,
+	AICE_PROGRAM_EDM,
+	AICE_PACK_COMMAND,
+	AICE_EXECUTE,
 };
 
 enum aice_error_s {
@@ -179,6 +183,9 @@ struct aice_port_api_s {
 
 	/** */
 	int (*pack_command)(bool enable_pack_command);
+
+	/** */
+	int (*execute)(uint32_t *instructions, uint32_t instruction_num);
 };
 
 #define AICE_PORT_UNKNOWN	0
