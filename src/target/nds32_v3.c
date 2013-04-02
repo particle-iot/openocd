@@ -926,8 +926,23 @@ int nds32_v3_write_buffer(struct target *target, uint32_t address,
 	else
 		return ERROR_FAIL;
 
-	if (nds32->hit_syscall)
-		return nds32_gdb_fileio_write_memory(nds32, address, size, buffer);
+	if (nds32->hit_syscall) {
+		/* Use bus mode to access memory during virtual hosting */
+		struct aice_port_s *aice = target_to_aice(target);
+		enum nds_memory_access origin_access_channel;
+		int result;
+
+		origin_access_channel = memory->access_channel;
+		memory->access_channel = NDS_MEMORY_ACC_BUS;
+		aice->port->api->memory_access(NDS_MEMORY_ACC_BUS);
+
+		result = nds32_gdb_fileio_write_memory(nds32, address, size, buffer);
+
+		memory->access_channel = origin_access_channel;
+		aice->port->api->memory_access(origin_access_channel);
+
+		return result;
+	}
 
 	return nds32_write_buffer(target, address, size, buffer);
 }
@@ -967,7 +982,27 @@ int nds32_v3_read_memory(struct target *target, uint32_t address,
 	else
 		return ERROR_FAIL;
 
-	return nds32_read_memory(target, address, size, count, buffer);
+	struct aice_port_s *aice = target_to_aice(target);
+	/* give arbitrary initial value to avoid warning messages */
+	enum nds_memory_access origin_access_channel = NDS_MEMORY_ACC_CPU;
+	int result;
+
+	if (nds32->hit_syscall) {
+		/* Use bus mode to access memory during virtual hosting */
+		origin_access_channel = memory->access_channel;
+		memory->access_channel = NDS_MEMORY_ACC_BUS;
+		aice->port->api->memory_access(NDS_MEMORY_ACC_BUS);
+	}
+
+	result = nds32_read_memory(target, address, size, count, buffer);
+
+	if (nds32->hit_syscall) {
+		/* Restore access_channel after virtual hosting */
+		memory->access_channel = origin_access_channel;
+		aice->port->api->memory_access(origin_access_channel);
+	}
+
+	return result;
 }
 
 int nds32_v3_write_memory(struct target *target, uint32_t address,
