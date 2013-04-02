@@ -2996,6 +2996,60 @@ static int aice_usb_pack_command(bool enable_pack_command)
 	return ERROR_OK;
 }
 
+static int aice_usb_execute(uint32_t *instructions, uint32_t instruction_num)
+{
+	uint32_t i, j;
+	uint8_t current_instruction_num;
+	uint32_t dim_instructions[4] = {NOP, NOP, NOP, BEQ_MINUS_12};
+
+	/* To execute 4 instructions as a special case */
+	if (instruction_num == 4)
+		return aice_execute_dim(instructions, 4);
+
+	for (i = 0 ; i < instruction_num ; i += 3) {
+		if (instruction_num - i < 3) {
+			current_instruction_num = instruction_num - i;
+			for (j = current_instruction_num ; j < 3 ; j++)
+				dim_instructions[j] = NOP;
+		} else {
+			current_instruction_num = 3;
+		}
+
+		memcpy(dim_instructions, instructions + i,
+				current_instruction_num * sizeof(uint32_t));
+
+		/** fill DIM */
+		if (aice_write_dim(current_target_id,
+					dim_instructions,
+					4) != ERROR_OK)
+			return ERROR_FAIL;
+
+		/** clear DBGER.DPED */
+		if (aice_write_misc(current_target_id, NDS_EDM_MISC_DBGER, NDS_DBGER_DPED) != ERROR_OK)
+			return ERROR_FAIL;
+
+		/** execute DIM */
+		if (aice_execute(current_target_id) != ERROR_OK)
+			return ERROR_FAIL;
+
+		/** read DBGER.DPED */
+		uint32_t dbger_value;
+		if (aice_read_misc(current_target_id, NDS_EDM_MISC_DBGER,
+					&dbger_value) != ERROR_OK)
+			return ERROR_FAIL;
+
+		if ((dbger_value & NDS_DBGER_DPED) != NDS_DBGER_DPED) {
+			LOG_ERROR("DIM execution is not done");
+			return ERROR_FAIL;
+		}
+
+		if (ERROR_OK != check_suppressed_exception(dbger_value))
+			return ERROR_FAIL;
+	}
+
+	return ERROR_OK;
+}
+
 /** */
 struct aice_port_api_s aice_usb_api = {
 	/** */
@@ -3054,4 +3108,6 @@ struct aice_port_api_s aice_usb_api = {
 	.program_edm = aice_usb_program_edm,
 	/** */
 	.pack_command = aice_usb_pack_command,
+	/** */
+	.execute = aice_usb_execute,
 };
