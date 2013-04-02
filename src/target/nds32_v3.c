@@ -402,8 +402,6 @@ static int nds32_v3_leave_debug_state(struct nds32 *nds32, bool enable_watchpoin
 			/* single step to skip syscall entry */
 			/* use IRET to skip syscall */
 			struct aice_port_s *aice = target_to_aice(target);
-			const uint8_t iret_instr[4] = {0x64, 0x0, 0x0, 0x4};
-			uint8_t syscall_entry_instr[4];
 			uint32_t value_ir9;
 			uint32_t value_ir6;
 			uint32_t syscall_id;
@@ -415,23 +413,36 @@ static int nds32_v3_leave_debug_state(struct nds32 *nds32, bool enable_watchpoin
 				/* If target hits exit syscall, do not use IRET to skip handler. */
 				aice->port->api->step();
 			} else {
-				/* backup origin instruction and write IRET to syscall entry */
-				target->type->read_buffer(target, syscall_address, 4, syscall_entry_instr);
-				target->type->write_buffer(target, syscall_address, 4, iret_instr);
-				/* write_back & invalidate dcache & invalidate icache */
-				nds32_cache_sync(target, syscall_address, 4);
+				/* use api->read/write_reg to skip nds32 register cache */
+				uint32_t value_dimbr;
+				aice->port->api->read_debug_reg(NDS_EDM_SR_DIMBR, &value_dimbr);
+				aice->port->api->write_reg(IR11, value_dimbr + 0xC);
 
-				/* skip nds32 register cache */
 				aice->port->api->read_reg(IR9, &value_ir9);
 				value_ir9 += 4; /* syscall is always 4 bytes */
 				aice->port->api->write_reg(IR9, value_ir9);
 
-				aice->port->api->step();
+				/* backup hardware breakpoint 0 */
+				uint32_t backup_bpa, backup_bpam, backup_bpc;
+				aice->port->api->read_debug_reg(NDS_EDM_SR_BPA0, &backup_bpa);
+				aice->port->api->read_debug_reg(NDS_EDM_SR_BPAM0, &backup_bpam);
+				aice->port->api->read_debug_reg(NDS_EDM_SR_BPC0, &backup_bpc);
 
-				/* restore origin instruction */
-				target->type->write_buffer(target, syscall_address, 4, syscall_entry_instr);
-				/* write_back & invalidate dcache & invalidate icache */
-				nds32_cache_sync(target, syscall_address, 4);
+				/* use hardware breakpoint 0 to stop cpu after skipping syscall */
+				aice->port->api->write_debug_reg(NDS_EDM_SR_BPA0, value_ir9);
+				aice->port->api->write_debug_reg(NDS_EDM_SR_BPAM0, 0);
+				aice->port->api->write_debug_reg(NDS_EDM_SR_BPC0, 0xA);
+
+				/* Execute two IRET.
+				 * First IRET is used to quit debug mode.
+				 * Second IRET is used to quit current syscall. */
+				uint32_t dim_inst[4] = {NOP, NOP, IRET, IRET};
+				aice->port->api->execute(dim_inst, 4);
+
+				/* restore origin hardware breakpoint 0 */
+				aice->port->api->write_debug_reg(NDS_EDM_SR_BPA0, backup_bpa);
+				aice->port->api->write_debug_reg(NDS_EDM_SR_BPAM0, backup_bpam);
+				aice->port->api->write_debug_reg(NDS_EDM_SR_BPC0, backup_bpc);
 			}
 
 			nds32->hit_syscall = false;
