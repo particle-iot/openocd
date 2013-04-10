@@ -26,6 +26,9 @@
 #include "nds32.h"
 #include "nds32_disassembler.h"
 
+extern struct nds32_edm_operation nds32_edm_ops[NDS32_EDM_OPERATION_MAX_NUM];
+extern uint32_t nds32_edm_ops_num;
+
 static const char *const NDS_MEMORY_ACCESS_NAME[] = {
 	"BUS",
 	"CPU",
@@ -315,7 +318,7 @@ COMMAND_HANDLER(handle_nds32_boot_time_command)
 	return ERROR_OK;
 }
 
-COMMAND_HANDLER(handle_nds32_edm_passcode_command)
+COMMAND_HANDLER(handle_nds32_login_edm_passcode_command)
 {
 	struct target *target = get_current_target(CMD_CTX);
 	struct nds32 *nds32 = target_to_nds32(target);
@@ -328,6 +331,37 @@ COMMAND_HANDLER(handle_nds32_edm_passcode_command)
 	nds32->edm_passcode = strdup(CMD_ARGV[0]);
 
 	LOG_INFO("set EDM passcode: %s", nds32->edm_passcode);
+
+	return ERROR_OK;
+}
+
+COMMAND_HANDLER(handle_nds32_login_edm_operation_command)
+{
+	struct target *target = get_current_target(CMD_CTX);
+	struct nds32 *nds32 = target_to_nds32(target);
+
+	if (!is_nds32(nds32)) {
+		command_print(CMD_CTX, "current target isn't an Andes core");
+		return ERROR_FAIL;
+	}
+
+	if (CMD_ARGC > 1) {
+
+		uint32_t misc_reg_no;
+		uint32_t data;
+
+		COMMAND_PARSE_NUMBER(u32, CMD_ARGV[0], misc_reg_no);
+		COMMAND_PARSE_NUMBER(u32, CMD_ARGV[1], data);
+
+		if (nds32_edm_ops_num >= NDS32_EDM_OPERATION_MAX_NUM)
+			return ERROR_FAIL;
+
+		/* Just save the operation. Execute it in nds32_login() */
+		nds32_edm_ops[nds32_edm_ops_num].reg_no = misc_reg_no;
+		nds32_edm_ops[nds32_edm_ops_num].value = data;
+		nds32_edm_ops_num++;
+	} else
+		return ERROR_FAIL;
 
 	return ERROR_OK;
 }
@@ -839,11 +873,18 @@ static const struct command_registration nds32_exec_command_handlers[] = {
 		.help = "set the period to wait after srst.",
 	},
 	{
-		.name = "edm_passcode",
-		.handler = handle_nds32_edm_passcode_command,
+		.name = "login_edm_passcode",
+		.handler = handle_nds32_login_edm_passcode_command,
 		.mode = COMMAND_ANY,
 		.usage = "passcode",
 		.help = "set EDM passcode for secure MCU debugging.",
+	},
+	{
+		.name = "login_edm_operation",
+		.handler = handle_nds32_login_edm_operation_command,
+		.mode = COMMAND_ANY,
+		.usage = "login_edm_operation misc_reg_no value",
+		.help = "add EDM operations for secure MCU debugging.",
 	},
 	{
 		.name = "max_stop",
