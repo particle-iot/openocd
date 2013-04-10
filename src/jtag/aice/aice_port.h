@@ -71,6 +71,9 @@ enum aice_api_s {
 	AICE_PROGRAM_EDM,
 	AICE_PACK_COMMAND,
 	AICE_EXECUTE,
+	AICE_SET_CUSTOM_SRST_SCRIPT,
+	AICE_SET_CUSTOM_TRST_SCRIPT,
+	AICE_SET_CUSTOM_RESTART_SCRIPT,
 };
 
 enum aice_error_s {
@@ -186,6 +189,15 @@ struct aice_port_api_s {
 
 	/** */
 	int (*execute)(uint32_t *instructions, uint32_t instruction_num);
+
+	/** */
+	int (*set_custom_srst_script)(const char *script);
+
+	/** */
+	int (*set_custom_trst_script)(const char *script);
+
+	/** */
+	int (*set_custom_restart_script)(const char *script);
 };
 
 #define AICE_PORT_UNKNOWN	0
