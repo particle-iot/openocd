@@ -1261,6 +1261,9 @@ static uint32_t edm_version;
 static struct cache_info icache = {0, 0, 0, 0, 0};
 static struct cache_info dcache = {0, 0, 0, 0, 0};
 static bool cache_init;
+static char *custom_srst_script;
+static char *custom_trst_script;
+static char *custom_restart_script;
 
 static int aice_read_reg(uint32_t num, uint32_t *val);
 static int aice_write_reg(uint32_t num, uint32_t val);
@@ -1621,13 +1624,89 @@ static int aice_get_version_info(void)
 	return ERROR_OK;
 }
 
+#define LINE_BUFFER_SIZE 1024
+
+static int aice_execute_custom_script(const char *script)
+{
+	FILE *script_fd;
+	char line_buffer[LINE_BUFFER_SIZE];
+	char *op_str;
+	char *reset_str;
+	uint32_t delay;
+	uint32_t write_ctrl_value;
+	bool set_op;
+
+	script_fd = fopen(script, "r");
+	if (script_fd == NULL) {
+		return ERROR_FAIL;
+	} else {
+		while (fgets(line_buffer, LINE_BUFFER_SIZE, script_fd) != NULL) {
+			/* execute operations */
+			set_op = false;
+			op_str = strstr(line_buffer, "set");
+			if (op_str != NULL) {
+				set_op = true;
+				goto get_reset_type;
+			}
+
+			op_str = strstr(line_buffer, "clear");
+			if (op_str == NULL)
+				continue;
+get_reset_type:
+			reset_str = strstr(op_str, "srst");
+			if (reset_str != NULL) {
+				if (set_op)
+					write_ctrl_value = AICE_CUSTOM_DELAY_SET_SRST;
+				else
+					write_ctrl_value = AICE_CUSTOM_DELAY_CLEAN_SRST;
+				goto get_delay;
+			}
+			reset_str = strstr(op_str, "dbgi");
+			if (reset_str != NULL) {
+				if (set_op)
+					write_ctrl_value = AICE_CUSTOM_DELAY_SET_DBGI;
+				else
+					write_ctrl_value = AICE_CUSTOM_DELAY_CLEAN_DBGI;
+				goto get_delay;
+			}
+			reset_str = strstr(op_str, "trst");
+			if (reset_str != NULL) {
+				if (set_op)
+					write_ctrl_value = AICE_CUSTOM_DELAY_SET_TRST;
+				else
+					write_ctrl_value = AICE_CUSTOM_DELAY_CLEAN_TRST;
+				goto get_delay;
+			}
+			continue;
+get_delay:
+			/* get delay */
+			delay = strtoul(reset_str + 4, NULL, 0);
+			write_ctrl_value |= (delay << 16);
+
+			if (aice_write_ctrl(AICE_WRITE_CTRL_CUSTOM_DELAY, write_ctrl_value) != ERROR_OK) {
+				fclose(script_fd);
+				return ERROR_FAIL;
+			}
+		}
+		fclose(script_fd);
+	}
+
+	return ERROR_OK;
+}
+
 static int aice_edm_reset(void)
 {
 	if (aice_write_ctrl(AICE_WRITE_CTRL_CLEAR_TIMEOUT_STATUS, 0x1) != ERROR_OK)
 		return ERROR_FAIL;
 
-	if (aice_write_ctrl(AICE_WRITE_CTRL_JTAG_PIN_CONTROL, AICE_JTAG_PIN_CONTROL_TRST) != ERROR_OK)
-		return ERROR_FAIL;
+	if (custom_trst_script == NULL) {
+		if (aice_write_ctrl(AICE_WRITE_CTRL_JTAG_PIN_CONTROL, AICE_JTAG_PIN_CONTROL_TRST) != ERROR_OK)
+			return ERROR_FAIL;
+	} else {
+		/* custom trst operations */
+		if (aice_execute_custom_script(custom_trst_script) != ERROR_OK)
+			return ERROR_FAIL;
+	}
 
 	if (aice_write_ctrl(AICE_WRITE_CTRL_TCK_CONTROL, AICE_TCK_CONTROL_TCK_SCAN) != ERROR_OK)
 		return ERROR_FAIL;
@@ -1861,6 +1940,15 @@ static int aice_usb_close(void)
 {
 	jtag_libusb_close(aice_handler.usb_handle);
 
+	if (custom_srst_script)
+		free(custom_srst_script);
+
+	if (custom_trst_script)
+		free(custom_trst_script);
+
+	if (custom_restart_script)
+		free(custom_restart_script);
+
 	return ERROR_OK;
 }
 
@@ -2025,8 +2113,14 @@ static int aice_usb_reset(void)
 	if (aice_write_ctrl(AICE_WRITE_CTRL_CLEAR_TIMEOUT_STATUS, 0x1) != ERROR_OK)
 		return ERROR_FAIL;
 
-	if (aice_write_ctrl(AICE_WRITE_CTRL_JTAG_PIN_CONTROL, AICE_JTAG_PIN_CONTROL_TRST) != ERROR_OK)
-		return ERROR_FAIL;
+	if (custom_trst_script == NULL) {
+		if (aice_write_ctrl(AICE_WRITE_CTRL_JTAG_PIN_CONTROL, AICE_JTAG_PIN_CONTROL_TRST) != ERROR_OK)
+			return ERROR_FAIL;
+	} else {
+		/* custom trst operations */
+		if (aice_execute_custom_script(custom_trst_script) != ERROR_OK)
+			return ERROR_FAIL;
+	}
 
 	if (aice_write_ctrl(AICE_WRITE_CTRL_TCK_CONTROL, AICE_TCK_CONTROL_TCK_SCAN) != ERROR_OK)
 		return ERROR_FAIL;
@@ -2044,8 +2138,14 @@ static int aice_issue_srst(void)
 	/* After issuing srst, target will be running. So we need to restore EDM_CTL. */
 	aice_restore_edm_registers();
 
-	if (aice_write_ctrl(AICE_WRITE_CTRL_JTAG_PIN_CONTROL, AICE_JTAG_PIN_CONTROL_SRST) != ERROR_OK)
-		return ERROR_FAIL;
+	if (custom_srst_script == NULL) {
+		if (aice_write_ctrl(AICE_WRITE_CTRL_JTAG_PIN_CONTROL, AICE_JTAG_PIN_CONTROL_SRST) != ERROR_OK)
+			return ERROR_FAIL;
+	} else {
+		/* custom srst operations */
+		if (aice_execute_custom_script(custom_srst_script) != ERROR_OK)
+			return ERROR_FAIL;
+	}
 
 	uint32_t dbger_value;
 	int i = 0;
@@ -2079,8 +2179,14 @@ static int aice_issue_reset_hold(void)
 		aice_write_ctrl(AICE_WRITE_CTRL_JTAG_PIN_STATUS, pin_status & (~0x4));
 
 	/* issue restart */
-	if (aice_write_ctrl(AICE_WRITE_CTRL_JTAG_PIN_CONTROL, AICE_JTAG_PIN_CONTROL_RESTART) != ERROR_OK)
-		return ERROR_FAIL;
+	if (custom_restart_script == NULL) {
+		if (aice_write_ctrl(AICE_WRITE_CTRL_JTAG_PIN_CONTROL, AICE_JTAG_PIN_CONTROL_RESTART) != ERROR_OK)
+			return ERROR_FAIL;
+	} else {
+		/* custom restart operations */
+		if (aice_execute_custom_script(custom_restart_script) != ERROR_OK)
+			return ERROR_FAIL;
+	}
 
 	uint32_t dbger_value;
 	if (aice_read_misc(current_target_id, NDS_EDM_MISC_DBGER, &dbger_value) != ERROR_OK)
@@ -2096,8 +2202,14 @@ static int aice_issue_reset_hold(void)
 		aice_write_ctrl(AICE_WRITE_CTRL_JTAG_PIN_STATUS, pin_status | 0x4);
 
 		/* issue restart again */
-		if (aice_write_ctrl(AICE_WRITE_CTRL_JTAG_PIN_CONTROL, AICE_JTAG_PIN_CONTROL_RESTART) != ERROR_OK)
-			return ERROR_FAIL;
+		if (custom_restart_script == NULL) {
+			if (aice_write_ctrl(AICE_WRITE_CTRL_JTAG_PIN_CONTROL, AICE_JTAG_PIN_CONTROL_RESTART) != ERROR_OK)
+				return ERROR_FAIL;
+		} else {
+			/* custom restart operations */
+			if (aice_execute_custom_script(custom_restart_script) != ERROR_OK)
+				return ERROR_FAIL;
+		}
 
 		if (aice_read_misc(current_target_id, NDS_EDM_MISC_DBGER, &dbger_value) != ERROR_OK)
 			return ERROR_FAIL;
@@ -3050,6 +3162,27 @@ static int aice_usb_execute(uint32_t *instructions, uint32_t instruction_num)
 	return ERROR_OK;
 }
 
+static int aice_usb_set_custom_srst_script(const char *script)
+{
+	custom_srst_script = strdup(script);
+
+	return ERROR_OK;
+}
+
+static int aice_usb_set_custom_trst_script(const char *script)
+{
+	custom_trst_script = strdup(script);
+
+	return ERROR_OK;
+}
+
+static int aice_usb_set_custom_restart_script(const char *script)
+{
+	custom_restart_script = strdup(script);
+
+	return ERROR_OK;
+}
+
 /** */
 struct aice_port_api_s aice_usb_api = {
 	/** */
@@ -3110,4 +3243,10 @@ struct aice_port_api_s aice_usb_api = {
 	.pack_command = aice_usb_pack_command,
 	/** */
 	.execute = aice_usb_execute,
+	/** */
+	.set_custom_srst_script = aice_usb_set_custom_srst_script,
+	/** */
+	.set_custom_trst_script = aice_usb_set_custom_trst_script,
+	/** */
+	.set_custom_restart_script = aice_usb_set_custom_restart_script,
 };
