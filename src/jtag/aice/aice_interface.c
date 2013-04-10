@@ -309,6 +309,42 @@ COMMAND_HANDLER(aice_handle_aice_retry_times_command)
 	return ERROR_OK;
 }
 
+COMMAND_HANDLER(aice_handle_aice_custom_srst_script_command)
+{
+	LOG_DEBUG("aice_handle_aice_custom_srst_script_command");
+
+	if (CMD_ARGC > 0) {
+		aice.port->api->set_custom_srst_script(CMD_ARGV[0]);
+		return ERROR_OK;
+	}
+
+	return ERROR_FAIL;
+}
+
+COMMAND_HANDLER(aice_handle_aice_custom_trst_script_command)
+{
+	LOG_DEBUG("aice_handle_aice_custom_trst_script_command");
+
+	if (CMD_ARGC > 0) {
+		aice.port->api->set_custom_trst_script(CMD_ARGV[0]);
+		return ERROR_OK;
+	}
+
+	return ERROR_FAIL;
+}
+
+COMMAND_HANDLER(aice_handle_aice_custom_restart_script_command)
+{
+	LOG_DEBUG("aice_handle_aice_custom_restart_script_command");
+
+	if (CMD_ARGC > 0) {
+		aice.port->api->set_custom_restart_script(CMD_ARGV[0]);
+		return ERROR_OK;
+	}
+
+	return ERROR_FAIL;
+}
+
 
 static const struct command_registration aice_subcommand_handlers[] = {
 	{
@@ -359,6 +395,27 @@ static const struct command_registration aice_subcommand_handlers[] = {
 		.mode = COMMAND_CONFIG,
 		.help = "set retry times as AICE timeout",
 		.usage = "aice retry_times num_of_retry",
+	},
+	{
+		.name = "custom_srst_script",
+		.handler = &aice_handle_aice_custom_srst_script_command,
+		.mode = COMMAND_CONFIG,
+		.usage = "custom_srst_script script_file_name",
+		.help = "set custom srst script",
+	},
+	{
+		.name = "custom_trst_script",
+		.handler = &aice_handle_aice_custom_trst_script_command,
+		.mode = COMMAND_CONFIG,
+		.usage = "custom_trst_script script_file_name",
+		.help = "set custom trst script",
+	},
+	{
+		.name = "custom_restart_script",
+		.handler = &aice_handle_aice_custom_restart_script_command,
+		.mode = COMMAND_CONFIG,
+		.usage = "custom_restart_script script_file_name",
+		.help = "set custom restart script",
 	},
 	COMMAND_REGISTRATION_DONE
 };
