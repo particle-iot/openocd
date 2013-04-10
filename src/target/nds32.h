@@ -31,6 +31,8 @@
 #include "nds32_insn.h"
 #include "nds32_edm.h"
 
+#define NDS32_EDM_OPERATION_MAX_NUM 64
+
 #define CHECK_RETVAL(action)			\
 	do {					\
 		int __retval = (action);	\
@@ -354,6 +356,11 @@ struct nds32_reg {
 	struct target *target;
 	struct nds32 *nds32;
 	bool enable;
+};
+
+struct nds32_edm_operation {
+	uint32_t reg_no;
+	uint32_t value;
 };
 
 extern int nds32_config(struct nds32 *nds32);
