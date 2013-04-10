@@ -31,6 +31,9 @@
 const int NDS32_BREAK_16 = 0x00EA;      /* 0xEA00 */
 const int NDS32_BREAK_32 = 0x0A000064;  /* 0x6400000A */
 
+struct nds32_edm_operation nds32_edm_ops[NDS32_EDM_OPERATION_MAX_NUM];
+uint32_t nds32_edm_ops_num;
+
 const char *nds32_debug_type_name[11] = {
 	"SOFTWARE BREAK",
 	"SOFTWARE BREAK_16",
@@ -2064,6 +2067,8 @@ int nds32_login(struct nds32 *nds32)
 	uint32_t code;
 	uint32_t i;
 
+	LOG_DEBUG("nds32_login");
+
 	if (nds32->edm_passcode != NULL) {
 		/* convert EDM passcode to command sequences */
 		passcode_length = strlen(nds32->edm_passcode);
@@ -2090,6 +2095,23 @@ int nds32_login(struct nds32 *nds32)
 		aice->port->api->read_debug_reg(NDS_EDM_SR_EDMSW, &value_edmsw);
 		nds32->privilege_level = (value_edmsw >> 16) & 0x3;
 		LOG_INFO("Current privilege level: %d", nds32->privilege_level);
+	}
+
+	if (nds32_edm_ops_num > 0) {
+		const char *reg_name;
+		for (i = 0 ; i < nds32_edm_ops_num ; i++) {
+			code = nds32_edm_ops[i].value;
+			if (nds32_edm_ops[i].reg_no == 6)
+				reg_name = "gen_port0";
+			else if (nds32_edm_ops[i].reg_no == 7)
+				reg_name = "gen_port1";
+			else
+				return ERROR_FAIL;
+
+			sprintf(command_str, "write_misc %s 0x%x;", reg_name, code);
+			if (ERROR_OK != aice->port->api->program_edm(command_str))
+				return ERROR_FAIL;
+		}
 	}
 
 	return ERROR_OK;
