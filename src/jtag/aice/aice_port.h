@@ -74,6 +74,7 @@ enum aice_api_s {
 	AICE_SET_CUSTOM_SRST_SCRIPT,
 	AICE_SET_CUSTOM_TRST_SCRIPT,
 	AICE_SET_CUSTOM_RESTART_SCRIPT,
+	AICE_SET_COUNT_TO_CHECK_DBGER,
 };
 
 enum aice_error_s {
@@ -111,6 +112,8 @@ struct aice_port_s {
 	const struct aice_port *port;
 	/** */
 	uint32_t retry_times;
+	/** */
+	uint32_t count_to_check_dbger;
 };
 
 /** */
@@ -198,6 +201,9 @@ struct aice_port_api_s {
 
 	/** */
 	int (*set_custom_restart_script)(const char *script);
+
+	/** */
+	int (*set_count_to_check_dbger)(uint32_t count_to_check);
 };
 
 #define AICE_PORT_UNKNOWN	0
