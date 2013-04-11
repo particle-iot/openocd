@@ -494,6 +494,26 @@ COMMAND_HANDLER(handle_nds32_decode_command)
 	return ERROR_OK;
 }
 
+COMMAND_HANDLER(handle_nds32_word_access_mem_command)
+{
+	struct target *target = get_current_target(CMD_CTX);
+	struct nds32 *nds32 = target_to_nds32(target);
+
+	if (!is_nds32(nds32)) {
+		command_print(CMD_CTX, "current target isn't an Andes core");
+		return ERROR_FAIL;
+	}
+
+	if (CMD_ARGC > 0) {
+		if (strcmp(CMD_ARGV[0], "on") == 0)
+			nds32->word_access_mem = true;
+		if (strcmp(CMD_ARGV[0], "off") == 0)
+			nds32->word_access_mem = false;
+	}
+
+	return ERROR_OK;
+}
+
 COMMAND_HANDLER(handle_nds32_query_target_command)
 {
 	struct target *target = get_current_target(CMD_CTX);
@@ -915,6 +935,13 @@ static const struct command_registration nds32_exec_command_handlers[] = {
 		.mode = COMMAND_EXEC,
 		.usage = "address icount",
 		.help = "decode instruction.",
+	},
+	{
+		.name = "word_access_mem",
+		.handler = handle_nds32_word_access_mem_command,
+		.mode = COMMAND_ANY,
+		.usage = "['on'|'off']",
+		.help = "Always use word-aligned address to access memory.",
 	},
 	{
 		.name = "bulk_write",
