@@ -117,6 +117,7 @@ static int aice_init(void)
 	}
 
 	aice.port->api->set_retry_times(aice.retry_times);
+	aice.port->api->set_count_to_check_dbger(aice.count_to_check_dbger);
 
 	LOG_INFO("AICE JTAG Interface ready");
 
@@ -309,6 +310,18 @@ COMMAND_HANDLER(aice_handle_aice_retry_times_command)
 	return ERROR_OK;
 }
 
+COMMAND_HANDLER(aice_handle_aice_count_to_check_dbger_command)
+{
+	LOG_DEBUG("aice_handle_aice_count_to_check_dbger_command");
+
+	if (CMD_ARGC == 1)
+		COMMAND_PARSE_NUMBER(u32, CMD_ARGV[0], aice.count_to_check_dbger);
+	else
+		LOG_ERROR("expected exactly one argument to aice count_to_check_dbger <count_of_checking>");
+
+	return ERROR_OK;
+}
+
 COMMAND_HANDLER(aice_handle_aice_custom_srst_script_command)
 {
 	LOG_DEBUG("aice_handle_aice_custom_srst_script_command");
@@ -395,6 +408,13 @@ static const struct command_registration aice_subcommand_handlers[] = {
 		.mode = COMMAND_CONFIG,
 		.help = "set retry times as AICE timeout",
 		.usage = "aice retry_times num_of_retry",
+	},
+	{
+		.name = "count_to_check_dbger",
+		.handler = &aice_handle_aice_count_to_check_dbger_command,
+		.mode = COMMAND_CONFIG,
+		.help = "set retry times as checking $DBGER status",
+		.usage = "aice count_to_check_dbger count_of_checking",
 	},
 	{
 		.name = "custom_srst_script",

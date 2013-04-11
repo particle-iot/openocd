@@ -1264,6 +1264,7 @@ static bool cache_init;
 static char *custom_srst_script;
 static char *custom_trst_script;
 static char *custom_restart_script;
+static uint32_t aice_count_to_check_dbger = 30;
 
 static int aice_read_reg(uint32_t num, uint32_t *val);
 static int aice_write_reg(uint32_t num, uint32_t val);
@@ -1299,6 +1300,35 @@ static int check_suppressed_exception(uint32_t dbger_value)
 	return ERROR_OK;
 }
 
+static int aice_check_dbger(uint32_t expect_status)
+{
+	uint32_t i = 0;
+	uint32_t value_dbger;
+
+	while (1) {
+		aice_read_misc(current_target_id, NDS_EDM_MISC_DBGER, &value_dbger);
+
+		if ((value_dbger & expect_status) == expect_status) {
+			if (ERROR_OK != check_suppressed_exception(value_dbger))
+				return ERROR_FAIL;
+			return ERROR_OK;
+		}
+
+		long long then = 0;
+		if (i == aice_count_to_check_dbger)
+			then = timeval_ms();
+		if (i >= aice_count_to_check_dbger) {
+			if ((timeval_ms() - then) > 1000) {
+				LOG_ERROR("Timeout (1000ms) waiting for $DBGER status being 0x%08x", expect_status);
+				return ERROR_FAIL;
+			}
+		}
+		i++;
+	}
+
+	return ERROR_FAIL;
+}
+
 static int aice_execute_dim(uint32_t *insts, uint8_t n_inst)
 {
 	/** fill DIM */
@@ -1314,17 +1344,10 @@ static int aice_execute_dim(uint32_t *insts, uint8_t n_inst)
 		return ERROR_FAIL;
 
 	/** read DBGER.DPED */
-	uint32_t dbger_value;
-	if (aice_read_misc(current_target_id, NDS_EDM_MISC_DBGER, &dbger_value) != ERROR_OK)
-		return ERROR_FAIL;
-
-	if ((dbger_value & NDS_DBGER_DPED) != NDS_DBGER_DPED) {
-		LOG_ERROR("DIM execution is not done");
+	if (aice_check_dbger(NDS_DBGER_DPED) != ERROR_OK) {
+		LOG_ERROR("ERROR! DIM execution is not done");
 		return ERROR_FAIL;
 	}
-
-	if (ERROR_OK != check_suppressed_exception(dbger_value))
-		return ERROR_FAIL;
 
 	return ERROR_OK;
 }
@@ -1998,23 +2021,9 @@ static int aice_usb_halt(void)
 		aice_write_misc(current_target_id, NDS_EDM_MISC_EDM_CMDR, 0);
 	}
 
-	int i = 0;
-	while (1) {
-		aice_read_misc(current_target_id, NDS_EDM_MISC_DBGER, &dbger);
-
-		if (dbger & NDS_DBGER_DEX)
-			break;
-
-		long long then = 0;
-		if (i == 30)
-			then = timeval_ms();
-		if (i >= 30) {
-			if ((timeval_ms() - then) > 1000) {
-				LOG_ERROR("Timeout (1000ms) waiting for halt to complete");
-				return ERROR_FAIL;
-			}
-		}
-		i++;
+	if (aice_check_dbger(NDS_DBGER_DEX) != ERROR_OK) {
+		LOG_ERROR("ERROR! Cannot hold core through DBGI.");
+		return ERROR_FAIL;
 	}
 
 	if (debug_under_dex_on) {
@@ -2188,11 +2197,7 @@ static int aice_issue_reset_hold(void)
 			return ERROR_FAIL;
 	}
 
-	uint32_t dbger_value;
-	if (aice_read_misc(current_target_id, NDS_EDM_MISC_DBGER, &dbger_value) != ERROR_OK)
-		return ERROR_FAIL;
-
-	if ((NDS_DBGER_CRST | NDS_DBGER_DEX) == (dbger_value & (NDS_DBGER_CRST | NDS_DBGER_DEX))) {
+	if (aice_check_dbger(NDS_DBGER_CRST | NDS_DBGER_DEX) == ERROR_OK) {
 		aice_backup_tmp_registers();
 		core_state = AICE_TARGET_HALTED;
 
@@ -2211,10 +2216,7 @@ static int aice_issue_reset_hold(void)
 				return ERROR_FAIL;
 		}
 
-		if (aice_read_misc(current_target_id, NDS_EDM_MISC_DBGER, &dbger_value) != ERROR_OK)
-			return ERROR_FAIL;
-
-		if ((NDS_DBGER_CRST | NDS_DBGER_DEX) == (dbger_value & (NDS_DBGER_CRST | NDS_DBGER_DEX))) {
+		if (aice_check_dbger(NDS_DBGER_CRST | NDS_DBGER_DEX) == ERROR_OK) {
 			aice_backup_tmp_registers();
 			core_state = AICE_TARGET_HALTED;
 
@@ -2268,7 +2270,7 @@ static int aice_usb_run(void)
 		return ERROR_FAIL;
 
 	if ((dbger_value & NDS_DBGER_DEX) != NDS_DBGER_DEX) {
-		LOG_INFO("The debug target unexpectedly exited the debug mode");
+		LOG_WARNING("WARNING! Target exited debug mode unexpectedly.");
 		return ERROR_FAIL;
 	}
 
@@ -3144,19 +3146,11 @@ static int aice_usb_execute(uint32_t *instructions, uint32_t instruction_num)
 		if (aice_execute(current_target_id) != ERROR_OK)
 			return ERROR_FAIL;
 
-		/** read DBGER.DPED */
-		uint32_t dbger_value;
-		if (aice_read_misc(current_target_id, NDS_EDM_MISC_DBGER,
-					&dbger_value) != ERROR_OK)
-			return ERROR_FAIL;
-
-		if ((dbger_value & NDS_DBGER_DPED) != NDS_DBGER_DPED) {
-			LOG_ERROR("DIM execution is not done");
+		/** check DBGER.DPED */
+		if (aice_check_dbger(NDS_DBGER_DPED) != ERROR_OK) {
+			LOG_ERROR("ERROR! DIM execution is not done.");
 			return ERROR_FAIL;
 		}
-
-		if (ERROR_OK != check_suppressed_exception(dbger_value))
-			return ERROR_FAIL;
 	}
 
 	return ERROR_OK;
@@ -3179,6 +3173,13 @@ static int aice_usb_set_custom_trst_script(const char *script)
 static int aice_usb_set_custom_restart_script(const char *script)
 {
 	custom_restart_script = strdup(script);
+
+	return ERROR_OK;
+}
+
+static int aice_usb_set_count_to_check_dbger(uint32_t count_to_check)
+{
+	aice_count_to_check_dbger = count_to_check;
 
 	return ERROR_OK;
 }
@@ -3249,4 +3250,6 @@ struct aice_port_api_s aice_usb_api = {
 	.set_custom_trst_script = aice_usb_set_custom_trst_script,
 	/** */
 	.set_custom_restart_script = aice_usb_set_custom_restart_script,
+	/** */
+	.set_count_to_check_dbger = aice_usb_set_count_to_check_dbger,
 };
