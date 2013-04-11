@@ -45,7 +45,8 @@ TARGET_CORE_SRC = \
 	target.c \
 	target_request.c \
 	testee.c \
-	smp.c
+	smp.c \
+	tdesc.c
 
 ARMV4_5_SRC = \
 	armv4_5.c \
@@ -156,6 +157,7 @@ noinst_HEADERS = \
 	target_type.h \
 	trace.h \
 	target_request.h \
+	tdesc.h \
 	trace.h \
 	xscale.h \
 	smp.h \

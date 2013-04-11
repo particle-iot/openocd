@@ -1,9 +1,6 @@
 /***************************************************************************
- *   Copyright (C) 2005 by Dominic Rath                                    *
- *   Dominic.Rath@gmx.de                                                   *
- *                                                                         *
- *   Copyright (C) 2007,2008 Øyvind Harboe                                 *
- *   oyvind.harboe@zylin.com                                               *
+ *   Copyright (C) 2012 by Franck Jullien                                  *
+ *   elec4fun@gmail.com                                                    *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -21,40 +18,24 @@
  *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
  ***************************************************************************/
 
-#ifndef REGISTER_H
-#define REGISTER_H
+#ifndef TDESC_H
+#define TDESC_H
 
-struct target;
+#include <helper/fileio.h>
+#include "register.h"
+#include "target.h"
+#include "target_type.h"
 
-struct reg {
-	const char *name;
-	const char *feature;
-	const char *group;
-	void *value;
-	bool dirty;
-	bool valid;
-	uint32_t size;
-	void *arch_info;
-	const struct reg_arch_type *type;
-};
+int generate_feature_section(struct target *target, struct fileio *fileio,
+			     const char *arch_name, const char *feature_name);
 
-struct reg_cache {
-	const char *name;
-	struct reg_cache *next;
-	struct reg *reg_list;
-	unsigned num_regs;
-};
+int get_reg_features_list(struct target *target, char **feature_list[]);
 
-struct reg_arch_type {
-	int (*get)(struct reg *reg);
-	int (*set)(struct reg *reg, uint8_t *buf);
-};
+int count_reg_without_group(struct target *target);
 
-struct reg *register_get_by_name(struct reg_cache *first,
-		const char *name, bool search_all);
-struct reg_cache **register_get_last_cache_p(struct reg_cache **first);
-void register_cache_invalidate(struct reg_cache *cache);
+int open_and_init_tdesc_file(struct fileio *fileio, const char *filename,
+			     const char *arch_name);
 
-void register_init_dummy(struct reg *reg);
+int close_tdesc_file(struct fileio *fileio);
 
-#endif /* REGISTER_H */
+#endif
