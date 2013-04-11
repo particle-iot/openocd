@@ -316,6 +316,9 @@ struct nds32 {
 	/** backup/restore target EDM_CTL value. As debugging target debug handler, it should be true. */
 	bool keep_target_edm_ctl;
 
+	/** always use word-aligned address to access memory */
+	bool word_access_mem;
+
 	/** EDM passcode for debugging secure MCU */
 	char *edm_passcode;
 
