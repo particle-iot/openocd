@@ -2294,10 +2294,15 @@ static int nds32_gdb_attach(struct nds32 *nds32)
 static int nds32_gdb_detach(struct nds32 *nds32)
 {
 	LOG_DEBUG("nds32_gdb_detach");
+	bool backup_virtual_hosting_setting;
 
 	if (gdb_attached) {
 
+		backup_virtual_hosting_setting = nds32->virtual_hosting;
+		/* turn off virtual hosting before resume as gdb-detach */
+		nds32->virtual_hosting = false;
 		target_resume(nds32->target, 1, 0, 0, 0);
+		nds32->virtual_hosting = backup_virtual_hosting_setting;
 
 		if (nds32->keep_target_edm_ctl) {
 			/* restore target EDM_CTL */
