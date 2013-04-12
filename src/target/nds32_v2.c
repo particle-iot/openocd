@@ -275,6 +275,10 @@ static int nds32_v2_restore_interrupt_stack(struct nds32_v2_common *nds32_v2)
  */
 static int nds32_v2_debug_entry(struct nds32 *nds32, bool enable_watchpoint)
 {
+	LOG_DEBUG("nds32_v2_debug_entry");
+
+	jtag_poll_set_enabled(false);
+
 	struct nds32_v2_common *nds32_v2 = target_to_nds32_v2(nds32->target);
 
 	CHECK_RETVAL(nds32_v2_deactivate_hardware_breakpoint(nds32->target));
@@ -352,6 +356,8 @@ static int nds32_v2_leave_debug_state(struct nds32 *nds32, bool enable_watchpoin
 
 	register_cache_invalidate(nds32->core_cache);
 
+	jtag_poll_set_enabled(true);
+
 	return ERROR_OK;
 }
 
@@ -389,6 +395,10 @@ static int nds32_v2_deassert_reset(struct target *target)
 		retval = target_halt(target);
 		if (retval != ERROR_OK)
 			return retval;
+		/* call target_poll() to avoid "Halt timed out" */
+		CHECK_RETVAL(target_poll(target));
+	} else {
+		jtag_poll_set_enabled(false);
 	}
 
 	return ERROR_OK;

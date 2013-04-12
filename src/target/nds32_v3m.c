@@ -209,6 +209,10 @@ static int nds32_v3m_restore_interrupt_stack(struct nds32_v3m_common *nds32_v3m)
  */
 static int nds32_v3m_debug_entry(struct nds32 *nds32, bool enable_watchpoint)
 {
+	LOG_DEBUG("nds32_v3m_debug_entry");
+
+	jtag_poll_set_enabled(false);
+
 	struct nds32_v3m_common *nds32_v3m = target_to_nds32_v3m(nds32->target);
 
 	/* deactivate all hardware breakpoints */
@@ -290,6 +294,9 @@ static int nds32_v3m_leave_debug_state(struct nds32 *nds32, bool enable_watchpoi
 
 	register_cache_invalidate(nds32->core_cache);
 
+	/* enable polling */
+	jtag_poll_set_enabled(true);
+
 	return ERROR_OK;
 }
 
@@ -312,6 +319,10 @@ static int nds32_v3m_deassert_reset(struct target *target)
 		retval = target_halt(target);
 		if (retval != ERROR_OK)
 			return retval;
+		/* call target_poll() to avoid "Halt timed out" */
+		CHECK_RETVAL(target_poll(target));
+	} else {
+		jtag_poll_set_enabled(false);
 	}
 
 	return ERROR_OK;

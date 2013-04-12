@@ -475,8 +475,12 @@ static int nds32_v3_deassert_reset(struct target *target)
 		retval = target_halt(target);
 		if (retval != ERROR_OK)
 			return retval;
+
+		/* call target_poll() to avoid "Halt timed out" */
+		CHECK_RETVAL(target_poll(target));
 	} else {
 		/* reset-halt */
+		jtag_poll_set_enabled(false);
 
 		struct nds32_v3_common *nds32_v3 = target_to_nds32_v3(target);
 		struct nds32 *nds32 = &(nds32_v3->nds32);

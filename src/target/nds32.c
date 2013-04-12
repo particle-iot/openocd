@@ -2176,6 +2176,8 @@ int nds32_assert_reset(struct target *target)
 	struct nds32 *nds32 = target_to_nds32(target);
 	struct aice_port_s *aice = target_to_aice(target);
 
+	jtag_poll_set_enabled(true);
+
 	if (target->reset_halt) {
 		if (nds32->soft_reset_halt)
 			target->type->soft_reset_halt(target);
@@ -2213,6 +2215,7 @@ static int nds32_gdb_attach(struct nds32 *nds32)
 		}
 
 		target_halt(nds32->target);
+		target_poll(nds32->target);
 
 		gdb_attached = true;
 	}
