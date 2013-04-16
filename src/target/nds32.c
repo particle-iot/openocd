@@ -854,6 +854,10 @@ int nds32_arch_state(struct target *target)
 			value_pc,
 			nds32->virtual_hosting ? ", virtual hosting" : "");
 
+	/* save pc value to pseudo register pc */
+	struct reg *reg = register_get_by_name(target->reg_cache, "pc", 1);
+	buf_set_u32(reg->value, 0, 32, value_pc);
+
 	return ERROR_OK;
 }
 
