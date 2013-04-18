@@ -1118,7 +1118,10 @@ static int gdb_get_registers_packet(struct connection *connection,
 
 	assert(reg_packet_size > 0);
 
-	reg_packet = malloc(reg_packet_size);
+	/* Allocate one more byte to avoid memory corruption in gdb_str_to_target().
+	 * gdb_str_to_target() will write null byte('\0') at the end of the output string.
+	 * So, we need to preserve one byte space for the null byte. */
+	reg_packet = malloc(reg_packet_size + 1);
 	reg_packet_p = reg_packet;
 
 	for (i = 0; i < reg_list_size; i++) {
@@ -1225,7 +1228,10 @@ static int gdb_get_register_packet(struct connection *connection,
 	if (!reg_list[reg_num]->valid)
 		reg_list[reg_num]->type->get(reg_list[reg_num]);
 
-	reg_packet = malloc(DIV_ROUND_UP(reg_list[reg_num]->size, 8) * 2);
+	/* Allocate one more byte to avoid memory corruption in gdb_str_to_target().
+	 * gdb_str_to_target() will write null byte('\0') at the end of the output string.
+	 * So, we need to preserve one byte space for the null byte. */
+	reg_packet = malloc(DIV_ROUND_UP(reg_list[reg_num]->size, 8) * 2 + 1);
 
 	gdb_str_to_target(target, reg_packet, reg_list[reg_num]);
 
