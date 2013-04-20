@@ -49,6 +49,10 @@ Add yourself to the GPL copyright for non-trivial changes.
      the string 'USERNAME' is found.
   -# Add an SSH public key following the directions on github:
      https://help.github.com/articles/generating-ssh-keys
+  -# Add this new SSH key to your Gerrit account:
+     go to 'Settings' > 'SSH Public Keys', paste the contents of
+     ~/.ssh/id_rsa.pub into the text field (if it's not visible click on
+     'Add Key ...' button) and confirm by clicking 'Add' button.
 -# Clone the git repository, rather than just download the source:
  @code
  git clone git://git.code.sf.net/p/openocd/code openocd
