@@ -323,14 +323,21 @@ RTCK support? Also known as ``adaptive clocking''
 
 @section Stand-alone JTAG Probe
 
-The ZY1000 from Ultimate Solutions is technically not a dongle but a stand-alone JTAG probe that unlike
-most dongles doesn’t require any drivers running on the developers host computer. Once installed on
-a network using DHCP or a static IP assignment, users can access the ZY1000 probe locally or remotely
-from any host with access to the IP addressed assigned to the probe. The ZY1000 provides an intuitive
-web interface with direct access to the OpenOCD debugger. Users may also run a GDBSERVER directly
-on the ZY1000 to take full advantage of GCC & GDB to debug any distribution of embedded Linux or
-netBSD running on the target. The ZY1000 supports RTCK & RCLK or adaptive clocking and has a built-in
-relay to power cycle the target remotely. For more information, visit:
+The ZY1000 from Ultimate Solutions is technically not a dongle but a
+stand-alone JTAG probe that unlikemost dongles doesn’t require any drivers
+running on the developers host computer. 
+Once installed on a network using DHCP or a static IP assignment, users can
+access the ZY1000 probe locally or remotely from any host with access to the
+IP address assigned to the probe.
+The ZY1000 provides an intuitive web interface with direct access to the
+OpenOCD debugger.
+Users may also run a GDBSERVER directly on the ZY1000 to take full advantage
+of GCC & GDB to debug any distribution of embedded Linux or NetBSD running on
+the target.
+The ZY1000 supports RTCK & RCLK or adaptive clocking and has a built-in relay
+to power cycle the target remotely.
+
+For more information, visit:
 
 @b{ZY1000} See: @url{http://www.ultsol.com/index.php/component/content/article/8/33-zylin-zy1000-jtag-probe}
 
