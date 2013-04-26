@@ -285,7 +285,7 @@ static int hl_dcc_read(
 			/* write ack back to software dcc register
 			 * to signify we have read data */
 			/*atomically clear just the byte containing the busy bit*/
-			static const uint8_t zero = 0;
+			static const uint8_t zero; /* = 0 */
 			retval = hl_if->layout->api->write_mem8(
 						hl_if->fd, DCB_DCRDR, 1, &zero);
 		}
