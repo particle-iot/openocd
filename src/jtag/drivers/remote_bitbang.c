@@ -163,7 +163,7 @@ static int remote_bitbang_init_tcp(void)
 	struct sockaddr_in addr;
 	addr.sin_family = AF_INET;
 	addr.sin_port = htons(remote_bitbang_port);
-	addr.sin_addr = *(struct in_addr *)hent->h_addr;
+	memcpy(&addr.sin_addr, hent->h_addr, sizeof(struct in_addr));
 	if (connect(fd, (struct sockaddr *)&addr, sizeof(struct sockaddr_in)) < 0) {
 		LOG_ERROR("connect: %s", strerror(errno));
 		return ERROR_FAIL;
