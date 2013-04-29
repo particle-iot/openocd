@@ -2059,8 +2059,10 @@ static int cortex_a8_read_apb_ab_memory(struct target *target,
 	}
 
 	/* Read the last word */
+	uint32_t tmp;
 	retval = mem_ap_sel_read_atomic_u32(swjdp, armv7a->debug_ap,
-				armv7a->debug_base + CPUDBG_DTRTX, (uint32_t *)&tmp_buff[(total_u32-1)<<2]);
+				armv7a->debug_base + CPUDBG_DTRTX, &tmp);
+	buf_set_u32(&tmp_buff[(total_u32-1)<<2], 0, 32, tmp);
 	if (retval != ERROR_OK)
 		goto error_free_buff_r;
 
