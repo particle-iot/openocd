@@ -603,6 +603,8 @@ int armv7m_init_arch_info(struct target *target, struct armv7m_common *armv7m)
 	arm->read_core_reg = armv7m_read_core_reg;
 	arm->write_core_reg = armv7m_write_core_reg;
 
+	jtag_set_reset_config(jtag_get_reset_config() | RESET_SRST_NO_GATING);
+
 	return arm_init_arch_info(target, arm);
 }
 
