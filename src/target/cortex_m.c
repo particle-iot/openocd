@@ -2028,6 +2028,8 @@ static int cortex_m3_init_arch_info(struct target *target,
 
 	target_register_timer_callback(cortex_m3_handle_target_request, 1, 1, target);
 
+	jtag_set_reset_config(jtag_get_reset_config() | RESET_SRST_NO_GATING);
+
 	retval = arm_jtag_setup_connection(&cortex_m3->jtag_info);
 	if (retval != ERROR_OK)
 		return retval;

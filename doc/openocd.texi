@@ -3380,7 +3380,7 @@ haven't seen hardware with such a bug, and can be worked around).
 @item
 The @var{gates} tokens control flags that describe some cases where
 JTAG may be unvailable during reset.
-@option{srst_gates_jtag} (default)
+@option{srst_gates_jtag} (default unless a Cortex-M target is present)
 indicates that asserting SRST gates the
 JTAG clock. This means that no communication can happen on JTAG
 while SRST is asserted.
