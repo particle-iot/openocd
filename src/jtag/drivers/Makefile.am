@@ -112,6 +112,10 @@ if SYSFSGPIO
 DRIVERFILES += sysfsgpio.c
 endif
 
+if OPENJTAG
+DRIVERFILES += openjtag.c
+endif
+
 noinst_HEADERS = \
 	bitbang.h \
 	bitq.h \
