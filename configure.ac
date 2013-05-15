@@ -446,6 +446,14 @@ AC_ARG_ENABLE([usbprog],
   AS_HELP_STRING([--enable-usbprog], [Enable building support for the usbprog JTAG Programmer]),
   [build_usbprog=$enableval], [build_usbprog=no])
 
+AC_ARG_ENABLE([openjtag_ftd2xx],
+  AS_HELP_STRING([--enable-openjtag_ftd2xx], [Enable building support for the OpenJTAG Programmer with ftd2xx driver]),
+  [build_openjtag_ftd2xx=$enableval], [build_openjtag_ftd2xx=no])
+
+AC_ARG_ENABLE([openjtag_ftdi],
+  AS_HELP_STRING([--enable-openjtag_ftdi], [Enable building support for the OpenJTAG Programmer with ftdi driver]),
+  [build_openjtag_ftdi=$enableval], [build_openjtag_ftdi=no])
+
 AC_ARG_ENABLE([oocd_trace],
   AS_HELP_STRING([--enable-oocd_trace],
   [Enable building support for some prototype OpenOCD+trace ETM capture hardware]),
@@ -752,6 +760,21 @@ else
   AC_DEFINE([BUILD_USBPROG], [0], [0 if you don't want the usbprog JTAG driver.])
 fi
 
+if test $build_openjtag_ftd2xx = yes -o $build_openjtag_ftdi = yes; then
+  AC_DEFINE([BUILD_OPENJTAG], [1], [1 if you want the OpenJTAG driver.])
+  if test $build_openjtag_ftd2xx = yes; then
+    AC_DEFINE([BUILD_OPENJTAG_FTD2XX], [1], [1 if you want the OpenJTAG driver with FTD2XX driver.])
+    AC_DEFINE([BUILD_OPENJTAG_LIBFTDI], [0], [0 if you don't want to build OPENJTAG with FTDI driver.])
+  else
+    AC_DEFINE([BUILD_OPENJTAG_FTD2XX], [0], [0 if you don't want the OpenJTAG driver with FTD2XX driver.])
+    AC_DEFINE([BUILD_OPENJTAG_LIBFTDI], [1], [1 if you want to build OPENJTAG with FTDI driver.])
+  fi
+else
+  AC_DEFINE([BUILD_OPENJTAG], [0], [0 if you don't want the OpenJTAG driver.])
+  AC_DEFINE([BUILD_OPENJTAG_FTD2XX], [0], [0 if you don't want the OpenJTAG driver with FTD2XX driver.])
+  AC_DEFINE([BUILD_OPENJTAG_LIBFTDI], [0], [0 if you don't want to build OPENJTAG driver with libftdi.])
+fi
+
 if test $build_oocd_trace = yes; then
   AC_DEFINE([BUILD_OOCD_TRACE], [1], [1 if you want the OpenOCD+trace ETM capture driver.])
 else
@@ -841,7 +864,7 @@ then
   AC_MSG_ERROR([The option: with_ftd2xx_linux_tardir is for LINUX only.])
 fi
 
-if test $build_ft2232_ftd2xx = yes -o $build_presto_ftd2xx = yes -o $build_usb_blaster_ftd2xx = yes ; then
+if test $build_ft2232_ftd2xx = yes -o $build_presto_ftd2xx = yes -o $build_usb_blaster_ftd2xx = yes -o $build_openjtag_ftd2xx; then
   AC_MSG_CHECKING([for ftd2xx.lib exists (win32)])
 
   # if we are given a zipdir...
@@ -904,6 +927,18 @@ if test $build_ft2232_ftd2xx = yes -o $build_presto_ftd2xx = yes -o $build_usb_b
 fi
 fi # darwin
 
+if test $build_openjtag_ftdi = yes ; then
+  AC_MSG_CHECKING([for libftdi.a])
+  if test ! -f /usr/lib/x86_64-linux-gnu/libftdi.a ; then
+    AC_MSG_ERROR([libftdi library does not exist, cannot find: /usr/lib/x86_64-linux-gnu/libftdi])
+  fi
+
+  CFLAGS="$CFLAGS -I/usr/include"
+  LDFLAGS = "$LDFLAGS -L/usr/lib/x86_64-linux-gnu/"
+  LIBS="$LIBS -lftdi"
+  AC_MSG_RESULT([-L/usr/lib/x86_64-linux-gnu/ -lftdi])
+fi
+
 if test $is_win32 = no && test $is_darwin = no ; then
 
 if test "${with_ftd2xx_win32_zipdir+set}" = set
@@ -911,7 +946,7 @@ then
    AC_MSG_ERROR([The option: --with-ftd2xx-win32-zipdir is for win32 only])
 fi
 
-if test $build_ft2232_ftd2xx = yes -o $build_presto_ftd2xx = yes -o $build_usb_blaster_ftd2xx = yes ; then
+if test $build_ft2232_ftd2xx = yes -o $build_presto_ftd2xx = yes -o $build_usb_blaster_ftd2xx = yes -o $build_openjtag_ftd2xx = yes; then
    # Must be linux
    if test $host_os != linux-gnu && test $host_os != linux ; then
       AC_MSG_ERROR([The (linux) ftd2xx library from FTDICHIP.com is linux only. Try --enable-ft2232-libftdi instead])
@@ -1139,7 +1174,8 @@ fi
 # check for usb.h when a driver will require it
 build_usb=no
 if test $build_vsllink = yes -o $build_usbprog = yes -o \
-  $build_rlink = yes -o $build_ulink = yes -o $build_armjtagew = yes
+  $build_rlink = yes -o $build_ulink = yes -o $build_armjtagew = yes \
+  -o $build_openjtag_ftd2xx = yes
 then
   build_usb=yes
 fi
@@ -1188,6 +1224,7 @@ AM_CONDITIONAL([GW16012], [test $build_gw16012 = yes])
 AM_CONDITIONAL([PRESTO_LIBFTDI], [test $build_presto_libftdi = yes])
 AM_CONDITIONAL([PRESTO_DRIVER], [test $build_presto_ftd2xx = yes -o $build_presto_libftdi = yes])
 AM_CONDITIONAL([USBPROG], [test $build_usbprog = yes])
+AM_CONDITIONAL([OPENJTAG], [test $build_openjtag_ftd2xx = yes -o $build_openjtag_ftdi = yes])
 AM_CONDITIONAL([OOCD_TRACE], [test $build_oocd_trace = yes])
 AM_CONDITIONAL([JLINK], [test $build_jlink = yes])
 AM_CONDITIONAL([VSLLINK], [test $build_vsllink = yes])
