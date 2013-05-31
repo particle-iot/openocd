@@ -69,6 +69,7 @@ COMMAND_HANDLER(handle_nds32_memory_access_command)
 	struct target *target = get_current_target(CMD_CTX);
 	struct nds32 *nds32 = target_to_nds32(target);
 	struct aice_port_s *aice = target_to_aice(target);
+	struct nds32_memory *memory = &(nds32->memory);
 
 	if (!is_nds32(nds32)) {
 		command_print(CMD_CTX, "current target isn't an Andes core");
@@ -76,32 +77,21 @@ COMMAND_HANDLER(handle_nds32_memory_access_command)
 	}
 
 	if (CMD_ARGC > 0) {
+		if (strcmp(CMD_ARGV[0], "bus") == 0)
+			memory->access_channel = NDS_MEMORY_ACC_BUS;
+		else if (strcmp(CMD_ARGV[0], "cpu") == 0)
+			memory->access_channel = NDS_MEMORY_ACC_CPU;
+		else /* default access channel is NDS_MEMORY_ACC_CPU */
+			memory->access_channel = NDS_MEMORY_ACC_CPU;
 
-		/* If target has no cache, always use BUS mode
-		 * to access memory. */
-		struct nds32_memory *memory = &(nds32->memory);
+		LOG_DEBUG("memory access channel is changed to %s",
+				NDS_MEMORY_ACCESS_NAME[memory->access_channel]);
 
-		if (memory->dcache.line_size == 0) {
-			/* There is no Dcache. */
-			nds32->memory.access_channel = NDS_MEMORY_ACC_BUS;
-		} else if (memory->dcache.enable == false) {
-			/* Dcache is disabled. */
-			nds32->memory.access_channel = NDS_MEMORY_ACC_BUS;
-		} else {
-			/* There is Dcache and Dcache is enabled. */
-			if (strcmp(CMD_ARGV[0], "bus") == 0)
-				nds32->memory.access_channel = NDS_MEMORY_ACC_BUS;
-			else if (strcmp(CMD_ARGV[0], "cpu") == 0)
-				nds32->memory.access_channel = NDS_MEMORY_ACC_CPU;
-			else /* default access channel is NDS_MEMORY_ACC_CPU */
-				nds32->memory.access_channel = NDS_MEMORY_ACC_CPU;
-		}
-
-		aice_memory_access(aice, nds32->memory.access_channel);
+		aice_memory_access(aice, memory->access_channel);
+	} else {
+		command_print(CMD_CTX, "memory access channel: %s",
+				NDS_MEMORY_ACCESS_NAME[memory->access_channel]);
 	}
-
-	command_print(CMD_CTX, "memory access channel: %s",
-			NDS_MEMORY_ACCESS_NAME[nds32->memory.access_channel]);
 
 	return ERROR_OK;
 }
@@ -617,14 +607,17 @@ COMMAND_HANDLER(handle_nds32_dma_memory)
 {
 	struct target *target = get_current_target(CMD_CTX);
 	struct nds32 *nds32 = target_to_nds32(target);
+	struct aice_port_s *aice = target_to_aice(target);
 	char target_command[128];
 	enum nds_memory_access origin_mem_access;
+	struct nds32_memory *memory = &(nds32->memory);
 
 	/* backup origin mem_access value */
-	origin_mem_access = nds32->memory.access_channel;
+	origin_mem_access = memory->access_channel;
 
 	/* switch to BUS mode, always use BUS mode to display memory */
-	command_run_line(CMD_CTX, "nds mem_access bus");
+	memory->access_channel = NDS_MEMORY_ACC_BUS;
+	aice_memory_access(aice, memory->access_channel);
 
 	sprintf(target_command, "%s ", CMD_NAME);
 	for (uint32_t i = 0; i < CMD_ARGC; i++) {
@@ -636,10 +629,10 @@ COMMAND_HANDLER(handle_nds32_dma_memory)
 	int retval = command_run_line(CMD_CTX, target_command);
 
 	/* restore origin mem_access_value */
-	if (NDS_MEMORY_ACC_BUS == origin_mem_access)
-		command_run_line(CMD_CTX, "nds mem_access bus");
-	else if (NDS_MEMORY_ACC_CPU == origin_mem_access)
-		command_run_line(CMD_CTX, "nds mem_access cpu");
+	if (NDS_MEMORY_ACC_CPU == origin_mem_access) {
+		memory->access_channel = NDS_MEMORY_ACC_CPU;
+		aice_memory_access(aice, memory->access_channel);
+	}
 
 	return retval;
 }
