@@ -26,7 +26,7 @@
 #include "libusb1_common.h"
 
 static struct libusb_context *jtag_libusb_context; /**< Libusb context **/
-static libusb_device **devs; /**< The usb device list **/
+static jtag_libusb_device **devs; /**< The usb device list **/
 
 static bool jtag_libusb_match(struct jtag_libusb_device *dev,
 		const uint16_t vids[], const uint16_t pids[])
