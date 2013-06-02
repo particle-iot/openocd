@@ -327,19 +327,22 @@ int rtos_thread_packet(struct connection *connection, char *packet, int packet_s
 		return ERROR_OK;
 	} else if (strncmp(packet, "qfThreadInfo", 12) == 0) {
 		int i;
-		if ((target->rtos != NULL) && (target->rtos->thread_count != 0)) {
-
-			char *out_str = (char *) malloc(17 * target->rtos->thread_count + 5);
-			char *tmp_str = out_str;
-			tmp_str += sprintf(tmp_str, "m");
-			for (i = 0; i < target->rtos->thread_count; i++) {
-				if (i != 0)
-					tmp_str += sprintf(tmp_str, ",");
-				tmp_str += sprintf(tmp_str, "%016" PRIx64,
-						target->rtos->thread_details[i].threadid);
+		if (target->rtos != NULL) {
+			if (target->rtos->thread_count == 0) {
+				gdb_put_packet(connection, "l", 1);
+			} else{
+				char *out_str = (char *) malloc(17 * target->rtos->thread_count + 5);
+				char *tmp_str = out_str;
+				tmp_str += sprintf(tmp_str, "m");
+				for (i = 0; i < target->rtos->thread_count; i++) {
+					if (i != 0)
+						tmp_str += sprintf(tmp_str, ",");
+					tmp_str += sprintf(tmp_str, "%016" PRIx64,
+							target->rtos->thread_details[i].threadid);
+				}
+				tmp_str[0] = 0;
+				gdb_put_packet(connection, out_str, strlen(out_str));
 			}
-			tmp_str[0] = 0;
-			gdb_put_packet(connection, out_str, strlen(out_str));
 		} else
 			gdb_put_packet(connection, "", 0);
 
