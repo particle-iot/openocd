@@ -358,8 +358,12 @@ static int stlink_usb_error_check(void *handle)
 	h = (struct stlink_usb_handle_s *)handle;
 
 	/* TODO: no error checking yet on api V1 */
-	if (h->jtag_api == STLINK_JTAG_API_V1)
-		h->databuf[0] = STLINK_DEBUG_ERR_OK;
+	switch (h->jtag_api) {
+		case STLINK_JTAG_API_V1:
+		case STLINK_JTAG_API_V2:
+			h->databuf[0] = STLINK_DEBUG_ERR_OK;
+			break;
+	}
 
 	switch (h->databuf[0]) {
 		case STLINK_DEBUG_ERR_OK:
