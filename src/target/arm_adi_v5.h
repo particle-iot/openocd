@@ -119,6 +119,7 @@
 #define CSW_SPROT (1 << 30)
 #define CSW_DBGSWENABLE		(1 << 31)
 
+
 /**
  * This represents an ARM Debug Interface (v5) Debug Access Port (DAP).
  * A DAP has two types of component:  one Debug Port (DP), which is a
