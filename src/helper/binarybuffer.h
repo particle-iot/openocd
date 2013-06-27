@@ -33,6 +33,63 @@
 /**
  * Sets @c num bits in @c _buffer, starting at the @c first bit,
  * using the bits in @c value.  This routine fast-paths writes
+ * of little-endian, byte-aligned, 64-bit words.
+ * @param _buffer The buffer whose bits will be set.
+ * @param first The bit offset in @c _buffer to start writing (0-63).
+ * @param num The number of bits from @c value to copy (1-64).
+ * @param value Up to 64 bits that will be copied to _buffer.
+ */
+static inline void buf_set_u64(void *_buffer,
+	unsigned first, unsigned num, uint64_t value)
+{
+	unsigned int i;
+	uint8_t *buffer = (uint8_t *)_buffer;
+
+	if ((num == 32) && ((first % 8) == 0)) {
+		*(uint32_t *)(buffer + (first / 8)) = value;
+	} else if ((num == 64) && ((first % 8) == 0)) {
+		*(uint64_t *)(buffer + (first / 8)) = value;
+	} else {
+		for (i = first; i < first + num; i++) {
+			if (((value >> (i - first)) & 1) == 1)
+				buffer[i / 8] |= 1 << (i % 8);
+			else
+				buffer[i / 8] &= ~(1 << (i % 8));
+		}
+	}
+}
+/**
+ * Retrieves @c num bits from @c _buffer, starting at the @c first bit,
+ * returning the bits in a 64-bit word.  This routine fast-paths reads
+ * of little-endian, byte-aligned, 64-bit words.
+ * @param _buffer The buffer whose bits will be read.
+ * @param first The bit offset in @c _buffer to start reading (0-63).
+ * @param num The number of bits from @c _buffer to read (1-64).
+ * @returns Up to 64-bits that were read from @c _buffer.
+ */
+static inline uint64_t buf_get_u64(const void *_buffer,
+	unsigned first, unsigned num)
+{
+	unsigned int i;
+	uint8_t *buffer = (uint8_t *)_buffer;
+
+	if ((num == 32) && ((first % 8) == 0)) {
+		return *(uint32_t *)(buffer + (first / 8));
+	} else if ((num == 64) && ((first % 8) == 0)) {
+		return *(uint64_t *)(buffer + (first / 8));
+	} else {
+		uint64_t result = 0;
+		for (i = first; i < first + num; i++) {
+			if (((buffer[i / 8] >> (i % 8)) & 1) == 1)
+				result |= 1ULL << (i - first);
+		}
+		return result;
+	}
+}
+
+/**
+ * Sets @c num bits in @c _buffer, starting at the @c first bit,
+ * using the bits in @c value.  This routine fast-paths writes
  * of little-endian, byte-aligned, 32-bit words.
  * @param _buffer The buffer whose bits will be set.
  * @param first The bit offset in @c _buffer to start writing (0-31).

@@ -1406,6 +1406,7 @@ DEFINE_PARSE_NUM_TYPE(_llong, long long, strtoll, LLONG_MIN, LLONG_MAX)
 
 #define DEFINE_PARSE_ULONG(name, type, min, max) \
 	DEFINE_PARSE_WRAPPER(name, type, min, max, unsigned long, _ulong)
+DEFINE_PARSE_ULONG(_u64, uint64_t, 0, LONG_MAX)
 DEFINE_PARSE_ULONG(_uint, unsigned, 0, UINT_MAX)
 DEFINE_PARSE_ULONG(_u32, uint32_t, 0, UINT32_MAX)
 DEFINE_PARSE_ULONG(_u16, uint16_t, 0, UINT16_MAX)
@@ -1413,6 +1414,7 @@ DEFINE_PARSE_ULONG(_u8, uint8_t, 0, UINT8_MAX)
 
 #define DEFINE_PARSE_LONG(name, type, min, max)	\
 	DEFINE_PARSE_WRAPPER(name, type, min, max, long, _long)
+DEFINE_PARSE_LONG(_s64, int64_t, n < LONG_MIN, LONG_MAX)
 DEFINE_PARSE_LONG(_int, int, n < INT_MIN, INT_MAX)
 DEFINE_PARSE_LONG(_s32, int32_t, n < INT32_MIN, INT32_MAX)
 DEFINE_PARSE_LONG(_s16, int16_t, n < INT16_MIN, INT16_MAX)
