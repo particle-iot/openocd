@@ -83,6 +83,7 @@ extern struct target_type cortexa8_target;
 extern struct target_type cortexr4_target;
 extern struct target_type arm11_target;
 extern struct target_type mips_m4k_target;
+extern struct target_type mips_5kc_target;
 extern struct target_type avr_target;
 extern struct target_type dsp563xx_target;
 extern struct target_type dsp5680xx_target;
@@ -110,6 +111,7 @@ static struct target_type *target_types[] = {
 	&cortexr4_target,
 	&arm11_target,
 	&mips_m4k_target,
+	&mips_5kc_target,
 	&avr_target,
 	&dsp563xx_target,
 	&dsp5680xx_target,
