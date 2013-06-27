@@ -1191,7 +1191,7 @@ fi
 # check if some driver requires libusb-1.x
 need_usb_ng=no
 if test $build_ftdi = yes -o $build_hladapter_icdi = yes -o \
-        $build_hladapter_stlink = yes; then
+        $build_hladapter_stlink = yes -o $build_ulink = yes; then
   need_usb_ng=yes
 fi
 
