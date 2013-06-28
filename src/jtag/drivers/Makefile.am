@@ -6,6 +6,8 @@ libocdjtagdrivers_la_LIBADD =
 libocdjtagdrivers_la_SOURCES = \
 	$(DRIVERFILES)
 
+libocdjtagdrivers_la_CPPFLAGS = $(AM_CPPFLAGS) $(LIBUSB1_CFLAGS) $(LIBUSB0_CFLAGS)
+
 ocddatadir = $(pkglibdir)
 nobase_dist_ocddata_DATA =
 

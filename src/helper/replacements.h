@@ -283,4 +283,10 @@ typedef struct {
 const char *libusb_error_name(int error_code);
 #endif /* defined HAVE_LIBUSB1 && !defined HAVE_LIBUSB_ERROR_NAME */
 
+#if !defined HAVE_LIBUSB_1_0_LIBUSB_H
+#define LIBUSB_HEADER <libusb.h>
+#else
+#define LIBUSB_HEADER <libusb-1.0/libusb.h>
+#endif /* !defined HAVE_LIBUSB_1_0_LIBUSB_H */
+
 #endif	/* REPLACEMENTS_H */
