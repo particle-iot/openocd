@@ -1198,10 +1198,12 @@ fi
 # check for libusb library if necessary
 use_libusb1=no
 if test $need_usb = yes -o $need_usb_ng = yes; then
-  AC_CHECK_HEADER([libusb-1.0/libusb.h], [
-	AC_DEFINE([HAVE_LIBUSB1], [1], [Define if you have libusb-1.x])
+  PKG_PROG_PKG_CONFIG([0.24])
+  PKG_CHECK_MODULES([LIBUSB1], [libusb-1.0], [
 	use_libusb1=yes
-	AC_SEARCH_LIBS([libusb_error_name], [usb-1.0],
+	AC_DEFINE([HAVE_LIBUSB1], [1], [Define if you have libusb-1.x])
+	LIBS="$LIBUSB1_LIBS $LIBS"
+	AC_SEARCH_LIBS([libusb_error_name], [],
 		[AC_DEFINE([HAVE_LIBUSB_ERROR_NAME], [1], [Define if your libusb has libusb_error_name()])],
 		[AC_MSG_WARN([libusb-1.x older than 1.0.9 detected, consider updating])])
   ], [
@@ -1216,11 +1218,10 @@ fi
 
 use_libusb0=no
 if test $need_usb0 = yes; then
-	AC_CHECK_HEADERS([usb.h], [
-			use_libusb0=yes
-		], [
-			AC_MSG_ERROR([libusb-0.1 is required to build some OpenOCD driver(s)])
-		])
+	PKG_PROG_PKG_CONFIG([0.24])
+	PKG_CHECK_MODULES([LIBUSB0], [libusb], [use_libusb0=yes], [
+		AC_MSG_ERROR([libusb-0.1 is required to build some OpenOCD driver(s)])
+	])
 fi
 
 AM_CONDITIONAL([RELEASE], [test $build_release = yes])
