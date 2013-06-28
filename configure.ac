@@ -1195,32 +1195,57 @@ if test $build_ftdi = yes -o $build_hladapter_icdi = yes -o \
   need_usb_ng=yes
 fi
 
+m4_ifdef([PKG_PROG_PKG_CONFIG], [
+  PKG_PROG_PKG_CONFIG
+  # refuse to use non-prefixed tool for cross-compilation
+  case "$PKG_CONFIG" in ${ac_tool_prefix}* ) false ;; esac &&
+	unset PKG_CONFIG
+])
+
 # check for libusb library if necessary
 use_libusb1=no
 if test $need_usb = yes -o $need_usb_ng = yes; then
-  AC_CHECK_HEADER([libusb-1.0/libusb.h], [
+  m4_ifdef([PKG_CHECK_MODULES],
+	[PKG_CHECK_MODULES([LIBUSB1], [libusb-1.0], [use_libusb1=yes], [ ])])
+
+  if test x$use_libusb1 != xyes; then
+	AC_CHECK_HEADERS([libusb-1.0/libusb.h libusb.h],
+		[use_libusb1=yes; LIBUSB1_LIBS=-lusb-1.0; break])
+  fi
+
+  if test x$use_libusb1 = xyes; then
 	AC_DEFINE([HAVE_LIBUSB1], [1], [Define if you have libusb-1.x])
-	use_libusb1=yes
-	AC_SEARCH_LIBS([libusb_error_name], [usb-1.0],
+	AC_SUBST([LIBUSB1_CFLAGS])
+	AC_SUBST([LIBUSB1_LIBS])
+	LIBS="$LIBUSB1_LIBS $LIBS"
+	AC_SEARCH_LIBS([libusb_error_name], [],
 		[AC_DEFINE([HAVE_LIBUSB_ERROR_NAME], [1], [Define if your libusb has libusb_error_name()])],
 		[AC_MSG_WARN([libusb-1.x older than 1.0.9 detected, consider updating])])
-  ], [
+  else
 	if test $need_usb_ng = yes; then
 	  AC_MSG_ERROR([libusb-1.x is required for some driver(s) you've selected])
 	else
 	  AC_MSG_WARN([Trying legacy libusb-0.1 as a fallback, consider installing libusb-1 instead])
 	  need_usb0=yes
 	fi
-  ])
+  fi
 fi
 
 use_libusb0=no
 if test $need_usb0 = yes; then
-	AC_CHECK_HEADERS([usb.h], [
-			use_libusb0=yes
-		], [
-			AC_MSG_ERROR([libusb-0.1 is required to build some OpenOCD driver(s)])
-		])
+  m4_ifdef([PKG_CHECK_MODULES],
+	[PKG_CHECK_MODULES([LIBUSB0], [libusb], [use_libusb0=yes], [ ])])
+
+  if test x$use_libusb0 != xyes; then
+	AC_CHECK_HEADERS([usb.h], [use_libusb0=yes; LIBUSB0_LIBS=-lusb])
+  fi
+
+  if test x$use_libusb0 != xyes; then
+	AC_MSG_ERROR([libusb-0.1 is required to build some OpenOCD driver(s)])
+  fi
+
+  AC_SUBST([LIBUSB0_CFLAGS])
+  AC_SUBST([LIBUSB0_LIBS])
 fi
 
 AM_CONDITIONAL([RELEASE], [test $build_release = yes])
