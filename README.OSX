@@ -7,9 +7,10 @@ There are a few prerequisites you will need first:
 - Command Line Tools (install from Xcode 4 -> Preferences -> Downloads)
 - MacPorts (http://www.macports.org/install.php)
 
-libtool, automake, autoconf and libusb can be easily installed via
-MacPorts:
-  sudo port install libtool automake autoconf libusb
+libtool, automake, autoconf, pkg-config and libusb can be easily
+installed via MacPorts:
+
+  sudo port install libtool automake autoconf libusb pkgconfig
 
 You should also specify LDFLAGS and CPPFLAGS to allow configure to use
 MacPorts' libraries, so run configure like this:
