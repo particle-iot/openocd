@@ -352,11 +352,13 @@ int parse_llong(const char *str, long long *ul);
 #define DECLARE_PARSE_WRAPPER(name, type) \
 		int parse ## name(const char *str, type * ul)
 
+DECLARE_PARSE_WRAPPER(_u64, uint64_t);
 DECLARE_PARSE_WRAPPER(_uint, unsigned);
 DECLARE_PARSE_WRAPPER(_u32, uint32_t);
 DECLARE_PARSE_WRAPPER(_u16, uint16_t);
 DECLARE_PARSE_WRAPPER(_u8, uint8_t);
 
+DECLARE_PARSE_WRAPPER(_s64, int64_t);
 DECLARE_PARSE_WRAPPER(_int, int);
 DECLARE_PARSE_WRAPPER(_s32, int32_t);
 DECLARE_PARSE_WRAPPER(_s16, int16_t);
@@ -382,6 +384,12 @@ DECLARE_PARSE_WRAPPER(_s8, int8_t);
 			return retval_macro_tmp; \
 		} \
 	} while (0)
+
+#if BUILD_TARGET64 == 1
+#define COMMAND_PARSE_TYPE_NUMBER(in, out) COMMAND_PARSE_NUMBER(u64, in, out)
+#else
+#define COMMAND_PARSE_TYPE_NUMBER(in, out) COMMAND_PARSE_NUMBER(u32, in, out)
+#endif
 
 /**
  * Parse the string @c as a binary parameter, storing the boolean value

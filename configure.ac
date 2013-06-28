@@ -520,6 +520,10 @@ AC_ARG_ENABLE([aice],
   AS_HELP_STRING([--enable-aice], [Enable building support for the Andes JTAG Programmer]),
   [build_aice=$enableval], [build_aice=no])
 
+AC_ARG_ENABLE([target64],
+  AS_HELP_STRING([--enable-target64], [Enable building support 64 bit address]),
+    [build_target64=$enableval], [build_target64=no])
+
 build_minidriver=no
 AC_MSG_CHECKING([whether to enable ZY1000 minidriver])
 if test $build_zy1000 = yes; then
@@ -799,6 +803,12 @@ if test $build_aice = yes; then
   AC_DEFINE([BUILD_AICE], [1], [1 if you want the AICE JTAG driver.])
 else
   AC_DEFINE([BUILD_AICE], [0], [0 if you don't want the AICE JTAG driver.])
+fi
+
+if test $build_target64 = yes; then
+  AC_DEFINE([BUILD_TARGET64], [1], [1 if you want target64 support.])
+else
+  AC_DEFINE([BUILD_TARGET64], [0], [0 if you don't want target64 support.])
 fi
 
 if test $build_vsllink = yes; then
@@ -1249,6 +1259,7 @@ AM_CONDITIONAL([OPENJTAG], [test $build_openjtag_ftd2xx = yes -o $build_openjtag
 AM_CONDITIONAL([OOCD_TRACE], [test $build_oocd_trace = yes])
 AM_CONDITIONAL([JLINK], [test $build_jlink = yes])
 AM_CONDITIONAL([AICE], [test $build_aice = yes])
+AM_CONDITIONAL([TARGET64], [test $build_target64 = yes])
 AM_CONDITIONAL([VSLLINK], [test $build_vsllink = yes])
 AM_CONDITIONAL([RLINK], [test $build_rlink = yes])
 AM_CONDITIONAL([ULINK], [test $build_ulink = yes])
