@@ -31,6 +31,7 @@ libtarget_la_SOURCES = \
 	$(ARM_MISC_SRC) \
 	$(AVR32_SRC) \
 	$(MIPS32_SRC) \
+	$(MIPS_COMMON_SRC) \
 	$(NDS32_SRC) \
 	avrt.c \
 	dsp563xx.c \
@@ -101,12 +102,17 @@ AVR32_SRC = \
 	avr32_mem.c \
 	avr32_regs.c
 
+MIPS_COMMON_SRC = \
+	mips_ejtag.c
+
 MIPS32_SRC = \
 	mips32.c \
 	mips_m4k.c \
 	mips32_pracc.c \
-	mips32_dmaacc.c \
-	mips_ejtag.c
+	mips32_dmaacc.c
+
+MIPS64_SRC = \
+	mips64.c
 
 NDS32_SRC = \
 	nds32.c \
@@ -163,6 +169,7 @@ noinst_HEADERS = \
 	mips_ejtag.h \
 	mips32_pracc.h \
 	mips32_dmaacc.h \
+	mips64.h \
 	oocd_trace.h \
 	register.h \
 	target.h \
