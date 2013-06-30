@@ -321,7 +321,7 @@ static int avr32_ap7k_soft_reset_halt(struct target *target)
 }
 
 static int avr32_ap7k_resume(struct target *target, int current,
-	uint32_t address, int handle_breakpoints, int debug_execution)
+	target_ulong address, int handle_breakpoints, int debug_execution)
 {
 	struct avr32_ap7k_common *ap7k = target_to_ap7k(target);
 	struct breakpoint *breakpoint = NULL;
@@ -357,7 +357,7 @@ static int avr32_ap7k_resume(struct target *target, int current,
 		/* Single step past breakpoint at current address */
 		breakpoint = breakpoint_find(target, resume_pc);
 		if (breakpoint) {
-			LOG_DEBUG("unset breakpoint at 0x%8.8" PRIx32 "", breakpoint->address);
+			LOG_DEBUG("unset breakpoint at 0x%" PRIXX "", breakpoint->address);
 #if 0
 			avr32_ap7k_unset_breakpoint(target, breakpoint);
 			avr32_ap7k_single_step_core(target);
@@ -403,7 +403,7 @@ static int avr32_ap7k_resume(struct target *target, int current,
 }
 
 static int avr32_ap7k_step(struct target *target, int current,
-	uint32_t address, int handle_breakpoints)
+	target_ulong address, int handle_breakpoints)
 {
 	LOG_ERROR("%s: implement me", __func__);
 
@@ -440,12 +440,12 @@ static int avr32_ap7k_remove_watchpoint(struct target *target,
 	return ERROR_OK;
 }
 
-static int avr32_ap7k_read_memory(struct target *target, uint32_t address,
+static int avr32_ap7k_read_memory(struct target *target, target_ulong address,
 	uint32_t size, uint32_t count, uint8_t *buffer)
 {
 	struct avr32_ap7k_common *ap7k = target_to_ap7k(target);
 
-	LOG_DEBUG("address: 0x%8.8" PRIx32 ", size: 0x%8.8" PRIx32 ", count: 0x%8.8" PRIx32 "",
+	LOG_DEBUG("address: 0x%" PRIXX ", size: 0x%8.8" PRIx32 ", count: 0x%8.8" PRIx32 "",
 		address,
 		size,
 		count);
@@ -481,12 +481,12 @@ static int avr32_ap7k_read_memory(struct target *target, uint32_t address,
 	return ERROR_OK;
 }
 
-static int avr32_ap7k_write_memory(struct target *target, uint32_t address,
+static int avr32_ap7k_write_memory(struct target *target, target_ulong address,
 	uint32_t size, uint32_t count, const uint8_t *buffer)
 {
 	struct avr32_ap7k_common *ap7k = target_to_ap7k(target);
 
-	LOG_DEBUG("address: 0x%8.8" PRIx32 ", size: 0x%8.8" PRIx32 ", count: 0x%8.8" PRIx32 "",
+	LOG_DEBUG("address: 0x%" PRIXX ", size: 0x%8.8" PRIx32 ", count: 0x%8.8" PRIx32 "",
 		address,
 		size,
 		count);

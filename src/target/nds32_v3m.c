@@ -52,7 +52,7 @@ static int nds32_v3m_activate_hardware_breakpoint(struct target *target)
 				/* enable breakpoint (physical address) */
 				aice_write_debug_reg(aice, NDS_EDM_SR_BPC0 + brp_num, 0xA);
 
-			LOG_DEBUG("Add hardware BP %d at %08" PRIx32, brp_num,
+			LOG_DEBUG("Add hardware BP %d at %" PRIXX, brp_num,
 					bp->address);
 
 			brp_num--;
@@ -80,7 +80,7 @@ static int nds32_v3m_deactivate_hardware_breakpoint(struct target *target)
 		else
 			return ERROR_FAIL;
 
-		LOG_DEBUG("Remove hardware BP %d at %08" PRIx32, brp_num,
+		LOG_DEBUG("Remove hardware BP %d at %" PRIXX, brp_num,
 				bp->address);
 
 		brp_num--;
@@ -127,7 +127,7 @@ static int nds32_v3m_activate_hardware_watchpoint(struct target *target)
 			/* enable watchpoint */
 			aice_write_debug_reg(aice, NDS_EDM_SR_BPC0 + wp_num, wp_config);
 
-			LOG_DEBUG("Add hardware wathcpoint %d at %08" PRIx32
+			LOG_DEBUG("Add hardware wathcpoint %d at %" PRIXX
 					" mask %08" PRIx32, wp_num,
 					wp->address, wp->mask);
 
@@ -169,7 +169,7 @@ static int nds32_v3m_deactivate_hardware_watchpoint(struct target *target)
 			/* disable watchpoint */
 			aice_write_debug_reg(aice, NDS_EDM_SR_BPC0 + wp_num, 0x0);
 
-			LOG_DEBUG("Remove hardware wathcpoint %d at %08" PRIx32
+			LOG_DEBUG("Remove hardware wathcpoint %d at %" PRIXX
 					" mask %08" PRIx32, wp_num,
 					wp->address, wp->mask);
 			wp_num++;

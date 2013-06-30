@@ -229,7 +229,7 @@ struct reg_cache *mips32_build_reg_cache(struct target *target);
 int mips32_run_algorithm(struct target *target,
 		int num_mem_params, struct mem_param *mem_params,
 		int num_reg_params, struct reg_param *reg_params,
-		uint32_t entry_point, uint32_t exit_point,
+		target_ulong entry_point, target_ulong exit_point,
 		int timeout_ms, void *arch_info);
 
 int mips32_configure_break_unit(struct target *target);
@@ -242,9 +242,9 @@ int mips32_register_commands(struct command_context *cmd_ctx);
 
 int mips32_get_gdb_reg_list(struct target *target,
 		struct reg **reg_list[], int *reg_list_size);
-int mips32_checksum_memory(struct target *target, uint32_t address,
+int mips32_checksum_memory(struct target *target, target_ulong address,
 		uint32_t count, uint32_t *checksum);
 int mips32_blank_check_memory(struct target *target,
-		uint32_t address, uint32_t count, uint32_t *blank);
+		target_ulong address, uint32_t count, uint32_t *blank);
 
 #endif	/*MIPS32_H*/
