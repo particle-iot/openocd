@@ -15,7 +15,7 @@
  *   You should have received a copy of the GNU General Public License     *
  *   along with this program; if not, write to the                         *
  *   Free Software Foundation, Inc.,                                       *
- *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.           *
+ *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
  ***************************************************************************/
 
 #ifdef HAVE_CONFIG_H
@@ -60,6 +60,7 @@ static inline int dsp563xx_write_dr_u8(struct jtag_tap *tap, uint8_t * dr_in, ui
 {
 	return dsp563xx_write_dr(tap, dr_in, &dr_out, dr_len, rti);
 }
+
 
 /** */
 static inline int dsp563xx_write_dr_u32(struct jtag_tap *tap, uint32_t * dr_in, uint32_t dr_out, int dr_len, int rti)
@@ -179,6 +180,8 @@ int dsp563xx_once_request_debug(struct jtag_tap *tap, int reset_state)
 	return ERROR_OK;
 }
 
+
+
 /** once read registers */
 int dsp563xx_once_read_register(struct jtag_tap *tap, int flush, struct once_reg *regs, int len)
 {
@@ -196,6 +199,8 @@ int dsp563xx_once_read_register(struct jtag_tap *tap, int flush, struct once_reg
 	return err;
 }
 
+
+
 /** once read register with register len */
 int dsp563xx_once_reg_read_ex(struct jtag_tap *tap, int flush, uint8_t reg, uint8_t len, uint32_t * data)
 {
@@ -209,6 +214,7 @@ int dsp563xx_once_reg_read_ex(struct jtag_tap *tap, int flush, uint8_t reg, uint
 		return err;
 	if (flush)
 		err = jtag_execute_queue();
+
 	return err;
 }
 
@@ -225,6 +231,7 @@ int dsp563xx_once_reg_read(struct jtag_tap *tap, int flush, uint8_t reg, uint32_
 		return err;
 	if (flush)
 		err = jtag_execute_queue();
+
 	return err;
 }
 
