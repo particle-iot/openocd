@@ -939,8 +939,8 @@ static int dsp563xx_examine(struct target *target)
 
 		LOG_INFO("DSP56%03d device found", chip);
 
-		//Clear all breakpoints
-    dsp563xx_once_reg_write(target->tap, 1, DSP563XX_ONCE_OBCR, 0);
+		/* Clear all breakpoints */
+    	dsp563xx_once_reg_write(target->tap, 1, DSP563XX_ONCE_OBCR, 0);
 	}
 
 	return ERROR_OK;
