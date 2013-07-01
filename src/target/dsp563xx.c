@@ -315,10 +315,10 @@ enum memory_type {
 };
 
 enum watchpoint_condition {
-  EQUAL,
-  NOT_EQUAL,
-  GREATER,
-  LESS_THAN
+	EQUAL,
+	NOT_EQUAL,
+	GREATER,
+	LESS_THAN
 };
 
 #define INSTR_JUMP      0x0AF080
@@ -913,8 +913,8 @@ static int dsp563xx_init_target(struct command_context *cmd_ctx, struct target *
 	dsp563xx_build_reg_cache(target);
 	struct dsp563xx_common *dsp563xx = target_to_dsp563xx(target);
 
-  dsp563xx->hardware_breakpoints_cleared = 0;
-  dsp563xx->hardware_breakpoint[0].used = BPU_NONE;
+	dsp563xx->hardware_breakpoints_cleared = 0;
+	dsp563xx->hardware_breakpoint[0].used = BPU_NONE;
 
 	return ERROR_OK;
 }
@@ -939,7 +939,7 @@ static int dsp563xx_examine(struct target *target)
 
 		LOG_INFO("DSP56%03d device found", chip);
 
-    //Clear all breakpoints
+		//Clear all breakpoints
     dsp563xx_once_reg_write(target->tap, 1, DSP563XX_ONCE_OBCR, 0);
 	}
 
@@ -2310,21 +2310,21 @@ static const struct command_registration dsp563xx_command_handlers[] = {
 		.usage = "(>|<|=|!) (r|w|a) address",
 	},
 	{
-		.name = "wpx", 
+		.name = "wpx",
 		.handler = dsp563xx_add_watchpoint_command,
 		.mode = COMMAND_EXEC,
 		.help = "Create x memspace watchpoint",
 		.usage = "(>|<|=|!) (r|w|a) address",
 	},
 	{
-		.name = "wpy", 
+		.name = "wpy",
 		.handler = dsp563xx_add_watchpoint_command,
 		.mode = COMMAND_EXEC,
 		.help = "Create y memspace watchpoint",
 		.usage = "(>|<|=|!) (r|w|a) address",
 	},
 	{
-		.name = "rwpc", 
+		.name = "rwpc",
 		.handler = dsp563xx_remove_watchpoint_command,
 		.mode = COMMAND_EXEC,
 		.help = "remove watchpoint custom",
