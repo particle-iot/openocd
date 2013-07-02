@@ -613,6 +613,37 @@ COMMAND_HANDLER(handle_nds32_word_access_mem_command)
 	return ERROR_OK;
 }
 
+COMMAND_HANDLER(handle_nds32_dma_memory)
+{
+	struct target *target = get_current_target(CMD_CTX);
+	struct nds32 *nds32 = target_to_nds32(target);
+	char target_command[128];
+	enum nds_memory_access origin_mem_access;
+
+	/* backup origin mem_access value */
+	origin_mem_access = nds32->memory.access_channel;
+
+	/* switch to BUS mode, always use BUS mode to display memory */
+	command_run_line(CMD_CTX, "nds mem_access bus");
+
+	sprintf(target_command, "%s ", CMD_NAME);
+	for (uint32_t i = 0; i < CMD_ARGC; i++) {
+		strcat(target_command, CMD_ARGV[i]);
+		strcat(target_command, " ");
+	}
+
+	/* display memory */
+	int retval = command_run_line(CMD_CTX, target_command);
+
+	/* restore origin mem_access_value */
+	if (NDS_MEMORY_ACC_BUS == origin_mem_access)
+		command_run_line(CMD_CTX, "nds mem_access bus");
+	else if (NDS_MEMORY_ACC_CPU == origin_mem_access)
+		command_run_line(CMD_CTX, "nds mem_access cpu");
+
+	return retval;
+}
+
 COMMAND_HANDLER(handle_nds32_query_target_command)
 {
 	struct target *target = get_current_target(CMD_CTX);
@@ -1046,6 +1077,48 @@ static const struct command_registration nds32_exec_command_handlers[] = {
 		.mode = COMMAND_ANY,
 		.usage = "['on'|'off']",
 		.help = "Always use word-aligned address to access memory.",
+	},
+	{
+		.name = "mww",
+		.mode = COMMAND_EXEC,
+		.handler = handle_nds32_dma_memory,
+		.help = "Write 32-bit words to target memory through DMA",
+		.usage = "[phys] address data [count]",
+	},
+	{
+		.name = "mwh",
+		.mode = COMMAND_EXEC,
+		.handler = handle_nds32_dma_memory,
+		.help = "Write 16-bit half-words to target memory through DMA",
+		.usage = "[phys] address data [count]",
+	},
+	{
+		.name = "mwb",
+		.mode = COMMAND_EXEC,
+		.handler = handle_nds32_dma_memory,
+		.help = "Write 8-bit bytes to target memory through DMA",
+		.usage = "[phys] address data [count]",
+	},
+	{
+		.name = "mdw",
+		.mode = COMMAND_EXEC,
+		.handler = handle_nds32_dma_memory,
+		.help = "Display target memory as 32-bit words through DMA",
+		.usage = "[phys] address [count]",
+	},
+	{
+		.name = "mdh",
+		.mode = COMMAND_EXEC,
+		.handler = handle_nds32_dma_memory,
+		.help = "Display target memory as 16-bit half-words through DMA",
+		.usage = "[phys] address [count]",
+	},
+	{
+		.name = "mdb",
+		.mode = COMMAND_EXEC,
+		.handler = handle_nds32_dma_memory,
+		.help = "Display target memory as 8-bit bytes through DMA",
+		.usage = "[phys] address [count]",
 	},
 	{
 		.name = "bulk_write",
