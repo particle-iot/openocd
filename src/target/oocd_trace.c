@@ -33,11 +33,12 @@
 
 static int oocd_trace_read_reg(struct oocd_trace *oocd_trace, int reg, uint32_t *value)
 {
-	size_t bytes_written, bytes_read, bytes_to_read;
+	size_t bytes_read, bytes_to_read;
 	uint8_t cmd;
 
 	cmd = 0x10 | (reg & 0x7);
-	bytes_written = write(oocd_trace->tty_fd, &cmd, 1);
+	if (write(oocd_trace->tty_fd, &cmd, 1) < 1)
+		return ERROR_FAIL;
 
 	bytes_to_read = 4;
 	while (bytes_to_read > 0) {
@@ -52,7 +53,6 @@ static int oocd_trace_read_reg(struct oocd_trace *oocd_trace, int reg, uint32_t 
 
 static int oocd_trace_write_reg(struct oocd_trace *oocd_trace, int reg, uint32_t value)
 {
-	size_t bytes_written;
 	uint8_t data[5];
 
 	data[0] = 0x18 | (reg & 0x7);
@@ -61,7 +61,9 @@ static int oocd_trace_write_reg(struct oocd_trace *oocd_trace, int reg, uint32_t
 	data[3] = (value & 0xff0000) >> 16;
 	data[4] = (value & 0xff000000) >> 24;
 
-	bytes_written = write(oocd_trace->tty_fd, data, 5);
+	if (write(oocd_trace->tty_fd, data, 5) < 5)
+		return ERROR_FAIL;
+
 	LOG_DEBUG("reg #%i: 0x%8.8x", reg, value);
 
 	return ERROR_OK;
@@ -69,7 +71,7 @@ static int oocd_trace_write_reg(struct oocd_trace *oocd_trace, int reg, uint32_t
 
 static int oocd_trace_read_memory(struct oocd_trace *oocd_trace, uint8_t *data, uint32_t address, uint32_t size)
 {
-	size_t bytes_written, bytes_to_read;
+	size_t bytes_to_read;
 	ssize_t bytes_read;
 	uint8_t cmd;
 
@@ -77,7 +79,8 @@ static int oocd_trace_read_memory(struct oocd_trace *oocd_trace, uint8_t *data, 
 	oocd_trace_write_reg(oocd_trace, OOCD_TRACE_SDRAM_COUNTER, size);
 
 	cmd = 0x20;
-	bytes_written = write(oocd_trace->tty_fd, &cmd, 1);
+	if (write(oocd_trace->tty_fd, &cmd, 1) < 1)
+		return ERROR_FAIL;
 
 	bytes_to_read = size * 16;
 	while (bytes_to_read > 0) {
@@ -332,7 +335,6 @@ COMMAND_HANDLER(handle_oocd_trace_resync_command)
 	struct target *target;
 	struct arm *arm;
 	struct oocd_trace *oocd_trace;
-	size_t bytes_written;
 	uint8_t cmd_array[1];
 
 	target = get_current_target(CMD_CTX);
@@ -357,7 +359,8 @@ COMMAND_HANDLER(handle_oocd_trace_resync_command)
 
 	cmd_array[0] = 0xf0;
 
-	bytes_written = write(oocd_trace->tty_fd, cmd_array, 1);
+	if (write(oocd_trace->tty_fd, cmd_array, 1) < 1)
+		return ERROR_FAIL;
 
 	command_print(CMD_CTX, "requesting traceclock resync");
 	LOG_DEBUG("resyncing traceclk pll");
