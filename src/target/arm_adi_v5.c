@@ -1324,6 +1324,352 @@ int dap_lookup_cs_component(struct adiv5_dap *dap, int ap,
 	return retval;
 }
 
+
+typedef struct {
+	uint32_t cid0, cid1, cid2, cid3, memtype;
+	uint32_t c_cid0, c_cid1, c_cid2, c_cid3;
+	uint32_t c_pid0, c_pid1, c_pid2, c_pid3, c_pid4;
+	uint32_t component_base;
+	unsigned part_num;
+	struct command_context *cmd_ctx;
+} ROM_HEADER;
+
+uint32_t dap_read_romtable_id(struct adiv5_dap *dap, ROM_HEADER *hdr, uint32_t baseaddr)
+{
+	uint32_t retval;
+
+	retval = mem_ap_read_u32(dap, (baseaddr&0xFFFFF000) | 0xFF0, &hdr->cid0);
+	if (retval != ERROR_OK)
+		return retval;
+	retval = mem_ap_read_u32(dap, (baseaddr&0xFFFFF000) | 0xFF4, &hdr->cid1);
+	if (retval != ERROR_OK)
+		return retval;
+	retval = mem_ap_read_u32(dap, (baseaddr&0xFFFFF000) | 0xFF8, &hdr->cid2);
+	if (retval != ERROR_OK)
+		return retval;
+	retval = mem_ap_read_u32(dap, (baseaddr&0xFFFFF000) | 0xFFC, &hdr->cid3);
+	if (retval != ERROR_OK)
+		return retval;
+	retval = mem_ap_read_u32(dap, (baseaddr&0xFFFFF000) | 0xFCC, &hdr->memtype);
+	if (retval != ERROR_OK)
+		return retval;
+	retval = dap_run(dap);
+	if (retval != ERROR_OK)
+		return retval;
+	if (!is_dap_cid_ok(hdr->cid3, hdr->cid2, hdr->cid1, hdr->cid0))
+		command_print(hdr->cmd_ctx, "\tCID3 0x%2.2x"
+				", CID2 0x%2.2x"
+				", CID1 0x%2.2x"
+				", CID0 0x%2.2x",
+				(unsigned) hdr->cid3, (unsigned)hdr->cid2,
+				(unsigned) hdr->cid1, (unsigned) hdr->cid0);
+	if (hdr->memtype & 0x01)
+		command_print(hdr->cmd_ctx, "\tMEMTYPE system memory present on bus");
+	else
+		command_print(hdr->cmd_ctx, "\tMEMTYPE System memory not present. "
+				"Dedicated debug bus.");
+	return 0;
+}
+
+int dap_read_romtable_header(struct adiv5_dap *dap, ROM_HEADER *hdr, uint32_t baseaddr, uint32_t romentry)
+{
+	int retval;
+	uint32_t component_base;
+
+
+	component_base = (baseaddr & 0xFFFFF000) + (romentry & 0xFFFFF000);
+
+	/* IDs are in last 4K section */
+	retval = mem_ap_read_atomic_u32(dap, component_base + 0xFE0, &hdr->c_pid0);
+	if (retval != ERROR_OK)
+		return retval;
+	hdr->c_pid0 &= 0xff;
+	retval = mem_ap_read_atomic_u32(dap, component_base + 0xFE4, &hdr->c_pid1);
+	if (retval != ERROR_OK)
+		return retval;
+	hdr->c_pid1 &= 0xff;
+	retval = mem_ap_read_atomic_u32(dap, component_base + 0xFE8, &hdr->c_pid2);
+	if (retval != ERROR_OK)
+		return retval;
+	hdr->c_pid2 &= 0xff;
+	retval = mem_ap_read_atomic_u32(dap, component_base + 0xFEC, &hdr->c_pid3);
+	if (retval != ERROR_OK)
+		return retval;
+	hdr->c_pid3 &= 0xff;
+	retval = mem_ap_read_atomic_u32(dap, component_base + 0xFD0, &hdr->c_pid4);
+	if (retval != ERROR_OK)
+		return retval;
+	hdr->c_pid4 &= 0xff;
+
+	retval = mem_ap_read_atomic_u32(dap, component_base + 0xFF0, &hdr->c_cid0);
+	if (retval != ERROR_OK)
+		return retval;
+	hdr->c_cid0 &= 0xff;
+	retval = mem_ap_read_atomic_u32(dap, component_base + 0xFF4, &hdr->c_cid1);
+	if (retval != ERROR_OK)
+		return retval;
+	hdr->c_cid1 &= 0xff;
+	retval = mem_ap_read_atomic_u32(dap, component_base + 0xFF8, &hdr->c_cid2);
+	if (retval != ERROR_OK)
+		return retval;
+	hdr->c_cid2 &= 0xff;
+	retval = mem_ap_read_atomic_u32(dap, component_base + 0xFFC, &hdr->c_cid3);
+	if (retval != ERROR_OK)
+		return retval;
+	hdr->c_cid3 &= 0xff;
+
+	hdr->component_base = component_base;
+
+	command_print(hdr->cmd_ctx, "\t\tComponent base address 0x%" PRIx32 ","
+			"start address 0x%" PRIx32, hdr->component_base,
+	/* component may take multiple 4K pages */
+	hdr->component_base - 0x1000*(hdr->c_pid4 >> 4));
+	command_print(hdr->cmd_ctx, "\t\tComponent class is 0x%x, %s",
+			(int) (hdr->c_cid1 >> 4) & 0xf,
+			/* See ARM IHI 0029B Table 3-3 */
+			class_description[(hdr->c_cid1 >> 4) & 0xf]);
+
+	return 0;
+}
+
+uint32_t dap_parse_coresight_component(struct adiv5_dap *dap, ROM_HEADER *hdr, uint32_t baseaddr, uint32_t romentry)
+{
+	uint32_t devtype;
+	unsigned minor;
+	char *major = "Reserved", *subtype = "Reserved";
+	uint32_t retval;
+
+	retval = mem_ap_read_atomic_u32(dap,
+			(hdr->component_base & 0xfffff000) | 0xfcc,
+			&devtype);
+	if (retval != ERROR_OK)
+		return retval;
+	minor = (devtype >> 4) & 0x0f;
+	switch (devtype & 0x0f) {
+	case 0:
+		major = "Miscellaneous";
+		switch (minor) {
+		case 0:
+			subtype = "other";
+			break;
+		case 4:
+			subtype = "Validation component";
+			break;
+		}
+		break;
+	case 1:
+		major = "Trace Sink";
+		switch (minor) {
+		case 0:
+			subtype = "other";
+			break;
+		case 1:
+			subtype = "Port";
+			break;
+		case 2:
+			subtype = "Buffer";
+			break;
+		}
+		break;
+	case 2:
+		major = "Trace Link";
+		switch (minor) {
+		case 0:
+			subtype = "other";
+			break;
+		case 1:
+			subtype = "Funnel, router";
+			break;
+		case 2:
+			subtype = "Filter";
+			break;
+		case 3:
+			subtype = "FIFO, buffer";
+			break;
+		}
+		break;
+	case 3:
+		major = "Trace Source";
+		switch (minor) {
+		case 0:
+			subtype = "other";
+			break;
+		case 1:
+			subtype = "Processor";
+			break;
+		case 2:
+			subtype = "DSP";
+			break;
+		case 3:
+			subtype = "Engine/Coprocessor";
+			break;
+		case 4:
+			subtype = "Bus";
+			break;
+		}
+		break;
+	case 4:
+		major = "Debug Control";
+		switch (minor) {
+		case 0:
+			subtype = "other";
+			break;
+		case 1:
+			subtype = "Trigger Matrix";
+			break;
+		case 2:
+			subtype = "Debug Auth";
+			break;
+		}
+		break;
+	case 5:
+		major = "Debug Logic";
+		switch (minor) {
+		case 0:
+			subtype = "other";
+			break;
+		case 1:
+			subtype = "Processor";
+			break;
+		case 2:
+			subtype = "DSP";
+			break;
+		case 3:
+			subtype = "Engine/Coprocessor";
+			break;
+		}
+		break;
+	}
+	command_print(hdr->cmd_ctx, "\t\tType is 0x%2.2x, %s, %s",
+			(unsigned) (devtype & 0xff),
+			major, subtype);
+	/* REVISIT also show 0xfc8 DevId */
+	return retval;
+}
+
+
+/* Part number interpretations are from Cortex
+ * core specs, the CoreSight components TRM
+ * (ARM DDI 0314H), CoreSight System Design
+ * Guide (ARM DGI 0012D) and ETM specs; also
+ * from chip observation (e.g. TI SDTI).
+ */
+void dap_parse_coresight_type(ROM_HEADER *hdr)
+{
+	uint32_t part_num;
+	char *type, *full;
+
+
+	part_num = (hdr->c_pid0 & 0xff);
+	part_num |= (hdr->c_pid1 & 0x0f) << 8;
+	switch (part_num) {
+	case 0x000:
+		type = "Cortex-M3 NVIC";
+		full = "(Interrupt Controller)";
+		break;
+	case 0x001:
+		type = "Cortex-M3 ITM";
+		full = "(Instrumentation Trace Module)";
+		break;
+	case 0x002:
+		type = "Cortex-M3 DWT";
+		full = "(Data Watchpoint and Trace)";
+		break;
+	case 0x003:
+		type = "Cortex-M3 FBP";
+		full = "(Flash Patch and Breakpoint)";
+		break;
+	case 0x00c:
+		type = "Cortex-M4 SCS";
+		full = "(System Control Space)";
+		break;
+	case 0x00d:
+		type = "CoreSight ETM11";
+		full = "(Embedded Trace)";
+		break;
+	/* case 0x113: what? */
+	case 0x120:		/* from OMAP3 memmap */
+		type = "TI SDTI";
+		full = "(System Debug Trace Interface)";
+		break;
+	case 0x343:		/* from OMAP3 memmap */
+		type = "TI DAPCTL";
+		full = "";
+		break;
+	case 0x906:
+		type = "Coresight CTI";
+		full = "(Cross Trigger)";
+		break;
+	case 0x907:
+		type = "Coresight ETB";
+		full = "(Trace Buffer)";
+		break;
+	case 0x908:
+		type = "Coresight CSTF";
+		full = "(Trace Funnel)";
+		break;
+	case 0x910:
+		type = "CoreSight ETM9";
+		full = "(Embedded Trace)";
+		break;
+	case 0x912:
+		type = "Coresight TPIU";
+		full = "(Trace Port Interface Unit)";
+		break;
+	case 0x921:
+		type = "Cortex-A8 ETM";
+		full = "(Embedded Trace)";
+		break;
+	case 0x922:
+		type = "Cortex-A8 CTI";
+		full = "(Cross Trigger)";
+		break;
+	case 0x923:
+		type = "Cortex-M3 TPIU";
+		full = "(Trace Port Interface Unit)";
+		break;
+	case 0x924:
+		type = "Cortex-M3 ETM";
+		full = "(Embedded Trace)";
+		break;
+	case 0x925:
+		type = "Cortex-M4 ETM";
+		full = "(Embedded Trace)";
+		break;
+	case 0x930:
+		type = "Cortex-R4 ETM";
+		full = "(Embedded Trace)";
+		break;
+	case 0x9a0:
+		type = "CoreSight PMU";
+		full = "(Performance Monitoring Unit)";
+		break;
+	case 0x950:
+		type = "CoreSight Component";
+		full = "(unidentified Cortex A9 component)";
+		break;
+	case 0x9a1:
+		type = "Cortex-M4 TPUI";
+		full = "(Trace Port Interface Unit)";
+		break;
+	case 0xc08:
+		type = "Cortex-A8 Debug";
+		full = "(Debug Unit)";
+		break;
+	case 0xc09:
+		type = "Cortex-A9 Debug";
+		full = "(Debug Unit)";
+		break;
+	default:
+		type = "-*- unrecognized -*-";
+		full = "";
+		break;
+	}
+	command_print(hdr->cmd_ctx, "\t\tPart is %s %s",
+			type, full);
+
+}
+
 static int dap_info_command(struct command_context *cmd_ctx,
 		struct adiv5_dap *dap, int ap)
 {
@@ -1369,9 +1715,11 @@ static int dap_info_command(struct command_context *cmd_ctx,
 
 	romtable_present = ((mem_ap) && (dbgbase != 0xFFFFFFFF));
 	if (romtable_present) {
-		uint32_t cid0, cid1, cid2, cid3, memtype, romentry;
+		ROM_HEADER hdr;
+		uint32_t romentry;
 		uint16_t entry_offset;
 
+		hdr.cmd_ctx = cmd_ctx;
 		/* bit 16 of apid indicates a memory access port */
 		if (dbgbase & 0x02)
 			command_print(cmd_ctx, "\tValid ROM table present");
@@ -1379,37 +1727,8 @@ static int dap_info_command(struct command_context *cmd_ctx,
 			command_print(cmd_ctx, "\tROM table in legacy format");
 
 		/* Now we read ROM table ID registers, ref. ARM IHI 0029B sec  */
-		retval = mem_ap_read_u32(dap, (dbgbase&0xFFFFF000) | 0xFF0, &cid0);
-		if (retval != ERROR_OK)
-			return retval;
-		retval = mem_ap_read_u32(dap, (dbgbase&0xFFFFF000) | 0xFF4, &cid1);
-		if (retval != ERROR_OK)
-			return retval;
-		retval = mem_ap_read_u32(dap, (dbgbase&0xFFFFF000) | 0xFF8, &cid2);
-		if (retval != ERROR_OK)
-			return retval;
-		retval = mem_ap_read_u32(dap, (dbgbase&0xFFFFF000) | 0xFFC, &cid3);
-		if (retval != ERROR_OK)
-			return retval;
-		retval = mem_ap_read_u32(dap, (dbgbase&0xFFFFF000) | 0xFCC, &memtype);
-		if (retval != ERROR_OK)
-			return retval;
-		retval = dap_run(dap);
-		if (retval != ERROR_OK)
-			return retval;
+		dap_read_romtable_id(dap, &hdr, dbgbase);
 
-		if (!is_dap_cid_ok(cid3, cid2, cid1, cid0))
-			command_print(cmd_ctx, "\tCID3 0x%2.2x"
-					", CID2 0x%2.2x"
-					", CID1 0x%2.2x"
-					", CID0 0x%2.2x",
-					(unsigned) cid3, (unsigned)cid2,
-					(unsigned) cid1, (unsigned) cid0);
-		if (memtype & 0x01)
-			command_print(cmd_ctx, "\tMEMTYPE system memory present on bus");
-		else
-			command_print(cmd_ctx, "\tMEMTYPE System memory not present. "
-					"Dedicated debug bus.");
 
 		/* Now we read ROM table entries from dbgbase&0xFFFFF000) | 0x000 until we get 0x00000000 */
 		entry_offset = 0;
@@ -1419,292 +1738,87 @@ static int dap_info_command(struct command_context *cmd_ctx,
 				return retval;
 			command_print(cmd_ctx, "\tROMTABLE[0x%x] = 0x%" PRIx32 "", entry_offset, romentry);
 			if (romentry & 0x01) {
-				uint32_t c_cid0, c_cid1, c_cid2, c_cid3;
-				uint32_t c_pid0, c_pid1, c_pid2, c_pid3, c_pid4;
-				uint32_t component_base;
-				unsigned part_num;
-				char *type, *full;
+				/* romtable entry present, now parse it */
 
-				component_base = (dbgbase & 0xFFFFF000) + (romentry & 0xFFFFF000);
+				dap_read_romtable_header(dap, &hdr, dbgbase, romentry);
 
-				/* IDs are in last 4K section */
-				retval = mem_ap_read_atomic_u32(dap, component_base + 0xFE0, &c_pid0);
-				if (retval != ERROR_OK)
-					return retval;
-				c_pid0 &= 0xff;
-				retval = mem_ap_read_atomic_u32(dap, component_base + 0xFE4, &c_pid1);
-				if (retval != ERROR_OK)
-					return retval;
-				c_pid1 &= 0xff;
-				retval = mem_ap_read_atomic_u32(dap, component_base + 0xFE8, &c_pid2);
-				if (retval != ERROR_OK)
-					return retval;
-				c_pid2 &= 0xff;
-				retval = mem_ap_read_atomic_u32(dap, component_base + 0xFEC, &c_pid3);
-				if (retval != ERROR_OK)
-					return retval;
-				c_pid3 &= 0xff;
-				retval = mem_ap_read_atomic_u32(dap, component_base + 0xFD0, &c_pid4);
-				if (retval != ERROR_OK)
-					return retval;
-				c_pid4 &= 0xff;
-
-				retval = mem_ap_read_atomic_u32(dap, component_base + 0xFF0, &c_cid0);
-				if (retval != ERROR_OK)
-					return retval;
-				c_cid0 &= 0xff;
-				retval = mem_ap_read_atomic_u32(dap, component_base + 0xFF4, &c_cid1);
-				if (retval != ERROR_OK)
-					return retval;
-				c_cid1 &= 0xff;
-				retval = mem_ap_read_atomic_u32(dap, component_base + 0xFF8, &c_cid2);
-				if (retval != ERROR_OK)
-					return retval;
-				c_cid2 &= 0xff;
-				retval = mem_ap_read_atomic_u32(dap, component_base + 0xFFC, &c_cid3);
-				if (retval != ERROR_OK)
-					return retval;
-				c_cid3 &= 0xff;
-
-				command_print(cmd_ctx, "\t\tComponent base address 0x%" PRIx32 ","
-						"start address 0x%" PRIx32, component_base,
-				/* component may take multiple 4K pages */
-				component_base - 0x1000*(c_pid4 >> 4));
-				command_print(cmd_ctx, "\t\tComponent class is 0x%x, %s",
-						(int) (c_cid1 >> 4) & 0xf,
-						/* See ARM IHI 0029B Table 3-3 */
-						class_description[(c_cid1 >> 4) & 0xf]);
 
 				/* CoreSight component? */
-				if (((c_cid1 >> 4) & 0x0f) == 9) {
-					uint32_t devtype;
-					unsigned minor;
-					char *major = "Reserved", *subtype = "Reserved";
-
-					retval = mem_ap_read_atomic_u32(dap,
-							(component_base & 0xfffff000) | 0xfcc,
-							&devtype);
-					if (retval != ERROR_OK)
-						return retval;
-					minor = (devtype >> 4) & 0x0f;
-					switch (devtype & 0x0f) {
-					case 0:
-						major = "Miscellaneous";
-						switch (minor) {
-						case 0:
-							subtype = "other";
-							break;
-						case 4:
-							subtype = "Validation component";
-							break;
-						}
-						break;
-					case 1:
-						major = "Trace Sink";
-						switch (minor) {
-						case 0:
-							subtype = "other";
-							break;
-						case 1:
-							subtype = "Port";
-							break;
-						case 2:
-							subtype = "Buffer";
-							break;
-						}
-						break;
-					case 2:
-						major = "Trace Link";
-						switch (minor) {
-						case 0:
-							subtype = "other";
-							break;
-						case 1:
-							subtype = "Funnel, router";
-							break;
-						case 2:
-							subtype = "Filter";
-							break;
-						case 3:
-							subtype = "FIFO, buffer";
-							break;
-						}
-						break;
-					case 3:
-						major = "Trace Source";
-						switch (minor) {
-						case 0:
-							subtype = "other";
-							break;
-						case 1:
-							subtype = "Processor";
-							break;
-						case 2:
-							subtype = "DSP";
-							break;
-						case 3:
-							subtype = "Engine/Coprocessor";
-							break;
-						case 4:
-							subtype = "Bus";
-							break;
-						}
-						break;
-					case 4:
-						major = "Debug Control";
-						switch (minor) {
-						case 0:
-							subtype = "other";
-							break;
-						case 1:
-							subtype = "Trigger Matrix";
-							break;
-						case 2:
-							subtype = "Debug Auth";
-							break;
-						}
-						break;
-					case 5:
-						major = "Debug Logic";
-						switch (minor) {
-						case 0:
-							subtype = "other";
-							break;
-						case 1:
-							subtype = "Processor";
-							break;
-						case 2:
-							subtype = "DSP";
-							break;
-						case 3:
-							subtype = "Engine/Coprocessor";
-							break;
-						}
-						break;
-					}
-					command_print(cmd_ctx, "\t\tType is 0x%2.2x, %s, %s",
-							(unsigned) (devtype & 0xff),
-							major, subtype);
-					/* REVISIT also show 0xfc8 DevId */
+				if (((hdr.c_cid1 >> 4) & 0x0f) == 9) {
+					/* process coresight table */
+					dap_parse_coresight_component(dap, &hdr, dbgbase, romentry);
 				}
 
-				if (!is_dap_cid_ok(cid3, cid2, cid1, cid0))
+				if (!is_dap_cid_ok(hdr.cid3, hdr.cid2, hdr.cid1, hdr.cid0))
 					command_print(cmd_ctx,
 							"\t\tCID3 0%2.2x"
 							", CID2 0%2.2x"
 							", CID1 0%2.2x"
 							", CID0 0%2.2x",
-							(int) c_cid3,
-							(int) c_cid2,
-							(int)c_cid1,
-							(int)c_cid0);
+							(int) hdr.c_cid3,
+							(int) hdr.c_cid2,
+							(int) hdr.c_cid1,
+							(int) hdr.c_cid0);
 				command_print(cmd_ctx,
 				"\t\tPeripheral ID[4..0] = hex "
 				"%2.2x %2.2x %2.2x %2.2x %2.2x",
-				(int) c_pid4, (int) c_pid3, (int) c_pid2,
-				(int) c_pid1, (int) c_pid0);
+				(int) hdr.c_pid4, (int) hdr.c_pid3, (int) hdr.c_pid2,
+				(int) hdr.c_pid1, (int) hdr.c_pid0);
 
-				/* Part number interpretations are from Cortex
-				 * core specs, the CoreSight components TRM
-				 * (ARM DDI 0314H), CoreSight System Design
-				 * Guide (ARM DGI 0012D) and ETM specs; also
-				 * from chip observation (e.g. TI SDTI).
-				 */
-				part_num = (c_pid0 & 0xff);
-				part_num |= (c_pid1 & 0x0f) << 8;
-				switch (part_num) {
-				case 0x000:
-					type = "Cortex-M3 NVIC";
-					full = "(Interrupt Controller)";
-					break;
-				case 0x001:
-					type = "Cortex-M3 ITM";
-					full = "(Instrumentation Trace Module)";
-					break;
-				case 0x002:
-					type = "Cortex-M3 DWT";
-					full = "(Data Watchpoint and Trace)";
-					break;
-				case 0x003:
-					type = "Cortex-M3 FBP";
-					full = "(Flash Patch and Breakpoint)";
-					break;
-				case 0x00c:
-					type = "Cortex-M4 SCS";
-					full = "(System Control Space)";
-					break;
-				case 0x00d:
-					type = "CoreSight ETM11";
-					full = "(Embedded Trace)";
-					break;
-				/* case 0x113: what? */
-				case 0x120:		/* from OMAP3 memmap */
-					type = "TI SDTI";
-					full = "(System Debug Trace Interface)";
-					break;
-				case 0x343:		/* from OMAP3 memmap */
-					type = "TI DAPCTL";
-					full = "";
-					break;
-				case 0x906:
-					type = "Coresight CTI";
-					full = "(Cross Trigger)";
-					break;
-				case 0x907:
-					type = "Coresight ETB";
-					full = "(Trace Buffer)";
-					break;
-				case 0x908:
-					type = "Coresight CSTF";
-					full = "(Trace Funnel)";
-					break;
-				case 0x910:
-					type = "CoreSight ETM9";
-					full = "(Embedded Trace)";
-					break;
-				case 0x912:
-					type = "Coresight TPIU";
-					full = "(Trace Port Interface Unit)";
-					break;
-				case 0x921:
-					type = "Cortex-A8 ETM";
-					full = "(Embedded Trace)";
-					break;
-				case 0x922:
-					type = "Cortex-A8 CTI";
-					full = "(Cross Trigger)";
-					break;
-				case 0x923:
-					type = "Cortex-M3 TPIU";
-					full = "(Trace Port Interface Unit)";
-					break;
-				case 0x924:
-					type = "Cortex-M3 ETM";
-					full = "(Embedded Trace)";
-					break;
-				case 0x925:
-					type = "Cortex-M4 ETM";
-					full = "(Embedded Trace)";
-					break;
-				case 0x930:
-					type = "Cortex-R4 ETM";
-					full = "(Embedded Trace)";
-					break;
-				case 0x9a1:
-					type = "Cortex-M4 TPUI";
-					full = "(Trace Port Interface Unit)";
-					break;
-				case 0xc08:
-					type = "Cortex-A8 Debug";
-					full = "(Debug Unit)";
-					break;
-				default:
-					type = "-*- unrecognized -*-";
-					full = "";
-					break;
+				dap_parse_coresight_type(&hdr);
+
+				/* subordinate ROM table? */
+				if (((hdr.c_cid1 >> 4) & 0x0f) == 1) {
+					uint32_t romentry2;
+					uint32_t tablebase;
+					ROM_HEADER hdr2;
+					uint32_t entry_offset2;
+
+					tablebase = hdr.component_base;
+					hdr2.cmd_ctx = cmd_ctx;
+					entry_offset2 = 0;
+					dap_read_romtable_id(dap, &hdr2, hdr.component_base);
+
+					do {
+						retval = mem_ap_read_atomic_u32(dap, (tablebase&0xFFFFF000) | entry_offset2, &romentry2);
+						if (retval != ERROR_OK)
+							return retval;
+						command_print(cmd_ctx, "\t(SUB) ROMTABLE[0x%x] = 0x%" PRIx32 "", entry_offset2, romentry2);
+						if (romentry2 & 0x01) {
+							dap_read_romtable_header(dap, &hdr2, hdr.component_base, romentry2);
+							if (((hdr.c_cid1 >> 4) & 0x0f) == 9) {
+								/* process coresight table */
+								dap_parse_coresight_component(dap, &hdr2, hdr.component_base, romentry2);
+							}
+
+							if (!is_dap_cid_ok(hdr2.cid3, hdr2.cid2, hdr2.cid1, hdr2.cid0))
+								command_print(cmd_ctx,
+										"\t\tCID3 0%2.2x"
+										", CID2 0%2.2x"
+										", CID1 0%2.2x"
+										", CID0 0%2.2x",
+										(int) hdr2.c_cid3,
+										(int) hdr2.c_cid2,
+										(int) hdr2.c_cid1,
+										(int) hdr2.c_cid0);
+							command_print(cmd_ctx,
+							"\t\tPeripheral ID[4..0] = hex "
+							"%2.2x %2.2x %2.2x %2.2x %2.2x",
+							(int) hdr2.c_pid4, (int) hdr2.c_pid3, (int) hdr2.c_pid2,
+							(int) hdr2.c_pid1, (int) hdr2.c_pid0);
+
+							dap_parse_coresight_type(&hdr2);
+						} else {
+							if (romentry2)
+								command_print(cmd_ctx, "\t\tComponent not present");
+							else
+								command_print(cmd_ctx, "\t\tEnd of (SUB) ROM table");
+						}
+						entry_offset2 += 4;
+					} while (romentry2 > 0);
+
 				}
-				command_print(cmd_ctx, "\t\tPart is %s %s",
-						type, full);
+
 			} else {
 				if (romentry)
 					command_print(cmd_ctx, "\t\tComponent not present");
