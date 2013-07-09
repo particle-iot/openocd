@@ -299,7 +299,7 @@ int armv7m_get_gdb_reg_list(struct target *target, struct reg **reg_list[], int 
 int armv7m_run_algorithm(struct target *target,
 	int num_mem_params, struct mem_param *mem_params,
 	int num_reg_params, struct reg_param *reg_params,
-	uint32_t entry_point, uint32_t exit_point,
+	target_ulong entry_point, target_ulong exit_point,
 	int timeout_ms, void *arch_info)
 {
 	int retval;
@@ -324,7 +324,7 @@ int armv7m_run_algorithm(struct target *target,
 int armv7m_start_algorithm(struct target *target,
 	int num_mem_params, struct mem_param *mem_params,
 	int num_reg_params, struct reg_param *reg_params,
-	uint32_t entry_point, uint32_t exit_point,
+	target_ulong entry_point, target_ulong exit_point,
 	void *arch_info)
 {
 	struct armv7m_common *armv7m = target_to_armv7m(target);
@@ -412,7 +412,7 @@ int armv7m_start_algorithm(struct target *target,
 int armv7m_wait_algorithm(struct target *target,
 	int num_mem_params, struct mem_param *mem_params,
 	int num_reg_params, struct reg_param *reg_params,
-	uint32_t exit_point, int timeout_ms,
+	target_ulong exit_point, int timeout_ms,
 	void *arch_info)
 {
 	struct armv7m_common *armv7m = target_to_armv7m(target);
@@ -442,7 +442,7 @@ int armv7m_wait_algorithm(struct target *target,
 
 	armv7m->load_core_reg_u32(target, 15, &pc);
 	if (exit_point && (pc != exit_point)) {
-		LOG_DEBUG("failed algorithm halted at 0x%" PRIx32 ", expected 0x%" PRIx32,
+		LOG_DEBUG("failed algorithm halted at 0x%" PRIx32 ", expected 0x%" PRIXX,
 			pc,
 			exit_point);
 		return ERROR_TARGET_TIMEOUT;
@@ -608,7 +608,7 @@ int armv7m_init_arch_info(struct target *target, struct armv7m_common *armv7m)
 
 /** Generates a CRC32 checksum of a memory region. */
 int armv7m_checksum_memory(struct target *target,
-	uint32_t address, uint32_t count, uint32_t *checksum)
+	target_ulong address, uint32_t count, uint32_t *checksum)
 {
 	struct working_area *crc_algorithm;
 	struct armv7m_algorithm armv7m_info;
@@ -691,7 +691,7 @@ cleanup:
 
 /** Checks whether a memory region is zeroed. */
 int armv7m_blank_check_memory(struct target *target,
-	uint32_t address, uint32_t count, uint32_t *blank)
+	target_ulong address, uint32_t count, uint32_t *blank)
 {
 	struct working_area *erase_check_algorithm;
 	struct reg_param reg_params[3];

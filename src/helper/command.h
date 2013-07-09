@@ -384,6 +384,12 @@ DECLARE_PARSE_WRAPPER(_s8, int8_t);
 		} \
 	} while (0)
 
+#if BUILD_TARGET64 == 1
+#define COMMAND_PARSE_TYPE_NUMBER(in, out) COMMAND_PARSE_NUMBER(u64, in, out)
+#else
+#define COMMAND_PARSE_TYPE_NUMBER(in, out) COMMAND_PARSE_NUMBER(u32, in, out)
+#endif
+
 /**
  * Parse the string @c as a binary parameter, storing the boolean value
  * in @c out.  The strings @c on and @c off are used to match different
