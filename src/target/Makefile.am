@@ -32,6 +32,7 @@ libtarget_la_SOURCES = \
 	$(AVR32_SRC) \
 	$(MIPS_COMMON_SRC) \
 	$(MIPS32_SRC) \
+	$(MIPS64_SRC) \
 	$(NDS32_SRC) \
 	avrt.c \
 	dsp563xx.c \

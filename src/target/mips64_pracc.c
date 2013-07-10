@@ -400,8 +400,8 @@ int mips64_pracc_queue_exec(struct mips_ejtag *ejtag_info, struct mips64_pracc_q
 				goto exit;
 			}
 			if (addr != fetch_addr) {
-				LOG_ERROR("Fetch addr mismatch, read: 0x%16.16" PRIx64 "
-					  expected: %16.16" PRIx64 " count: %d", addr, fetch_addr, scan_count);
+				LOG_ERROR("Fetch addr mismatch, read: 0x%16.16" PRIx64 " expected:  %16.16" PRIx64 "count: %d",
+					  addr, fetch_addr, scan_count);
 				retval = ERROR_FAIL;
 				goto exit;
 			}
