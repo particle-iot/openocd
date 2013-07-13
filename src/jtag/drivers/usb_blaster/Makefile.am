@@ -3,7 +3,7 @@ include $(top_srcdir)/common.mk
 noinst_LTLIBRARIES = libocdusbblaster.la
 libocdusbblaster_la_SOURCES = $(USB_BLASTER_SRC)
 
-USB_BLASTER_SRC = usb_blaster.c
+USB_BLASTER_SRC = usb_blaster.c ublast_access_common.c
 
 if USB_BLASTER_LIBFTDI
 USB_BLASTER_SRC += ublast_access_ftdi.c
@@ -11,6 +11,10 @@ endif
 
 if USB_BLASTER_FTD2XX
 USB_BLASTER_SRC += ublast_access_ftd2xx.c
+endif
+
+if USB_BLASTER_LIBUSB
+USB_BLASTER_SRC += ublast_access_libusb.c
 endif
 
 noinst_HEADERS = ublast_access.h
