@@ -34,7 +34,7 @@
 
 #include <target/target.h>
 
-static struct stlink_interface_s stlink_if = { {0, 0, 0, 0, 0, 0}, 0, 0 };
+static struct stlink_interface_s stlink_if = { {0, 0, 0, 0, 0, 0, 0, 0}, 0, 0 };
 
 int stlink_interface_open(enum stlink_transports tr)
 {
@@ -214,6 +214,23 @@ COMMAND_HANDLER(stlink_interface_handle_api_command)
 	return ERROR_OK;
 }
 
+COMMAND_HANDLER(stlink_interface_handle_swo_trace_command)
+{
+	if (CMD_ARGC < 1)
+		return ERROR_COMMAND_SYNTAX_ERROR;
+
+	stlink_if.param.trace_f = fopen(CMD_ARGV[0], "a");
+
+	if (stlink_if.param.trace_f) {
+		if (CMD_ARGC >= 2)
+			COMMAND_PARSE_NUMBER(u32, CMD_ARGV[1], stlink_if.param.trace_hz);
+
+		return ERROR_OK;
+	} else {
+		return ERROR_COMMAND_ARGUMENT_INVALID;
+	}
+}
+
 static const struct command_registration stlink_interface_command_handlers[] = {
 	{
 	 .name = "stlink_device_desc",
@@ -249,6 +266,13 @@ static const struct command_registration stlink_interface_command_handlers[] = {
 	 .mode = COMMAND_CONFIG,
 	 .help = "set the desired stlink api level",
 	 .usage = "api version 1 or 2",
+	 },
+	 {
+	 .name = "stlink_swo_trace",
+	 .handler = &stlink_interface_handle_swo_trace_command,
+	 .mode = COMMAND_ANY,
+	 .help = "send SWO trace data to a file",
+	 .usage = "file_path [trace_hz]",
 	 },
 	COMMAND_REGISTRATION_DONE
 };
