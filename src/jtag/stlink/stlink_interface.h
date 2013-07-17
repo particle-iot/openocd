@@ -40,6 +40,10 @@ struct stlink_interface_param_s {
 	/** */
 	unsigned api;
 	/** */
+	FILE *trace_f;
+	/** */
+	uint32_t trace_hz;
+	/** */
 	enum stlink_transports transport;
 };
 

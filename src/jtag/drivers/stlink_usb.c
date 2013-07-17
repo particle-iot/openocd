@@ -45,10 +45,14 @@
 #define STLINK_NULL_EP		0
 #define STLINK_RX_EP		(1|ENDPOINT_IN)
 #define STLINK_TX_EP		(2|ENDPOINT_OUT)
+#define STLINK_TRACE_EP		(3|ENDPOINT_IN)
 #define STLINK_SG_SIZE		(31)
 #define STLINK_DATA_SIZE	(4*128)
 #define STLINK_CMD_SIZE_V2	(16)
 #define STLINK_CMD_SIZE_V1	(10)
+
+#define STLINK_TRACE_HZ		(2000000)
+#define STLINK_TRACE_SIZE	(1024)
 
 enum stlink_jtag_api_version {
 	STLINK_JTAG_API_V1 = 1,
@@ -91,6 +95,12 @@ struct stlink_usb_handle_s {
 	uint16_t pid;
 	/** this is the currently used jtag api */
 	enum stlink_jtag_api_version jtag_api;
+	/** destination for SWO trace output */
+	FILE *trace_f;
+	/** trace clock rate */
+	uint32_t trace_hz;
+	/** whether we're logging SWO trace data */
+	bool trace_enabled;
 };
 
 #define STLINK_DEBUG_ERR_OK			0x80
@@ -160,6 +170,10 @@ struct stlink_usb_handle_s {
 #define STLINK_DEBUG_APIV2_DRIVE_NRST_LOW	0x00
 #define STLINK_DEBUG_APIV2_DRIVE_NRST_HIGH	0x01
 #define STLINK_DEBUG_APIV2_DRIVE_NRST_PULSE	0x02
+
+#define STLINK_DEBUG_APIV2_START_TRACE_RX	0x40
+#define STLINK_DEBUG_APIV2_STOP_TRACE_RX	0x41
+#define STLINK_DEBUG_APIV2_GET_TRACE_NB		0x42
 
 /** */
 enum stlink_mode {
@@ -267,6 +281,26 @@ static int stlink_usb_xfer_v1_get_sense(void *handle)
 
 	if (stlink_usb_xfer_v1_get_status(handle) != ERROR_OK)
 		return ERROR_FAIL;
+
+	return ERROR_OK;
+}
+
+/** */
+static int stlink_usb_read_trace(void *handle, const uint8_t *buf, int size)
+{
+	struct stlink_usb_handle_s *h;
+
+	assert(handle != NULL);
+
+	h = (struct stlink_usb_handle_s *)handle;
+
+	assert(h->version.stlink >= 2);
+
+	if (jtag_libusb_bulk_read(h->fd, STLINK_TRACE_EP, (char *)buf,
+				size, 1000) != size) {
+		LOG_DEBUG("bulk trace read failed");
+		return ERROR_FAIL;
+	}
 
 	return ERROR_OK;
 }
@@ -713,6 +747,56 @@ static int stlink_usb_write_debug_reg(void *handle, uint32_t addr, uint32_t val)
 	return h->databuf[0] == STLINK_DEBUG_ERR_OK ? ERROR_OK : ERROR_FAIL;
 }
 
+static int stlink_usb_trace_read(void *handle)
+{
+	int res = ERROR_OK;
+	struct stlink_usb_handle_s *h;
+
+	assert(handle != NULL);
+
+	h = (struct stlink_usb_handle_s *)handle;
+
+	if (h->trace_enabled) {
+		if (h->version.jtag >= 13) {
+			stlink_usb_init_buffer(handle, STLINK_RX_EP, 10);
+
+			h->cmdbuf[h->cmdidx++] = STLINK_DEBUG_COMMAND;
+			h->cmdbuf[h->cmdidx++] = STLINK_DEBUG_APIV2_GET_TRACE_NB;
+
+			res = stlink_usb_xfer(handle, h->databuf, 2);
+			if (res == ERROR_OK) {
+				uint8_t buf[STLINK_TRACE_SIZE];
+				size_t size = le_to_h_u16(h->databuf);
+
+				if (size > 0) {
+					size = size < sizeof(buf) ? size : sizeof(buf) - 1;
+
+					res = stlink_usb_read_trace(handle, buf, size);
+					if (res == ERROR_OK) {
+						size_t i;
+
+						/* Log retrieved trace output but ignore the start/stop
+						 * designators. */
+						for (i = 0; i < size; i++) {
+							if (buf[i] != 0x01 && buf[i] != 0x80)
+								fputc(buf[i], h->trace_f);
+						}
+
+						/* Write out the trace data */
+						fflush(h->trace_f);
+					}
+				}
+			} else {
+				LOG_ERROR("Trace data read failed.\n");
+			}
+		} else {
+			res = ERROR_FAIL;
+		}
+	}
+
+	return res;
+}
+
 static enum target_state stlink_usb_v2_get_status(void *handle)
 {
 	int result;
@@ -726,6 +810,8 @@ static enum target_state stlink_usb_v2_get_status(void *handle)
 		return TARGET_HALTED;
 	else if (status & S_RESET_ST)
 		return TARGET_RESET;
+
+	stlink_usb_trace_read(handle);
 
 	return TARGET_RUNNING;
 }
@@ -821,6 +907,64 @@ static int stlink_usb_assert_srst(void *handle, int srst)
 }
 
 /** */
+static int stlink_usb_trace_enable(void *handle)
+{
+	int res = ERROR_OK;
+	struct stlink_usb_handle_s *h;
+
+	assert(handle != NULL);
+
+	h = (struct stlink_usb_handle_s *)handle;
+
+	if (h->version.jtag >= 13) {
+		stlink_usb_init_buffer(handle, STLINK_RX_EP, 10);
+
+		h->cmdbuf[h->cmdidx++] = STLINK_DEBUG_COMMAND;
+		h->cmdbuf[h->cmdidx++] = STLINK_DEBUG_APIV2_START_TRACE_RX;
+		h_u16_to_le(h->cmdbuf+h->cmdidx, (uint16_t)STLINK_TRACE_SIZE);
+		h->cmdidx += 2;
+		h_u32_to_le(h->cmdbuf+h->cmdidx, h->trace_hz);
+		h->cmdidx += 4;
+
+		res = stlink_usb_xfer(handle, h->databuf, 2);
+
+		if (res == ERROR_OK)  {
+			h->trace_enabled = true;
+			LOG_DEBUG("Tracing: enabled (%uHz)\n", h->trace_hz);
+		}
+	} else {
+		LOG_ERROR("Tracing is not supported by this version.");
+		res = ERROR_FAIL;
+	}
+
+	return res;
+}
+
+static int stlink_usb_trace_disable(void *handle)
+{
+	int res = ERROR_OK;
+	struct stlink_usb_handle_s *h;
+
+	assert(handle != NULL);
+
+	h = (struct stlink_usb_handle_s *)handle;
+
+	assert(h->version.jtag >= 13);
+
+	LOG_DEBUG("Tracing: disable\n");
+
+	stlink_usb_init_buffer(handle, STLINK_RX_EP, 2);
+	h->cmdbuf[h->cmdidx++] = STLINK_DEBUG_COMMAND;
+	h->cmdbuf[h->cmdidx++] = STLINK_DEBUG_APIV2_STOP_TRACE_RX;
+	res = stlink_usb_xfer(handle, h->databuf, 2);
+
+	if (res == ERROR_OK)
+		h->trace_enabled = false;
+
+	return res;
+}
+
+/** */
 static int stlink_usb_run(void *handle)
 {
 	int res;
@@ -830,8 +974,14 @@ static int stlink_usb_run(void *handle)
 
 	h = (struct stlink_usb_handle_s *)handle;
 
-	if (h->jtag_api == STLINK_JTAG_API_V2)
-		return stlink_usb_write_debug_reg(handle, DCB_DHCSR, DBGKEY|C_DEBUGEN);
+	if (h->jtag_api == STLINK_JTAG_API_V2) {
+		res = stlink_usb_write_debug_reg(handle, DCB_DHCSR, DBGKEY|C_DEBUGEN);
+
+		if (h->trace_f)
+			stlink_usb_trace_enable(handle);
+
+		return res;
+	}
 
 	stlink_usb_init_buffer(handle, STLINK_RX_EP, 2);
 
@@ -856,8 +1006,14 @@ static int stlink_usb_halt(void *handle)
 
 	h = (struct stlink_usb_handle_s *)handle;
 
-	if (h->jtag_api == STLINK_JTAG_API_V2)
-		return stlink_usb_write_debug_reg(handle, DCB_DHCSR, DBGKEY|C_HALT|C_DEBUGEN);
+	if (h->jtag_api == STLINK_JTAG_API_V2) {
+		res = stlink_usb_write_debug_reg(handle, DCB_DHCSR, DBGKEY|C_HALT|C_DEBUGEN);
+
+		if (h->trace_enabled)
+			stlink_usb_trace_disable(handle);
+
+		return res;
+	}
 
 	stlink_usb_init_buffer(handle, STLINK_RX_EP, 2);
 
@@ -1241,6 +1397,12 @@ static int stlink_usb_open(struct stlink_interface_param_s *param, void **fd)
 	/* set the used jtag api, this will default to the newest supported version */
 	h->jtag_api = api;
 
+	/* the trace output file is already open if we will be logging SWO trace
+	 * output */
+	h->trace_enabled = false;
+	h->trace_f = param->trace_f;
+	h->trace_hz = param->trace_hz > 0 ? param->trace_hz : STLINK_TRACE_HZ;
+
 	/* initialize the debug hardware */
 	err = stlink_usb_init_mode(h);
 
@@ -1259,6 +1421,16 @@ static int stlink_usb_open(struct stlink_interface_param_s *param, void **fd)
 /** */
 static int stlink_usb_close(void *fd)
 {
+	struct stlink_usb_handle_s *h;
+
+	h = (struct stlink_usb_handle_s *)fd;
+
+	if (h) {
+			fclose(h->trace_f);
+			h->trace_f = NULL;
+			h->trace_enabled = false;
+	}
+
 	return ERROR_OK;
 }
 
