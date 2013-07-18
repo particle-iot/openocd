@@ -1314,7 +1314,7 @@ static const struct command_registration jtag_command_handlers[] = {
 	{
 		.name = "jtag_reset",
 		.handler = handle_jtag_reset_command,
-		.mode = COMMAND_EXEC,
+		.mode = COMMAND_ANY,
 		.help = "Set reset line values.  Value '1' is active, "
 			"value '0' is inactive.",
 		.usage = "trst_active srst_active",
