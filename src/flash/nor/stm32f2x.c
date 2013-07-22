@@ -601,6 +601,9 @@ static int stm32x_probe(struct flash_bank *bank)
 	case 0x413:
 		max_flash_size_in_kb = 1024;
 		break;
+	case 0x423:
+		max_flash_size_in_kb = 256;
+		break;
 	default:
 		LOG_WARNING("Cannot identify target as a STM32 family.");
 		return ERROR_FAIL;
@@ -717,6 +720,10 @@ static int get_stm32x_info(struct flash_bank *bank, char *buf, int buf_size)
 				snprintf(buf, buf_size, "unknown");
 				break;
 		}
+	} else if ((device_id & 0xfff) == 0x423) {
+		printed = snprintf(buf, buf_size, "stm32f401");
+		buf += printed;
+		buf_size -= printed;
 	} else {
 		snprintf(buf, buf_size, "Cannot identify target as a stm32x\n");
 		return ERROR_FAIL;
