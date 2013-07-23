@@ -561,6 +561,15 @@ static int stm32lx_probe(struct flash_bank *bank)
 	else
 			retval = target_read_u16(target, F_SIZE, &flash_size_in_kb);
 
+	/* The 0x436 Medium+/High Density devices can have their flash size set to
+	 * either the size in Kb or a 0 or 1 flag indicating the size. */
+	if ((device_id & 0xfff) == 0x436) {
+		if (flash_size_in_kb == 0)
+			flash_size_in_kb = 384;
+		else if (flash_size_in_kb == 1)
+			flash_size_in_kb = 256;
+	}
+
 	/* Failed reading flash size or flash size invalid (early silicon),
 	 * default to max target family */
 	if (retval != ERROR_OK || flash_size_in_kb == 0xffff || flash_size_in_kb == 0) {
