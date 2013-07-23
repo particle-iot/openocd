@@ -88,6 +88,7 @@
 /* other registers */
 #define DBGMCU_IDCODE	0xE0042000
 #define F_SIZE			0x1FF8004C
+#define F_SIZE_MP		0x1FF800CC /* on Medium+ STM32L devices */
 
 /* Constants */
 #define FLASH_PAGE_SIZE 256
@@ -555,7 +556,10 @@ static int stm32lx_probe(struct flash_bank *bank)
 	}
 
 	/* Get the flash size from target. */
-	retval = target_read_u16(target, F_SIZE, &flash_size_in_kb);
+	if ((device_id & 0xfff) == 0x427)
+			retval = target_read_u16(target, F_SIZE_MP, &flash_size_in_kb);
+	else
+			retval = target_read_u16(target, F_SIZE, &flash_size_in_kb);
 
 	/* Failed reading flash size or flash size invalid (early silicon),
 	 * default to max target family */
