@@ -30,6 +30,23 @@ if ULINK
 openocd_LDADD += -lm
 endif
 
+# until we merge pkg-confg support
+if CMSIS_DAP
+if INTERNAL_HIDAPI
+if IS_WIN32
+openocd_LDADD += $(top_builddir)/hidapi/windows/libhidapi.la
+else
+if IS_DARWIN
+openocd_LDADD += $(top_builddir)/hidapi/mac/libhidapi.la
+else
+openocd_LDADD += $(top_builddir)/hidapi/libusb/libhidapi-libusb.la
+endif
+endif
+else
+openocd_LDADD += -lhidapi
+endif
+endif
+
 libopenocd_la_SOURCES = \
 	hello.c \
 	openocd.c \
@@ -121,7 +138,7 @@ CLEANFILES = startup.tcl startup_tcl.c
 # we do not want generated file in the dist
 dist-hook:
 	rm -f $(distdir)/startup_tcl.c
-	
+
 MAINTAINERCLEANFILES = $(srcdir)/Makefile.in
 
 # The "quick" target builds executables & reinstalls the executables
