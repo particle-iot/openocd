@@ -18,6 +18,12 @@ else
 SUBDIRS =
 endif
 
+if CMSIS_DAP
+if INTERNAL_HIDAPI
+SUBDIRS += hidapi
+endif
+endif
+
 SUBDIRS += src doc
 
 EXTRA_DIST = \
