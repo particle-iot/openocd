@@ -18,7 +18,19 @@ else
 SUBDIRS =
 endif
 
+if CMSIS_DAP
+if INTERNAL_HIDAPI
+SUBDIRS += hidapi
+endif
+endif
+
 SUBDIRS += src doc
+
+# normally DIST_SUBDIRS would be the same as SUBDIRS
+# however this will cause HIDAPI to fail as it is
+# not enabled for make distcheck, the tweak below can
+# be removed when we merge the auto configure adapter patch.
+DIST_SUBDIRS = jimtcl src doc
 
 EXTRA_DIST = \
 	BUGS \

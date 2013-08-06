@@ -486,6 +486,14 @@ AC_ARG_ENABLE([aice],
   AS_HELP_STRING([--enable-aice], [Enable building support for the Andes JTAG Programmer]),
   [build_aice=$enableval], [build_aice=no])
 
+AC_ARG_ENABLE([cmsis-dap],
+  AS_HELP_STRING([--enable-cmsis-dap], [Enable building support for CMSIS-DAP complient Debuggers]),
+  [build_cmsisdap=$enableval], [build_cmsisdap=no])
+
+AC_ARG_ENABLE([internal-hidapi],
+  AS_HELP_STRING([--disable-internal-hidapi], [Disable building internal hidapi]),
+  [use_internal_hidapi=$enableval], [use_internal_hidapi=yes])
+
 build_minidriver=no
 AC_MSG_CHECKING([whether to enable ZY1000 minidriver])
 if test $build_zy1000 = yes; then
@@ -813,6 +821,12 @@ if test $build_opendous = yes; then
   AC_DEFINE([BUILD_OPENDOUS], [1], [1 if you want the estick/opendous JTAG driver.])
 else
   AC_DEFINE([BUILD_OPENDOUS], [0], [0 if you don't want the estick/opendous JTAG driver.])
+fi
+
+if test $build_cmsisdap = yes; then
+  AC_DEFINE([BUILD_CMSISDAP], [1], [1 if you want the CMSIS-DAP driver.])
+else
+  AC_DEFINE([BUILD_CMSISDAP], [0], [0 if you don't want the CMSIS-DAP driver.])
 fi
 
 if test "$use_internal_jimtcl" = yes; then
@@ -1162,6 +1176,12 @@ if test $build_ftdi = yes -o $build_hladapter_icdi = yes -o \
   need_usb_ng=yes
 fi
 
+# HIDAPI requires libusb-1.0 under linux
+if test $is_win32 = no && test $is_darwin = no \
+  && test $build_cmsisdap = yes; then
+  need_usb_ng=yes
+fi
+
 # check for libusb library if necessary
 use_libusb1=no
 if test $need_usb = yes -o $need_usb_ng = yes; then
@@ -1233,11 +1253,13 @@ AM_CONDITIONAL([IS_MINGW], [test $is_mingw = yes])
 AM_CONDITIONAL([IS_WIN32], [test $is_win32 = yes])
 AM_CONDITIONAL([IS_DARWIN], [test $is_darwin = yes])
 AM_CONDITIONAL([BITQ], [test $build_bitq = yes])
+AM_CONDITIONAL([CMSIS_DAP], [test $build_cmsisdap = yes])
 
 AM_CONDITIONAL([MINIDRIVER], [test $build_minidriver = yes])
 AM_CONDITIONAL([MINIDRIVER_DUMMY], [test $build_minidriver_dummy = yes])
 
 AM_CONDITIONAL([INTERNAL_JIMTCL], [test $use_internal_jimtcl = yes])
+AM_CONDITIONAL([INTERNAL_HIDAPI], [test $use_internal_hidapi = yes])
 
 # Look for environ alternatives.  Possibility #1: is environ in unistd.h or stdlib.h?
 AC_MSG_CHECKING([for environ in unistd.h and stdlib.h])
@@ -1329,6 +1351,15 @@ else
 fi
 AC_MSG_RESULT([$EXEEXT_FOR_BUILD])
 AC_SUBST([EXEEXT_FOR_BUILD])
+
+# cmsis-dap support uses hidapi, which requires libusb-1.0
+if test $build_cmsisdap = yes && test $use_internal_hidapi = yes; then
+  if test -f "$srcdir/hidapi/configure.ac"; then
+    AC_CONFIG_SUBDIRS([hidapi])
+  else
+    AC_MSG_ERROR([hidapi not found, run git submodule init and git submodule update.])
+  fi
+fi
 
 AC_CONFIG_FILES([
   Makefile
