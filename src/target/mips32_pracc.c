@@ -623,16 +623,16 @@ static int mips32_pracc_sync_cache(struct mips_ejtag *ejtag_info,
 
 		MIPS32_LUI(8, UPPER16(MIPS32_PRACC_PARAM_IN)),		/* $8 = MIPS32_PRACC_PARAM_IN */
 		MIPS32_ORI(8, 8, LOWER16(MIPS32_PRACC_PARAM_IN)),
-		MIPS32_LW(9, 0, 8),									/* Load write start_addr to $9 */
+		MIPS32_LW(9, 0, 8),								/* Load write start_addr to $9 */
 		MIPS32_LW(10, 4, 8),								/* Load write end_addr to $10 */
 
 		MIPS32_RDHWR(11, MIPS32_SYNCI_STEP),				/* $11 = MIPS32_SYNCI_STEP */
 		MIPS32_BEQ(11, 0, 6),								/* beq $11, $0, end */
 		MIPS32_NOP,
-															/* synci_loop : */
+														/* synci_loop : */
 		MIPS32_SYNCI(0, 9),									/* synci 0($9) */
-		MIPS32_SLTU(8, 10, 9),								/* sltu $8, $10, $9  # $8 = $10 < $9 ? 1 : 0 */
-		MIPS32_BNE(8, 0, NEG16(3)),							/* bne $8, $0, synci_loop */
+		MIPS32_SLTU(8, 10, 9),							/* sltu $8, $10, $9  # $8 = $10 < $9 ? 1 : 0 */
+		MIPS32_BEQ(8, 0, NEG16(3)),							/* bne $8, $0, synci_loop */
 		MIPS32_ADDU(9, 9, 11),								/* $9 += MIPS32_SYNCI_STEP */
 		MIPS32_SYNC,
 															/* end: */
