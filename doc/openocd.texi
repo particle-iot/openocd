@@ -7669,11 +7669,12 @@ portable scripts currently must issue only BYPASS instructions.
 @end quotation
 @end deffn
 
-@deffn Command {jtag_reset} trst srst
+@deffn Command {jtag_reset} trst srst [trst srst]*
 Set values of reset signals.
 The @var{trst} and @var{srst} parameter values may be
 @option{0}, indicating that reset is inactive (pulled or driven high),
-or @option{1}, indicating it is active (pulled or driven low).
+or @option{1}, indicating it is active (pulled or driven low). There can
+be any number of these pairs.
 The @command{reset_config} command should already have been used
 to configure how the board and JTAG adapter treat these two
 signals, and to say if either signal is even present.
