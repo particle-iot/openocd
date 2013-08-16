@@ -533,7 +533,7 @@ int get_current(struct target *target, int create)
 					LOG_ERROR
 						("error in linux current thread update");
 
-				if (create) {
+				if (create && ct != NULL) {
 					struct threads *t;
 					t = calloc(1, sizeof(struct threads));
 					t->base_addr = ct->TS;
@@ -1140,8 +1140,11 @@ int linux_gdb_thread_packet(struct target *target,
 	char *tmp_str = out_str;
 	tmp_str += sprintf(tmp_str, "m");
 	struct threads *temp = linux_os->thread_list;
-	tmp_str += sprintf(tmp_str, "%016" PRIx64, temp->threadid);
-	temp = temp->next;
+
+	if (temp != NULL) {
+		tmp_str += sprintf(tmp_str, "%016" PRIx64, temp->threadid);
+		temp = temp->next;
+	}
 
 	while (temp != NULL) {
 		tmp_str += sprintf(tmp_str, ",");
