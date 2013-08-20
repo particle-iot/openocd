@@ -173,14 +173,12 @@ static void openjtag_debug_buffer(uint8_t *buffer, int length, uint8_t type)
 		}
 		LOG_DEBUG("%s", line);
 	}
-
 }
 
 #endif
 
 static int8_t openjtag_get_tap_state(int8_t state)
 {
-
 	switch (state) {
 		case TAP_DREXIT2:   return OPENJTAG_TAP_EXIT2_DR;
 		case TAP_DREXIT1:   return OPENJTAG_TAP_EXIT1_DR;
@@ -243,7 +241,6 @@ static int openjtag_buf_write(
 
 static int openjtag_buf_read(uint8_t *buf, uint32_t qty, uint32_t *bytes_read)
 {
-
 #if BUILD_OPENJTAG_FTD2XX == 1
 	DWORD dw_bytes_read;
 	FT_STATUS status;
@@ -288,7 +285,6 @@ static int openjtag_buf_read(uint8_t *buf, uint32_t qty, uint32_t *bytes_read)
 #ifdef _DEBUG_USB_COMMS_
 	openjtag_debug_buffer(buf, *bytes_read, DEBUG_TYPE_READ);
 #endif
-
 #endif
 	return ERROR_OK;
 }
@@ -573,7 +569,6 @@ static int openjtag_execute_tap_queue(void)
 
 static void openjtag_add_byte(char buf)
 {
-
 	if (usb_tx_buf_offs == OPENJTAG_BUFFER_SIZE) {
 		DEBUG_JTAG_IO("Forcing execute_tap_queue");
 		DEBUG_JTAG_IO("TX Buff offs=%d", usb_tx_buf_offs);
@@ -586,7 +581,6 @@ static void openjtag_add_byte(char buf)
 
 static void openjtag_add_scan(uint8_t *buffer, int length, struct scan_command *scan_cmd)
 {
-
 	/* Ensure space to send long chains */
 	/* We add two byte for each eight (or less) bits, one for command, one for data */
 	if (usb_tx_buf_offs + (DIV_ROUND_UP(length, 8) * 2) >= OPENJTAG_BUFFER_SIZE) {
@@ -635,7 +629,6 @@ static void openjtag_add_scan(uint8_t *buffer, int length, struct scan_command *
 
 static void openjtag_execute_reset(struct jtag_command *cmd)
 {
-
 	DEBUG_JTAG_IO("reset trst: %i srst %i",
 			cmd->cmd.reset->trst, cmd->cmd.reset->srst);
 
@@ -678,10 +671,8 @@ static void openjtag_execute_statemove(struct jtag_command *cmd)
 	tap_set_state(tap_get_end_state());
 }
 
-
 static void openjtag_execute_scan(struct jtag_command *cmd)
 {
-
 	int scan_size, old_state;
 	uint8_t *buffer;
 
@@ -713,7 +704,6 @@ static void openjtag_execute_scan(struct jtag_command *cmd)
 
 static void openjtag_execute_runtest(struct jtag_command *cmd)
 {
-
 	tap_state_t end_state = cmd->cmd.runtest->end_state;
 	tap_set_end_state(end_state);
 
@@ -787,7 +777,6 @@ static int openjtag_speed_div(int speed, int *khz)
 
 static int openjtag_khz(int khz, int *jtag_speed)
 {
-
 	if (khz >= 48000)
 		*jtag_speed = 48000;
 	else if (khz >= 24000)
@@ -818,7 +807,6 @@ COMMAND_HANDLER(openjtag_handle_device_desc_command)
 	return ERROR_OK;
 }
 
-
 static const struct command_registration openjtag_command_handlers[] = {
 	{
 		.name = "openjtag_device_desc",
@@ -841,5 +829,3 @@ struct jtag_interface openjtag_interface = {
 	.init = openjtag_init,
 	.quit = openjtag_quit,
 };
-
-
