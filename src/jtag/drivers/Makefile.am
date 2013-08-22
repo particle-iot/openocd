@@ -117,6 +117,10 @@ if OPENJTAG
 DRIVERFILES += openjtag.c
 endif
 
+if CMSIS_DAP
+DRIVERFILES += cmsis_dap_usb.c
+endif
+
 noinst_HEADERS = \
 	bitbang.h \
 	bitq.h \
