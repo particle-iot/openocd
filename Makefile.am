@@ -3,7 +3,9 @@
 AUTOMAKE_OPTIONS = gnu 1.6
 
 # make sure we pass the correct jimtcl flags to distcheck
-DISTCHECK_CONFIGURE_FLAGS = --disable-install-jim
+# --enable-cmsis-dap is required otherwise make distcheck will fail
+# as it expects all SUBDIRS to be configured - even optional ones.
+DISTCHECK_CONFIGURE_FLAGS = --disable-install-jim --enable-cmsis-dap
 
 nobase_dist_pkgdata_DATA = \
 	contrib/libdcc/dcc_stdio.c \
@@ -16,6 +18,10 @@ if INTERNAL_JIMTCL
 SUBDIRS = jimtcl
 else
 SUBDIRS =
+endif
+
+if INTERNAL_HIDAPI
+SUBDIRS += hidapi
 endif
 
 SUBDIRS += src doc
