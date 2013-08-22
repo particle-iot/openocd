@@ -39,5 +39,11 @@ else
     git submodule update
 fi
 
+# we may have to bootstrap some submodules
+if [ -d hidapi ]; then
+    cd hidapi
+    ./bootstrap
+fi
+
 echo "Bootstrap complete. Quick build instructions:"
 echo "./configure ...."

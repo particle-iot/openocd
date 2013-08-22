@@ -299,6 +299,7 @@ AC_ARG_ENABLE([werror],
 debug_jtag_io=no
 debug_usb_io=no
 debug_usb_comms=no
+LIBHID="-lhidapi"
 
 AC_ARG_ENABLE([verbose],
   AS_HELP_STRING([--enable-verbose],
@@ -482,6 +483,24 @@ AC_ARG_ENABLE([internal-jimtcl],
   AS_HELP_STRING([--disable-internal-jimtcl], [Disable building internal jimtcl]),
   [use_internal_jimtcl=$enableval], [use_internal_jimtcl=yes])
 
+AC_ARG_ENABLE([cmsis-dap],
+  AS_HELP_STRING([--enable-cmsis-dap], [Enable building support for CMSIS-DAP compliant Debuggers]),
+  [build_cmsisdap=$enableval], [build_cmsisdap=no])
+
+AC_ARG_ENABLE([internal-hidapi],
+  AS_HELP_STRING([--disable-internal-hidapi], [Disable building internal hidapi]),
+  [use_internal_hidapi=$enableval], [use_internal_hidapi=yes])
+
+AC_ARG_ENABLE([hidapi-libusb],
+  AS_HELP_STRING([--enable-hidapi-libusb],
+  [Enable building HIDAPI using libusb-1.0 (Linux Only)]),
+  [use_hidapi_libusb=$enableval], [use_hidapi_libusb=no])
+
+# if not building cmsis-dap support then we do not need hidapi
+if test $build_cmsisdap = no; then
+  use_internal_hidapi=no
+fi
+
 build_minidriver=no
 AC_MSG_CHECKING([whether to enable ZY1000 minidriver])
 if test $build_zy1000 = yes; then
@@ -588,6 +607,22 @@ case $host in
     AC_DEFINE([IS_WIN32], [0], [0 if not building for Win32.])
     AC_DEFINE([IS_DARWIN], [1], [1 if building for Darwin.])
     ;;
+  *-freebsd*)
+    if test x$parport_use_giveio = xyes; then
+      AC_MSG_WARN([--enable-parport-giveio cannot be used by ]$host[ hosts])
+    fi
+    parport_use_giveio=no
+    AC_DEFINE([IS_CYGWIN], [0], [0 if not building for Cygwin.])
+    AC_DEFINE([IS_WIN32], [0], [0 if not building for Win32.])
+    AC_DEFINE([IS_DARWIN], [0], [0 if not building for Darwin.])
+
+    # freebsd only supports libusb-1.0 version of HIDAPI
+    LIBHID="-lhidapi-libusb"
+    use_hidapi_libusb=yes
+    if test $use_internal_hidapi = yes; then
+      LIBHID="\$(top_builddir)/hidapi/libusb/libhidapi-libusb.la"
+    fi
+    ;;
   *)
     if test x$parport_use_giveio = xyes; then
       AC_MSG_WARN([--enable-parport-giveio cannot be used by ]$host[ hosts])
@@ -596,8 +631,29 @@ case $host in
     AC_DEFINE([IS_CYGWIN], [0], [0 if not building for Cygwin.])
     AC_DEFINE([IS_WIN32], [0], [0 if not building for Win32.])
     AC_DEFINE([IS_DARWIN], [0], [0 if not building for Darwin.])
+
+    # until we get pkg-config working
+    if test $use_internal_hidapi = yes; then
+      if test $use_hidapi_libusb = no; then
+        LIBHID="\$(top_builddir)/hidapi/linux/libhidapi-hidraw.la"
+      else
+        LIBHID="\$(top_builddir)/hidapi/libusb/libhidapi-libusb.la"
+      fi
+    else
+      if test $use_hidapi_libusb = no; then
+        LIBHID="-lhidapi-hidraw"
+      else
+        LIBHID="-lhidapi-libusb"
+      fi
+    fi
     ;;
 esac
+
+if test $is_win32 = yes && test $use_internal_hidapi = yes; then
+  LIBHID="\$(top_builddir)/hidapi/windows/libhidapi.la"
+fi
+
+AC_SUBST([LIBHID])
 
 if test $build_parport = yes; then
   build_bitbang=yes
@@ -745,17 +801,26 @@ else
   AC_DEFINE([BUILD_OOCD_TRACE], [0], [0 if you don't want the OpenOCD+trace ETM capture driver.])
 fi
 
-if test $build_buspirate = yes; then
-  AC_DEFINE([BUILD_BUSPIRATE], [1], [1 if you want the Buspirate JTAG driver.])
+if test $build_cmsisdap = yes; then
+  AC_DEFINE([BUILD_CMSISDAP], [1], [1 if you want the CMSIS-DAP driver.])
 else
-  AC_DEFINE([BUILD_BUSPIRATE], [0], [0 if you don't want the Buspirate JTAG driver.])
+  AC_DEFINE([BUILD_CMSISDAP], [0], [0 if you don't want the CMSIS-DAP driver.])
 fi
 
-if test "$use_internal_jimtcl" = yes; then
+if test $use_internal_jimtcl = yes; then
   if test -f "$srcdir/jimtcl/configure.ac"; then
     AX_CONFIG_SUBDIR_OPTION([jimtcl], [--disable-install-jim])
   else
     AC_MSG_ERROR([jimtcl not found, run git submodule init and git submodule update.])
+  fi
+fi
+
+# cmsis-dap support uses hidapi
+if test $build_cmsisdap = yes && test $use_internal_hidapi = yes; then
+  if test -f "$srcdir/hidapi/configure.ac"; then
+    AC_CONFIG_SUBDIRS([hidapi])
+  else
+    AC_MSG_ERROR([hidapi not found, run git submodule init and git submodule update.])
   fi
 fi
 
@@ -1154,11 +1219,13 @@ AM_CONDITIONAL([IS_MINGW], [test $is_mingw = yes])
 AM_CONDITIONAL([IS_WIN32], [test $is_win32 = yes])
 AM_CONDITIONAL([IS_DARWIN], [test $is_darwin = yes])
 AM_CONDITIONAL([BITQ], [test $build_bitq = yes])
+AM_CONDITIONAL([CMSIS_DAP], [test $build_cmsisdap = yes])
 
 AM_CONDITIONAL([MINIDRIVER], [test $build_minidriver = yes])
 AM_CONDITIONAL([MINIDRIVER_DUMMY], [test $build_minidriver_dummy = yes])
 
 AM_CONDITIONAL([INTERNAL_JIMTCL], [test $use_internal_jimtcl = yes])
+AM_CONDITIONAL([INTERNAL_HIDAPI], [test $use_internal_hidapi = yes])
 
 # Look for environ alternatives.  Possibility #1: is environ in unistd.h or stdlib.h?
 AC_MSG_CHECKING([for environ in unistd.h and stdlib.h])
