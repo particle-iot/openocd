@@ -10,3 +10,7 @@ if INTERNAL_JIMTCL
 AM_CPPFLAGS += -I$(top_srcdir)/jimtcl \
 			   -I$(top_builddir)/jimtcl
 endif
+
+if INTERNAL_HIDAPI
+AM_CPPFLAGS += -I$(top_srcdir)/hidapi
+endif
