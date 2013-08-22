@@ -30,6 +30,10 @@ if ULINK
 openocd_LDADD += -lm
 endif
 
+if CMSIS_DAP
+openocd_LDADD += $(LIBHID)
+endif
+
 libopenocd_la_SOURCES = \
 	hello.c \
 	openocd.c \
@@ -121,7 +125,7 @@ CLEANFILES = startup.tcl startup_tcl.c
 # we do not want generated file in the dist
 dist-hook:
 	rm -f $(distdir)/startup_tcl.c
-	
+
 MAINTAINERCLEANFILES = $(srcdir)/Makefile.in
 
 # The "quick" target builds executables & reinstalls the executables
