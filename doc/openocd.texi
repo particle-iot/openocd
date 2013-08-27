@@ -2567,6 +2567,17 @@ minimal impact on the target system. Avoid floating inputs, conflicting outputs
 and initially asserted reset signals.
 @end deffn
 
+@deffn {Config Command} {ftdi_layout_shutdown} data direction
+Specifies the deinitialization values of the FTDI GPIO data and direction
+registers for adapter shutdown. The command syntax is the same as for initial
+values (see @command{ftdi_layout_init}). Some layouts maybe need a proper
+hardware deinitialization on shutdown, for example to disable gates, drivers,
+buffers, or switch off blinking LEDs. The values should be selected based
+on the schematics of the adapter, such that all signals are set to safe
+levels without impact on the target system on adapter shutdown. Avoid floating
+inputs, conflicting outputs and asserted reset signals.
+@end deffn
+
 @deffn {Config Command} {ftdi_layout_signal} name [@option{-data}|@option{-ndata} data_mask] [@option{-oe}|@option{-noe} oe_mask] [@option{-alias}|@option{-nalias} name]
 Creates a signal with the specified @var{name}, controlled by one or more FTDI
 GPIO pins via a range of possible buffer connections. The masks are FTDI GPIO
