@@ -66,6 +66,7 @@
  *
  * CoreSight(tm) DAP-Lite TRM, ARM DDI 0316D
  * Cortex-M3(tm) TRM, ARM DDI 0337G
+ * Cortex-A15(tm)TRM, ARM DDI 0438C
  */
 
 #ifdef HAVE_CONFIG_H
@@ -697,6 +698,37 @@ int dap_syssec_kinetis_mdmap(struct adiv5_dap *dap)
 	return ERROR_OK;
 }
 
+
+/**
+ *
+ */
+int dap_syssec_check(struct adiv5_dap *dap)
+{
+	uint32_t val;
+	int retval;
+
+	dap_ap_select(dap, 1);
+
+	/* first check mdm-ap id register */
+	retval = dap_queue_ap_read(dap, MDM_REG_ID, &val);
+	if (retval != ERROR_OK)
+		return retval;
+
+	dap_run(dap);
+
+	if (val == 0x24770002) {
+		LOG_DEBUG("mdm-ap id matches A15 Type is MEM-AP APB 0x%" PRIx32, val);
+		retval = ERROR_OK;
+	} else {
+		retval = dap_syssec_kinetis_mdmap(dap);
+	}
+
+	dap_ap_select(dap, 0);
+
+	return retval;
+}
+
+
 /** */
 struct dap_syssec_filter {
 	/** */
@@ -707,7 +739,7 @@ struct dap_syssec_filter {
 
 /** */
 static struct dap_syssec_filter dap_syssec_filter_data[] = {
-	{ 0x4BA00477, dap_syssec_kinetis_mdmap }
+	{ 0x4BA00477, dap_syssec_check }
 };
 
 /**
@@ -1386,7 +1418,12 @@ static int dap_rom_display(struct command_context *cmd_ctx,
 				type = "Cortex-A9 Debug";
 				full = "(Debug Unit)";
 				break;
+			case 0x4af:
+				type = "Cortex-A15 Debug";
+				full = "(Debug Unit)";
+				break;
 			default:
+				LOG_DEBUG("Unrecognized Part number 0x%" PRIx32, part_num);
 				type = "-*- unrecognized -*-";
 				full = "";
 				break;
@@ -1455,9 +1492,9 @@ static int dap_info_command(struct command_context *cmd_ctx,
 		command_print(cmd_ctx, "No AP found at this ap 0x%x", ap);
 
 	romtable_present = ((mem_ap) && (dbgbase != 0xFFFFFFFF));
-	if (romtable_present) {
+	if (romtable_present)
 		dap_rom_display(cmd_ctx, dap, ap, dbgbase, 0);
-	} else
+	else
 		command_print(cmd_ctx, "\tNo ROM table present");
 	dap_ap_select(dap, ap_old);
 
