@@ -20,6 +20,9 @@
  *   Copyright (C) Broadcom 2012                                           *
  *   ehunter@broadcom.com : Cortex R4 support                              *
  *                                                                         *
+ *   Copyright (C) 2013 Kamal Dasu                                         *
+ *   kdasu.kdev@gmail.com                                                  *
+ *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
  *   the Free Software Foundation; either version 2 of the License, or     *
@@ -38,6 +41,7 @@
  *   Cortex-A8(tm) TRM, ARM DDI 0344H                                      *
  *   Cortex-A9(tm) TRM, ARM DDI 0407F                                      *
  *   Cortex-A4(tm) TRM, ARM DDI 0363E                                      *
+ *   Cortex-A15(tm)TRM, ARM DDI 0438C                                      *
  *                                                                         *
  ***************************************************************************/
 
@@ -163,12 +167,11 @@ static int cortex_a_mmu_modify(struct target *target, int enable)
 /*
  * Cortex-A8 Basic debug access, very low level assumes state is saved
  */
-static int cortex_a_init_debug_access(struct target *target)
+static int cortex_a8_init_debug_access(struct target *target)
 {
 	struct armv7a_common *armv7a = target_to_armv7a(target);
 	struct adiv5_dap *swjdp = armv7a->arm.dap;
 	int retval;
-	uint32_t dummy;
 
 	LOG_DEBUG(" ");
 
@@ -184,12 +187,54 @@ static int cortex_a_init_debug_access(struct target *target)
 			LOG_USER(
 				"Locking debug access failed on first, but succeeded on second try.");
 	}
+
+	return retval;
+}
+
+/*
+ * Cortex-A Basic debug access, very low level assumes state is saved
+ */
+static int cortex_a_init_debug_access(struct target *target)
+{
+	struct armv7a_common *armv7a = target_to_armv7a(target);
+	struct adiv5_dap *swjdp = armv7a->arm.dap;
+	int retval;
+	uint32_t dbg_osreg;
+	uint32_t cortex_part_num;
+	struct cortex_a_common *cortex_a = target_to_cortex_a(target);
+
+	LOG_DEBUG(" ");
+	cortex_part_num = (cortex_a->cpuid & CORTEX_A_MIDR_PARTNUM_MASK) >>
+		CORTEX_A_MIDR_PARTNUM_SHIFT;
+
+	switch (cortex_part_num) {
+	case CORTEX_A15_PARTNUM:
+		retval = mem_ap_sel_read_atomic_u32(swjdp, armv7a->debug_ap,
+											armv7a->debug_base + CPUDBG_OSLSR,
+											&dbg_osreg);
+		LOG_DEBUG("DBGOSLSR  0x%x ", dbg_osreg);
+
+		if (dbg_osreg & CPUDBG_OSLAR_LK_MASK)
+			/* Unlocking the DEBUG OS registers for modification */
+			retval = mem_ap_sel_write_atomic_u32(swjdp, armv7a->debug_ap,
+												 armv7a->debug_base + CPUDBG_OSLAR,
+												 0);
+		break;
+
+	case CORTEX_A8_PARTNUM:
+	case CORTEX_A9_PARTNUM:
+	default:
+		retval = cortex_a8_init_debug_access(target);
+	}
+
 	if (retval != ERROR_OK)
 		return retval;
 	/* Clear Sticky Power Down status Bit in PRSR to enable access to
 	   the registers in the Core Power Domain */
 	retval = mem_ap_sel_read_atomic_u32(swjdp, armv7a->debug_ap,
-			armv7a->debug_base + CPUDBG_PRSR, &dummy);
+			armv7a->debug_base + CPUDBG_PRSR, &dbg_osreg);
+	LOG_DEBUG("target->coreid %d DBGPRSR  0x%x ", target->coreid, dbg_osreg);
+
 	if (retval != ERROR_OK)
 		return retval;
 
@@ -344,6 +389,12 @@ static int cortex_a_dap_read_coreregister_u32(struct target *target,
 	retval = mem_ap_sel_read_atomic_u32(swjdp, armv7a->debug_ap,
 			armv7a->debug_base + CPUDBG_DTRTX, value);
 	LOG_DEBUG("read DCC 0x%08" PRIx32, *value);
+
+	/*
+	 * Need to take care of endianess before returning
+	 */
+	*value = target_buffer_get_u32(target, (uint8_t *)value);
+	LOG_DEBUG("return DCC 0x%08x", *value);
 
 	return retval;
 }
@@ -1780,6 +1831,136 @@ static int cortex_a_deassert_reset(struct target *target)
 	return ERROR_OK;
 }
 
+static int cortex_a_dap_write_apb_ab_memory(struct target *target,
+	uint32_t address, uint32_t size,
+	uint32_t count, const uint8_t *buffer)
+{
+	/* write memory through APB-AP */
+
+	int retval = ERROR_COMMAND_SYNTAX_ERROR;
+	struct armv7a_common *armv7a = target_to_armv7a(target);
+	struct arm *arm = &armv7a->arm;
+	int total_bytes = count * size;
+	int start_byte, nbytes_to_write, i;
+	struct reg *reg;
+	union _data {
+		uint8_t uc_a[4];
+		uint32_t ui;
+	} data;
+
+	if (target->state != TARGET_HALTED) {
+		LOG_WARNING("target not halted");
+		return ERROR_TARGET_NOT_HALTED;
+	}
+
+	reg = arm_reg_current(arm, 0);
+	reg->dirty = 1;
+	reg = arm_reg_current(arm, 1);
+	reg->dirty = 1;
+
+	retval = cortex_a_dap_write_coreregister_u32(target, address & 0xFFFFFFFC, 0);
+	if (retval != ERROR_OK)
+		return retval;
+
+	start_byte = address & 0x3;
+
+	while (total_bytes > 0) {
+
+		nbytes_to_write = 4 - start_byte;
+		if (total_bytes < nbytes_to_write)
+			nbytes_to_write = total_bytes;
+
+		if (nbytes_to_write != 4) {
+
+			/* execute instruction LDR r1, [r0] */
+			retval = cortex_a_exec_opcode(target,  ARMV4_5_LDR(1, 0), NULL);
+			if (retval != ERROR_OK)
+				return retval;
+
+			retval = cortex_a_dap_read_coreregister_u32(target, &data.ui, 1);
+			if (retval != ERROR_OK)
+				return retval;
+		}
+
+		for (i = 0; i < nbytes_to_write; ++i)
+			data.uc_a[i + start_byte] = *buffer++;
+
+		retval = cortex_a_dap_write_coreregister_u32(target, data.ui, 1);
+		if (retval != ERROR_OK)
+			return retval;
+
+		/* execute instruction STRW r1, [r0], 1 (0xe4801004) */
+		retval = cortex_a_exec_opcode(target, ARMV4_5_STRW_IP(1, 0), NULL);
+		if (retval != ERROR_OK)
+			return retval;
+
+		total_bytes -= nbytes_to_write;
+		start_byte = 0;
+	}
+
+	return retval;
+}
+
+
+static int cortex_a_dap_read_apb_ab_memory(struct target *target,
+	uint32_t address, uint32_t size,
+	uint32_t count, uint8_t *buffer)
+{
+
+	/* read memory through APB-AP */
+
+	int retval = ERROR_COMMAND_SYNTAX_ERROR;
+	struct armv7a_common *armv7a = target_to_armv7a(target);
+	struct arm *arm = &armv7a->arm;
+	int total_bytes = count * size;
+	int start_byte, nbytes_to_read, i;
+	struct reg *reg;
+	union _data {
+		uint8_t uc_a[4];
+		uint32_t ui;
+	} data;
+
+	if (target->state != TARGET_HALTED) {
+		LOG_WARNING("target not halted");
+		return ERROR_TARGET_NOT_HALTED;
+	}
+
+	reg = arm_reg_current(arm, 0);
+	reg->dirty = 1;
+	reg = arm_reg_current(arm, 1);
+	reg->dirty = 1;
+
+	retval = cortex_a_dap_write_coreregister_u32(target, address & 0xFFFFFFFC, 0);
+	if (retval != ERROR_OK)
+		return retval;
+
+	start_byte = address & 0x3;
+
+	while (total_bytes > 0) {
+
+		/* execute instruction LDRW r1, [r0], 4 (0xe4901004)  */
+		retval = cortex_a_exec_opcode(target,  ARMV4_5_LDRW_IP(1, 0), NULL);
+		if (retval != ERROR_OK)
+			return retval;
+
+		retval = cortex_a_dap_read_coreregister_u32(target, &data.ui, 1);
+		if (retval != ERROR_OK)
+			return retval;
+
+		nbytes_to_read = 4 - start_byte;
+		if (total_bytes < nbytes_to_read)
+			nbytes_to_read = total_bytes;
+
+		for (i = 0; i < nbytes_to_read; ++i)
+			*buffer++ = data.uc_a[i + start_byte];
+
+		total_bytes -= nbytes_to_read;
+		start_byte = 0;
+	}
+
+	return retval;
+}
+
 static int cortex_a_write_apb_ab_memory(struct target *target,
 	uint32_t address, uint32_t size,
 	uint32_t count, const uint8_t *buffer)
@@ -1797,6 +1978,11 @@ static int cortex_a_write_apb_ab_memory(struct target *target,
 	struct reg *reg;
 	uint32_t dscr;
 	uint8_t *tmp_buff = NULL;
+	struct cortex_a_common *cortex_a = target_to_cortex_a(target);
+
+	if ((cortex_a->cpuid & CORTEX_A_MIDR_PARTNUM_MASK) >> CORTEX_A_MIDR_PARTNUM_SHIFT ==
+	    CORTEX_A15_PARTNUM)
+		return cortex_a_dap_write_apb_ab_memory(target, address, size, count, buffer);
 
 	if (target->state != TARGET_HALTED) {
 		LOG_WARNING("target not halted");
@@ -1951,6 +2137,12 @@ static int cortex_a_read_apb_ab_memory(struct target *target,
 	uint32_t dscr;
 	uint32_t *tmp_buff;
 	uint32_t buff32[2];
+	struct cortex_a_common *cortex_a = target_to_cortex_a(target);
+
+	if ((cortex_a->cpuid & CORTEX_A_MIDR_PARTNUM_MASK) >> CORTEX_A_MIDR_PARTNUM_SHIFT ==
+	    CORTEX_A15_PARTNUM)
+		return cortex_a_dap_read_apb_ab_memory(target, address, size, count, buffer);
+
 	if (target->state != TARGET_HALTED) {
 		LOG_WARNING("target not halted");
 		return ERROR_TARGET_NOT_HALTED;
@@ -2386,7 +2578,7 @@ static int cortex_a_examine_first(struct target *target)
 	struct adiv5_dap *swjdp = armv7a->arm.dap;
 	int i;
 	int retval = ERROR_OK;
-	uint32_t didr, ctypr, ttypr, cpuid;
+	uint32_t didr, ctypr, ttypr, cpuid, dbg_osreg;
 
 	/* We do one extra read to ensure DAP is configured,
 	 * we call ahbap_debugport_init(swjdp) instead
@@ -2464,6 +2656,37 @@ static int cortex_a_examine_first(struct target *target)
 	LOG_DEBUG("ctypr = 0x%08" PRIx32, ctypr);
 	LOG_DEBUG("ttypr = 0x%08" PRIx32, ttypr);
 	LOG_DEBUG("didr = 0x%08" PRIx32, didr);
+
+	cortex_a->cpuid = cpuid;
+	cortex_a->ctypr = ctypr;
+	cortex_a->ttypr = ttypr;
+	cortex_a->didr = didr;
+
+	/* Unlocking the debug registers */
+	if ((cpuid & CORTEX_A_MIDR_PARTNUM_MASK) >> CORTEX_A_MIDR_PARTNUM_SHIFT ==
+		CORTEX_A15_PARTNUM) {
+
+		retval = mem_ap_sel_write_atomic_u32(swjdp, armv7a->debug_ap,
+						     armv7a->debug_base + CPUDBG_OSLAR,
+						     0);
+
+		if (retval != ERROR_OK)
+			return retval;
+
+		retval = mem_ap_sel_read_atomic_u32(swjdp, armv7a->debug_ap,
+						    armv7a->debug_base + CPUDBG_PRSR, &dbg_osreg);
+		LOG_DEBUG("target->coreid %d DBGPRSR  0x%x ", target->coreid, dbg_osreg);
+
+		if (retval != ERROR_OK)
+			return retval;
+
+	}
+
+	retval = mem_ap_sel_read_atomic_u32(swjdp, armv7a->debug_ap,
+					    armv7a->debug_base + CPUDBG_PRSR, &dbg_osreg);
+
+	if (retval != ERROR_OK)
+		return retval;
 
 	armv7a->arm.core_type = ARM_MODE_MON;
 	retval = cortex_a_dpm_setup(cortex_a, didr);
@@ -2838,24 +3061,12 @@ struct target_type cortexr4_target = {
 	.poll = cortex_a_poll,
 	.arch_state = armv7a_arch_state,
 
-<<<<<<< HEAD
-	.halt = cortex_a8_halt,
-	.resume = cortex_a8_resume,
-	.step = cortex_a8_step,
-
-	.assert_reset = cortex_a8_assert_reset,
-	.deassert_reset = cortex_a8_deassert_reset,
-=======
-	.target_request_data = NULL,
-
 	.halt = cortex_a_halt,
 	.resume = cortex_a_resume,
 	.step = cortex_a_step,
 
 	.assert_reset = cortex_a_assert_reset,
 	.deassert_reset = cortex_a_deassert_reset,
-	.soft_reset_halt = NULL,
->>>>>>> cortex_a: target implementation renames cortex_a8 to cortex_a
 
 	/* REVISIT allow exporting VFP3 registers ... */
 	.get_gdb_reg_list = arm_get_gdb_reg_list,
