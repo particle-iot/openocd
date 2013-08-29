@@ -129,10 +129,10 @@ static int cortex_a_mmu_modify(struct target *target, int enable)
 	struct armv7a_common *armv7a = target_to_armv7a(target);
 	int retval = ERROR_OK;
 	if (enable) {
-		/*  if mmu enabled at target stop and mmu not enable */
+		/* mmu could be enabled at last target resume and mmu disabled the next halt */
 		if (!(cortex_a->cp15_control_reg & 0x1U)) {
-			LOG_ERROR("trying to enable mmu on target stopped with mmu disable");
-			return ERROR_FAIL;
+			LOG_INFO("trying to enable mmu on target stopped with mmu disable");
+			return ERROR_OK;
 		}
 		if (!(cortex_a->cp15_control_reg_curr & 0x1U)) {
 			cortex_a->cp15_control_reg_curr |= 0x1U;
