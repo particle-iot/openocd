@@ -122,8 +122,8 @@ static int gdb_report_data_abort;
 
 /* set if we are sending target descriptions to gdb
  * via qXfer:features:read packet */
-/* disabled by default */
-static int gdb_use_target_description;
+/* enabled by default */
+static int gdb_use_target_description = 1;
 
 /* current processing free-run type, used by file-I/O */
 static char gdb_running_type;
@@ -2111,6 +2111,12 @@ static int gdb_generate_target_description(struct target *target, char **tdesc)
 	if (features != NULL)
 		free(features);
 
+	if (current_feature == 0) {
+		/* no features found so disable target description support */
+		gdb_use_target_description = 0;
+		LOG_INFO("Disabling Target Description Support");
+	}
+
 	return ERROR_OK;
 }
 
@@ -2219,6 +2225,12 @@ static int gdb_query_packet(struct connection *connection,
 		char *buffer = NULL;
 		int pos = 0;
 		int size = 0;
+
+		/* we need to test that the target supports target descriptions */
+		char *tdesc = NULL;
+		gdb_generate_target_description(target, &tdesc);
+		if (tdesc)
+			free(tdesc);
 
 		xml_printf(&retval,
 			&buffer,
