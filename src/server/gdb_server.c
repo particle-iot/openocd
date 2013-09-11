@@ -1963,7 +1963,7 @@ static int gdb_generate_reg_type_description(struct target *target,
 /* Get a list of available target registers features. feature_list must
  * be freed by caller.
  */
-int get_reg_features_list(struct target *target, char **feature_list[], int *feature_list_size,
+static int get_reg_features_list(struct target *target, char **feature_list[], int *feature_list_size,
 		struct reg **reg_list, int reg_list_size)
 {
 	int tbl_sz = 0;
@@ -2148,8 +2148,10 @@ static int gdb_get_target_description_chunk(struct target *target, char **chunk,
 		(*chunk)[1 + (tdesc_length - offset)] = '\0';
 
 		/* After gdb-server sends out last chunk, invalidate tdesc. */
-		free(tdesc);
-		tdesc = NULL;
+		if (tdesc) {
+			free(tdesc);
+			tdesc = NULL;
+		}
 		tdesc_length = 0;
 	}
 
@@ -2930,14 +2932,17 @@ COMMAND_HANDLER(handle_gdb_target_description_command)
 
 COMMAND_HANDLER(handle_gdb_save_tdesc_command)
 {
-	static char *tdesc;
-	static uint32_t tdesc_length;
+	char *tdesc;
+	uint32_t tdesc_length;
 	struct target *target = get_current_target(CMD_CTX);
 	char *tdesc_filename;
 
-	if (tdesc == NULL) {
-		gdb_generate_target_description(target, &tdesc);
-		tdesc_length = strlen(tdesc);
+	gdb_generate_target_description(target, &tdesc);
+	tdesc_length = strlen(tdesc);
+
+	if (tdesc_length == 0) {
+		LOG_ERROR("Unable to Generate Target Description");
+		return ERROR_FAIL;
 	}
 
 	struct fileio fileio;
@@ -2958,6 +2963,7 @@ COMMAND_HANDLER(handle_gdb_save_tdesc_command)
 
 	fileio_close(&fileio);
 	free(tdesc_filename);
+	free(tdesc);
 
 	if (retval != ERROR_OK) {
 		LOG_WARNING("Error while writing the tdesc file");
