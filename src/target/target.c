@@ -5559,6 +5559,119 @@ COMMAND_HANDLER(handle_ps_command)
 	}
 }
 
+static void binprint(struct command_context *cmd_ctx, const char *text, const uint8_t *buf, int size)
+{
+	if (text != NULL)
+		command_output_text(cmd_ctx, text);
+	for (int i = 0; i < size; i++) {
+		char str[4];
+		sprintf(str, "%02x ", buf[i]);
+		command_output_text(cmd_ctx, str);
+	}
+	command_output_text(cmd_ctx, "\n");
+}
+
+COMMAND_HANDLER(handle_test_mem_access_command)
+{
+	struct target *target = get_current_target(CMD_CTX);
+	uint16_t s;
+	uint8_t *src_buffer;
+	uint8_t *dst_buffer;
+	int retval = ERROR_OK;
+
+	if (target->state != TARGET_HALTED) {
+		LOG_INFO("target not halted !!");
+		return ERROR_OK;
+	}
+
+	if (CMD_ARGC != 1)
+		return ERROR_COMMAND_SYNTAX_ERROR;
+
+	COMMAND_PARSE_NUMBER(u16, CMD_ARGV[0], s);
+	int size = s & ~(uint16_t)3;
+
+	const int pad = 4;
+	/* Allow an offset of 0 or 1 */
+	const int tot_buf_size = pad + size + 1 + pad;
+	src_buffer = malloc(tot_buf_size);
+	dst_buffer = malloc(tot_buf_size);
+	if (src_buffer == NULL || dst_buffer == NULL) {
+		LOG_ERROR("Buy more memory");
+		goto out;
+	}
+
+	struct working_area *wa = NULL;
+	/* Allow an offset of 0 or 1 */
+	retval = target_alloc_working_area(target, size + 1, &wa);
+	if (retval != ERROR_OK) {
+		LOG_ERROR("Not enough working area");
+		goto out;
+	}
+
+
+	for (int offset = 0; offset <= 1; offset++) {
+		for (int src_offset = 0; src_offset <= 1; src_offset++) {
+			for (int dst_offset = 0; dst_offset <= 1; dst_offset++) {
+				for (int read_size = 1; read_size <= 4; read_size *= 2) {
+					for (int write_size = 1; write_size <= 4; write_size *= 2) {
+						bool fail = false;
+						LOG_INFO("Testing access size write %d/read %d, host dst %saligned/src %saligned, target %saligned", write_size, read_size, dst_offset ? "un" : "", src_offset ? "un" : "", offset ? "un" : "");
+
+						for (int i = 0; i < tot_buf_size; i++) {
+							src_buffer[i] = rand();
+							dst_buffer[i] = 0xff - src_buffer[i];
+						}
+
+						retval = target_write_memory(target, wa->address + offset, write_size, size / write_size, src_buffer + pad + src_offset);
+						if (retval != ERROR_OK) {
+							LOG_ERROR("Memory write failed");
+							fail = true;
+						}
+
+						retval = target_read_memory(target, wa->address + offset, read_size, size / read_size, dst_buffer + pad + dst_offset);
+						if (retval != ERROR_OK) {
+							LOG_ERROR("Memory read failed");
+							fail = true;
+						}
+
+						if (memcmp(src_buffer + pad + src_offset, dst_buffer + pad + dst_offset, size) != 0) {
+							LOG_ERROR("Memory compare failed");
+							fail = true;
+						}
+
+						for (int i = 0; i < pad + dst_offset; i++) {
+							if (dst_buffer[i] != 0xff - src_buffer[i]) {
+								LOG_ERROR("Leading host padding destroyed");
+								fail = true;
+							}
+						}
+
+						for (int i = pad + size + dst_offset; i < tot_buf_size; i++) {
+							if (dst_buffer[i] != 0xff - src_buffer[i]) {
+								LOG_ERROR("Trailing host padding destroyed");
+								fail = true;
+							}
+						}
+
+						if (fail) {
+							binprint(CMD_CTX, "src: ", src_buffer, tot_buf_size);
+							binprint(CMD_CTX, "dst: ", dst_buffer, tot_buf_size);
+							goto out;
+						}
+					}
+				}
+			}
+		}
+	}
+
+out:
+	if (wa != NULL)
+		target_free_working_area(target, wa);
+	free(src_buffer);
+	free(dst_buffer);
+	return retval;
+}
+
 static const struct command_registration target_exec_command_handlers[] = {
 	{
 		.name = "fast_load_image",
@@ -5777,6 +5890,13 @@ static const struct command_registration target_exec_command_handlers[] = {
 		.mode = COMMAND_EXEC,
 		.help = "list all tasks ",
 		.usage = " ",
+	},
+	{
+		.name = "test_mem_access",
+		.handler = handle_test_mem_access_command,
+		.mode = COMMAND_EXEC,
+		.help = "Test the target's memory access functions",
+		.usage = "size",
 	},
 
 	COMMAND_REGISTRATION_DONE
