@@ -33,6 +33,8 @@
 #define BCM2835_PERI_BASE	0x20000000
 #define BCM2835_GPIO_BASE	(BCM2835_PERI_BASE + 0x200000) /* GPIO controller */
 
+#define BCM2835_PADS_GPIO_0_27	0x7e10002c
+
 /* GPIO setup macros */
 #define MODE_GPIO(g) (*(pio_base+((g)/10))>>(((g)%10)*3) & 7)
 #define INP_GPIO(g) do { *(pio_base+((g)/10)) &= ~(7<<(((g)%10)*3)); } while (0)
@@ -318,6 +320,18 @@ static int bcm2835gpio_init(void)
 		close(dev_mem_fd);
 		return ERROR_JTAG_INIT_FAILED;
 	}
+
+	static volatile uint32_t *pads_base;
+	pads_base = mmap(NULL, sysconf(_SC_PAGE_SIZE), PROT_READ | PROT_WRITE,
+				MAP_SHARED, dev_mem_fd, BCM2835_PADS_GPIO_0_27);
+
+	if (pads_base == MAP_FAILED) {
+		perror("mmap");
+		close(dev_mem_fd);
+		return ERROR_JTAG_INIT_FAILED;
+	}
+
+	*pads_base = 0x5a000018 + 7;  /* 16mA drive strength */
 
 	tdo_gpio_mode = MODE_GPIO(tdo_gpio);
 	tdi_gpio_mode = MODE_GPIO(tdi_gpio);
