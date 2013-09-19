@@ -1147,6 +1147,7 @@ int cortex_m3_set_breakpoint(struct target *target, struct breakpoint *breakpoin
 		if (!cortex_m3->fpb_enabled) {
 			LOG_DEBUG("FPB wasn't enabled, do it now");
 			target_write_u32(target, FP_CTRL, 3);
+			cortex_m3->fpb_enabled = 1;
 		}
 	} else if (breakpoint->type == BKPT_SOFT) {
 		uint8_t code[4];
