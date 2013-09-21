@@ -1613,6 +1613,7 @@ static int cortex_m3_store_core_reg_u32(struct target *target,
 static int cortex_m3_read_memory(struct target *target, uint32_t address,
 	uint32_t size, uint32_t count, uint8_t *buffer)
 {
+	LOG_DEBUG("%"PRIu32" * %"PRIu32" @ 0x%"PRIx32" from %p", count, size, address, buffer);
 	struct armv7m_common *armv7m = target_to_armv7m(target);
 	struct adiv5_dap *swjdp = armv7m->arm.dap;
 	int retval = ERROR_COMMAND_SYNTAX_ERROR;
@@ -1644,6 +1645,7 @@ static int cortex_m3_read_memory(struct target *target, uint32_t address,
 static int cortex_m3_write_memory(struct target *target, uint32_t address,
 	uint32_t size, uint32_t count, const uint8_t *buffer)
 {
+	LOG_DEBUG("%"PRIu32" * %"PRIu32" @ 0x%"PRIx32" from %p", count, size, address, buffer);
 	struct armv7m_common *armv7m = target_to_armv7m(target);
 	struct adiv5_dap *swjdp = armv7m->arm.dap;
 	int retval = ERROR_COMMAND_SYNTAX_ERROR;
