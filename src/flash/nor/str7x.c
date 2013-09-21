@@ -305,28 +305,12 @@ static int str7x_result(struct flash_bank *bank)
 
 static int str7x_protect_check(struct flash_bank *bank)
 {
-	struct str7x_flash_bank *str7x_info = bank->driver_priv;
-	struct target *target = bank->target;
-
-	int i;
-	uint32_t flash_flags;
-
-	if (bank->target->state != TARGET_HALTED) {
-		LOG_ERROR("Target not halted");
-		return ERROR_TARGET_NOT_HALTED;
-	}
-
-	int retval;
-	retval = target_read_u32(target, str7x_get_flash_adr(bank, FLASH_NVWPAR), &flash_flags);
-	if (retval != ERROR_OK)
-		return retval;
-
-	for (i = 0; i < bank->num_sectors; i++) {
-		if (flash_flags & str7x_info->sector_bits[i])
-			bank->sectors[i].is_protected = 0;
-		else
-			bank->sectors[i].is_protected = 1;
-	}
+	/* STR7x flash doesn't support sector protection interrogation.
+	 * FLASH_NVWPAR acts as a write only register; its read value
+	 * doesn't reflect the actual protection state of the sectors.
+	 */
+	for (int i = 0; i < bank->num_sectors; i++)
+		bank->sectors[i].is_protected = -1;
 
 	return ERROR_OK;
 }
@@ -705,17 +689,6 @@ COMMAND_HANDLER(str7x_handle_part_id_command)
 }
 #endif
 
-static int get_str7x_info(struct flash_bank *bank, char *buf, int buf_size)
-{
-	/* STR7x flash doesn't support sector protection interrogation.
-	 * FLASH_NVWPAR acts as a write only register; its read value
-	 * doesn't reflect the actual protection state of the sectors.
-	 */
-	snprintf(buf, buf_size, "STR7x flash lock information might not be correct "
-			"due to hardware limitations.");
-	return ERROR_OK;
-}
-
 COMMAND_HANDLER(str7x_handle_disable_jtag_command)
 {
 	struct target *target = NULL;
@@ -811,5 +784,4 @@ struct flash_driver str7x_flash = {
 	.auto_probe = str7x_probe,
 	.erase_check = default_flash_blank_check,
 	.protect_check = str7x_protect_check,
-	.info = get_str7x_info,
 };
