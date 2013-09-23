@@ -54,6 +54,14 @@ typedef bool _Bool;
 
 #endif	/* HAVE_STDBOOL_H */
 
+#if BUILD_TARGET64 == 1
+typedef uint64_t target_ulong;
+typedef int64_t target_long;
+#else
+typedef uint32_t target_ulong;
+typedef int32_t target_long;
+#endif
+
 /// turns a macro argument into a string constant
 #define stringify(s) __stringify(s)
 #define __stringify(s) #s
@@ -304,6 +312,8 @@ static inline int parity_u32(uint32_t x)
 #define PRId8 PRId32
 #define SCNx64 "llx"
 #define PRIx64 "llx"
+#define PRId64 "lld"
+#define PRIu64 "llu"
 
 typedef CYG_ADDRWORD intptr_t;
 typedef int64_t intmax_t;
@@ -335,6 +345,18 @@ typedef uint64_t uintmax_t;
 #define isblank(c) ((c) == ' ' || (c) == '\t')
 
 
+#endif
+
+#if BUILD_TARGET64 == 1
+#define PRIX "16"PRIx64
+#define PRIXX "8.8"PRIx64
+#define PRID PRId64
+#define PRIU PRIu64
+#else
+#define PRIX "8"PRIx32
+#define PRIXX "8.8"PRIx32
+#define PRID PRId32
+#define PRIU PRIu32
 #endif
 
 #endif /* OPENOCD_HELPER_TYPES_H */
