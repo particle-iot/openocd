@@ -273,7 +273,7 @@ static int arm720_mmu(struct target *target, int *enabled)
 }
 
 static int arm720_virt2phys(struct target *target,
-		uint32_t virtual, uint32_t *physical)
+		target_ulong virtual, target_ulong *physical)
 {
 	uint32_t cb;
 	struct arm720t_common *arm720t = target_to_arm720(target);
@@ -288,7 +288,7 @@ static int arm720_virt2phys(struct target *target,
 }
 
 static int arm720t_read_memory(struct target *target,
-		uint32_t address, uint32_t size, uint32_t count, uint8_t *buffer)
+		target_ulong address, uint32_t size, uint32_t count, uint8_t *buffer)
 {
 	int retval;
 	struct arm720t_common *arm720t = target_to_arm720(target);
@@ -311,7 +311,7 @@ static int arm720t_read_memory(struct target *target,
 }
 
 static int arm720t_read_phys_memory(struct target *target,
-		uint32_t address, uint32_t size, uint32_t count, uint8_t *buffer)
+		target_ulong address, uint32_t size, uint32_t count, uint8_t *buffer)
 {
 	struct arm720t_common *arm720t = target_to_arm720(target);
 
@@ -319,7 +319,7 @@ static int arm720t_read_phys_memory(struct target *target,
 }
 
 static int arm720t_write_phys_memory(struct target *target,
-		uint32_t address, uint32_t size, uint32_t count, const uint8_t *buffer)
+		target_ulong address, uint32_t size, uint32_t count, const uint8_t *buffer)
 {
 	struct arm720t_common *arm720t = target_to_arm720(target);
 

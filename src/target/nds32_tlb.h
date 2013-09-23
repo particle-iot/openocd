@@ -40,9 +40,9 @@ struct page_table_walker_info_s {
 	uint32_t ppn_mask;
 };
 
-extern int nds32_probe_tlb(struct nds32 *nds32, const uint32_t virtual_address,
-		uint32_t *physical_address);
-extern int nds32_walk_page_table(struct nds32 *nds32, const uint32_t virtual_address,
-		uint32_t *physical_address);
+extern int nds32_probe_tlb(struct nds32 *nds32, const target_ulong virtual_address,
+		target_ulong *physical_address);
+extern int nds32_walk_page_table(struct nds32 *nds32, const target_ulong virtual_address,
+		target_ulong *physical_address);
 
 #endif

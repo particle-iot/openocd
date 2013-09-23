@@ -586,7 +586,7 @@ static int adapter_halt(struct target *target)
 }
 
 static int adapter_resume(struct target *target, int current,
-		uint32_t address, int handle_breakpoints,
+		target_ulong address, int handle_breakpoints,
 		int debug_execution)
 {
 	int res;
@@ -596,7 +596,7 @@ static int adapter_resume(struct target *target, int current,
 	struct breakpoint *breakpoint = NULL;
 	struct reg *pc;
 
-	LOG_DEBUG("%s %d 0x%08" PRIx32 " %d %d", __func__, current, address,
+	LOG_DEBUG("%s %d 0x%" PRIXX " %d %d", __func__, current, address,
 			handle_breakpoints, debug_execution);
 
 	if (target->state != TARGET_HALTED) {
@@ -644,7 +644,7 @@ static int adapter_resume(struct target *target, int current,
 		/* Single step past breakpoint at current address */
 		breakpoint = breakpoint_find(target, resume_pc);
 		if (breakpoint) {
-			LOG_DEBUG("unset breakpoint at 0x%8.8" PRIx32 " (ID: %" PRIu32 ")",
+			LOG_DEBUG("unset breakpoint at 0x%" PRIXX " (ID: %" PRIu32 ")",
 					breakpoint->address,
 					breakpoint->unique_id);
 			cortex_m_unset_breakpoint(target, breakpoint);
@@ -677,7 +677,7 @@ static int adapter_resume(struct target *target, int current,
 }
 
 static int adapter_step(struct target *target, int current,
-		uint32_t address, int handle_breakpoints)
+		target_ulong address, int handle_breakpoints)
 {
 	int res;
 	struct hl_interface_s *adapter = target_to_adapter(target);
@@ -740,7 +740,7 @@ static int adapter_step(struct target *target, int current,
 	return ERROR_OK;
 }
 
-static int adapter_read_memory(struct target *target, uint32_t address,
+static int adapter_read_memory(struct target *target, target_ulong address,
 		uint32_t size, uint32_t count,
 		uint8_t *buffer)
 {
@@ -749,12 +749,12 @@ static int adapter_read_memory(struct target *target, uint32_t address,
 	if (!count || !buffer)
 		return ERROR_COMMAND_SYNTAX_ERROR;
 
-	LOG_DEBUG("%s 0x%08" PRIx32 " %" PRIu32 " %" PRIu32, __func__, address, size, count);
+	LOG_DEBUG("%s 0x%" PRIXX " %" PRIu32 " %" PRIu32, __func__, address, size, count);
 
 	return adapter->layout->api->read_mem(adapter->handle, address, size, count, buffer);
 }
 
-static int adapter_write_memory(struct target *target, uint32_t address,
+static int adapter_write_memory(struct target *target, target_ulong address,
 		uint32_t size, uint32_t count,
 		const uint8_t *buffer)
 {
@@ -763,7 +763,7 @@ static int adapter_write_memory(struct target *target, uint32_t address,
 	if (!count || !buffer)
 		return ERROR_COMMAND_SYNTAX_ERROR;
 
-	LOG_DEBUG("%s 0x%08" PRIx32 " %" PRIu32 " %" PRIu32, __func__, address, size, count);
+	LOG_DEBUG("%s 0x%" PRIXX " %" PRIu32 " %" PRIu32, __func__, address, size, count);
 
 	return adapter->layout->api->write_mem(adapter->handle, address, size, count, buffer);
 }
