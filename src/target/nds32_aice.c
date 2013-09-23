@@ -44,8 +44,8 @@ int aice_write_reg_64(struct aice_port_s *aice, uint32_t num, uint64_t val)
 	return aice->port->api->write_reg_64(aice->coreid, num, val);
 }
 
-int aice_read_tlb(struct aice_port_s *aice, uint32_t virtual_address,
-		uint32_t *physical_address)
+int aice_read_tlb(struct aice_port_s *aice, target_ulong virtual_address,
+		target_ulong *physical_address)
 {
 	if (aice->port->api->read_tlb == NULL) {
 		LOG_WARNING("Not implemented: %s", __func__);
