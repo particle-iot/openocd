@@ -114,6 +114,7 @@ MIPS32_SRC = \
 
 MIPS64_SRC = \
 	mips64.c \
+	mips64_5kc.c \
 	mips64_pracc.c \
 	mips64_dmaacc.c
 
@@ -173,6 +174,7 @@ noinst_HEADERS = \
 	mips32_pracc.h \
 	mips32_dmaacc.h \
 	mips64.h \
+	mips64_5kc.h \
 	mips64_pracc.h \
 	mips64_dmaacc.h \
 	oocd_trace.h \
