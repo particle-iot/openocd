@@ -33,7 +33,7 @@ enum watchpoint_rw {
 };
 
 struct breakpoint {
-	uint32_t address;
+	target_ulong address;
 	uint32_t asid;
 	int length;
 	enum breakpoint_type type;
@@ -45,7 +45,7 @@ struct breakpoint {
 };
 
 struct watchpoint {
-	uint32_t address;
+	target_ulong address;
 	uint32_t length;
 	uint32_t mask;
 	uint32_t value;
@@ -57,20 +57,20 @@ struct watchpoint {
 
 void breakpoint_clear_target(struct target *target);
 int breakpoint_add(struct target *target,
-		uint32_t address, uint32_t length, enum breakpoint_type type);
+		target_ulong address, uint32_t length, enum breakpoint_type type);
 int context_breakpoint_add(struct target *target,
 		uint32_t asid, uint32_t length, enum breakpoint_type type);
 int hybrid_breakpoint_add(struct target *target,
-		uint32_t address, uint32_t asid, uint32_t length, enum breakpoint_type type);
-void breakpoint_remove(struct target *target, uint32_t address);
+		target_ulong address, uint32_t asid, uint32_t length, enum breakpoint_type type);
+void breakpoint_remove(struct target *target, target_ulong address);
 
-struct breakpoint *breakpoint_find(struct target *target, uint32_t address);
+struct breakpoint *breakpoint_find(struct target *target, target_ulong address);
 
 void watchpoint_clear_target(struct target *target);
 int watchpoint_add(struct target *target,
-		uint32_t address, uint32_t length,
+		target_ulong address, uint32_t length,
 		enum watchpoint_rw rw, uint32_t value, uint32_t mask);
-void watchpoint_remove(struct target *target, uint32_t address);
+void watchpoint_remove(struct target *target, target_ulong address);
 
 /* report type and address of just hit watchpoint */
 int watchpoint_hit(struct target *target, enum watchpoint_rw *rw, uint32_t *address);
