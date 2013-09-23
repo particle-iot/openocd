@@ -489,7 +489,7 @@ uint32_t arm946e_invalidate_icache(struct target *target, uint32_t address,
 }
 
 /** Writes a buffer, in the specified word size, with current MMU settings. */
-int arm946e_write_memory(struct target *target, uint32_t address,
+int arm946e_write_memory(struct target *target, target_ulong address,
 	uint32_t size, uint32_t count, const uint8_t *buffer)
 {
 	int retval;
@@ -537,7 +537,7 @@ int arm946e_write_memory(struct target *target, uint32_t address,
 
 }
 
-int arm946e_read_memory(struct target *target, uint32_t address,
+int arm946e_read_memory(struct target *target, target_ulong address,
 	uint32_t size, uint32_t count, uint8_t *buffer)
 {
 	int retval;
