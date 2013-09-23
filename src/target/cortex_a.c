@@ -74,7 +74,7 @@ static int cortex_a_dap_write_coreregister_u32(struct target *target,
 	uint32_t value, int regnum);
 static int cortex_a_mmu(struct target *target, int *enabled);
 static int cortex_a_virt2phys(struct target *target,
-	uint32_t virt, uint32_t *phys);
+	target_ulong virt, uint32_t *phys);
 static int cortex_a_read_apb_ab_memory(struct target *target,
 	uint32_t address, uint32_t size, uint32_t count, uint8_t *buffer);
 
@@ -947,7 +947,7 @@ static int cortex_a_halt(struct target *target)
 }
 
 static int cortex_a_internal_restore(struct target *target, int current,
-	uint32_t *address, int handle_breakpoints, int debug_execution)
+	target_ulong *address, int handle_breakpoints, int debug_execution)
 {
 	struct armv7a_common *armv7a = target_to_armv7a(target);
 	struct arm *arm = &armv7a->arm;
@@ -1102,7 +1102,7 @@ static int cortex_a_restore_smp(struct target *target, int handle_breakpoints)
 	int retval = 0;
 	struct target_list *head;
 	struct target *curr;
-	uint32_t address;
+	target_ulong address;
 	head = target->head;
 	while (head != (struct target_list *)NULL) {
 		curr = head->target;
@@ -1119,7 +1119,7 @@ static int cortex_a_restore_smp(struct target *target, int handle_breakpoints)
 }
 
 static int cortex_a_resume(struct target *target, int current,
-	uint32_t address, int handle_breakpoints, int debug_execution)
+	target_ulong address, int handle_breakpoints, int debug_execution)
 {
 	int retval = 0;
 	/* dummy resume for smp toggle in order to reduce gdb impact  */
@@ -1143,11 +1143,11 @@ static int cortex_a_resume(struct target *target, int current,
 	if (!debug_execution) {
 		target->state = TARGET_RUNNING;
 		target_call_event_callbacks(target, TARGET_EVENT_RESUMED);
-		LOG_DEBUG("target resumed at 0x%" PRIx32, address);
+		LOG_DEBUG("target resumed at 0x%" PRIXX, address);
 	} else {
 		target->state = TARGET_DEBUG_RUNNING;
 		target_call_event_callbacks(target, TARGET_EVENT_DEBUG_RESUMED);
-		LOG_DEBUG("target debug resumed at 0x%" PRIx32, address);
+		LOG_DEBUG("target debug resumed at 0x%" PRIXX, address);
 	}
 
 	return ERROR_OK;
@@ -1308,7 +1308,7 @@ static int cortex_a_post_debug_entry(struct target *target)
 	return ERROR_OK;
 }
 
-static int cortex_a_step(struct target *target, int current, uint32_t address,
+static int cortex_a_step(struct target *target, int current, target_ulong address,
 	int handle_breakpoints)
 {
 	struct armv7a_common *armv7a = target_to_armv7a(target);
@@ -2148,14 +2148,14 @@ error_free_buff_r:
  */
 
 static int cortex_a_read_phys_memory(struct target *target,
-	uint32_t address, uint32_t size,
+	target_ulong address, uint32_t size,
 	uint32_t count, uint8_t *buffer)
 {
 	struct armv7a_common *armv7a = target_to_armv7a(target);
 	struct adiv5_dap *swjdp = armv7a->arm.dap;
 	int retval = ERROR_COMMAND_SYNTAX_ERROR;
 	uint8_t apsel = swjdp->apsel;
-	LOG_DEBUG("Reading memory at real address 0x%" PRIx32 "; size %" PRId32 "; count %" PRId32,
+	LOG_DEBUG("Reading memory at real address 0x%" PRIXX "; size %" PRId32 "; count %" PRId32,
 		address, size, count);
 
 	if (count && buffer) {
@@ -2179,7 +2179,7 @@ static int cortex_a_read_phys_memory(struct target *target,
 	return retval;
 }
 
-static int cortex_a_read_memory(struct target *target, uint32_t address,
+static int cortex_a_read_memory(struct target *target, target_ulong address,
 	uint32_t size, uint32_t count, uint8_t *buffer)
 {
 	int mmu_enabled = 0;
@@ -2190,7 +2190,7 @@ static int cortex_a_read_memory(struct target *target, uint32_t address,
 	uint8_t apsel = swjdp->apsel;
 
 	/* cortex_a handles unaligned memory access */
-	LOG_DEBUG("Reading memory at address 0x%" PRIx32 "; size %" PRId32 "; count %" PRId32, address,
+	LOG_DEBUG("Reading memory at address 0x%" PRIXX "; size %" PRId32 "; count %" PRId32, address,
 		size, count);
 
 	/* determine if MMU was enabled on target stop */
@@ -2229,7 +2229,7 @@ static int cortex_a_read_memory(struct target *target, uint32_t address,
 }
 
 static int cortex_a_write_phys_memory(struct target *target,
-	uint32_t address, uint32_t size,
+	target_ulong address, uint32_t size,
 	uint32_t count, const uint8_t *buffer)
 {
 	struct armv7a_common *armv7a = target_to_armv7a(target);
@@ -2237,7 +2237,7 @@ static int cortex_a_write_phys_memory(struct target *target,
 	int retval = ERROR_COMMAND_SYNTAX_ERROR;
 	uint8_t apsel = swjdp->apsel;
 
-	LOG_DEBUG("Writing memory to real address 0x%" PRIx32 "; size %" PRId32 "; count %" PRId32, address,
+	LOG_DEBUG("Writing memory to real address 0x%" PRIXX "; size %" PRId32 "; count %" PRId32, address,
 		size, count);
 
 	if (count && buffer) {
@@ -2316,7 +2316,7 @@ static int cortex_a_write_phys_memory(struct target *target,
 	return retval;
 }
 
-static int cortex_a_write_memory(struct target *target, uint32_t address,
+static int cortex_a_write_memory(struct target *target, target_ulong address,
 	uint32_t size, uint32_t count, const uint8_t *buffer)
 {
 	int mmu_enabled = 0;
@@ -2327,7 +2327,7 @@ static int cortex_a_write_memory(struct target *target, uint32_t address,
 	uint8_t apsel = swjdp->apsel;
 
 	/* cortex_a handles unaligned memory access */
-	LOG_DEBUG("Writing memory at address 0x%" PRIx32 "; size %" PRId32 "; count %" PRId32, address,
+	LOG_DEBUG("Writing memory at address 0x%" PRIXX "; size %" PRId32 "; count %" PRId32, address,
 		size, count);
 
 	/* determine if MMU was enabled on target stop */
@@ -2338,7 +2338,7 @@ static int cortex_a_write_memory(struct target *target, uint32_t address,
 	}
 
 	if (armv7a->memory_ap_available && (apsel == armv7a->memory_ap)) {
-		LOG_DEBUG("Writing memory to address 0x%" PRIx32 "; size %" PRId32 "; count %" PRId32, address, size,
+		LOG_DEBUG("Writing memory to address 0x%" PRIXX "; size %" PRId32 "; count %" PRId32, address, size,
 			count);
 		if (mmu_enabled) {
 			virt = address;
@@ -2346,7 +2346,7 @@ static int cortex_a_write_memory(struct target *target, uint32_t address,
 			if (retval != ERROR_OK)
 				return retval;
 
-			LOG_DEBUG("Writing to virtual address. Translating v:0x%" PRIx32 " to r:0x%" PRIx32,
+			LOG_DEBUG("Writing to virtual address. Translating v:0x%" PRIXX " to r:0x%" PRIx32,
 				  virt,
 				  phys);
 			address = phys;
@@ -2668,7 +2668,7 @@ static int cortex_a_mmu(struct target *target, int *enabled)
 }
 
 static int cortex_a_virt2phys(struct target *target,
-	uint32_t virt, uint32_t *phys)
+	target_ulong virt, uint32_t *phys)
 {
 	int retval = ERROR_FAIL;
 	struct armv7a_common *armv7a = target_to_armv7a(target);

@@ -506,6 +506,10 @@ AC_ARG_ENABLE([internal-jimtcl],
   AS_HELP_STRING([--disable-internal-jimtcl], [Disable building internal jimtcl]),
   [use_internal_jimtcl=$enableval], [use_internal_jimtcl=yes])
 
+AC_ARG_ENABLE([target64],
+  AS_HELP_STRING([--enable-target64], [Enable building support 64 bit address]),
+    [build_target64=$enableval], [build_target64=no])
+
 build_minidriver=no
 AC_MSG_CHECKING([whether to enable ZY1000 minidriver])
 if test $build_zy1000 = yes; then

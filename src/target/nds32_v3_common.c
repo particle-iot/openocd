@@ -370,7 +370,7 @@ int nds32_v3_target_request_data(struct target *target,
 }
 
 int nds32_v3_checksum_memory(struct target *target,
-		uint32_t address, uint32_t count, uint32_t *checksum)
+		target_ulong address, uint32_t count, uint32_t *checksum)
 {
 	LOG_WARNING("Not implemented: %s", __func__);
 
@@ -436,8 +436,8 @@ int nds32_v3_run_algorithm(struct target *target,
 		struct mem_param *mem_params,
 		int num_reg_params,
 		struct reg_param *reg_params,
-		uint32_t entry_point,
-		uint32_t exit_point,
+		target_ulong entry_point,
+		target_ulong exit_point,
 		int timeout_ms,
 		void *arch_info)
 {
@@ -446,7 +446,7 @@ int nds32_v3_run_algorithm(struct target *target,
 	return ERROR_FAIL;
 }
 
-int nds32_v3_read_buffer(struct target *target, uint32_t address,
+int nds32_v3_read_buffer(struct target *target, target_ulong address,
 		uint32_t size, uint8_t *buffer)
 {
 	struct nds32 *nds32 = target_to_nds32(target);
@@ -504,7 +504,7 @@ int nds32_v3_read_buffer(struct target *target, uint32_t address,
 	return result;
 }
 
-int nds32_v3_write_buffer(struct target *target, uint32_t address,
+int nds32_v3_write_buffer(struct target *target, target_ulong address,
 		uint32_t size, const uint8_t *buffer)
 {
 	struct nds32 *nds32 = target_to_nds32(target);
@@ -566,7 +566,7 @@ int nds32_v3_write_buffer(struct target *target, uint32_t address,
 	return nds32_write_buffer(target, address, size, buffer);
 }
 
-int nds32_v3_read_memory(struct target *target, uint32_t address,
+int nds32_v3_read_memory(struct target *target, target_ulong address,
 		uint32_t size, uint32_t count, uint8_t *buffer)
 {
 	struct nds32 *nds32 = target_to_nds32(target);
@@ -624,7 +624,7 @@ int nds32_v3_read_memory(struct target *target, uint32_t address,
 	return result;
 }
 
-int nds32_v3_write_memory(struct target *target, uint32_t address,
+int nds32_v3_write_memory(struct target *target, target_ulong address,
 		uint32_t size, uint32_t count, const uint8_t *buffer)
 {
 	struct nds32 *nds32 = target_to_nds32(target);
