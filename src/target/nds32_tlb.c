@@ -24,8 +24,8 @@
 #include "nds32_aice.h"
 #include "nds32_tlb.h"
 
-int nds32_probe_tlb(struct nds32 *nds32, const uint32_t virtual_address,
-		uint32_t *physical_address)
+int nds32_probe_tlb(struct nds32 *nds32, const target_ulong virtual_address,
+		target_ulong *physical_address)
 {
 	struct target *target = nds32->target;
 	struct aice_port_s *aice = target_to_aice(target);
@@ -40,8 +40,8 @@ struct page_table_walker_info_s page_table_info[PAGE_SIZE_NUM] = {
 	{0xFF000000, 22, 0x00FFE000, 11, 0x00001FFF, 0xFFFFF000, 0xFFFFE000, 0xFFFFE000},
 };
 
-int nds32_walk_page_table(struct nds32 *nds32, const uint32_t virtual_address,
-		uint32_t *physical_address)
+int nds32_walk_page_table(struct nds32 *nds32, const target_ulong virtual_address,
+		target_ulong *physical_address)
 {
 	struct target *target = nds32->target;
 	uint32_t value_mr1;
