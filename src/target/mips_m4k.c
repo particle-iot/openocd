@@ -456,7 +456,7 @@ static int mips_m4k_internal_restore(struct target *target, int current,
 		/* Single step past breakpoint at current address */
 		breakpoint = breakpoint_find(target, resume_pc);
 		if (breakpoint) {
-			LOG_DEBUG("unset breakpoint at 0x%8.8" PRIx32 "", breakpoint->address);
+			LOG_DEBUG("unset breakpoint at 0x%" PRIXX "", breakpoint->address);
 			mips_m4k_unset_breakpoint(target, breakpoint);
 			mips_m4k_single_step_core(target);
 			mips_m4k_set_breakpoint(target, breakpoint);
@@ -487,7 +487,7 @@ static int mips_m4k_internal_restore(struct target *target, int current,
 }
 
 static int mips_m4k_resume(struct target *target, int current,
-		uint32_t address, int handle_breakpoints, int debug_execution)
+		target_ulong address, int handle_breakpoints, int debug_execution)
 {
 	int retval = ERROR_OK;
 
@@ -514,7 +514,7 @@ static int mips_m4k_resume(struct target *target, int current,
 }
 
 static int mips_m4k_step(struct target *target, int current,
-		uint32_t address, int handle_breakpoints)
+		target_ulong address, int handle_breakpoints)
 {
 	/* get pointers to arch-specific information */
 	struct mips32_common *mips32 = target_to_mips32(target);
@@ -642,7 +642,7 @@ static int mips_m4k_set_breakpoint(struct target *target,
 			if (retval != ERROR_OK)
 				return retval;
 			if (verify != MIPS32_SDBBP) {
-				LOG_ERROR("Unable to set 32bit breakpoint at address %08" PRIx32
+				LOG_ERROR("Unable to set 32bit breakpoint at address %" PRIXX
 						" - check that memory is read/writable", breakpoint->address);
 				return ERROR_OK;
 			}
@@ -661,7 +661,7 @@ static int mips_m4k_set_breakpoint(struct target *target,
 			if (retval != ERROR_OK)
 				return retval;
 			if (verify != MIPS16_SDBBP) {
-				LOG_ERROR("Unable to set 16bit breakpoint at address %08" PRIx32
+				LOG_ERROR("Unable to set 16bit breakpoint at address %" PRIXX
 						" - check that memory is read/writable", breakpoint->address);
 				return ERROR_OK;
 			}
@@ -936,13 +936,13 @@ static void mips_m4k_enable_watchpoints(struct target *target)
 	}
 }
 
-static int mips_m4k_read_memory(struct target *target, uint32_t address,
+static int mips_m4k_read_memory(struct target *target, target_ulong address,
 		uint32_t size, uint32_t count, uint8_t *buffer)
 {
 	struct mips32_common *mips32 = target_to_mips32(target);
 	struct mips_ejtag *ejtag_info = &mips32->ejtag_info;
 
-	LOG_DEBUG("address: 0x%8.8" PRIx32 ", size: 0x%8.8" PRIx32 ", count: 0x%8.8" PRIx32 "",
+	LOG_DEBUG("address: 0x%" PRIXX ", size: 0x%8.8" PRIx32 ", count: 0x%8.8" PRIx32 "",
 			address, size, count);
 
 	if (target->state != TARGET_HALTED) {
@@ -995,13 +995,13 @@ static int mips_m4k_read_memory(struct target *target, uint32_t address,
 	return retval;
 }
 
-static int mips_m4k_write_memory(struct target *target, uint32_t address,
+static int mips_m4k_write_memory(struct target *target, target_ulong address,
 		uint32_t size, uint32_t count, const uint8_t *buffer)
 {
 	struct mips32_common *mips32 = target_to_mips32(target);
 	struct mips_ejtag *ejtag_info = &mips32->ejtag_info;
 
-	LOG_DEBUG("address: 0x%8.8" PRIx32 ", size: 0x%8.8" PRIx32 ", count: 0x%8.8" PRIx32 "",
+	LOG_DEBUG("address: 0x%" PRIXX ", size: 0x%8.8" PRIx32 ", count: 0x%8.8" PRIx32 "",
 			address, size, count);
 
 	if (target->state != TARGET_HALTED) {

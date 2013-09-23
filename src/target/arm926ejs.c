@@ -596,7 +596,7 @@ int arm926ejs_soft_reset_halt(struct target *target)
 }
 
 /** Writes a buffer, in the specified word size, with current MMU settings. */
-int arm926ejs_write_memory(struct target *target, uint32_t address,
+int arm926ejs_write_memory(struct target *target, target_ulong address,
 		uint32_t size, uint32_t count, const uint8_t *buffer)
 {
 	int retval;
@@ -668,7 +668,7 @@ int arm926ejs_write_memory_opt(struct target *target, uint32_t address,
 }
 
 static int arm926ejs_write_phys_memory(struct target *target,
-		uint32_t address, uint32_t size,
+		target_ulong address, uint32_t size,
 		uint32_t count, const uint8_t *buffer)
 {
 	struct arm926ejs_common *arm926ejs = target_to_arm926(target);
@@ -678,7 +678,7 @@ static int arm926ejs_write_phys_memory(struct target *target,
 }
 
 static int arm926ejs_read_phys_memory(struct target *target,
-		uint32_t address, uint32_t size,
+		target_ulong address, uint32_t size,
 		uint32_t count, uint8_t *buffer)
 {
 	struct arm926ejs_common *arm926ejs = target_to_arm926(target);
@@ -748,7 +748,7 @@ COMMAND_HANDLER(arm926ejs_handle_cache_info_command)
 	return armv4_5_handle_cache_info_command(CMD_CTX, &arm926ejs->armv4_5_mmu.armv4_5_cache);
 }
 
-static int arm926ejs_virt2phys(struct target *target, uint32_t virtual, uint32_t *physical)
+static int arm926ejs_virt2phys(struct target *target, target_ulong virtual, uint32_t *physical)
 {
 	uint32_t cb;
 	struct arm926ejs_common *arm926ejs = target_to_arm926(target);

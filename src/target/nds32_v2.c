@@ -114,7 +114,7 @@ static int nds32_v2_activate_hardware_breakpoint(struct target *target)
 				/* enable breakpoint (physical address) */
 				aice_write_debug_reg(aice, NDS_EDM_SR_BPC0 + hbr_index, 0xA);
 
-			LOG_DEBUG("Add hardware BP %d at %08" PRIx32, hbr_index,
+			LOG_DEBUG("Add hardware BP %d at %" PRIXX, hbr_index,
 					bp->address);
 
 			hbr_index++;
@@ -141,7 +141,7 @@ static int nds32_v2_deactivate_hardware_breakpoint(struct target *target)
 		else
 			return ERROR_FAIL;
 
-		LOG_DEBUG("Remove hardware BP %d at %08" PRIx32, hbr_index,
+		LOG_DEBUG("Remove hardware BP %d at %" PRIXX, hbr_index,
 				bp->address);
 
 		hbr_index++;
@@ -186,7 +186,7 @@ static int nds32_v2_activate_hardware_watchpoint(struct target *target)
 		/* set value */
 		aice_write_debug_reg(aice, NDS_EDM_SR_BPV0 + wp_num, 0);
 
-		LOG_DEBUG("Add hardware wathcpoint %d at %08" PRIx32 " mask %08" PRIx32, wp_num,
+		LOG_DEBUG("Add hardware wathcpoint %d at %" PRIXX " mask %08" PRIx32, wp_num,
 				wp->address, wp->mask);
 
 	}
@@ -206,7 +206,7 @@ static int nds32_v2_deactivate_hardware_watchpoint(struct target *target)
 		/* disable watchpoint */
 		aice_write_debug_reg(aice, NDS_EDM_SR_BPC0 + wp_num, 0x0);
 
-		LOG_DEBUG("Remove hardware wathcpoint %d at %08" PRIx32 " mask %08" PRIx32,
+		LOG_DEBUG("Remove hardware wathcpoint %d at %" PRIXX " mask %08" PRIx32,
 				wp_num, wp->address, wp->mask);
 	}
 
@@ -407,7 +407,7 @@ static int nds32_v2_deassert_reset(struct target *target)
 }
 
 static int nds32_v2_checksum_memory(struct target *target,
-		uint32_t address, uint32_t count, uint32_t *checksum)
+		target_ulong address, uint32_t count, uint32_t *checksum)
 {
 	LOG_WARNING("Not implemented: %s", __func__);
 
@@ -563,8 +563,8 @@ static int nds32_v2_run_algorithm(struct target *target,
 		struct mem_param *mem_params,
 		int num_reg_params,
 		struct reg_param *reg_params,
-		uint32_t entry_point,
-		uint32_t exit_point,
+		target_ulong entry_point,
+		target_ulong exit_point,
 		int timeout_ms,
 		void *arch_info)
 {
@@ -637,7 +637,7 @@ static int nds32_v2_examine(struct target *target)
 	return ERROR_OK;
 }
 
-static int nds32_v2_translate_address(struct target *target, uint32_t *address)
+static int nds32_v2_translate_address(struct target *target, target_ulong *address)
 {
 	struct nds32 *nds32 = target_to_nds32(target);
 	struct nds32_memory *memory = &(nds32->memory);
@@ -658,7 +658,7 @@ static int nds32_v2_translate_address(struct target *target, uint32_t *address)
 	return ERROR_OK;
 }
 
-static int nds32_v2_read_buffer(struct target *target, uint32_t address,
+static int nds32_v2_read_buffer(struct target *target, target_ulong address,
 		uint32_t size, uint8_t *buffer)
 {
 	struct nds32 *nds32 = target_to_nds32(target);
@@ -678,7 +678,7 @@ static int nds32_v2_read_buffer(struct target *target, uint32_t address,
 	return nds32_read_buffer(target, address, size, buffer);
 }
 
-static int nds32_v2_write_buffer(struct target *target, uint32_t address,
+static int nds32_v2_write_buffer(struct target *target, target_ulong address,
 		uint32_t size, const uint8_t *buffer)
 {
 	struct nds32 *nds32 = target_to_nds32(target);
@@ -698,7 +698,7 @@ static int nds32_v2_write_buffer(struct target *target, uint32_t address,
 	return nds32_write_buffer(target, address, size, buffer);
 }
 
-static int nds32_v2_read_memory(struct target *target, uint32_t address,
+static int nds32_v2_read_memory(struct target *target, target_ulong address,
 		uint32_t size, uint32_t count, uint8_t *buffer)
 {
 	struct nds32 *nds32 = target_to_nds32(target);
@@ -718,7 +718,7 @@ static int nds32_v2_read_memory(struct target *target, uint32_t address,
 	return nds32_read_memory(target, address, size, count, buffer);
 }
 
-static int nds32_v2_write_memory(struct target *target, uint32_t address,
+static int nds32_v2_write_memory(struct target *target, target_ulong address,
 		uint32_t size, uint32_t count, const uint8_t *buffer)
 {
 	struct nds32 *nds32 = target_to_nds32(target);
