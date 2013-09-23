@@ -684,7 +684,7 @@ void cortex_m3_enable_breakpoints(struct target *target)
 }
 
 static int cortex_m3_resume(struct target *target, int current,
-	uint32_t address, int handle_breakpoints, int debug_execution)
+	target_ulong address, int handle_breakpoints, int debug_execution)
 {
 	struct armv7m_common *armv7m = target_to_armv7m(target);
 	struct breakpoint *breakpoint = NULL;
@@ -752,7 +752,7 @@ static int cortex_m3_resume(struct target *target, int current,
 		/* Single step past breakpoint at current address */
 		breakpoint = breakpoint_find(target, resume_pc);
 		if (breakpoint) {
-			LOG_DEBUG("unset breakpoint at 0x%8.8" PRIx32 " (ID: %d)",
+			LOG_DEBUG("unset breakpoint at 0x%" PRIXX " (ID: %d)",
 				breakpoint->address,
 				breakpoint->unique_id);
 			cortex_m3_unset_breakpoint(target, breakpoint);
@@ -784,7 +784,7 @@ static int cortex_m3_resume(struct target *target, int current,
 
 /* int irqstepcount = 0; */
 static int cortex_m3_step(struct target *target, int current,
-	uint32_t address, int handle_breakpoints)
+	target_ulong address, int handle_breakpoints)
 {
 	struct cortex_m3_common *cortex_m3 = target_to_cm3(target);
 	struct armv7m_common *armv7m = &cortex_m3->armv7m;
@@ -1160,7 +1160,7 @@ int cortex_m3_set_breakpoint(struct target *target, struct breakpoint *breakpoin
 		breakpoint->set = true;
 	}
 
-	LOG_DEBUG("BPID: %d, Type: %d, Address: 0x%08" PRIx32 " Length: %d (set=%d)",
+	LOG_DEBUG("BPID: %d, Type: %d, Address: 0x%" PRIXX " Length: %d (set=%d)",
 		breakpoint->unique_id,
 		(int)(breakpoint->type),
 		breakpoint->address,
@@ -1181,7 +1181,7 @@ int cortex_m3_unset_breakpoint(struct target *target, struct breakpoint *breakpo
 		return ERROR_OK;
 	}
 
-	LOG_DEBUG("BPID: %d, Type: %d, Address: 0x%08" PRIx32 " Length: %d (set=%d)",
+	LOG_DEBUG("BPID: %d, Type: %d, Address: 0x%" PRIXX " Length: %d (set=%d)",
 		breakpoint->unique_id,
 		(int)(breakpoint->type),
 		breakpoint->address,
@@ -1578,7 +1578,7 @@ static int cortex_m3_store_core_reg_u32(struct target *target,
 	return ERROR_OK;
 }
 
-static int cortex_m3_read_memory(struct target *target, uint32_t address,
+static int cortex_m3_read_memory(struct target *target, target_ulong address,
 	uint32_t size, uint32_t count, uint8_t *buffer)
 {
 	struct armv7m_common *armv7m = target_to_armv7m(target);
@@ -1609,7 +1609,7 @@ static int cortex_m3_read_memory(struct target *target, uint32_t address,
 	return retval;
 }
 
-static int cortex_m3_write_memory(struct target *target, uint32_t address,
+static int cortex_m3_write_memory(struct target *target, target_ulong address,
 	uint32_t size, uint32_t count, const uint8_t *buffer)
 {
 	struct armv7m_common *armv7m = target_to_armv7m(target);

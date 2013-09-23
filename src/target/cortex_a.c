@@ -70,7 +70,7 @@ static int cortex_a8_dap_write_coreregister_u32(struct target *target,
 	uint32_t value, int regnum);
 static int cortex_a8_mmu(struct target *target, int *enabled);
 static int cortex_a8_virt2phys(struct target *target,
-	uint32_t virt, uint32_t *phys);
+	target_ulong virt, uint32_t *phys);
 static int cortex_a8_read_apb_ab_memory(struct target *target,
 	uint32_t address, uint32_t size, uint32_t count, uint8_t *buffer);
 
@@ -898,7 +898,7 @@ static int cortex_a8_halt(struct target *target)
 }
 
 static int cortex_a8_internal_restore(struct target *target, int current,
-	uint32_t *address, int handle_breakpoints, int debug_execution)
+	target_ulong *address, int handle_breakpoints, int debug_execution)
 {
 	struct armv7a_common *armv7a = target_to_armv7a(target);
 	struct arm *arm = &armv7a->arm;
@@ -1053,7 +1053,7 @@ static int cortex_a8_restore_smp(struct target *target, int handle_breakpoints)
 	int retval = 0;
 	struct target_list *head;
 	struct target *curr;
-	uint32_t address;
+	target_ulong address;
 	head = target->head;
 	while (head != (struct target_list *)NULL) {
 		curr = head->target;
@@ -1070,7 +1070,7 @@ static int cortex_a8_restore_smp(struct target *target, int handle_breakpoints)
 }
 
 static int cortex_a8_resume(struct target *target, int current,
-	uint32_t address, int handle_breakpoints, int debug_execution)
+	target_ulong address, int handle_breakpoints, int debug_execution)
 {
 	int retval = 0;
 	/* dummy resume for smp toggle in order to reduce gdb impact  */
@@ -1094,11 +1094,11 @@ static int cortex_a8_resume(struct target *target, int current,
 	if (!debug_execution) {
 		target->state = TARGET_RUNNING;
 		target_call_event_callbacks(target, TARGET_EVENT_RESUMED);
-		LOG_DEBUG("target resumed at 0x%" PRIx32, address);
+		LOG_DEBUG("target resumed at 0x%" PRIXX, address);
 	} else {
 		target->state = TARGET_DEBUG_RUNNING;
 		target_call_event_callbacks(target, TARGET_EVENT_DEBUG_RESUMED);
-		LOG_DEBUG("target debug resumed at 0x%" PRIx32, address);
+		LOG_DEBUG("target debug resumed at 0x%" PRIXX, address);
 	}
 
 	return ERROR_OK;
@@ -1259,7 +1259,7 @@ static int cortex_a8_post_debug_entry(struct target *target)
 	return ERROR_OK;
 }
 
-static int cortex_a8_step(struct target *target, int current, uint32_t address,
+static int cortex_a8_step(struct target *target, int current, target_ulong address,
 	int handle_breakpoints)
 {
 	struct armv7a_common *armv7a = target_to_armv7a(target);
@@ -2097,14 +2097,14 @@ error_free_buff_r:
  */
 
 static int cortex_a8_read_phys_memory(struct target *target,
-	uint32_t address, uint32_t size,
+	target_ulong address, uint32_t size,
 	uint32_t count, uint8_t *buffer)
 {
 	struct armv7a_common *armv7a = target_to_armv7a(target);
 	struct adiv5_dap *swjdp = armv7a->arm.dap;
 	int retval = ERROR_COMMAND_SYNTAX_ERROR;
 	uint8_t apsel = swjdp->apsel;
-	LOG_DEBUG("Reading memory at real address 0x%x; size %d; count %d",
+	LOG_DEBUG("Reading memory at real address 0x%"PRIXX"; size %d; count %d",
 		address, size, count);
 
 	if (count && buffer) {
@@ -2142,7 +2142,7 @@ static int cortex_a8_read_phys_memory(struct target *target,
 	return retval;
 }
 
-static int cortex_a8_read_memory(struct target *target, uint32_t address,
+static int cortex_a8_read_memory(struct target *target, target_ulong address,
 	uint32_t size, uint32_t count, uint8_t *buffer)
 {
 	int enabled = 0;
@@ -2153,7 +2153,7 @@ static int cortex_a8_read_memory(struct target *target, uint32_t address,
 	uint8_t apsel = swjdp->apsel;
 
 	/* cortex_a8 handles unaligned memory access */
-	LOG_DEBUG("Reading memory at address 0x%x; size %d; count %d", address,
+	LOG_DEBUG("Reading memory at address 0x%"PRIXX"; size %d; count %d", address,
 		size, count);
 	if (armv7a->memory_ap_available && (apsel == armv7a->memory_ap)) {
 		if (!armv7a->is_armv7r) {
@@ -2190,7 +2190,7 @@ static int cortex_a8_read_memory(struct target *target, uint32_t address,
 }
 
 static int cortex_a8_write_phys_memory(struct target *target,
-	uint32_t address, uint32_t size,
+	target_ulong address, uint32_t size,
 	uint32_t count, const uint8_t *buffer)
 {
 	struct armv7a_common *armv7a = target_to_armv7a(target);
@@ -2198,7 +2198,7 @@ static int cortex_a8_write_phys_memory(struct target *target,
 	int retval = ERROR_COMMAND_SYNTAX_ERROR;
 	uint8_t apsel = swjdp->apsel;
 
-	LOG_DEBUG("Writing memory to real address 0x%x; size %d; count %d", address,
+	LOG_DEBUG("Writing memory to real address 0x%"PRIXX"; size %d; count %d", address,
 		size, count);
 
 	if (count && buffer) {
@@ -2292,7 +2292,7 @@ static int cortex_a8_write_phys_memory(struct target *target,
 	return retval;
 }
 
-static int cortex_a8_write_memory(struct target *target, uint32_t address,
+static int cortex_a8_write_memory(struct target *target, target_ulong address,
 	uint32_t size, uint32_t count, const uint8_t *buffer)
 {
 	int enabled = 0;
@@ -2302,11 +2302,11 @@ static int cortex_a8_write_memory(struct target *target, uint32_t address,
 	struct adiv5_dap *swjdp = armv7a->arm.dap;
 	uint8_t apsel = swjdp->apsel;
 	/* cortex_a8 handles unaligned memory access */
-	LOG_DEBUG("Writing memory at address 0x%x; size %d; count %d", address,
+	LOG_DEBUG("Writing memory at address 0x%"PRIXX"; size %d; count %d", address,
 		size, count);
 	if (armv7a->memory_ap_available && (apsel == armv7a->memory_ap)) {
 
-		LOG_DEBUG("Writing memory to address 0x%x; size %d; count %d", address, size,
+		LOG_DEBUG("Writing memory to address 0x%"PRIXX"; size %d; count %d", address, size,
 			count);
 		if (!armv7a->is_armv7r) {
 			retval = cortex_a8_mmu(target, &enabled);
@@ -2318,7 +2318,7 @@ static int cortex_a8_write_memory(struct target *target, uint32_t address,
 				retval = cortex_a8_virt2phys(target, virt, &phys);
 				if (retval != ERROR_OK)
 					return retval;
-				LOG_DEBUG("Writing to virtual address. Translating v:0x%x to r:0x%x",
+				LOG_DEBUG("Writing to virtual address. Translating v:0x%"PRIx32" to r:0x%x",
 					virt,
 					phys);
 				address = phys;
@@ -2600,7 +2600,7 @@ static int cortex_a8_mmu(struct target *target, int *enabled)
 }
 
 static int cortex_a8_virt2phys(struct target *target,
-	uint32_t virt, uint32_t *phys)
+	target_ulong virt, uint32_t *phys)
 {
 	int retval = ERROR_FAIL;
 	struct armv7a_common *armv7a = target_to_armv7a(target);

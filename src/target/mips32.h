@@ -231,7 +231,7 @@ struct reg_cache *mips32_build_reg_cache(struct target *target);
 int mips32_run_algorithm(struct target *target,
 		int num_mem_params, struct mem_param *mem_params,
 		int num_reg_params, struct reg_param *reg_params,
-		uint32_t entry_point, uint32_t exit_point,
+		target_ulong entry_point, target_ulong exit_point,
 		int timeout_ms, void *arch_info);
 
 int mips32_configure_break_unit(struct target *target);
