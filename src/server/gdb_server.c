@@ -732,22 +732,22 @@ static void gdb_signal_reply(struct target *target, struct connection *connectio
 		stop_reason[0] = '\0';
 		if (target->debug_reason == DBG_REASON_WATCHPOINT) {
 			enum watchpoint_rw hit_wp_type;
-			uint32_t hit_wp_address;
+			target_addr_t hit_wp_address;
 
 			if (watchpoint_hit(target, &hit_wp_type, &hit_wp_address) == ERROR_OK) {
 
 				switch (hit_wp_type) {
 					case WPT_WRITE:
 						snprintf(stop_reason, sizeof(stop_reason),
-								"watch:%08" PRIx32 ";", hit_wp_address);
+								"watch:%08" TARGET_PRIxADDR ";", hit_wp_address);
 						break;
 					case WPT_READ:
 						snprintf(stop_reason, sizeof(stop_reason),
-								"rwatch:%08" PRIx32 ";", hit_wp_address);
+								"rwatch:%08" TARGET_PRIxADDR ";", hit_wp_address);
 						break;
 					case WPT_ACCESS:
 						snprintf(stop_reason, sizeof(stop_reason),
-								"awatch:%08" PRIx32 ";", hit_wp_address);
+								"awatch:%08" TARGET_PRIxADDR ";", hit_wp_address);
 						break;
 					default:
 						break;
@@ -2944,6 +2944,11 @@ static int gdb_target_add_one(struct target *target)
 
 int gdb_target_add_all(struct target *target)
 {
+	if (strcmp(gdb_port, "disabled") == 0) {
+		LOG_INFO("gdb server disabled");
+		return ERROR_OK;
+	}
+
 	if (NULL == target) {
 		LOG_WARNING("gdb services need one or more targets defined");
 		return ERROR_OK;
