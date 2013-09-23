@@ -362,6 +362,8 @@ DECLARE_PARSE_WRAPPER(_s32, int32_t);
 DECLARE_PARSE_WRAPPER(_s16, int16_t);
 DECLARE_PARSE_WRAPPER(_s8, int8_t);
 
+DECLARE_PARSE_WRAPPER(_target_addr, target_addr_t);
+
 /**
  * @brief parses the string @a in into @a out as a @a type, or prints
  * a command error and passes the error code to the caller.  If an error
@@ -382,6 +384,9 @@ DECLARE_PARSE_WRAPPER(_s8, int8_t);
 			return retval_macro_tmp; \
 		} \
 	} while (0)
+
+#define COMMAND_PARSE_ADDRESS(in, out) \
+	COMMAND_PARSE_NUMBER(target_addr, in, out)
 
 /**
  * Parse the string @c as a binary parameter, storing the boolean value
