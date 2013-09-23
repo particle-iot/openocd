@@ -68,7 +68,7 @@ int arm7a_l2x_flush_all_data(struct target *target)
 			4, 1, (uint8_t *)&l2_way_val);
 }
 
-int armv7a_l2x_cache_flush_virt(struct target *target, uint32_t virt,
+int armv7a_l2x_cache_flush_virt(struct target *target, target_ulong virt,
 					uint32_t size)
 {
 	struct armv7a_common *armv7a = target_to_armv7a(target);
@@ -83,7 +83,7 @@ int armv7a_l2x_cache_flush_virt(struct target *target, uint32_t virt,
 		return retval;
 
 	for (i = 0; i < size; i += linelen) {
-		uint32_t pa, offs = virt + i;
+		target_ulong pa, offs = virt + i;
 
 		/* FIXME: use less verbose virt2phys? */
 		retval = target->type->virt2phys(target, offs, &pa);
@@ -104,7 +104,7 @@ done:
 	return retval;
 }
 
-static int armv7a_l2x_cache_inval_virt(struct target *target, uint32_t virt,
+static int armv7a_l2x_cache_inval_virt(struct target *target, target_ulong virt,
 					uint32_t size)
 {
 	struct armv7a_common *armv7a = target_to_armv7a(target);
@@ -119,7 +119,7 @@ static int armv7a_l2x_cache_inval_virt(struct target *target, uint32_t virt,
 		return retval;
 
 	for (i = 0; i < size; i += linelen) {
-		uint32_t pa, offs = virt + i;
+		target_ulong pa, offs = virt + i;
 
 		/* FIXME: use less verbose virt2phys? */
 		retval = target->type->virt2phys(target, offs, &pa);
@@ -140,7 +140,7 @@ done:
 	return retval;
 }
 
-static int armv7a_l2x_cache_clean_virt(struct target *target, uint32_t virt,
+static int armv7a_l2x_cache_clean_virt(struct target *target, target_ulong virt,
 					unsigned int size)
 {
 	struct armv7a_common *armv7a = target_to_armv7a(target);
@@ -155,7 +155,7 @@ static int armv7a_l2x_cache_clean_virt(struct target *target, uint32_t virt,
 		return retval;
 
 	for (i = 0; i < size; i += linelen) {
-		uint32_t pa, offs = virt + i;
+		target_ulong pa, offs = virt + i;
 
 		/* FIXME: use less verbose virt2phys? */
 		retval = target->type->virt2phys(target, offs, &pa);
