@@ -181,7 +181,7 @@ struct aice_port_api_s {
 	int (*memory_mode)(uint32_t coreid, enum nds_memory_select mem_select);
 
 	/** */
-	int (*read_tlb)(uint32_t coreid, uint32_t virtual_address, uint32_t *physical_address);
+	int (*read_tlb)(uint32_t coreid, target_ulong virtual_address, target_ulong *physical_address);
 
 	/** */
 	int (*cache_ctl)(uint32_t coreid, uint32_t subtype, uint32_t address);
