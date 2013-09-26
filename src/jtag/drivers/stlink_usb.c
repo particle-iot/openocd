@@ -829,7 +829,7 @@ static int stlink_usb_write_debug_reg(void *handle, uint32_t addr, uint32_t val)
 }
 
 /** */
-static void stlink_usb_trace_read(void *handle)
+static int stlink_usb_trace_read(void *handle)
 {
 	struct stlink_usb_handle_s *h;
 
@@ -864,6 +864,8 @@ static void stlink_usb_trace_read(void *handle)
 			}
 		}
 	}
+
+	return ERROR_OK;
 }
 
 static enum target_state stlink_usb_v2_get_status(void *handle)
@@ -880,7 +882,7 @@ static enum target_state stlink_usb_v2_get_status(void *handle)
 	else if (status & S_RESET_ST)
 		return TARGET_RESET;
 
-	stlink_usb_trace_read(handle);
+	(void)stlink_usb_trace_read(handle);
 
 	return TARGET_RUNNING;
 }
@@ -1092,6 +1094,10 @@ static int stlink_usb_trace_enable(void *handle)
 		if (res == ERROR_OK)  {
 			h->trace.enabled = true;
 			LOG_DEBUG("Tracing: recording at %uHz\n", trace_hz);
+			/* We need the trace read function to be called at a
+			 * high-enough frequency to ensure reasonable
+			 * "timeliness" in processing ITM/DWT data. */
+			target_register_timer_callback(stlink_usb_trace_read, 1, 1, handle);
 		}
 	} else {
 		LOG_ERROR("Tracing is not supported by this version.");
