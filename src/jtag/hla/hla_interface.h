@@ -50,6 +50,8 @@ struct hl_interface_param_s {
 	FILE *trace_f;
 	/** Trace module source clock rate */
 	uint32_t trace_source_hz;
+	/** Reference target for local trace processing */
+	struct target *target;
 };
 
 struct hl_interface_s {
@@ -62,7 +64,7 @@ struct hl_interface_s {
 };
 
 /** */
-int hl_interface_open(enum hl_transports tr);
+int hl_interface_open(enum hl_transports tr, struct target *t);
 /** */
 
 int hl_interface_init_target(struct target *t);

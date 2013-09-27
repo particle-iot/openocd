@@ -37,13 +37,15 @@
 
 #include <target/target.h>
 
-static struct hl_interface_s hl_if = { {0, 0, 0, 0, 0, HL_TRANSPORT_UNKNOWN, false, NULL, 0}, 0, 0 };
+static struct hl_interface_s hl_if = { {0, 0, 0, 0, 0, HL_TRANSPORT_UNKNOWN, false, NULL, 0, NULL}, 0, 0 };
 
-int hl_interface_open(enum hl_transports tr)
+int hl_interface_open(enum hl_transports tr, struct target *t)
 {
 	LOG_DEBUG("hl_interface_open");
 
 	enum reset_types jtag_reset_config = jtag_get_reset_config();
+
+	hl_if.param.target = t;
 
 	if (jtag_reset_config & RESET_CNCT_UNDER_SRST) {
 		if (jtag_reset_config & RESET_SRST_NO_GATING)
