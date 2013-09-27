@@ -101,6 +101,8 @@ struct stlink_usb_handle_s {
 	uint16_t pid;
 	/** this is the currently used jtag api */
 	enum stlink_jtag_api_version jtag_api;
+	/** hook for target supplied trace processing */
+	struct target *target;
 	/** */
 	struct {
 		/** whether SWO tracing is enabled or not */
@@ -860,6 +862,11 @@ static int stlink_usb_trace_read(void *handle)
 						if (fwrite(buf, 1, size, h->trace.output_f) > 0)
 							fflush(h->trace.output_f);
 					}
+					/* Pass data to local ITM processing: */
+					{
+						extern void trace_process(struct target *target, uint8_t *buf, size_t size);
+						trace_process(h->target, buf, size);
+					}
 				}
 			}
 		}
@@ -1018,15 +1025,41 @@ static int stlink_configure_target_trace_port(void *handle)
 	if (res != ERROR_OK)
 		goto out;
 	/* enable trace with ATB ID 1 */
-	res = stlink_usb_write_debug_reg(handle, ITM_TCR, (1<<16)|(1<<0)|(1<<2));
+	uint32_t tcrval = ((1<<16) | (1<<0));
+	/* TODO:FIXME: Ideally we should not need to be passing in references to
+	 * the target or armv7m structures. However we need to reference the
+	 * top-level (dynamic) TPIU/ITM/DWT configuration. */
+	struct armv7m_common *armv7m = target_to_armv7m(h->target);
+	assert(armv7m != NULL);
+	if (armv7m->tpiusync)
+		tcrval |= (1 << 2);
+	if (armv7m->dwt)
+		tcrval |= (1 << 3);
+	res = stlink_usb_write_debug_reg(handle, ITM_TCR, tcrval);
 	if (res != ERROR_OK)
 		goto out;
-	/* trace privilege */
-	res = stlink_usb_write_debug_reg(handle, ITM_TPR, 1);
+	/* NOTE: The ITM stimulus world can support upto 256 ports, but this
+	 * implementation is currently limited to the initial 32 ports. */
+	uint32_t portmask = 0x00000000;
+	unsigned int idx;
+	for (idx = 0; (idx < 32); idx++) {
+		if (armv7m->itm_stimport_service[idx])
+			portmask |= (1 << idx);
+	}
+	/* If no "itm stimport" configurations specified then default to only
+	 * enabling stimulus port 0. */
+	if (portmask == 0x00000000)
+		portmask = (1 << 0);
+	/* trace privilege - currently only for ports 0..31 */
+	uint32_t privmask = 0x00000000;
+	for (idx = 0; (idx < 4); idx++) {
+		if (portmask & (0xFF << (8 * idx)))
+			privmask |= (1 << idx);
+	}
+	res = stlink_usb_write_debug_reg(handle, ITM_TPR, privmask);
 	if (res != ERROR_OK)
 		goto out;
-	/* trace port enable (port 0) */
-	res = stlink_usb_write_debug_reg(handle, ITM_TER, (1<<0));
+	res = stlink_usb_write_debug_reg(handle, ITM_TER, portmask);
 	if (res != ERROR_OK)
 		goto out;
 
@@ -1072,6 +1105,12 @@ static int stlink_usb_trace_enable(void *handle)
 	if (h->version.jtag >= STLINK_TRACE_MIN_VERSION) {
 		uint32_t trace_hz;
 
+		/* TODO: This "stlink_configure_target_trace_port()" function
+		 * should really be provided by the higher level TPIU/ITM/DWT
+		 * support code using generic target reg read/write support (and
+		 * it should also attach the periodic callback (done below) to
+		 * the higher level code). However, as before, we would need a
+		 * handle onto the relevant context. */
 		res = stlink_configure_target_trace_port(handle);
 		if (res != ERROR_OK)
 			LOG_ERROR("Unable to configure tracing on target\n");
@@ -1094,6 +1133,7 @@ static int stlink_usb_trace_enable(void *handle)
 		if (res == ERROR_OK)  {
 			h->trace.enabled = true;
 			LOG_DEBUG("Tracing: recording at %uHz\n", trace_hz);
+
 			/* We need the trace read function to be called at a
 			 * high-enough frequency to ensure reasonable
 			 * "timeliness" in processing ITM/DWT data. */
@@ -1746,6 +1786,7 @@ static int stlink_usb_open(struct hl_interface_param_s *param, void **fd)
 		prescale = param->trace_source_hz > STLINK_TRACE_MAX_HZ ?
 			(param->trace_source_hz / STLINK_TRACE_MAX_HZ) - 1 : 0;
 
+		h->target = param->target;
 		h->trace.output_f = param->trace_f;
 		h->trace.source_hz = param->trace_source_hz;
 		h->trace.prescale = prescale;

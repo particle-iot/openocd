@@ -137,6 +137,54 @@ enum {
 
 #define ARMV7M_COMMON_MAGIC 0x2A452A45
 
+#define ITM_MAX_STIMPORT (256)
+
+#define BIT_(__n) (1<<(__n))
+#define MASK_(__n, __s) (((1<<(__s))-1)<<(__n))
+#define VALUE_(__n, __v) ((__v)<<(__n))
+
+#define ITMDWTPP_SYNC (0x00) /* Terminated by single set bit after at least 47 bits. */
+#define ITMDWTPP_OVERFLOW (0x70) /* PROTOCOL byte with 0-bytes of payload */
+
+/* Least-significant 2-bits decode PROTOCOL or SOURCE packets */
+#define ITMDWTPP_TYPE_MASK MASK_(0, 2)
+#define ITMDWTPP_TYPE_PROTOCOL VALUE_(0, 0)
+#define ITMDWTPP_TYPE_SOURCE1 VALUE_(0, 1)
+#define ITMDWTPP_TYPE_SOURCE2 VALUE_(0, 2)
+#define ITMDWTPP_TYPE_SOURCE4 VALUE_(0, 3)
+
+#define ITMDWTPP_PROTOCOL_EXTENSION BIT_(3) /* extension */
+#define ITMDWTPP_SOURCE_SELECTION BIT_(2)
+#define ITMDWTPP_SOURCE_SHIFT (3)
+#define ITMDWTPP_SOURCE_MASK MASK_(ITMDWTPP_SOURCE_SHIFT, 5)
+
+#define ITMDWTPP_PROTOCOL_EXT_ITM_PAGE_SHIFT (4)
+#define ITMDWTPP_PROTOCOL_EXT_ITM_PAGE_MASK MASK_(ITMDWTPP_PROTOCOL_EXT_ITM_PAGE_SHIFT, 3)
+
+typedef enum {
+	/* Waiting for header byte. This MUST be zero for initial starting
+	 * state: */
+	PKTFSM_HDR = 0,
+	/* ITM (instrumentation) */
+	PKTFSM_ITM1,
+	PKTFSM_ITM2,
+	PKTFSM_ITM3,
+	PKTFSM_ITM4,
+	/* DWT (hardware) */
+	PKTFSM_DWT1,
+	PKTFSM_DWT2,
+	PKTFSM_DWT3,
+	PKTFSM_DWT4,
+} tpiu_pktfsm_e;
+
+/* Context for decoding TPIU stream split across multiple "capture" buffers. */
+struct armv7m_tpiu_pktstate {
+	tpiu_pktfsm_e fsm; /* next state to be processed */
+	unsigned int pcode; /* private packet type data which depends on "fsm" being processed */
+	unsigned int pdata; /* private packet type data which depends on "fsm" being processed */
+	unsigned char size; /* non-zero indicates number of packet data bytes expected */
+};
+
 struct armv7m_common {
 	struct arm	arm;
 
@@ -149,6 +197,25 @@ struct armv7m_common {
 
 	/* stlink is a high level adapter, does not support all functions */
 	bool stlink;
+
+	/* TODO:DECIDE: This may not be the best place to hang the service
+	 * references; but it will suffice for initial testing. We should
+	 * probably add a new source file "itm.c" to encapsulate the generic
+	 * parts of ITM support. The issue is then referencing the relevant
+	 * holding structure from within the interface handling code. At the
+	 * moment the "target" is not available by default.
+	 *
+	 * NOTES: If BUILD_OOCD_TRACE is defined then the oocd_trace.[ch]
+	 * support is included by "etm.c". */
+	/* We just have a simple 256 entry vector (on this resource rich host)
+	 * since it is easier to manage the services attached, rather than
+	 * maintaining a dynamic chain that would need to be scanned when
+	 * processing. */
+	void *itm_stimport_service[ITM_MAX_STIMPORT];
+	void *tpiu_packet_service;
+	struct armv7m_tpiu_pktstate tpiu_pktstate;
+	bool tpiusync;
+	bool dwt;
 
 	/* Direct processor core register read and writes */
 	int (*load_core_reg_u32)(struct target *target, uint32_t num, uint32_t *value);

@@ -174,7 +174,7 @@ static int hl_transport_init(struct command_context *cmd_ctx)
 	else if (strcmp(transport->name, "stlink_swim") == 0)
 		tr = HL_TRANSPORT_SWIM;
 
-	int retval = hl_interface_open(tr);
+	int retval = hl_interface_open(tr, t);
 
 	if (retval != ERROR_OK)
 		return retval;
