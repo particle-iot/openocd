@@ -4260,11 +4260,10 @@ no_params:
 										   n->name);
 					return JIM_ERR;
 				}
-				if (target->variant)
-					free((void *)(target->variant));
 				e = Jim_GetOpt_String(goi, &cp, NULL);
 				if (e != JIM_OK)
 					return e;
+				free(target->variant);
 				target->variant = strdup(cp);
 			} else {
 				if (goi->argc != 0)

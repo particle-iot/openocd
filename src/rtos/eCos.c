@@ -408,7 +408,7 @@ static int eCos_create(struct target *target)
 		return -1;
 	}
 
-	target->rtos->rtos_specific_params = (void *) &eCos_params_list[i];
+	target->rtos->rtos_specific_params = &eCos_params_list[i];
 	target->rtos->current_thread = 0;
 	target->rtos->thread_details = NULL;
 	return 0;

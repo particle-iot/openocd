@@ -478,7 +478,7 @@ static int ThreadX_create(struct target *target)
 		return -1;
 	}
 
-	target->rtos->rtos_specific_params = (void *) &ThreadX_params_list[i];
+	target->rtos->rtos_specific_params = &ThreadX_params_list[i];
 	target->rtos->current_thread = 0;
 	target->rtos->thread_details = NULL;
 	return 0;
