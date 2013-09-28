@@ -52,6 +52,7 @@ struct imagesection {
 	uint32_t size;
 	int flags;
 	void *private;		/* private data */
+	uint32_t offset;
 };
 
 struct image {
@@ -63,6 +64,7 @@ struct image {
 	long long base_address;		/* base address, if one is set */
 	int start_address_set;	/* whether the image has a start address (entry point) associated */
 	uint32_t start_address;		/* start address, if one is set */
+	int sections_type;		/*  */
 };
 
 struct image_binary {
@@ -84,7 +86,9 @@ struct image_elf {
 	struct fileio fileio;
 	Elf32_Ehdr *header;
 	Elf32_Phdr *segments;
+	Elf32_Shdr *sections;
 	uint32_t segment_count;
+	uint32_t section_count;
 	uint8_t endianness;
 };
 
