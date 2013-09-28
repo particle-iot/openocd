@@ -210,7 +210,7 @@ static int mg_init_gpio(void)
 	return ret;
 }
 
-static int mg_dsk_wait(mg_io_type_wait wait_local, uint32_t time_var)
+static int mg_dsk_wait(enum mg_io_type_wait wait_local, uint32_t time_var)
 {
 	uint8_t status, error;
 	struct target *target = mflash_bank->target;
@@ -261,10 +261,12 @@ static int mg_dsk_wait(mg_io_type_wait wait_local, uint32_t time_var)
 				case mg_io_wait_rdy:
 					if (status & mg_io_rbit_status_ready)
 						return ERROR_OK;
+					break;
 
 				case mg_io_wait_drq:
 					if (status & mg_io_rbit_status_data_req)
 						return ERROR_OK;
+					break;
 
 				default:
 					break;
@@ -350,7 +352,7 @@ static int mg_dsk_drv_info(void)
 		mflash_bank->drv_info = malloc(sizeof(struct mg_drv_info));
 
 	ret = target_read_memory(target, mg_buff, 2,
-			sizeof(mg_io_type_drv_info) >> 1,
+			sizeof(struct mg_io_type_drv_info) >> 1,
 			(uint8_t *)&mflash_bank->drv_info->drv_id);
 	if (ret != ERROR_OK)
 		return ret;
@@ -886,7 +888,7 @@ mg_dump_cmd_err:
 	return ret;
 }
 
-static int mg_set_feature(mg_feature_id feature, mg_feature_val config)
+static int mg_set_feature(enum mg_feature_id feature, enum mg_feature_val config)
 {
 	struct target *target = mflash_bank->target;
 	uint32_t mg_task_reg = mflash_bank->base + MG_REG_OFFSET;
@@ -946,7 +948,7 @@ static int mg_pll_get_NO(unsigned char output_div)
 	return NO;
 }
 
-static double mg_do_calc_pll(double XIN, mg_pll_t *p_pll_val, int is_approximate)
+static double mg_do_calc_pll(double XIN, struct mg_pll *p_pll_val, int is_approximate)
 {
 	unsigned short i;
 	unsigned char j, k;
@@ -991,7 +993,7 @@ static double mg_do_calc_pll(double XIN, mg_pll_t *p_pll_val, int is_approximate
 	return 0;
 }
 
-static double mg_calc_pll(double XIN, mg_pll_t *p_pll_val)
+static double mg_calc_pll(double XIN, struct mg_pll *p_pll_val)
 {
 	double CLK_OUT;
 
@@ -1055,7 +1057,7 @@ static const char g_strSEG_ModelNum[40] = {
 	0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20
 };
 
-static void mg_gen_ataid(mg_io_type_drv_info *pSegIdDrvInfo)
+static void mg_gen_ataid(struct mg_io_type_drv_info *pSegIdDrvInfo)
 {
 	/* b15 is ATA device(0)	, b7 is Removable Media Device */
 	pSegIdDrvInfo->general_configuration            = 0x045A;
@@ -1173,7 +1175,7 @@ static int mg_storage_config(void)
 	if (ret != ERROR_OK)
 		return ret;
 
-	mg_gen_ataid((mg_io_type_drv_info *)(void *)buff);
+	mg_gen_ataid((struct mg_io_type_drv_info *)buff);
 
 	ret = mg_mflash_do_write_sects(buff, 0, 1, mg_vcmd_update_stgdrvinfo);
 	if (ret != ERROR_OK)
@@ -1215,7 +1217,7 @@ static int mg_boot_config(void)
 	return ret;
 }
 
-static int mg_set_pll(mg_pll_t *pll)
+static int mg_set_pll(struct mg_pll *pll)
 {
 	uint8_t buff[512];
 	int ret;
@@ -1266,7 +1268,7 @@ static int mg_erase_nand(void)
 COMMAND_HANDLER(mg_config_cmd)
 {
 	double fin, fout;
-	mg_pll_t pll;
+	struct mg_pll pll;
 	int ret;
 
 	ret = mg_verify_interface();
