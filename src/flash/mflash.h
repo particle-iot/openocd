@@ -22,10 +22,6 @@
 
 struct command_context;
 
-typedef unsigned long mg_io_uint32;
-typedef unsigned short mg_io_uint16;
-typedef unsigned char mg_io_uint8;
-
 struct mflash_gpio_num {
 	char port[2];
 	signed short num;
@@ -37,93 +33,93 @@ struct mflash_gpio_drv {
 	int (*set_gpio_output_val)(struct mflash_gpio_num gpio, uint8_t val);
 };
 
-typedef struct _mg_io_type_drv_info {
+struct mg_io_type_drv_info {
 
-	mg_io_uint16 general_configuration;				/* 00 */
-	mg_io_uint16 number_of_cylinders;				/* 01 */
-	mg_io_uint16 reserved1;							/* 02 */
-	mg_io_uint16 number_of_heads;					/* 03 */
-	mg_io_uint16 unformatted_bytes_per_track;		/* 04 */
-	mg_io_uint16 unformatted_bytes_per_sector;		/* 05 */
-	mg_io_uint16 sectors_per_track;					/* 06 */
-	mg_io_uint16 vendor_unique1[3];					/* 07/08/09 */
+	uint16_t general_configuration;				/* 00 */
+	uint16_t number_of_cylinders;				/* 01 */
+	uint16_t reserved1;							/* 02 */
+	uint16_t number_of_heads;					/* 03 */
+	uint16_t unformatted_bytes_per_track;		/* 04 */
+	uint16_t unformatted_bytes_per_sector;		/* 05 */
+	uint16_t sectors_per_track;					/* 06 */
+	uint16_t vendor_unique1[3];					/* 07/08/09 */
 
-	mg_io_uint8 serial_number[20];					/* 10~19 */
+	uint8_t serial_number[20];					/* 10~19 */
 
-	mg_io_uint16 buffer_type;						/* 20 */
-	mg_io_uint16 buffer_sector_size;				/* 21 */
-	mg_io_uint16 number_of_ecc_bytes;				/* 22 */
+	uint16_t buffer_type;						/* 20 */
+	uint16_t buffer_sector_size;				/* 21 */
+	uint16_t number_of_ecc_bytes;				/* 22 */
 
-	mg_io_uint8 firmware_revision[8];				/* 23~26 */
-	mg_io_uint8 model_number[40];					/* 27 */
+	uint8_t firmware_revision[8];				/* 23~26 */
+	uint8_t model_number[40];					/* 27 */
 
-	mg_io_uint8 maximum_block_transfer;			/* 47 low byte */
-	mg_io_uint8 vendor_unique2;					/* 47 high byte */
-	mg_io_uint16 dword_io;							/* 48 */
+	uint8_t maximum_block_transfer;			/* 47 low byte */
+	uint8_t vendor_unique2;					/* 47 high byte */
+	uint16_t dword_io;							/* 48 */
 
-	mg_io_uint16 capabilities;						/* 49 */
-	mg_io_uint16 reserved2;							/* 50 */
+	uint16_t capabilities;						/* 49 */
+	uint16_t reserved2;							/* 50 */
 
-	mg_io_uint8 vendor_unique3;					/* 51 low byte */
-	mg_io_uint8 pio_cycle_timing_mode;				/* 51 high byte */
-	mg_io_uint8 vendor_unique4;					/* 52 low byte */
-	mg_io_uint8 dma_cycle_timing_mode;				/* 52 high byte */
-	mg_io_uint16 translation_fields_valid;			/* 53 (low bit) */
-	mg_io_uint16 number_of_current_cylinders;		/* 54 */
-	mg_io_uint16 number_of_current_heads;			/* 55 */
-	mg_io_uint16 current_sectors_per_track;			/* 56 */
-	mg_io_uint16 current_sector_capacity_lo;		/* 57 & 58 */
-	mg_io_uint16 current_sector_capacity_hi;		/* 57 & 58 */
-	mg_io_uint8 multi_sector_count;					/* 59 low */
-	mg_io_uint8 multi_sector_setting_valid;			/* 59 high (low bit) */
+	uint8_t vendor_unique3;					/* 51 low byte */
+	uint8_t pio_cycle_timing_mode;				/* 51 high byte */
+	uint8_t vendor_unique4;					/* 52 low byte */
+	uint8_t dma_cycle_timing_mode;				/* 52 high byte */
+	uint16_t translation_fields_valid;			/* 53 (low bit) */
+	uint16_t number_of_current_cylinders;		/* 54 */
+	uint16_t number_of_current_heads;			/* 55 */
+	uint16_t current_sectors_per_track;			/* 56 */
+	uint16_t current_sector_capacity_lo;		/* 57 & 58 */
+	uint16_t current_sector_capacity_hi;		/* 57 & 58 */
+	uint8_t multi_sector_count;					/* 59 low */
+	uint8_t multi_sector_setting_valid;			/* 59 high (low bit) */
 
-	mg_io_uint16 total_user_addressable_sectors_lo;	/* 60 & 61 */
-	mg_io_uint16 total_user_addressable_sectors_hi;	/* 60 & 61 */
+	uint16_t total_user_addressable_sectors_lo;	/* 60 & 61 */
+	uint16_t total_user_addressable_sectors_hi;	/* 60 & 61 */
 
-	mg_io_uint8 single_dma_modes_supported;			/* 62 low byte */
-	mg_io_uint8 single_dma_transfer_active;			/* 62 high byte */
-	mg_io_uint8 multi_dma_modes_supported;			/* 63 low byte */
-	mg_io_uint8 multi_dma_transfer_active;			/* 63 high byte */
-	mg_io_uint16 adv_pio_mode;
-	mg_io_uint16 min_dma_cyc;
-	mg_io_uint16 recommend_dma_cyc;
-	mg_io_uint16 min_pio_cyc_no_iordy;
-	mg_io_uint16 min_pio_cyc_with_iordy;
-	mg_io_uint8 reserved3[22];
-	mg_io_uint16 major_ver_num;
-	mg_io_uint16 minor_ver_num;
-	mg_io_uint16 feature_cmd_set_suprt0;
-	mg_io_uint16 feature_cmd_set_suprt1;
-	mg_io_uint16 feature_cmd_set_suprt2;
-	mg_io_uint16 feature_cmd_set_en0;
-	mg_io_uint16 feature_cmd_set_en1;
-	mg_io_uint16 feature_cmd_set_en2;
-	mg_io_uint16 reserved4;
-	mg_io_uint16 req_time_for_security_er_done;
-	mg_io_uint16 req_time_for_enhan_security_er_done;
-	mg_io_uint16 adv_pwr_mgm_lvl_val;
-	mg_io_uint16 reserved5;
-	mg_io_uint16 re_of_hw_rst;
-	mg_io_uint8 reserved6[68];
-	mg_io_uint16 security_stas;
-	mg_io_uint8 vendor_uniq_bytes[62];
-	mg_io_uint16 cfa_pwr_mode;
-	mg_io_uint8 reserved7[186];
+	uint8_t single_dma_modes_supported;			/* 62 low byte */
+	uint8_t single_dma_transfer_active;			/* 62 high byte */
+	uint8_t multi_dma_modes_supported;			/* 63 low byte */
+	uint8_t multi_dma_transfer_active;			/* 63 high byte */
+	uint16_t adv_pio_mode;
+	uint16_t min_dma_cyc;
+	uint16_t recommend_dma_cyc;
+	uint16_t min_pio_cyc_no_iordy;
+	uint16_t min_pio_cyc_with_iordy;
+	uint8_t reserved3[22];
+	uint16_t major_ver_num;
+	uint16_t minor_ver_num;
+	uint16_t feature_cmd_set_suprt0;
+	uint16_t feature_cmd_set_suprt1;
+	uint16_t feature_cmd_set_suprt2;
+	uint16_t feature_cmd_set_en0;
+	uint16_t feature_cmd_set_en1;
+	uint16_t feature_cmd_set_en2;
+	uint16_t reserved4;
+	uint16_t req_time_for_security_er_done;
+	uint16_t req_time_for_enhan_security_er_done;
+	uint16_t adv_pwr_mgm_lvl_val;
+	uint16_t reserved5;
+	uint16_t re_of_hw_rst;
+	uint8_t reserved6[68];
+	uint16_t security_stas;
+	uint8_t vendor_uniq_bytes[62];
+	uint16_t cfa_pwr_mode;
+	uint8_t reserved7[186];
 
-	mg_io_uint16 scts_per_secure_data_unit;
-	mg_io_uint16 integrity_word;
+	uint16_t scts_per_secure_data_unit;
+	uint16_t integrity_word;
 
-} mg_io_type_drv_info;
+};
 
-typedef struct _mg_pll_t {
+struct mg_pll {
 	unsigned int lock_cyc;
 	unsigned short feedback_div;	/* 9bit divider */
 	unsigned char input_div;	/* 5bit divider */
 	unsigned char output_div;	/* 2bit divider */
-} mg_pll_t;
+};
 
 struct mg_drv_info {
-	mg_io_type_drv_info drv_id;
+	struct mg_io_type_drv_info drv_id;
 	uint32_t tot_sects;
 };
 
@@ -180,7 +176,7 @@ int mflash_register_commands(struct command_context *cmd_ctx);
 #define ERROR_MG_INVALID_OSC (-1605)
 #define ERROR_MG_UNSUPPORTED_SOC (-1606)
 
-typedef enum _mg_io_type_wait {
+enum mg_io_type_wait {
 
 	mg_io_wait_bsy       = 1,
 	mg_io_wait_not_bsy   = 2,
@@ -189,10 +185,10 @@ typedef enum _mg_io_type_wait {
 	mg_io_wait_drq_noerr = 5,	/* wait for DRQ but ignore the error status bit */
 	mg_io_wait_rdy_noerr = 6	/* wait for ready, but ignore error status bit */
 
-} mg_io_type_wait;
+};
 
 /*= "Status Register" bit masks. */
-typedef enum _mg_io_type_rbit_status {
+enum mg_io_type_rbit_status {
 
 	mg_io_rbit_status_error            = 0x01,	/* error bit in status register */
 	mg_io_rbit_status_corrected_error  = 0x04,	/* corrected error in status register */
@@ -202,10 +198,10 @@ typedef enum _mg_io_type_rbit_status {
 	mg_io_rbit_status_ready            = 0x40,
 	mg_io_rbit_status_busy             = 0x80
 
-} mg_io_type_rbit_status;
+};
 
 /*= "Error Register" bit masks. */
-typedef enum _mg_io_type_rbit_error {
+enum mg_io_type_rbit_error {
 
 	mg_io_rbit_err_general          = 0x01,
 	mg_io_rbit_err_aborted          = 0x04,
@@ -213,18 +209,18 @@ typedef enum _mg_io_type_rbit_error {
 	mg_io_rbit_err_uncorrectable    = 0x40,
 	mg_io_rbit_err_bad_block        = 0x80
 
-} mg_io_type_rbit_error;
+};
 
 /* = "Device Control Register" bit. */
-typedef enum _mg_io_type_rbit_devc {
+enum mg_io_type_rbit_devc {
 
 	mg_io_rbit_devc_intr      = 0x02,	/* interrupt enable bit (1:disable, 0:enable) */
 	mg_io_rbit_devc_srst      = 0x04	/* softwrae reset bit (1:assert, 0:de-assert) */
 
-} mg_io_type_rbit_devc;
+};
 
 /* "Drive Select/Head Register" values. */
-typedef enum _mg_io_type_rval_dev {
+enum mg_io_type_rval_dev {
 
 	mg_io_rval_dev_must_be_on      = 0x80,	/* These 1 bits are always on */
 	mg_io_rval_dev_drv_master      = (0x00 | mg_io_rval_dev_must_be_on),	/* Master */
@@ -233,9 +229,9 @@ typedef enum _mg_io_type_rval_dev {
 	mg_io_rval_dev_drv_slave2      = (0x30 | mg_io_rval_dev_must_be_on),	/* Slave2 */
 	mg_io_rval_dev_lba_mode        = (0x40 | mg_io_rval_dev_must_be_on)
 
-} mg_io_type_rval_dev;
+};
 
-typedef enum _mg_io_type_cmd {
+enum mg_io_type_cmd {
 	mg_io_cmd_read             = 0x20,
 	mg_io_cmd_write            = 0x30,
 
@@ -257,19 +253,19 @@ typedef enum _mg_io_type_cmd {
 	mg_io_cmd_confirm_read     = 0x40,
 	mg_io_cmd_wakeup           = 0xC3
 
-} mg_io_type_cmd;
+};
 
-typedef enum _mg_feature_id {
+enum mg_feature_id {
 	mg_feature_id_transmode = 0x3
-} mg_feature_id;
+};
 
-typedef enum _mg_feature_val {
+enum mg_feature_val {
 	mg_feature_val_trans_default = 0x0,
 	mg_feature_val_trans_vcmd = 0x3,
 	mg_feature_val_trand_vcmds = 0x2
-} mg_feature_val;
+};
 
-typedef enum _mg_vcmd {
+enum mg_vcmd {
 	mg_vcmd_update_xipinfo = 0xFA,	/* FWPATCH commmand through IOM I/O */
 	mg_vcmd_verify_fwpatch = 0xFB,	/* FWPATCH commmand through IOM I/O */
 	mg_vcmd_update_stgdrvinfo = 0xFC,	/* IOM identificatin info program command */
@@ -280,12 +276,12 @@ typedef enum _mg_vcmd {
 	mg_vcmd_lock_otp = 0x8D,
 	mg_vcmd_rd_otp = 0x8E,
 	mg_vcmd_wr_otp = 0x8F
-} mg_vcmd;
+};
 
-typedef enum _mg_opmode {
+enum mg_opmode {
 	mg_op_mode_xip = 1,	/* TRUE XIP */
 	mg_op_mode_snd = 2,	/* BOOT + Storage */
 	mg_op_mode_stg = 0	/* Only Storage */
-} mg_opmode;
+};
 
 #endif
