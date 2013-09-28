@@ -141,6 +141,18 @@ int hl_interface_init_reset(void)
 	return ERROR_OK;
 }
 
+int hl_interface_override_target(const char **targetname)
+{
+	if (hl_if.layout->api->override_target) {
+		if (hl_if.layout->api->override_target(*targetname)) {
+			*targetname = "hla_target";
+			return ERROR_OK;
+		} else
+			return ERROR_FAIL;
+	}
+	return ERROR_FAIL;
+}
+
 COMMAND_HANDLER(hl_interface_handle_device_desc_command)
 {
 	LOG_DEBUG("hl_interface_handle_device_desc_command");

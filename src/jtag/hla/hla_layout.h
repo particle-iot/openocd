@@ -65,6 +65,8 @@ struct hl_layout_api_s {
 	/** */
 	int (*idcode) (void *fd, uint32_t *idcode);
 	/** */
+	int (*override_target) (const char *targetname);
+	/** */
 	enum target_state (*state) (void *fd);
 };
 
