@@ -1568,7 +1568,7 @@ static int dsp563xx_read_memory_core(struct target *target,
 		if (err != ERROR_OK)
 			return err;
 		err = dsp563xx_once_reg_read(target->tap, 0,
-				DSP563XX_ONCE_OGDBR, (uint32_t *)(void *)b);
+				DSP563XX_ONCE_OGDBR, (uint32_t *)b);
 		if (err != ERROR_OK)
 			return err;
 		b += 4;
