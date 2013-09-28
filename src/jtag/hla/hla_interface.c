@@ -145,6 +145,42 @@ int hl_interface_init_reset(void)
 	return ERROR_OK;
 }
 
+static int dummy_khz(int khz, int *jtag_speed)
+{
+	if (khz == 0)
+		*jtag_speed = 0;
+	else
+		*jtag_speed = 64000/khz;
+	return ERROR_OK;
+}
+
+static int dummy_speed_div(int speed, int *khz)
+{
+	if (speed == 0)
+		*khz = 0;
+	else
+		*khz = 64000/speed;
+
+	return ERROR_OK;
+}
+
+static int dummy_speed(int speed)
+{
+	return ERROR_OK;
+}
+
+int hl_interface_override_target(const char **targetname)
+{
+	if (hl_if.layout->api->override_target) {
+		if (hl_if.layout->api->override_target(*targetname)) {
+			*targetname = "hla_target";
+			return ERROR_OK;
+		} else
+			return ERROR_FAIL;
+	}
+	return ERROR_FAIL;
+}
+
 COMMAND_HANDLER(hl_interface_handle_device_desc_command)
 {
 	LOG_DEBUG("hl_interface_handle_device_desc_command");
@@ -286,4 +322,7 @@ struct jtag_interface hl_interface = {
 	.init = hl_interface_init,
 	.quit = hl_interface_quit,
 	.execute_queue = hl_interface_execute_queue,
+	.speed = &dummy_speed,
+	.khz = &dummy_khz,
+	.speed_div = &dummy_speed_div,
 };
