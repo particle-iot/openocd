@@ -1367,7 +1367,7 @@ static uint32_t *sam4_get_reg_ptr(struct sam4_cfg *pCfg, const struct sam4_reg_l
 	/* By using prototypes - we can detect what would */
 	/* be casting errors. */
 
-	return (uint32_t *)(void *)(((char *)(pCfg)) + pList->struct_offset);
+	return (uint32_t *)(((char *)(pCfg)) + pList->struct_offset);
 }
 
 
@@ -1416,7 +1416,7 @@ static const struct sam4_reg_list *sam4_GetReg(struct sam4_chip *pChip, uint32_t
 		/* calculate where this one go.. */
 		/* it is "possibly" this register. */
 
-		pPossible = ((uint32_t *)(void *)(((char *)(&(pChip->cfg))) + pReg->struct_offset));
+		pPossible = ((uint32_t *)(((char *)(&(pChip->cfg))) + pReg->struct_offset));
 
 		/* well? Is it this register */
 		if (pPossible == goes_here) {
