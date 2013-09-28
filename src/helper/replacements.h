@@ -275,6 +275,24 @@ typedef struct {
 	Elf32_Size p_align;		/* Segment alignment */
 } Elf32_Phdr;
 
+typedef struct {
+	Elf32_Word sh_name;
+	Elf32_Word sh_type;
+	Elf32_Word sh_flags;
+	Elf32_Addr sh_addr;
+	Elf32_Off sh_offset;
+	Elf32_Word sh_size;
+	Elf32_Word sh_link;
+	Elf32_Word sh_info;
+	Elf32_Word sh_addralign;
+	Elf32_Word sh_entsize;
+} Elf32_Shdr;
+
+/* sh_type */
+#define SHT_PROGBITS		1
+/* sh_flags */
+#define SHF_ALLOC		0x2
+
 #define PT_LOAD			1		/* Loadable program segment */
 
 #endif	/* HAVE_ELF_H */

@@ -334,52 +334,12 @@ static int image_ihex_buffer_complete(struct image *image)
 	return retval;
 }
 
-static int image_elf_read_headers(struct image *image)
+static int process_segments(struct image_elf *elf, struct image *image)
 {
-	struct image_elf *elf = image->type_private;
-	size_t read_bytes;
 	uint32_t i, j;
 	int retval;
+	size_t read_bytes;
 	uint32_t nload, load_to_vaddr = 0;
-
-	elf->header = malloc(sizeof(Elf32_Ehdr));
-
-	if (elf->header == NULL) {
-		LOG_ERROR("insufficient memory to perform operation ");
-		return ERROR_FILEIO_OPERATION_FAILED;
-	}
-
-	retval = fileio_read(&elf->fileio, sizeof(Elf32_Ehdr), (uint8_t *)elf->header, &read_bytes);
-	if (retval != ERROR_OK) {
-		LOG_ERROR("cannot read ELF file header, read failed");
-		return ERROR_FILEIO_OPERATION_FAILED;
-	}
-	if (read_bytes != sizeof(Elf32_Ehdr)) {
-		LOG_ERROR("cannot read ELF file header, only partially read");
-		return ERROR_FILEIO_OPERATION_FAILED;
-	}
-
-	if (strncmp((char *)elf->header->e_ident, ELFMAG, SELFMAG) != 0) {
-		LOG_ERROR("invalid ELF file, bad magic number");
-		return ERROR_IMAGE_FORMAT_ERROR;
-	}
-	if (elf->header->e_ident[EI_CLASS] != ELFCLASS32) {
-		LOG_ERROR("invalid ELF file, only 32bits files are supported");
-		return ERROR_IMAGE_FORMAT_ERROR;
-	}
-
-	elf->endianness = elf->header->e_ident[EI_DATA];
-	if ((elf->endianness != ELFDATA2LSB)
-		&& (elf->endianness != ELFDATA2MSB)) {
-		LOG_ERROR("invalid ELF file, unknown endianness setting");
-		return ERROR_IMAGE_FORMAT_ERROR;
-	}
-
-	elf->segment_count = field16(elf, elf->header->e_phnum);
-	if (elf->segment_count == 0) {
-		LOG_ERROR("invalid ELF file, no program headers");
-		return ERROR_IMAGE_FORMAT_ERROR;
-	}
 
 	retval = fileio_seek(&elf->fileio, field32(elf, elf->header->e_phoff));
 	if (retval != ERROR_OK) {
@@ -450,6 +410,7 @@ static int image_elf_read_headers(struct image *image)
 						elf->segments[i].p_paddr);
 			image->sections[j].private = &elf->segments[i];
 			image->sections[j].flags = field32(elf, elf->segments[i].p_flags);
+			image->sections[j].offset = field32(elf, elf->segments[i].p_offset);
 			j++;
 		}
 	}
@@ -460,6 +421,121 @@ static int image_elf_read_headers(struct image *image)
 	return ERROR_OK;
 }
 
+static int process_sections(struct image_elf *elf, struct image *image)
+{
+	uint32_t i, j;
+	int retval;
+	size_t read_bytes;
+
+	retval = fileio_seek(&elf->fileio, field32(elf, elf->header->e_shoff));
+	if (retval != ERROR_OK) {
+		LOG_ERROR("cannot seek to ELF section header table, read failed");
+		return retval;
+	}
+
+	elf->sections = malloc(elf->section_count*sizeof(Elf32_Shdr));
+	if (elf->sections == NULL) {
+		LOG_ERROR("insufficient memory to perform operation ");
+		return ERROR_FILEIO_OPERATION_FAILED;
+	}
+
+	retval = fileio_read(&elf->fileio, elf->section_count*sizeof(Elf32_Shdr),
+			(uint8_t *)elf->sections, &read_bytes);
+	if (retval != ERROR_OK) {
+		LOG_ERROR("cannot read ELF section headers, read failed");
+		return retval;
+	}
+
+	if (read_bytes != elf->section_count*sizeof(Elf32_Shdr)) {
+		LOG_ERROR("cannot read ELF section headers, only partially read");
+		return ERROR_FILEIO_OPERATION_FAILED;
+	}
+
+	/* count useful segments (loadable), ignore BSS section */
+	image->num_sections = 0;
+	for (i = 0; i < elf->section_count; i++)
+		if ((field32(elf, elf->sections[i].sh_type) == SHT_PROGBITS) &&
+		    (field32(elf, elf->sections[i].sh_flags) & SHF_ALLOC) &&
+		    (field32(elf, elf->sections[i].sh_size) != 0))
+			image->num_sections++;
+
+	assert(image->num_sections > 0);
+
+	/* alloc and fill sections array with loadable segments */
+	image->sections = malloc(image->num_sections * sizeof(struct imagesection));
+	for (i = 0, j = 0; i < elf->section_count; i++) {
+		if ((field32(elf, elf->sections[i].sh_type) == SHT_PROGBITS) &&
+		    (field32(elf, elf->sections[i].sh_flags) & SHF_ALLOC) &&
+		    (field32(elf, elf->sections[i].sh_size) != 0)) {
+			image->sections[j].size = field32(elf, elf->sections[i].sh_size);
+			image->sections[j].base_address = field32(elf, elf->sections[i].sh_addr);
+			image->sections[j].private = &elf->sections[i];
+			image->sections[j].flags = field32(elf, elf->sections[i].sh_flags);
+			image->sections[j].offset = field32(elf, elf->sections[i].sh_offset);
+			j++;
+		}
+	}
+
+	image->start_address_set = 1;
+	image->start_address = field32(elf, elf->header->e_entry);
+
+	return ERROR_OK;
+}
+
+static int image_elf_read_headers(struct image *image)
+{
+	struct image_elf *elf = image->type_private;
+	int retval;
+	size_t read_bytes;
+
+	elf->header = malloc(sizeof(Elf32_Ehdr));
+
+	if (elf->header == NULL) {
+		LOG_ERROR("insufficient memory to perform operation ");
+		return ERROR_FILEIO_OPERATION_FAILED;
+	}
+
+	retval = fileio_read(&elf->fileio, sizeof(Elf32_Ehdr), (uint8_t *)elf->header, &read_bytes);
+	if (retval != ERROR_OK) {
+		LOG_ERROR("cannot read ELF file header, read failed");
+		return ERROR_FILEIO_OPERATION_FAILED;
+	}
+	if (read_bytes != sizeof(Elf32_Ehdr)) {
+		LOG_ERROR("cannot read ELF file header, only partially read");
+		return ERROR_FILEIO_OPERATION_FAILED;
+	}
+
+	if (strncmp((char *)elf->header->e_ident, ELFMAG, SELFMAG) != 0) {
+		LOG_ERROR("invalid ELF file, bad magic number");
+		return ERROR_IMAGE_FORMAT_ERROR;
+	}
+	if (elf->header->e_ident[EI_CLASS] != ELFCLASS32) {
+		LOG_ERROR("invalid ELF file, only 32bits files are supported");
+		return ERROR_IMAGE_FORMAT_ERROR;
+	}
+
+	elf->endianness = elf->header->e_ident[EI_DATA];
+	if ((elf->endianness != ELFDATA2LSB)
+		&& (elf->endianness != ELFDATA2MSB)) {
+		LOG_ERROR("invalid ELF file, unknown endianness setting");
+		return ERROR_IMAGE_FORMAT_ERROR;
+	}
+
+	elf->segment_count = field16(elf, elf->header->e_phnum);
+	if (elf->segment_count)
+		return process_segments(elf, image);
+	else
+		LOG_WARNING("no program header in ELF file");
+
+	elf->section_count = field16(elf, elf->header->e_shnum);
+	if (elf->section_count)
+		return process_sections(elf, image);
+	else {
+		LOG_ERROR("invalid ELF file, no program or section headers");
+		return ERROR_IMAGE_FORMAT_ERROR;
+	}
+}
+
 static int image_elf_read_section(struct image *image,
 	int section,
 	uint32_t offset,
@@ -468,7 +544,7 @@ static int image_elf_read_section(struct image *image,
 	size_t *size_read)
 {
 	struct image_elf *elf = image->type_private;
-	Elf32_Phdr *segment = (Elf32_Phdr *)image->sections[section].private;
+	/*Elf32_Phdr *segment = (Elf32_Phdr *)image->sections[section].private;*/
 	size_t read_size, really_read;
 	int retval;
 
@@ -477,13 +553,13 @@ static int image_elf_read_section(struct image *image,
 	LOG_DEBUG("load segment %d at 0x%" PRIx32 " (sz = 0x%" PRIx32 ")", section, offset, size);
 
 	/* read initialized data in current segment if any */
-	if (offset < field32(elf, segment->p_filesz)) {
+	if (offset < image->sections[section].size) {
 		/* maximal size present in file for the current segment */
-		read_size = MIN(size, field32(elf, segment->p_filesz) - offset);
+		read_size = MIN(size, image->sections[section].size - offset);
 		LOG_DEBUG("read elf: size = 0x%zu at 0x%" PRIx32 "", read_size,
-			field32(elf, segment->p_offset) + offset);
+			image->sections[section].offset + offset);
 		/* read initialized area of the segment */
-		retval = fileio_seek(&elf->fileio, field32(elf, segment->p_offset) + offset);
+		retval = fileio_seek(&elf->fileio, image->sections[section].offset + offset);
 		if (retval != ERROR_OK) {
 			LOG_ERROR("cannot find ELF segment content, seek failed");
 			return retval;
@@ -736,6 +812,7 @@ int image_open(struct image *image, const char *url, const char *type_string)
 		struct image_elf *image_elf;
 
 		image_elf = image->type_private = malloc(sizeof(struct image_elf));
+		memset(image_elf, 0, sizeof(struct image_elf));
 
 		retval = fileio_open(&image_elf->fileio, url, FILEIO_READ, FILEIO_BINARY);
 		if (retval != ERROR_OK)
@@ -964,6 +1041,11 @@ void image_close(struct image *image)
 		if (image_elf->segments) {
 			free(image_elf->segments);
 			image_elf->segments = NULL;
+		}
+
+		if (image_elf->sections) {
+			free(image_elf->sections);
+			image_elf->sections = NULL;
 		}
 	} else if (image->type == IMAGE_MEMORY) {
 		struct image_memory *image_memory = image->type_private;
