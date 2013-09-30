@@ -942,7 +942,7 @@ int dap_syssec_kinetis_mdmap(struct adiv5_dap *dap)
 	dap_run(dap);
 
 	if (val != 0x001C0000) {
-		LOG_DEBUG("id doesn't match %08X != 0x001C0000", val);
+		LOG_DEBUG("id doesn't match %08" PRIX32 " != 0x001C0000", val);
 		dap_ap_select(dap, 0);
 		return ERROR_FAIL;
 	}
@@ -956,7 +956,7 @@ int dap_syssec_kinetis_mdmap(struct adiv5_dap *dap)
 		return retval;
 	dap_run(dap);
 
-	LOG_DEBUG("MDM_REG_STAT %08X", val);
+	LOG_DEBUG("MDM_REG_STAT %08" PRIX32, val);
 
 	if ((val & (MDM_STAT_SYSSEC|MDM_STAT_FREADY)) != (MDM_STAT_FREADY)) {
 		LOG_DEBUG("MDMAP: system is secured, masserase needed");
@@ -984,7 +984,7 @@ int dap_syssec_kinetis_mdmap(struct adiv5_dap *dap)
 				if (retval != ERROR_OK)
 					return retval;
 				dap_run(dap);
-				LOG_DEBUG("MDM_REG_STAT %08X", val);
+				LOG_DEBUG("MDM_REG_STAT %08" PRIX32, val);
 
 				if ((val & 1))
 					break;
@@ -1000,13 +1000,13 @@ int dap_syssec_kinetis_mdmap(struct adiv5_dap *dap)
 				if (retval != ERROR_OK)
 					return retval;
 				dap_run(dap);
-				LOG_DEBUG("MDM_REG_STAT %08X", val);
+				LOG_DEBUG("MDM_REG_STAT %08" PRIX32, val);
 				/* read control register and wait for ready */
 				retval = dap_queue_ap_read(dap, MDM_REG_CTRL, &val);
 				if (retval != ERROR_OK)
 					return retval;
 				dap_run(dap);
-				LOG_DEBUG("MDM_REG_CTRL %08X", val);
+				LOG_DEBUG("MDM_REG_CTRL %08" PRIX32, val);
 
 				if (val == 0x00)
 					break;
@@ -1045,7 +1045,7 @@ int dap_syssec(struct adiv5_dap *dap)
 
 		while (tap != NULL) {
 			if (tap->hasidcode && (dap_syssec_filter_data[i].idcode == tap->idcode)) {
-				LOG_DEBUG("DAP: mdmap_init for idcode: %08x", tap->idcode);
+				LOG_DEBUG("DAP: mdmap_init for idcode: %08" PRIx32, tap->idcode);
 				dap_syssec_filter_data[i].dap_init(dap);
 			}
 			tap = tap->next_tap;
@@ -1243,7 +1243,7 @@ int dap_find_ap(struct adiv5_dap *dap, enum ap_type type_to_find, uint8_t *ap_nu
 			((id_val & 0x0FFF0000) == 0x04770000) && /* Jedec codes match */
 			((id_val & 0xFF) == type_to_find)) {     /* type matches*/
 
-			LOG_DEBUG("Found %s at AP index: %d (IDR=0x%08X)",
+			LOG_DEBUG("Found %s at AP index: %d (IDR=0x%08" PRIX32 ")",
 						(type_to_find == AP_TYPE_AHB_AP)  ? "AHB-AP"  :
 						(type_to_find == AP_TYPE_APB_AP)  ? "APB-AP"  :
 						(type_to_find == AP_TYPE_JTAG_AP) ? "JTAG-AP" : "Unknown",
