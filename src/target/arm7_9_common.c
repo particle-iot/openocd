@@ -2562,7 +2562,7 @@ int arm7_9_bulk_write_memory(struct target *target,
 	int i;
 
 	if (!arm7_9->dcc_downloads)
-		return target_write_memory(target, address, 4, count, buffer);
+		return arm7_9_write_memory(target, address, 4, count, buffer);
 
 	/* regrab previously allocated working_area, or allocate a new one */
 	if (!arm7_9->dcc_working_area) {
