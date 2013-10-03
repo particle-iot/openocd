@@ -3009,7 +3009,7 @@ COMMAND_HANDLER(handle_gdb_target_description_command)
 
 COMMAND_HANDLER(handle_gdb_save_tdesc_command)
 {
-	char *tdesc;
+	char *tdesc = NULL;
 	uint32_t tdesc_length;
 	struct target *target = get_current_target(CMD_CTX);
 	char *tdesc_filename;
