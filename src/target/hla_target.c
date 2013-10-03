@@ -483,6 +483,8 @@ static int adapter_poll(struct target *target)
 		}
 
 		LOG_DEBUG("halted: PC: 0x%08x", buf_get_u32(armv7m->arm.pc->value, 0, 32));
+	} else {
+		target->state = state;
 	}
 
 	return ERROR_OK;
