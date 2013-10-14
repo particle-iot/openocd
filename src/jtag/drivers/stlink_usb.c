@@ -38,6 +38,7 @@
 #include <target/cortex_m.h>
 
 #include "libusb_common.h"
+#include "server/trace_server.h"
 
 #define ENDPOINT_IN  0x80
 #define ENDPOINT_OUT 0x00
@@ -56,7 +57,7 @@
 
 /* the current implementation of the stlink limits
  * 8bit read/writes to max 64 bytes. */
-#define STLINK_MAX_RW8		(64)
+#define STLINK_MAX_RW8          (64)
 
 enum stlink_jtag_api_version {
 	STLINK_JTAG_API_V1 = 1,
@@ -107,6 +108,8 @@ struct stlink_usb_handle_s {
 		bool enabled;
 		/** trace data destination file */
 		FILE *output_f;
+		/** */
+		bool init_ITM;
 		/** trace module source clock (for prescaler) */
 		uint32_t source_hz;
 		/** trace module clock prescaler */
@@ -251,9 +254,8 @@ static int stlink_usb_xfer_rw(void *handle, int cmdsize, const uint8_t *buf, int
 	h = (struct stlink_usb_handle_s *)handle;
 
 	if (jtag_libusb_bulk_write(h->fd, STLINK_TX_EP, (char *)h->cmdbuf, cmdsize,
-			STLINK_WRITE_TIMEOUT) != cmdsize) {
+			STLINK_WRITE_TIMEOUT) != cmdsize)
 		return ERROR_FAIL;
-	}
 
 	if (h->direction == STLINK_TX_EP && size) {
 		if (jtag_libusb_bulk_write(h->fd, STLINK_TX_EP, (char *)buf,
@@ -369,7 +371,7 @@ static void stlink_usb_xfer_v1_create_cmd(void *handle, uint8_t direction, uint3
 	buf_set_u32(h->cmdbuf+h->cmdidx, 0, 32, size);
 	h->cmdidx += 4;
 	h->cmdbuf[h->cmdidx++] = (direction == STLINK_RX_EP ? ENDPOINT_IN : ENDPOINT_OUT);
-	h->cmdbuf[h->cmdidx++] = 0; /* lun */
+	h->cmdbuf[h->cmdidx++] = 0;	/* lun */
 	h->cmdbuf[h->cmdidx++] = STLINK_CMD_SIZE_V1;
 }
 
@@ -391,7 +393,7 @@ static void stlink_usb_init_buffer(void *handle, uint8_t direction, uint32_t siz
 		stlink_usb_xfer_v1_create_cmd(handle, direction, size);
 }
 
-static const char * const stlink_usb_error_msg[] = {
+static const char *const stlink_usb_error_msg[] = {
 	"unknown"
 };
 
@@ -855,8 +857,10 @@ static void stlink_usb_trace_read(void *handle)
 
 				res = stlink_usb_read_trace(handle, buf, size);
 				if (res == ERROR_OK) {
-					/* Log retrieved trace output */
-					if (fwrite(buf, 1, size, h->trace.output_f) > 0)
+					trace_server_output_all(buf, size);
+					/* Log retrieved trace output to file */
+					if ((h->trace.output_f != NULL) &&
+						(fwrite(buf, 1, size, h->trace.output_f) > 0))
 						fflush(h->trace.output_f);
 				}
 			}
@@ -1068,9 +1072,13 @@ static int stlink_usb_trace_enable(void *handle)
 	if (h->version.jtag >= STLINK_TRACE_MIN_VERSION) {
 		uint32_t trace_hz;
 
-		res = stlink_configure_target_trace_port(handle);
-		if (res != ERROR_OK)
-			LOG_ERROR("Unable to configure tracing on target\n");
+		if (h->trace.init_ITM) {
+			res = stlink_configure_target_trace_port(handle);
+			if (res != ERROR_OK)
+				LOG_ERROR("Unable to configure tracing on target\n");
+			else
+				LOG_INFO("ITM initialized");
+		}
 
 		trace_hz = h->trace.prescale > 0 ?
 			h->trace.source_hz / (h->trace.prescale + 1) :
@@ -1087,7 +1095,7 @@ static int stlink_usb_trace_enable(void *handle)
 
 		res = stlink_usb_xfer(handle, h->databuf, 2);
 
-		if (res == ERROR_OK)  {
+		if (res == ERROR_OK) {
 			h->trace.enabled = true;
 			LOG_DEBUG("Tracing: recording at %uHz\n", trace_hz);
 		}
@@ -1111,9 +1119,7 @@ static int stlink_usb_run(void *handle)
 
 	if (h->jtag_api == STLINK_JTAG_API_V2) {
 		res = stlink_usb_write_debug_reg(handle, DCB_DHCSR, DBGKEY|C_DEBUGEN);
-
-		/* Try to start tracing, if requested */
-		if (res == ERROR_OK && h->trace.output_f) {
+		if (res == ERROR_OK) {
 			if (stlink_usb_trace_enable(handle) == ERROR_OK)
 				LOG_DEBUG("Tracing: enabled\n");
 			else
@@ -1315,7 +1321,7 @@ static int stlink_usb_get_rw_status(void *handle)
 
 /** */
 static int stlink_usb_read_mem8(void *handle, uint32_t addr, uint16_t len,
-			  uint8_t *buffer)
+	uint8_t *buffer)
 {
 	int res;
 	uint16_t read_len = len;
@@ -1356,7 +1362,7 @@ static int stlink_usb_read_mem8(void *handle, uint32_t addr, uint16_t len,
 
 /** */
 static int stlink_usb_write_mem8(void *handle, uint32_t addr, uint16_t len,
-			   const uint8_t *buffer)
+	const uint8_t *buffer)
 {
 	int res;
 	struct stlink_usb_handle_s *h;
@@ -1390,7 +1396,7 @@ static int stlink_usb_write_mem8(void *handle, uint32_t addr, uint16_t len,
 
 /** */
 static int stlink_usb_read_mem32(void *handle, uint32_t addr, uint16_t len,
-			  uint8_t *buffer)
+	uint8_t *buffer)
 {
 	int res;
 	struct stlink_usb_handle_s *h;
@@ -1426,7 +1432,7 @@ static int stlink_usb_read_mem32(void *handle, uint32_t addr, uint16_t len,
 
 /** */
 static int stlink_usb_write_mem32(void *handle, uint32_t addr, uint16_t len,
-			   const uint8_t *buffer)
+	const uint8_t *buffer)
 {
 	int res;
 	struct stlink_usb_handle_s *h;
@@ -1467,7 +1473,7 @@ static uint32_t stlink_max_block_size(uint32_t tar_autoincr_block, uint32_t addr
 }
 
 static int stlink_usb_read_mem(void *handle, uint32_t addr, uint32_t size,
-		uint32_t count, uint8_t *buffer)
+	uint32_t count, uint8_t *buffer)
 {
 	int retval = ERROR_OK;
 	uint32_t bytes_remaining;
@@ -1478,8 +1484,8 @@ static int stlink_usb_read_mem(void *handle, uint32_t addr, uint32_t size,
 
 	while (count) {
 
-		bytes_remaining = (size == 4) ? \
-				stlink_max_block_size(h->max_mem_packet, addr) : STLINK_MAX_RW8;
+		bytes_remaining = (size == 4) ?	\
+			stlink_max_block_size(h->max_mem_packet, addr) : STLINK_MAX_RW8;
 
 		if (count < bytes_remaining)
 			bytes_remaining = count;
@@ -1510,9 +1516,16 @@ static int stlink_usb_read_mem(void *handle, uint32_t addr, uint32_t size,
 			}
 
 			if (bytes_remaining % 4)
-				retval = stlink_usb_read_mem(handle, addr, 1, bytes_remaining, buffer);
+				retval = stlink_usb_read_mem(handle,
+					addr,
+					1,
+					bytes_remaining,
+					buffer);
 			else
-				retval = stlink_usb_read_mem32(handle, addr, bytes_remaining, buffer);
+				retval = stlink_usb_read_mem32(handle,
+					addr,
+					bytes_remaining,
+					buffer);
 		} else
 			retval = stlink_usb_read_mem8(handle, addr, bytes_remaining, buffer);
 
@@ -1528,7 +1541,7 @@ static int stlink_usb_read_mem(void *handle, uint32_t addr, uint32_t size,
 }
 
 static int stlink_usb_write_mem(void *handle, uint32_t addr, uint32_t size,
-		uint32_t count, const uint8_t *buffer)
+	uint32_t count, const uint8_t *buffer)
 {
 	int retval = ERROR_OK;
 	uint32_t bytes_remaining;
@@ -1539,8 +1552,8 @@ static int stlink_usb_write_mem(void *handle, uint32_t addr, uint32_t size,
 
 	while (count) {
 
-		bytes_remaining = (size == 4) ? \
-				stlink_max_block_size(h->max_mem_packet, addr) : STLINK_MAX_RW8;
+		bytes_remaining = (size == 4) ?	\
+			stlink_max_block_size(h->max_mem_packet, addr) : STLINK_MAX_RW8;
 
 		if (count < bytes_remaining)
 			bytes_remaining = count;
@@ -1571,9 +1584,16 @@ static int stlink_usb_write_mem(void *handle, uint32_t addr, uint32_t size,
 			}
 
 			if (bytes_remaining % 4)
-				retval = stlink_usb_write_mem(handle, addr, 1, bytes_remaining, buffer);
+				retval = stlink_usb_write_mem(handle,
+					addr,
+					1,
+					bytes_remaining,
+					buffer);
 			else
-				retval = stlink_usb_write_mem32(handle, addr, bytes_remaining, buffer);
+				retval = stlink_usb_write_mem32(handle,
+					addr,
+					bytes_remaining,
+					buffer);
 
 		} else
 			retval = stlink_usb_write_mem8(handle, addr, bytes_remaining, buffer);
@@ -1651,21 +1671,21 @@ static int stlink_usb_open(struct hl_interface_param_s *param, void **fd)
 
 		/* wrap version for first read */
 		switch (param->pid) {
-		case 0x3744:
-			h->version.stlink = 1;
-			break;
-		default:
-			h->version.stlink = 2;
-			break;
+			case 0x3744:
+				h->version.stlink = 1;
+				break;
+			default:
+				h->version.stlink = 2;
+				break;
 		}
 
 		/* get the device version */
 		err = stlink_usb_version(h);
 
-		if (err == ERROR_OK) {
+		if (err == ERROR_OK)
 			break;
-		} else if (h->version.stlink == 1 ||
-			   retry_count == 0) {
+		else if (h->version.stlink == 1 ||
+			retry_count == 0) {
 			LOG_ERROR("read version failed");
 			goto error_open;
 		} else {
@@ -1732,15 +1752,15 @@ static int stlink_usb_open(struct hl_interface_param_s *param, void **fd)
 	/* set the used jtag api, this will default to the newest supported version */
 	h->jtag_api = api;
 
-	if (h->jtag_api >= 2 && param->trace_f && param->trace_source_hz > 0) {
+	if (h->jtag_api >= 2 && param->trace_source_hz > 0) {
 		uint32_t prescale;
 
 		prescale = param->trace_source_hz > STLINK_TRACE_MAX_HZ ?
 			(param->trace_source_hz / STLINK_TRACE_MAX_HZ) - 1 : 0;
-
-		h->trace.output_f = param->trace_f;
 		h->trace.source_hz = param->trace_source_hz;
 		h->trace.prescale = prescale;
+		h->trace.init_ITM = param->trace_init_ITM;
+		h->trace.output_f = param->trace_f;
 	}
 
 	/* initialize the debug hardware */

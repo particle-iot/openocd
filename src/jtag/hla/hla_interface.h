@@ -24,6 +24,7 @@
 #ifndef _HL_INTERFACE
 #define _HL_INTERFACE
 
+
 /** */
 struct target;
 /** */
@@ -48,6 +49,8 @@ struct hl_interface_param_s {
 	bool connect_under_reset;
 	/** Output file for trace data (if any) */
 	FILE *trace_f;
+	/** */
+	bool trace_init_ITM;
 	/** Trace module source clock rate */
 	uint32_t trace_source_hz;
 };
@@ -68,4 +71,4 @@ int hl_interface_open(enum hl_transports tr);
 int hl_interface_init_target(struct target *t);
 int hl_interface_init_reset(void);
 
-#endif /* _HL_INTERFACE */
+#endif	/* _HL_INTERFACE */

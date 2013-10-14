@@ -2,7 +2,7 @@
  *   Copyright (C) 2005 by Dominic Rath                                    *
  *   Dominic.Rath@gmx.de                                                   *
  *                                                                         *
- *   Copyright (C) 2007,2008 Øyvind Harboe                                 *
+ *   Copyright (C) 2007,2008 yvind Harboe                                 *
  *   oyvind.harboe@zylin.com                                               *
  *                                                                         *
  *   Copyright (C) 2008 by Spencer Oliver                                  *
@@ -71,9 +71,11 @@ struct service {
 };
 
 int add_service(char *name, const char *port,
-		int max_connections, new_connection_handler_t new_connection_handler,
-		input_handler_t in_handler, connection_closed_handler_t close_handler,
-		void *priv);
+	int max_connections, new_connection_handler_t new_connection_handler,
+	input_handler_t in_handler, connection_closed_handler_t close_handler,
+	void *priv);
+
+struct service *find_by_name(char *name);
 
 int server_preinit(void);
 int server_init(struct command_context *cmd_ctx);
@@ -110,7 +112,7 @@ SERVER_PIPE_COMMAND();
 
 SERVER_PORT_COMMAND();
 
-#define ERROR_SERVER_REMOTE_CLOSED		(-400)
-#define ERROR_CONNECTION_REJECTED		(-401)
+#define ERROR_SERVER_REMOTE_CLOSED              (-400)
+#define ERROR_CONNECTION_REJECTED               (-401)
 
 #endif	/* SERVER_H */

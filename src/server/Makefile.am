@@ -17,6 +17,11 @@ endif
 noinst_HEADERS += tcl_server.h
 libserver_la_SOURCES += tcl_server.c
 
+# trace server addons
+noinst_HEADERS += trace_server.h
+libserver_la_SOURCES += trace_server.c
+
+
 EXTRA_DIST = \
 	startup.tcl
 

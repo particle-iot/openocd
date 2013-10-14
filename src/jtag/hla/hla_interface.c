@@ -37,7 +37,7 @@
 
 #include <target/target.h>
 
-static struct hl_interface_s hl_if = { {0, 0, 0, 0, 0, HL_TRANSPORT_UNKNOWN, false, NULL, 0}, 0, 0 };
+static struct hl_interface_s hl_if = { {0, 0, 0, 0, 0, HL_TRANSPORT_UNKNOWN, false, NULL, true, 0}, 0, 0 };
 
 int hl_interface_open(enum hl_transports tr)
 {
@@ -85,7 +85,7 @@ int hl_interface_init_target(struct target *t)
 
 		/* treat "-expected-id 0" as a "don't-warn" wildcard */
 		if (!expected || !t->tap->idcode ||
-		    (t->tap->idcode == expected)) {
+			(t->tap->idcode == expected)) {
 			found = 1;
 			break;
 		}
@@ -93,7 +93,7 @@ int hl_interface_init_target(struct target *t)
 
 	if (found == 0) {
 		LOG_ERROR("hl_interface_init_target: target not found: idcode: 0x%08x",
-				t->tap->idcode);
+			t->tap->idcode);
 		return ERROR_FAIL;
 	}
 
@@ -114,12 +114,10 @@ static int hl_interface_init(void)
 static int hl_interface_quit(void)
 {
 	LOG_DEBUG("hl_interface_quit");
-
 	if (hl_if.param.trace_f) {
 		fclose(hl_if.param.trace_f);
 		hl_if.param.trace_f = NULL;
 	}
-
 	return ERROR_OK;
 }
 
@@ -146,11 +144,10 @@ COMMAND_HANDLER(hl_interface_handle_device_desc_command)
 {
 	LOG_DEBUG("hl_interface_handle_device_desc_command");
 
-	if (CMD_ARGC == 1) {
+	if (CMD_ARGC == 1)
 		hl_if.param.device_desc = strdup(CMD_ARGV[0]);
-	} else {
+	else
 		LOG_ERROR("expected exactly one argument to hl_device_desc <description>");
-	}
 
 	return ERROR_OK;
 }
@@ -159,11 +156,10 @@ COMMAND_HANDLER(hl_interface_handle_serial_command)
 {
 	LOG_DEBUG("hl_interface_handle_serial_command");
 
-	if (CMD_ARGC == 1) {
+	if (CMD_ARGC == 1)
 		hl_if.param.serial = strdup(CMD_ARGV[0]);
-	} else {
+	else
 		LOG_ERROR("expected exactly one argument to hl_serial <serial-number>");
-	}
 
 	return ERROR_OK;
 }
@@ -179,13 +175,13 @@ COMMAND_HANDLER(hl_interface_handle_layout_command)
 
 	if (hl_if.layout) {
 		LOG_ERROR("already specified hl_layout %s",
-				hl_if.layout->name);
+			hl_if.layout->name);
 		return (strcmp(hl_if.layout->name, CMD_ARGV[0]) != 0)
-		    ? ERROR_FAIL : ERROR_OK;
+		       ? ERROR_FAIL : ERROR_OK;
 	}
 
 	for (const struct hl_layout *l = hl_layout_get_list(); l->name;
-	     l++) {
+		l++) {
 		if (strcmp(l->name, CMD_ARGV[0]) == 0) {
 			hl_if.layout = l;
 			return ERROR_OK;
@@ -226,73 +222,105 @@ COMMAND_HANDLER(stlink_interface_handle_api_command)
 	return ERROR_OK;
 }
 
-COMMAND_HANDLER(interface_handle_trace_command)
+COMMAND_HANDLER(interface_handle_trace_hz_command)
 {
-	FILE *f;
 	unsigned source_hz;
 
-	if (CMD_ARGC != 2)
+	if (CMD_ARGC != 1)
+		return ERROR_COMMAND_SYNTAX_ERROR;
+
+	COMMAND_PARSE_NUMBER(uint, CMD_ARGV[0], source_hz);
+	if (source_hz == 0)
+		return ERROR_COMMAND_SYNTAX_ERROR;
+
+	hl_if.param.trace_source_hz = source_hz;
+
+	return ERROR_OK;
+}
+
+COMMAND_HANDLER(interface_handle_init_ITM_command)
+{
+	bool enable;
+	if (CMD_ARGC != 1)
+		return ERROR_COMMAND_SYNTAX_ERROR;
+	COMMAND_PARSE_ENABLE(CMD_ARGV[0], enable);
+	hl_if.param.trace_init_ITM = enable;
+	return ERROR_OK;
+}
+
+COMMAND_HANDLER(interface_handle_trace_file_command)
+{
+	FILE *f;
+	if (CMD_ARGC != 1)
 		return ERROR_COMMAND_SYNTAX_ERROR;
 
 	f = fopen(CMD_ARGV[0], "a");
 	if (!f)
 		return ERROR_COMMAND_SYNTAX_ERROR;
 
-	COMMAND_PARSE_NUMBER(uint, CMD_ARGV[1], source_hz);
-	if (source_hz == 0) {
-		fclose(f);
-		return ERROR_COMMAND_SYNTAX_ERROR;
-	}
-
 	hl_if.param.trace_f = f;
-	hl_if.param.trace_source_hz = source_hz;
 
 	return ERROR_OK;
 }
 
+
 static const struct command_registration hl_interface_command_handlers[] = {
 	{
-	 .name = "hla_device_desc",
-	 .handler = &hl_interface_handle_device_desc_command,
-	 .mode = COMMAND_CONFIG,
-	 .help = "set the a device description of the adapter",
-	 .usage = "description_string",
-	 },
+		.name = "hla_device_desc",
+		.handler = &hl_interface_handle_device_desc_command,
+		.mode = COMMAND_CONFIG,
+		.help = "set the a device description of the adapter",
+		.usage = "description_string",
+	},
 	{
-	 .name = "hla_serial",
-	 .handler = &hl_interface_handle_serial_command,
-	 .mode = COMMAND_CONFIG,
-	 .help = "set the serial number of the adapter",
-	 .usage = "serial_string",
-	 },
+		.name = "hla_serial",
+		.handler = &hl_interface_handle_serial_command,
+		.mode = COMMAND_CONFIG,
+		.help = "set the serial number of the adapter",
+		.usage = "serial_string",
+	},
 	{
-	 .name = "hla_layout",
-	 .handler = &hl_interface_handle_layout_command,
-	 .mode = COMMAND_CONFIG,
-	 .help = "set the layout of the adapter",
-	 .usage = "layout_name",
-	 },
+		.name = "hla_layout",
+		.handler = &hl_interface_handle_layout_command,
+		.mode = COMMAND_CONFIG,
+		.help = "set the layout of the adapter",
+		.usage = "layout_name",
+	},
 	{
-	 .name = "hla_vid_pid",
-	 .handler = &hl_interface_handle_vid_pid_command,
-	 .mode = COMMAND_CONFIG,
-	 .help = "the vendor and product ID of the adapter",
-	 .usage = "(vid pid)* ",
-	 },
-	 {
-	 .name = "stlink_api",
-	 .handler = &stlink_interface_handle_api_command,
-	 .mode = COMMAND_CONFIG,
-	 .help = "set the desired stlink api level",
-	 .usage = "api version 1 or 2",
-	 },
-	 {
-	 .name = "trace",
-	 .handler = &interface_handle_trace_command,
-	 .mode = COMMAND_CONFIG,
-	 .help = "configure trace reception",
-	 .usage = "destination_path source_lock_hz",
-	 },
+		.name = "hla_vid_pid",
+		.handler = &hl_interface_handle_vid_pid_command,
+		.mode = COMMAND_CONFIG,
+		.help = "the vendor and product ID of the adapter",
+		.usage = "(vid pid)* ",
+	},
+	{
+		.name = "stlink_api",
+		.handler = &stlink_interface_handle_api_command,
+		.mode = COMMAND_CONFIG,
+		.help = "set the desired stlink api level",
+		.usage = "api version 1 or 2",
+	},
+	{
+		.name = "trace_hz",
+		.handler = &interface_handle_trace_hz_command,
+		.mode = COMMAND_CONFIG,
+		.help = "configure trace cpu speed",
+		.usage = "source_lock_hz",
+	},
+	{
+		.name = "trace_file",
+		.handler = &interface_handle_trace_file_command,
+		.mode = COMMAND_CONFIG,
+		.help = "configure trace reception file name",
+		.usage = "destination_path",
+	},
+	{
+		.name = "init_ITM",
+		.handler = &interface_handle_init_ITM_command,
+		.mode = COMMAND_CONFIG,
+		.help = "configure initialisation ITM",
+		.usage = "enable|disable",
+	},
 	COMMAND_REGISTRATION_DONE
 };
 

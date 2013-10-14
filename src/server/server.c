@@ -2,7 +2,7 @@
  *   Copyright (C) 2005 by Dominic Rath                                    *
  *   Dominic.Rath@gmx.de                                                   *
  *                                                                         *
- *   Copyright (C) 2007-2010 Øyvind Harboe                                 *
+ *   Copyright (C) 2007-2010 yvind Harboe                                 *
  *   oyvind.harboe@zylin.com                                               *
  *                                                                         *
  *   Copyright (C) 2008 by Spencer Oliver                                  *
@@ -34,6 +34,7 @@
 #include "openocd.h"
 #include "tcl_server.h"
 #include "telnet_server.h"
+#include "trace_server.h"
 
 #include <signal.h>
 
@@ -437,7 +438,7 @@ int server_loop(struct command_context *command_context)
 		for (service = services; service; service = service->next) {
 			/* handle new connections on listeners */
 			if ((service->fd != -1)
-			    && (FD_ISSET(service->fd, &read_fds))) {
+				&& (FD_ISSET(service->fd, &read_fds))) {
 				if (service->max_connections > 0)
 					add_connection(service, command_context);
 				else {
@@ -446,8 +447,8 @@ int server_loop(struct command_context *command_context)
 						socklen_t address_size = sizeof(sin);
 						int tmp_fd;
 						tmp_fd = accept(service->fd,
-								(struct sockaddr *)&service->sin,
-								&address_size);
+							(struct sockaddr *)&service->sin,
+							&address_size);
 						close_socket(tmp_fd);
 					}
 					LOG_INFO(
@@ -466,7 +467,8 @@ int server_loop(struct command_context *command_context)
 						if (retval != ERROR_OK) {
 							struct connection *next = c->next;
 							if (service->type == CONNECTION_PIPE ||
-									service->type == CONNECTION_STDINOUT) {
+								service->type ==
+								CONNECTION_STDINOUT) {
 								/* if connection uses a pipe then
 								 * shutdown openocd on error */
 								shutdown_openocd = 1;
@@ -543,6 +545,10 @@ int server_init(struct command_context *cmd_ctx)
 	if (ERROR_OK != ret)
 		return ret;
 
+	ret = trace_server_init();
+	if (ERROR_OK != ret)
+		return ret;
+
 	return telnet_init("Open On-Chip Debugger");
 }
 
@@ -609,6 +615,10 @@ int server_register_commands(struct command_context *cmd_ctx)
 	if (ERROR_OK != retval)
 		return retval;
 
+	retval = trace_server_register_commands(cmd_ctx);
+	if (ERROR_OK != retval)
+		return retval;
+
 	return register_commands(cmd_ctx, NULL, server_command_handlers);
 }
 
@@ -652,4 +662,19 @@ SERVER_PIPE_COMMAND()
 			return ERROR_COMMAND_SYNTAX_ERROR;
 	}
 	return ERROR_OK;
+}
+
+
+struct service *find_by_name(char *name)
+{
+	struct service *found = NULL;
+	struct service *s = services;
+	while (s) {
+		if (strcmp(s->name, name) == 0) {
+			found = s;
+			break;
+		}
+		s = s->next;
+	}
+	return found;
 }
