@@ -194,6 +194,7 @@ m4_define([ADAPTER_OPT], [m4_translit(ADAPTER_ARG($1), [_], [-])])
 m4_define([USB1_ADAPTERS],
 	[[[ftdi], [MPSSE mode of FTDI based devices], [FTDI]],
 	[[stlink], [ST-Link JTAG Programmer], [HLADAPTER_STLINK]],
+	[[ulink], [Keil ULINK JTAG Programmer], [ULINK]],
 	[[ti_icdi], [TI ICDI JTAG Programmer], [HLADAPTER_ICDI]]])
 
 m4_define([USB_ADAPTERS],
@@ -206,7 +207,6 @@ m4_define([USB0_ADAPTERS],
 	[[[vsllink], [Versaloon-Link JTAG Programmer], [VSLLINK]],
 	[[usbprog], [USBProg JTAG Programmer], [USBPROG]],
 	[[rlink], [Raisonance RLink JTAG Programmer], [RLINK]],
-	[[ulink], [Keil ULINK JTAG Programmer], [ULINK]],
 	[[armjtagew], [Olimex ARM-JTAG-EW Programmer], [ARMJTAGEW]]])
 
 #========================================
