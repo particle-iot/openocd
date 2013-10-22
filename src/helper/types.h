@@ -5,6 +5,15 @@
  *   Copyright (C) 2007,2008 Øyvind Harboe                                 *
  *   oyvind.harboe@zylin.com                                               *
  *                                                                         *
+ *   Copyright (C) 2013 Dongxue Zhang                                      *
+ *   elta.era@gmail.com                                                    *
+ *                                                                         *
+ *   Copyright (C) 2013 by FengGao                                         *
+ *   gf91597@gmail.com                                                     *
+ *                                                                         *
+ *   Copyright (C) 2013 by Jia Liu                                         *
+ *   proljc@gmail.com                                                      *
+ *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
  *   the Free Software Foundation; either version 2 of the License, or     *
@@ -110,6 +119,17 @@ typedef bool _Bool;
  * Again, note that the "buf" pointer in memory is probably unaligned.
  */
 
+static inline uint64_t le_to_h_u64(const uint8_t *buf)
+{
+	return (uint64_t)((uint64_t)buf[0] |
+			  (uint64_t)buf[1] << 8 |
+			  (uint64_t)buf[2] << 16 |
+			  (uint64_t)buf[3] << 24 |
+			  (uint64_t)buf[4] << 32 |
+			  (uint64_t)buf[5] << 40 |
+			  (uint64_t)buf[6] << 48 |
+			  (uint64_t)buf[7] << 56);
+}
 
 static inline uint32_t le_to_h_u32(const uint8_t* buf)
 {
@@ -126,6 +146,18 @@ static inline uint16_t le_to_h_u16(const uint8_t* buf)
 	return (uint16_t)(buf[0] | buf[1] << 8);
 }
 
+static inline uint64_t be_to_h_u64(const uint8_t *buf)
+{
+	return (uint64_t)((uint64_t)buf[7] |
+			  (uint64_t)buf[6] << 8 |
+			  (uint64_t)buf[5] << 16 |
+			  (uint64_t)buf[4] << 24 |
+			  (uint64_t)buf[3] << 32 |
+			  (uint64_t)buf[2] << 40 |
+			  (uint64_t)buf[1] << 48 |
+			  (uint64_t)buf[0] << 56);
+}
+
 static inline uint32_t be_to_h_u32(const uint8_t* buf)
 {
 	return (uint32_t)(buf[3] | buf[2] << 8 | buf[1] << 16 | buf[0] << 24);
@@ -139,6 +171,30 @@ static inline uint32_t be_to_h_u24(const uint8_t* buf)
 static inline uint16_t be_to_h_u16(const uint8_t* buf)
 {
 	return (uint16_t)(buf[1] | buf[0] << 8);
+}
+
+static inline void h_u64_to_le(uint8_t *buf, int64_t val)
+{
+	buf[7] = (uint8_t) (val >> 56);
+	buf[6] = (uint8_t) (val >> 48);
+	buf[5] = (uint8_t) (val >> 40);
+	buf[4] = (uint8_t) (val >> 32);
+	buf[3] = (uint8_t) (val >> 24);
+	buf[2] = (uint8_t) (val >> 16);
+	buf[1] = (uint8_t) (val >> 8);
+	buf[0] = (uint8_t) (val >> 0);
+}
+
+static inline void h_u64_to_be(uint8_t *buf, int64_t val)
+{
+	buf[0] = (uint8_t) (val >> 56);
+	buf[1] = (uint8_t) (val >> 48);
+	buf[2] = (uint8_t) (val >> 40);
+	buf[3] = (uint8_t) (val >> 32);
+	buf[4] = (uint8_t) (val >> 24);
+	buf[5] = (uint8_t) (val >> 16);
+	buf[6] = (uint8_t) (val >> 8);
+	buf[7] = (uint8_t) (val >> 0);
 }
 
 static inline void h_u32_to_le(uint8_t* buf, int val)
