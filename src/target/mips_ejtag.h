@@ -4,6 +4,15 @@
  *                                                                         *
  *   Copyright (C) 2008 by David T.L. Wong                                 *
  *                                                                         *
+ *   Copyright (C) 2013 by Donxue Zhang                                    *
+ *   elta.era@gmail.com                                                    *
+ *                                                                         *
+ *   Copyright (C) 2013 by FengGao                                         *
+ *   gf91597@gmail.com                                                     *
+ *                                                                         *
+ *   Copyright (C) 2013 by Jia Liu                                         *
+ *   proljc@gmail.com                                                      *
+ *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
  *   the Free Software Foundation; either version 2 of the License, or     *
@@ -160,8 +169,14 @@ struct mips_ejtag {
 	uint32_t idcode;
 	uint32_t ejtag_ctrl;
 	int fast_access_save;
-	uint32_t reg8;
-	uint32_t reg9;
+	union {
+		uint32_t reg8;
+		uint64_t reg8l;
+	};
+	union {
+		uint32_t reg9;
+		uint64_t reg9l;
+	};
 	unsigned scan_delay;
 	int mode;
 	unsigned int ejtag_version;
@@ -190,9 +205,12 @@ void mips_ejtag_set_instr(struct mips_ejtag *ejtag_info,
 		int new_instr);
 int mips_ejtag_enter_debug(struct mips_ejtag *ejtag_info);
 int mips_ejtag_exit_debug(struct mips_ejtag *ejtag_info);
+int mips64_ejtag_exit_debug(struct mips_ejtag *ejtag_info);
 int mips_ejtag_get_idcode(struct mips_ejtag *ejtag_info, uint32_t *idcode);
 void mips_ejtag_add_scan_96(struct mips_ejtag *ejtag_info,
 			    uint32_t ctrl, uint32_t data, uint8_t *in_scan_buf);
+void mips_ejtag_drscan_64_out(struct mips_ejtag *ejtag_info, uint64_t data);
+int mips_ejtag_drscan_64(struct mips_ejtag *ejtag_info, uint64_t *data);
 void mips_ejtag_drscan_32_out(struct mips_ejtag *ejtag_info, uint32_t data);
 int mips_ejtag_drscan_32(struct mips_ejtag *ejtag_info, uint32_t *data);
 void mips_ejtag_drscan_8_out(struct mips_ejtag *ejtag_info, uint8_t data);
@@ -200,6 +218,7 @@ int mips_ejtag_drscan_8(struct mips_ejtag *ejtag_info, uint32_t *data);
 int mips_ejtag_fastdata_scan(struct mips_ejtag *ejtag_info, int write_t, uint32_t *data);
 
 int mips_ejtag_init(struct mips_ejtag *ejtag_info);
+int mips64_ejtag_config_step(struct mips_ejtag *ejtag_info, int enable_step);
 int mips_ejtag_config_step(struct mips_ejtag *ejtag_info, int enable_step);
 
 static inline void mips_le_to_h_u32(jtag_callback_data_t arg)
