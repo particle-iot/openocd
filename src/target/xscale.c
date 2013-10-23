@@ -337,7 +337,7 @@ static int xscale_receive(struct target *target, uint32_t *buffer, int num_words
 	}
 
 	for (i = 0; i < num_words; i++)
-		*(buffer++) = buf_get_u32((uint8_t *)&field1[i], 0, 32);
+		*(buffer++) = buf_get_u32(&field1[i], 0, 32);
 
 	free(field1);
 

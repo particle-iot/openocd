@@ -1313,10 +1313,10 @@ COMMAND_HANDLER(stm32x_handle_options_read_command)
 
 	int user_data = optionbyte;
 
-	if (buf_get_u32((uint8_t *)&optionbyte, OPT_ERROR, 1))
+	if (buf_get_u32(&optionbyte, OPT_ERROR, 1))
 		command_print(CMD_CTX, "Option Byte Complement Error");
 
-	if (buf_get_u32((uint8_t *)&optionbyte, OPT_READOUT, 1))
+	if (buf_get_u32(&optionbyte, OPT_READOUT, 1))
 		command_print(CMD_CTX, "Readout Protection On");
 	else
 		command_print(CMD_CTX, "Readout Protection Off");
@@ -1324,23 +1324,23 @@ COMMAND_HANDLER(stm32x_handle_options_read_command)
 	/* user option bytes are offset depending on variant */
 	optionbyte >>= stm32x_info->option_offset;
 
-	if (buf_get_u32((uint8_t *)&optionbyte, OPT_RDWDGSW, 1))
+	if (buf_get_u32(&optionbyte, OPT_RDWDGSW, 1))
 		command_print(CMD_CTX, "Software Watchdog");
 	else
 		command_print(CMD_CTX, "Hardware Watchdog");
 
-	if (buf_get_u32((uint8_t *)&optionbyte, OPT_RDRSTSTOP, 1))
+	if (buf_get_u32(&optionbyte, OPT_RDRSTSTOP, 1))
 		command_print(CMD_CTX, "Stop: No reset generated");
 	else
 		command_print(CMD_CTX, "Stop: Reset generated");
 
-	if (buf_get_u32((uint8_t *)&optionbyte, OPT_RDRSTSTDBY, 1))
+	if (buf_get_u32(&optionbyte, OPT_RDRSTSTDBY, 1))
 		command_print(CMD_CTX, "Standby: No reset generated");
 	else
 		command_print(CMD_CTX, "Standby: Reset generated");
 
 	if (stm32x_info->has_dual_banks) {
-		if (buf_get_u32((uint8_t *)&optionbyte, OPT_BFB2, 1))
+		if (buf_get_u32(&optionbyte, OPT_BFB2, 1))
 			command_print(CMD_CTX, "Boot: Bank 0");
 		else
 			command_print(CMD_CTX, "Boot: Bank 1");

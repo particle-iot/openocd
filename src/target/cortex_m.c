@@ -1486,19 +1486,19 @@ static int cortex_m3_load_core_reg_u32(struct target *target,
 
 			switch (num) {
 				case ARMV7M_PRIMASK:
-					*value = buf_get_u32((uint8_t *)value, 0, 1);
+					*value = buf_get_u32(value, 0, 1);
 					break;
 
 				case ARMV7M_BASEPRI:
-					*value = buf_get_u32((uint8_t *)value, 8, 8);
+					*value = buf_get_u32(value, 8, 8);
 					break;
 
 				case ARMV7M_FAULTMASK:
-					*value = buf_get_u32((uint8_t *)value, 16, 1);
+					*value = buf_get_u32(value, 16, 1);
 					break;
 
 				case ARMV7M_CONTROL:
-					*value = buf_get_u32((uint8_t *)value, 24, 2);
+					*value = buf_get_u32(value, 24, 2);
 					break;
 			}
 
@@ -1550,19 +1550,19 @@ static int cortex_m3_store_core_reg_u32(struct target *target,
 
 			switch (num) {
 				case ARMV7M_PRIMASK:
-					buf_set_u32((uint8_t *)&reg, 0, 1, value);
+					buf_set_u32(&reg, 0, 1, value);
 					break;
 
 				case ARMV7M_BASEPRI:
-					buf_set_u32((uint8_t *)&reg, 8, 8, value);
+					buf_set_u32(&reg, 8, 8, value);
 					break;
 
 				case ARMV7M_FAULTMASK:
-					buf_set_u32((uint8_t *)&reg, 16, 1, value);
+					buf_set_u32(&reg, 16, 1, value);
 					break;
 
 				case ARMV7M_CONTROL:
-					buf_set_u32((uint8_t *)&reg, 24, 2, value);
+					buf_set_u32(&reg, 24, 2, value);
 					break;
 			}
 
