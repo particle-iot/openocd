@@ -390,12 +390,6 @@ static int cortex_a_dap_read_coreregister_u32(struct target *target,
 			armv7a->debug_base + CPUDBG_DTRTX, value);
 	LOG_DEBUG("read DCC 0x%08" PRIx32, *value);
 
-	/*
-	 * Need to take care of endianess before returning
-	 */
-	*value = target_buffer_get_u32(target, (uint8_t *)value);
-	LOG_DEBUG("return DCC 0x%08x", *value);
-
 	return retval;
 }
 
@@ -2343,6 +2337,16 @@ static int cortex_a_read_memory(struct target *target, uint32_t address,
 	struct armv7a_common *armv7a = target_to_armv7a(target);
 	struct adiv5_dap *swjdp = armv7a->arm.dap;
 	uint8_t apsel = swjdp->apsel;
+	void *t = NULL;
+
+	if (size > 1) {
+		t = malloc(count * size * sizeof(uint8_t));
+		if (t == NULL) {
+			LOG_ERROR("Out of memory");
+			return ERROR_FAIL;
+		}
+	} else
+		t = buffer;
 
 	/* cortex_a handles unaligned memory access */
 	LOG_DEBUG("Reading memory at address 0x%x; size %d; count %d", address,
@@ -2351,33 +2355,49 @@ static int cortex_a_read_memory(struct target *target, uint32_t address,
 		if (!armv7a->is_armv7r) {
 			retval = cortex_a_mmu(target, &enabled);
 			if (retval != ERROR_OK)
-				return retval;
+				goto done;
 
 
 			if (enabled) {
 				virt = address;
 				retval = cortex_a_virt2phys(target, virt, &phys);
 				if (retval != ERROR_OK)
-					return retval;
+					goto done;
 
 				LOG_DEBUG("Reading at virtual address. Translating v:0x%x to r:0x%x",
 					virt, phys);
 				address = phys;
 			}
 		}
-		retval = cortex_a_read_phys_memory(target, address, size, count, buffer);
+		retval = cortex_a_read_phys_memory(target, address, size, count, t);
 	} else {
 		if (!armv7a->is_armv7r) {
 			retval = cortex_a_check_address(target, address);
 			if (retval != ERROR_OK)
-				return retval;
+				goto done;
 			/*  enable mmu */
 			retval = cortex_a_mmu_modify(target, 1);
 			if (retval != ERROR_OK)
-				return retval;
+				goto done;
 		}
-		retval = cortex_a_read_apb_ab_memory(target, address, size, count, buffer);
+		retval = cortex_a_read_apb_ab_memory(target, address, size, count, t);
 	}
+
+	if (ERROR_OK == retval) {
+		switch (size) {
+		case 4:
+			target_buffer_set_u32_array(target, buffer, count, t);
+			break;
+		case 2:
+			target_buffer_set_u16_array(target, buffer, count, t);
+			break;
+		}
+	}
+
+done:
+	if ((size > 1) && (t != NULL))
+		free(t);
+
 	return retval;
 }
 
@@ -2493,6 +2513,27 @@ static int cortex_a_write_memory(struct target *target, uint32_t address,
 	struct armv7a_common *armv7a = target_to_armv7a(target);
 	struct adiv5_dap *swjdp = armv7a->arm.dap;
 	uint8_t apsel = swjdp->apsel;
+	void *t = NULL;
+
+	/* adjust for host endianess in write buffer data */
+	if (size > 1) {
+		t = malloc(count * size * sizeof(uint8_t));
+		if (t == NULL) {
+			LOG_ERROR("Out of memory");
+			return ERROR_FAIL;
+		}
+
+		switch (size) {
+		case 4:
+			target_buffer_get_u32_array(target, buffer, count, (uint32_t *)t);
+			break;
+		case 2:
+			target_buffer_get_u16_array(target, buffer, count, (uint16_t *)t);
+			break;
+		}
+	} else
+		t = (void *) buffer;
+
 	/* cortex_a handles unaligned memory access */
 	LOG_DEBUG("Writing memory at address 0x%x; size %d; count %d", address,
 		size, count);
@@ -2503,13 +2544,13 @@ static int cortex_a_write_memory(struct target *target, uint32_t address,
 		if (!armv7a->is_armv7r) {
 			retval = cortex_a_mmu(target, &enabled);
 			if (retval != ERROR_OK)
-				return retval;
+				goto freetbuf;
 
 			if (enabled) {
 				virt = address;
 				retval = cortex_a_virt2phys(target, virt, &phys);
 				if (retval != ERROR_OK)
-					return retval;
+					goto freetbuf;
 				LOG_DEBUG("Writing to virtual address. Translating v:0x%x to r:0x%x",
 					virt,
 					phys);
@@ -2518,19 +2559,24 @@ static int cortex_a_write_memory(struct target *target, uint32_t address,
 		}
 
 		retval = cortex_a_write_phys_memory(target, address, size,
-				count, buffer);
+				count, t);
 	} else {
 		if (!armv7a->is_armv7r) {
 			retval = cortex_a_check_address(target, address);
 			if (retval != ERROR_OK)
-				return retval;
+				goto freetbuf;
 			/*  enable mmu  */
 			retval = cortex_a_mmu_modify(target, 1);
 			if (retval != ERROR_OK)
-				return retval;
+				goto freetbuf;
 		}
-		retval = cortex_a_write_apb_ab_memory(target, address, size, count, buffer);
+		retval = cortex_a_write_apb_ab_memory(target, address, size, count, t);
 	}
+
+freetbuf:
+	if (size > 1 && t != NULL)
+		free(t);
+
 	return retval;
 }
 
