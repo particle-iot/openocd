@@ -1951,12 +1951,17 @@ static int cortex_a8_read_apb_ab_memory(struct target *target,
 	uint32_t dscr;
 	uint32_t *tmp_buff;
 	uint32_t buff32[2];
+	uint8_t *in_buf = buffer;
+	uint32_t lastword_byte_cnt;
+	uint8_t lastword[4];
+
 	if (target->state != TARGET_HALTED) {
 		LOG_WARNING("target not halted");
 		return ERROR_TARGET_NOT_HALTED;
 	}
 
 	total_u32 = DIV_ROUND_UP((address & 3) + total_bytes, 4);
+	lastword_byte_cnt = total_bytes - (total_u32 - 1) * 4;
 
 	/* Due to offset word alignment, the  buffer may not have space
 	 * to read the full first and last int32 words,
@@ -2007,9 +2012,9 @@ static int cortex_a8_read_apb_ab_memory(struct target *target,
 	 * and the DTR mode setting to fast mode
 	 * in one combined write (since they are adjacent registers)
 	 */
-	buff32[0] = ARMV4_5_LDC(0, 1, 0, 1, 14, 5, 0, 4);
+	target_buffer_set_u32(target, (uint8_t *) buff32, ARMV4_5_LDC(0, 1, 0, 1, 14, 5, 0, 4));
 	dscr = (dscr & ~DSCR_EXT_DCC_MASK) | DSCR_EXT_DCC_FAST_MODE;
-	buff32[1] = dscr;
+	target_buffer_set_u32(target, (uint8_t *) &buff32[1], dscr);
 	/*  group the 2 access CPUDBG_ITR 0x84 and CPUDBG_DSCR 0x88 */
 	retval += mem_ap_sel_write_buf(swjdp, armv7a->debug_ap, (uint8_t *)buff32, 4, 2,
 			armv7a->debug_base + CPUDBG_ITR);
@@ -2027,6 +2032,9 @@ static int cortex_a8_read_apb_ab_memory(struct target *target,
 		 */
 		retval = mem_ap_sel_read_buf_noincr(swjdp, armv7a->debug_ap, (uint8_t *)tmp_buff, 4, total_u32 - 1,
 									armv7a->debug_base + CPUDBG_DTRTX);
+		memcpy(buffer, (uint8_t *)tmp_buff, (total_u32 - 1) * 4);
+		/* to handle the last word */
+		in_buf = buffer + ((total_u32 - 1) * 4);
 		if (retval != ERROR_OK)
 			goto error_unset_dtr_r;
 	}
@@ -2066,8 +2074,9 @@ static int cortex_a8_read_apb_ab_memory(struct target *target,
 	if (retval != ERROR_OK)
 		goto error_free_buff_r;
 
-	/* Copy and align the data into the output buffer */
-	memcpy(buffer, (uint8_t *)tmp_buff + start_byte, total_bytes);
+	/* Copy and align the last word data into the output buffer */
+	target_buffer_set_u32(target, lastword, tmp_buff[total_u32 - 1]);
+	memcpy(in_buf, &lastword[start_byte], lastword_byte_cnt);
 
 	free(tmp_buff);
 
