@@ -774,7 +774,10 @@ static int lpcspifi_read_flash_id(struct flash_bank *bank, uint32_t *id)
 	uint32_t ssp_base = lpcspifi_info->ssp_base;
 	uint32_t io_base = lpcspifi_info->io_base;
 	uint32_t value;
+	uint32_t id_val;
 	int retval;
+
+	id_val = *id & 0xff000000;
 
 	if (target->state != TARGET_HALTED) {
 		LOG_ERROR("Target not halted");
@@ -808,7 +811,7 @@ static int lpcspifi_read_flash_id(struct flash_bank *bank, uint32_t *id)
 	if (retval == ERROR_OK)
 		retval = ssp_read_reg(target, ssp_base, SSP_DATA, &value);
 	if (retval == ERROR_OK)
-		((uint8_t *)id)[0] = value;
+		id_val |= value;
 
 	/* Dummy write to clock in data */
 	if (retval == ERROR_OK)
@@ -818,7 +821,7 @@ static int lpcspifi_read_flash_id(struct flash_bank *bank, uint32_t *id)
 	if (retval == ERROR_OK)
 		retval = ssp_read_reg(target, ssp_base, SSP_DATA, &value);
 	if (retval == ERROR_OK)
-		((uint8_t *)id)[1] = value;
+		id_val |= value << 8;
 
 	/* Dummy write to clock in data */
 	if (retval == ERROR_OK)
@@ -828,7 +831,9 @@ static int lpcspifi_read_flash_id(struct flash_bank *bank, uint32_t *id)
 	if (retval == ERROR_OK)
 		retval = ssp_read_reg(target, ssp_base, SSP_DATA, &value);
 	if (retval == ERROR_OK)
-		((uint8_t *)id)[2] = value;
+		id_val |= value << 16;
+
+	*id = id_val;
 
 	if (retval == ERROR_OK)
 		retval = ssp_setcs(target, io_base, 1);
