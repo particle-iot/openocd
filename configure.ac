@@ -774,6 +774,21 @@ else
 fi
 #-- Deal with MingW/Cygwin FTD2XX issues
 
+PKG_CHECK_MODULES([LIBUSB1], [libusb-1.0], [
+	use_libusb1=yes
+	AC_DEFINE([HAVE_LIBUSB1], [1], [Define if you have libusb-1.x])
+	PKG_CHECK_EXISTS([libusb-1.0 >= 1.0.9],
+		[AC_DEFINE([HAVE_LIBUSB_ERROR_NAME], [1], [Define if your libusb has libusb_error_name()])],
+		[AC_MSG_WARN([libusb-1.x older than 1.0.9 detected, consider updating])])
+	LIBUSB1_CFLAGS=`echo $LIBUSB1_CFLAGS | sed 's/-I/-isystem /'`
+	AC_MSG_NOTICE([libusb-1.0 header bug workaround: LIBUSB1_CFLAGS changed to "$LIBUSB1_CFLAGS"])
+  ], [
+	use_libusb1=no
+	AC_MSG_WARN([libusb-1.x not found, trying legacy libusb-0.1 as a fallback; consider installing libusb-1.x instead])
+])
+
+PKG_CHECK_MODULES([LIBUSB0], [libusb], [use_libusb0=yes], [use_libusb0=no])
+
 if test $is_win32 = yes; then
 if test "${with_ftd2xx_linux_tardir+set}" = set
 then
@@ -1000,18 +1015,27 @@ fi
 if test $build_ft2232_libftdi = yes -o $build_usb_blaster_libftdi = yes -o \
   $build_openjtag_ftdi = yes; then
   # We assume: the package is preinstalled in the proper place
-  # these present as 2 libraries..
-  LIBS="$LIBS -lftdi -lusb"
+
+  # we can have libftdi or libftdi1, so check it and use the latest one
+  PKG_CHECK_MODULES([LIBFTDI1], [libftdi1], [use_libftdi1=yes LIBS="$LIBS -lftdi1"], [use_libftdi1=no])
+  if test $use_libftdi1 = no; then
+    # fallback to libftdi
+    LIBS="$LIBS -lftdi"
+  fi
+
   #
   # Try to build a small program.
   AC_MSG_CHECKING([Build & Link with libftdi...])
 
   LDFLAGS_SAVE=$LDFLAGS
   CFLAGS_SAVE=$CFLAGS
+  LIBS_SAVE=$LIBS
   _LDFLAGS=`eval echo $LDFLAGS`
   _CFLAGS=`eval echo $CFLAGS`
+  _LIBS=`eval echo $LIBS`
   LDFLAGS=$_LDFLAGS
   CFLAGS=$_CFLAGS
+  LIBS="$LIBS $LIBUSB0_LIBS $LIBUSB1_LIBS"
 
   AC_RUN_IFELSE([AC_LANG_PROGRAM([[
 #include <stdio.h>
@@ -1075,22 +1099,8 @@ enum ftdi_chip_type x = TYPE_232H;
   # Restore the 'unexpanded ldflags'
   LDFLAGS=$LDFLAGS_SAVE
   CFLAGS=$CFLAGS_SAVE
+  LIBS=$LIBS_SAVE
 fi
-
-PKG_CHECK_MODULES([LIBUSB1], [libusb-1.0], [
-	use_libusb1=yes
-	AC_DEFINE([HAVE_LIBUSB1], [1], [Define if you have libusb-1.x])
-	PKG_CHECK_EXISTS([libusb-1.0 >= 1.0.9],
-		[AC_DEFINE([HAVE_LIBUSB_ERROR_NAME], [1], [Define if your libusb has libusb_error_name()])],
-		[AC_MSG_WARN([libusb-1.x older than 1.0.9 detected, consider updating])])
-	LIBUSB1_CFLAGS=`echo $LIBUSB1_CFLAGS | sed 's/-I/-isystem /'`
-	AC_MSG_NOTICE([libusb-1.0 header bug workaround: LIBUSB1_CFLAGS changed to "$LIBUSB1_CFLAGS"])
-  ], [
-	use_libusb1=no
-	AC_MSG_WARN([libusb-1.x not found, trying legacy libusb-0.1 as a fallback; consider installing libusb-1.x instead])
-])
-
-PKG_CHECK_MODULES([LIBUSB0], [libusb], [use_libusb0=yes], [use_libusb0=no])
 
 m4_define([PROCESS_ADAPTERS], [
   m4_foreach([adapter], [$1], [
