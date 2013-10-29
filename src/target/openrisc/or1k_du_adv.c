@@ -844,9 +844,27 @@ static int or1k_adv_jtag_read_memory(struct or1k_jtag *jtag_info,
 	if (retval != ERROR_OK)
 		return retval;
 
+	/* The adv_debug_if always return words and half words in
+	 * little-endian order no matter what the target endian is.
+	 * So if the target endian is big, change the order.
+	 */
+
+	void *t = NULL;
+	struct target *target = jtag_info->target;
+	bool do_swap = (target->endianness == TARGET_BIG_ENDIAN) && (size != 1);
+
+	if (do_swap) {
+		t = malloc(count * size * sizeof(uint8_t));
+		if (t == NULL) {
+			LOG_ERROR("Out of memory");
+			return ERROR_FAIL;
+		}
+	} else
+		t = buffer;
+
 	int block_count_left = count;
 	uint32_t block_count_address = addr;
-	uint8_t *block_count_buffer = (uint8_t *)buffer;
+	uint8_t *block_count_buffer = t;
 
 	while (block_count_left) {
 
@@ -862,6 +880,18 @@ static int or1k_adv_jtag_read_memory(struct or1k_jtag *jtag_info,
 		block_count_address += size * MAX_BURST_SIZE;
 		block_count_buffer += size * MAX_BURST_SIZE;
 	}
+
+	switch (size) {
+	case 4:
+		target_buffer_set_u32_array(target, buffer, count, t);
+		break;
+	case 2:
+		target_buffer_set_u16_array(target, buffer, count, t);
+		break;
+	}
+
+	if (do_swap)
+		free(t);
 
 	return ERROR_OK;
 }
@@ -882,6 +912,31 @@ static int or1k_adv_jtag_write_memory(struct or1k_jtag *jtag_info,
 	if (retval != ERROR_OK)
 		return retval;
 
+	/* The adv_debug_if wants words and half words in little-endian
+	 * order no matter what the target endian is. So if the target
+	 * endian is big, change the order.
+	 */
+
+	void *t = NULL;
+	struct target *target = jtag_info->target;
+	if ((target->endianness == TARGET_BIG_ENDIAN) && (size != 1)) {
+		t = malloc(count * size * sizeof(uint8_t));
+		if (t == NULL) {
+			LOG_ERROR("Out of memory");
+			return ERROR_FAIL;
+		}
+
+		switch (size) {
+		case 4:
+			target_buffer_get_u32_array(target, buffer, count, t);
+			break;
+		case 2:
+			target_buffer_get_u16_array(target, buffer, count, t);
+			break;
+		}
+		buffer = t;
+	}
+
 	int block_count_left = count;
 	uint32_t block_count_address = addr;
 	uint8_t *block_count_buffer = (uint8_t *)buffer;
@@ -894,13 +949,19 @@ static int or1k_adv_jtag_write_memory(struct or1k_jtag *jtag_info,
 		retval = adbg_wb_burst_write(jtag_info, block_count_buffer,
 					     size, blocks_this_round,
 					     block_count_address);
-		if (retval != ERROR_OK)
+		if (retval != ERROR_OK) {
+			if (t != NULL)
+				free(t);
 			return retval;
+		}
 
 		block_count_left -= blocks_this_round;
 		block_count_address += size * MAX_BURST_SIZE;
 		block_count_buffer += size * MAX_BURST_SIZE;
 	}
+
+	if (t != NULL)
+		free(t);
 
 	return ERROR_OK;
 }
