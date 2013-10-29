@@ -1000,81 +1000,10 @@ fi
 if test $build_ft2232_libftdi = yes -o $build_usb_blaster_libftdi = yes -o \
   $build_openjtag_ftdi = yes; then
   # We assume: the package is preinstalled in the proper place
-  # these present as 2 libraries..
-  LIBS="$LIBS -lftdi -lusb"
-  #
-  # Try to build a small program.
-  AC_MSG_CHECKING([Build & Link with libftdi...])
 
-  LDFLAGS_SAVE=$LDFLAGS
-  CFLAGS_SAVE=$CFLAGS
-  _LDFLAGS=`eval echo $LDFLAGS`
-  _CFLAGS=`eval echo $CFLAGS`
-  LDFLAGS=$_LDFLAGS
-  CFLAGS=$_CFLAGS
-
-  AC_RUN_IFELSE([AC_LANG_PROGRAM([[
-#include <stdio.h>
-#include <ftdi.h>
-  ]], [[
-  struct ftdi_context *p;
-  p = ftdi_new();
-  if( p != NULL ){
-      return 0;
-  } else {
-      fprintf( stderr, "calling ftdi_new() failed\n");
-      return 1;
-        }
-    ]])], [
-      AC_MSG_RESULT([Success])
-    ], [
-      AC_MSG_ERROR([Cannot build & run test program using libftdi])
-    ], [
-      AC_MSG_RESULT([Skipping as we are cross-compiling, trying build only])
-      AC_SEARCH_LIBS([ftdi_new], [], [], [AC_MSG_ERROR([Cannot link with libftdi])])
-    ])
-
-AC_MSG_CHECKING([for libftdi highspeed device support])
-AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
-#include <stdio.h>
-#include <ftdi.h>
-  ]], [[
-enum ftdi_chip_type x = TYPE_2232H;
-    ]])], [
-      AC_DEFINE([BUILD_FT2232_HIGHSPEED], [1],
-        [Support FT2232H/FT4232HS with FTD2XX or libftdi.])
-      build_ft2232_highspeed=yes
-    ], [
-      build_ft2232_highspeed=no
-    ])
-    AC_MSG_RESULT([$build_ft2232_highspeed])
-
-    if test $build_ft2232_highspeed = no; then
-      AC_MSG_WARN([You need a newer libftdi version (0.16 or later).])
-    fi
-
-AC_MSG_CHECKING([for libftdi FT232H device support])
-AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
-#include <stdio.h>
-#include <ftdi.h>
-  ]], [[
-enum ftdi_chip_type x = TYPE_232H;
-    ]])], [
-      AC_DEFINE([HAS_ENUM_FT232H], [1],
-        [Support FT232H with FTD2XX or libftdi.])
-      has_enum_ft232h=yes
-    ], [
-      has_enum_ft232h=no
-    ])
-    AC_MSG_RESULT([$has_enum_ft232h])
-
-    if test $has_enum_ft232h = no; then
-      AC_MSG_WARN([You need a newer libftdi version (0.20 or later).])
-    fi
-
-  # Restore the 'unexpanded ldflags'
-  LDFLAGS=$LDFLAGS_SAVE
-  CFLAGS=$CFLAGS_SAVE
+  # we can have libftdi or libftdi1, so check it and use the latest one
+  PKG_CHECK_MODULES([LIBFTDI1], [libftdi1], [use_libftdi1=yes], [use_libftdi1=no])
+  PKG_CHECK_MODULES([LIBFTDI0], [libftdi], [use_libftdi0=yes], [use_libftdi0=no])
 fi
 
 PKG_CHECK_MODULES([LIBUSB1], [libusb-1.0], [

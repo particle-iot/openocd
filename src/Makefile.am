@@ -63,25 +63,6 @@ else
 MINGWLDADD =
 endif
 
-if FT2232_LIBFTDI
-FTDI2232LIB = -lftdi -lusb
-else
-if PRESTO_LIBFTDI
-FTDI2232LIB = -lftdi -lusb
-else
-FTDI2232LIB =
-endif
-endif
-
-LIBUSB =
-if USE_LIBUSB1
-LIBUSB += $(LIBUSB1_LIBS)
-endif
-
-if USE_LIBUSB0
-LIBUSB += $(LIBUSB0_LIBS)
-endif
-
 libopenocd_la_LIBADD = \
 	$(top_builddir)/src/xsvf/libxsvf.la \
 	$(top_builddir)/src/svf/libsvf.la \
@@ -93,7 +74,8 @@ libopenocd_la_LIBADD = \
 	$(top_builddir)/src/server/libserver.la \
 	$(top_builddir)/src/rtos/librtos.la \
 	$(top_builddir)/src/helper/libhelper.la \
-	$(FTDI2232LIB) $(MINGWLDADD) $(LIBUSB)
+	$(LIBFTDI1_LIBS) $(LIBFTDI0_LIBS) $(MINGWLDADD) \
+	$(LIBUSB1_LIBS) $(LIBUSB0_LIBS)
 
 STARTUP_TCL_SRCS = \
 	$(srcdir)/helper/startup.tcl \
