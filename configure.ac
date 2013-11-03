@@ -399,6 +399,10 @@ AC_ARG_ENABLE([usb_blaster_libftdi],
   AS_HELP_STRING([--enable-usb_blaster_libftdi], [Enable building support for the Altera USB-Blaster using the libftdi driver, opensource alternate of FTD2XX]),
   [build_usb_blaster_libftdi=$enableval], [build_usb_blaster_libftdi=no])
 
+AC_ARG_ENABLE([usb_blaster_2],
+  AS_HELP_STRING([--enable-usb_blaster_2], [Enable building support for the Altera USB-Blaster II using libusb driver]),
+  [build_usb_blaster_2=$enableval], [build_usb_blaster_2=no])
+
 AC_ARG_ENABLE([usb_blaster_ftd2xx],
   AS_HELP_STRING([--enable-usb_blaster_ftd2xx], [Enable building support for the Altera USB-Blaster using the FTD2XX driver from ftdichip.com]),
   [build_usb_blaster_ftd2xx=$enableval], [build_usb_blaster_ftd2xx=no])
@@ -680,6 +684,12 @@ if test $build_usb_blaster_libftdi = yes; then
   AC_DEFINE([BUILD_USB_BLASTER_LIBFTDI], [1], [1 if you want libftdi usb_blaster.])
 else
   AC_DEFINE([BUILD_USB_BLASTER_LIBFTDI], [0], [0 if you don't want libftdi usb_blaster.])
+fi
+
+if test $build_usb_blaster_2 = yes; then
+  AC_DEFINE([BUILD_USB_BLASTER_2], [1], [1 if you want USB-Blaster II.])
+else
+  AC_DEFINE([BUILD_USB_BLASTER_2], [0], [0 if you don't want USB-Blaster II.])
 fi
 
 if test $build_jtag_vpi = yes; then
@@ -1132,12 +1142,13 @@ AM_CONDITIONAL([IOUTIL], [test $build_ioutil = yes])
 AM_CONDITIONAL([AT91RM9200], [test $build_at91rm9200 = yes])
 AM_CONDITIONAL([BCM2835GPIO], [test $build_bcm2835gpio = yes])
 AM_CONDITIONAL([BITBANG], [test $build_bitbang = yes])
+AM_CONDITIONAL([USB_BLASTER_2], [test $build_usb_blaster_2 = yes])
 AM_CONDITIONAL([FT2232_LIBFTDI], [test $build_ft2232_libftdi = yes])
 AM_CONDITIONAL([FT2232_DRIVER], [test $build_ft2232_ftd2xx = yes -o $build_ft2232_libftdi = yes])
 AM_CONDITIONAL([USB_BLASTER_LIBFTDI], [test $build_usb_blaster_libftdi = yes])
 AM_CONDITIONAL([USB_BLASTER_FTD2XX], [test $build_usb_blaster_ftd2xx = yes])
 AM_CONDITIONAL([JTAG_VPI], [test $build_jtag_vpi = yes -o $build_jtag_vpi = yes])
-AM_CONDITIONAL([USB_BLASTER_DRIVER], [test $build_usb_blaster_ftd2xx = yes -o $build_usb_blaster_libftdi = yes])
+AM_CONDITIONAL([USB_BLASTER_DRIVER], [test $build_usb_blaster_ftd2xx = yes -o $build_usb_blaster_libftdi = yes -o $build_usb_blaster_2 = yes])
 AM_CONDITIONAL([AMTJTAGACCEL], [test $build_amtjtagaccel = yes])
 AM_CONDITIONAL([GW16012], [test $build_gw16012 = yes])
 AM_CONDITIONAL([PRESTO_LIBFTDI], [test $build_presto_libftdi = yes])
