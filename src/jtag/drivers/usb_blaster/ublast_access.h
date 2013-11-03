@@ -21,10 +21,15 @@
  *
  */
 
+#include <libusb_common.h>
+
 struct ublast_lowlevel {
 	uint16_t ublast_vid;
 	uint16_t ublast_pid;
+	uint16_t ublast_vid_uninit;
+	uint16_t ublast_pid_uninit;
 	char *ublast_device_desc;
+	struct jtag_libusb_device_handle *libusb_dev;
 
 	int (*write)(struct ublast_lowlevel *low, uint8_t *buf, int size,
 		     uint32_t *bytes_written);
@@ -50,3 +55,4 @@ struct ublast_lowlevel {
  */
 extern struct ublast_lowlevel *ublast_register_ftdi(void);
 extern struct ublast_lowlevel *ublast_register_ftd2xx(void);
+extern struct ublast_lowlevel *ublast2_register_libusb(void);

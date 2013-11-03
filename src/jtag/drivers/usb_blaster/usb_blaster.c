@@ -4,6 +4,7 @@
  *   Inspired from original code from Kolja Waschk's USB-JTAG project
  *   (http://www.ixo.de/info/usb_jtag/), and from openocd project.
  *
+ *   Copyright (C) 2013 Franck Jullien franck.jullien@gmail.com
  *   Copyright (C) 2012 Robert Jarzmik robert.jarzmik@free.fr
  *   Copyright (C) 2011 Ali Lown ali@lown.me.uk
  *   Copyright (C) 2009 Catalin Patulea cat@vv.carleton.ca
@@ -82,6 +83,9 @@
  */
 #define BUF_LEN 4096
 
+/* USB-Blaster II specific command */
+#define COPY_TDO_BUFFER_TO_EP_BUFFER 0x5F
+
 enum gpio_steer {
 	FIXED_0 = 0,
 	FIXED_1,
@@ -103,6 +107,7 @@ struct ublast_info {
 	struct ublast_lowlevel *drv;
 	char *ublast_device_desc;
 	uint16_t ublast_vid, ublast_pid;
+	uint16_t ublast_vid_uninit, ublast_pid_uninit;
 };
 
 /*
@@ -132,6 +137,9 @@ static struct drvs_map lowlevel_drivers_map[] = {
 #endif
 #if BUILD_USB_BLASTER_FTD2XX
 	{ .name = "ftd2xx", .drv_register = ublast_register_ftd2xx },
+#endif
+#if BUILD_USB_BLASTER_2
+	{ .name = "ublast2", .drv_register = ublast2_register_libusb },
 #endif
 	{ NULL, NULL },
 };
@@ -631,8 +639,11 @@ static void ublast_queue_tdi(uint8_t *bits, int nb_bits, enum scan_type scan)
 			ublast_queue_bytes(&bits[i], trans);
 		else
 			ublast_queue_bytes(byte0, trans);
-		if (read_tdos)
+		if (read_tdos) {
+			if (!strcmp(info.lowlevel_name, "ublast2"))
+				ublast_queue_byte(COPY_TDO_BUFFER_TO_EP_BUFFER);
 			ublast_read_byteshifted_tdos(&tdos[i], trans);
+		}
 	}
 
 	/*
@@ -645,8 +656,11 @@ static void ublast_queue_tdi(uint8_t *bits, int nb_bits, enum scan_type scan)
 		else
 			ublast_clock_tdi(tdi, scan);
 	}
-	if (nb1 && read_tdos)
+	if (nb1 && read_tdos) {
+		if (!strcmp(info.lowlevel_name, "ublast2"))
+			ublast_queue_byte(COPY_TDO_BUFFER_TO_EP_BUFFER);
 		ublast_read_bitbang_tdos(&tdos[nb8], nb1);
+	}
 
 	if (bits)
 		memcpy(bits, tdos, DIV_ROUND_UP(nb_bits, 8));
@@ -804,6 +818,7 @@ static int ublast_init(void)
 			LOG_ERROR("no lowlevel driver found");
 			return ERROR_JTAG_DEVICE_ERROR;
 		}
+		info.lowlevel_name = strdup(lowlevel_drivers_map[i-1].name);
 	}
 
 	/*
@@ -811,6 +826,8 @@ static int ublast_init(void)
 	 */
 	info.drv->ublast_vid = info.ublast_vid;
 	info.drv->ublast_pid = info.ublast_pid;
+	info.drv->ublast_vid_uninit = info.ublast_vid_uninit;
+	info.drv->ublast_pid_uninit = info.ublast_pid_uninit;
 	info.drv->ublast_device_desc = info.ublast_device_desc;
 
 	ret = info.drv->open(info.drv);
@@ -860,14 +877,22 @@ COMMAND_HANDLER(ublast_handle_device_desc_command)
 
 COMMAND_HANDLER(ublast_handle_vid_pid_command)
 {
-	if (CMD_ARGC > 2) {
+	if (CMD_ARGC > 4) {
 		LOG_WARNING("ignoring extra IDs in ublast_vid_pid "
-					"(maximum is 1 pair)");
-		CMD_ARGC = 2;
+					"(maximum is 2 pairs)");
+		CMD_ARGC = 4;
 	}
-	if (CMD_ARGC == 2) {
+
+	if (CMD_ARGC >= 2) {
 		COMMAND_PARSE_NUMBER(u16, CMD_ARGV[0], info.ublast_vid);
 		COMMAND_PARSE_NUMBER(u16, CMD_ARGV[1], info.ublast_pid);
+	} else {
+		LOG_WARNING("incomplete ublast_vid_pid configuration");
+	}
+
+	if (CMD_ARGC == 4) {
+		COMMAND_PARSE_NUMBER(u16, CMD_ARGV[2], info.ublast_vid_uninit);
+		COMMAND_PARSE_NUMBER(u16, CMD_ARGV[3], info.ublast_pid_uninit);
 	} else {
 		LOG_WARNING("incomplete ublast_vid_pid configuration");
 	}
@@ -963,15 +988,17 @@ static const struct command_registration ublast_command_handlers[] = {
 		.name = "usb_blaster_vid_pid",
 		.handler = ublast_handle_vid_pid_command,
 		.mode = COMMAND_CONFIG,
-		.help = "the vendor ID and product ID of the USB-Blaster",
-		.usage = "vid pid",
+		.help = "the vendor ID and product ID of the USB-Blaster and " \
+			"vendor ID and product ID of the uninitialized device " \
+			"for USB-Blaster II",
+		.usage = "vid pid vid_uninit pid_uninit",
 	},
 	{
 		.name = "usb_blaster_lowlevel_driver",
 		.handler = ublast_handle_lowlevel_drv_command,
 		.mode = COMMAND_CONFIG,
-		.help = "set the lowlevel access for the USB Blaster (ftdi, ftd2xx)",
-		.usage = "(ftdi|ftd2xx)",
+		.help = "set the lowlevel access for the USB Blaster (ftdi, ftd2xx, ublast2)",
+		.usage = "(ftdi|ftd2xx|ublast2)",
 	},
 	{
 		.name = "usb_blaster_pin",
