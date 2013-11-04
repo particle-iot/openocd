@@ -98,7 +98,7 @@ int aice_init_targets(void)
 
 		if (found == 0) {
 			LOG_ERROR
-				("aice_init_targets: target not found: idcode: %x ",
+				("aice_init_targets: target not found: idcode: %" PRIx32,
 				 target->tap->idcode);
 			return ERROR_FAIL;
 		}
@@ -152,7 +152,7 @@ static int aice_execute_reset(struct jtag_command *cmd)
 	static int last_trst;
 	int retval = ERROR_OK;
 
-	DEBUG_JTAG_IO("reset trst: %i", cmd->cmd.reset->trst);
+	DEBUG_JTAG_IO("reset trst: %" PRIi32, cmd->cmd.reset->trst);
 
 	if (cmd->cmd.reset->trst != last_trst) {
 		if (cmd->cmd.reset->trst)
@@ -229,11 +229,11 @@ static int aice_khz(int khz, int *jtag_speed)
 	}
 
 	if (i == AICE_KHZ_TO_SPEED_MAP_SIZE) {
-		LOG_INFO("No support the jtag clock: %d", khz);
+		LOG_INFO("No support the jtag clock: %" PRId32, khz);
 		LOG_INFO("Supported jtag clocks are:");
 
 		for (i = 0 ; i < AICE_KHZ_TO_SPEED_MAP_SIZE ; i++)
-			LOG_INFO("* %d", aice_khz_to_speed_map[i]);
+			LOG_INFO("* %" PRId32, aice_khz_to_speed_map[i]);
 
 		return ERROR_FAIL;
 	}

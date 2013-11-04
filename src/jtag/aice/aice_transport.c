@@ -102,7 +102,7 @@ static int jim_aice_newtap_cmd(Jim_GetOptInfo *goi)
 	sprintf(cp, "%s.%s", pTap->chip, pTap->tapname);
 	pTap->dotted_name = cp;
 
-	LOG_DEBUG("Creating New Tap, Chip: %s, Tap: %s, Dotted: %s, %d params",
+	LOG_DEBUG("Creating New Tap, Chip: %s, Tap: %s, Dotted: %s, %" PRId32 " params",
 			pTap->chip, pTap->tapname, pTap->dotted_name, goi->argc);
 
 	while (goi->argc) {

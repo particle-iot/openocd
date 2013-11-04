@@ -1545,8 +1545,8 @@ int nds32_restore_context(struct target *target)
 			if (reg->valid == true) {
 
 				LOG_DEBUG("examining dirty reg: %s", reg->name);
-				LOG_DEBUG("writing register %i "
-						"with value 0x%8.8" PRIx32, i, buf_get_u32(reg->value, 0, 32));
+				LOG_DEBUG("writing register %" PRIi32 " with value 0x%8.8" PRIx32,
+						i, buf_get_u32(reg->value, 0, 32));
 
 				reg_arch_info = reg->arch_info;
 				if (FD0 <= reg_arch_info->num && reg_arch_info->num <= FD31)
@@ -1572,7 +1572,7 @@ int nds32_edm_config(struct nds32 *nds32)
 	aice_read_debug_reg(aice, NDS_EDM_SR_EDM_CFG, &edm_cfg);
 
 	nds32->edm.version = (edm_cfg >> 16) & 0xFFFF;
-	LOG_INFO("EDM version 0x%04x", nds32->edm.version);
+	LOG_INFO("EDM version 0x%04" PRIx32, nds32->edm.version);
 
 	nds32->edm.breakpoint_num = (edm_cfg & 0x7) + 1;
 
@@ -2019,7 +2019,7 @@ int nds32_login(struct nds32 *nds32)
 		uint32_t value_edmsw;
 		aice_read_debug_reg(aice, NDS_EDM_SR_EDMSW, &value_edmsw);
 		nds32->privilege_level = (value_edmsw >> 16) & 0x3;
-		LOG_INFO("Current privilege level: %d", nds32->privilege_level);
+		LOG_INFO("Current privilege level: %" PRId32, nds32->privilege_level);
 	}
 
 	if (nds32_edm_ops_num > 0) {
@@ -2118,7 +2118,9 @@ int nds32_poll(struct target *target)
 int nds32_resume(struct target *target, int current,
 		uint32_t address, int handle_breakpoints, int debug_execution)
 {
-	LOG_DEBUG("current %d  address %08" PRIx32 "  handle_breakpoints %d  debug_execution %d",
+	LOG_DEBUG("current %" PRId32 " address %08" PRIx32
+			" handle_breakpoints %" PRId32
+			" debug_execution %" PRId32,
 			current, address, handle_breakpoints, debug_execution);
 
 	struct nds32 *nds32 = target_to_nds32(target);
@@ -2465,7 +2467,7 @@ int nds32_get_gdb_fileio_info(struct target *target, struct gdb_fileio_info *fil
 
 int nds32_gdb_fileio_end(struct target *target, int retcode, int fileio_errno, bool ctrl_c)
 {
-	LOG_DEBUG("syscall return code: 0x%x, errno: 0x%x, ctrl_c: %s",
+	LOG_DEBUG("syscall return code: 0x%" PRIx32 ", errno: 0x%" PRIx32 ", ctrl_c: %s",
 			retcode, fileio_errno, ctrl_c ? "true" : "false");
 
 	struct nds32 *nds32 = target_to_nds32(target);

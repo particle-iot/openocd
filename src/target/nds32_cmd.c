@@ -59,7 +59,7 @@ COMMAND_HANDLER(handle_nds32_dssim_command)
 			nds32->step_isr_enable = false;
 	}
 
-	command_print(CMD_CTX, "%s: $INT_MASK.DSSIM: %d", target_name(target),
+	command_print(CMD_CTX, "%s: $INT_MASK.DSSIM: %" PRId32, target_name(target),
 			nds32->step_isr_enable);
 
 	return ERROR_OK;

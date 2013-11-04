@@ -358,7 +358,7 @@ static int aice_usb_write(uint8_t *out_buffer, int out_length)
 	int result;
 
 	if (out_length > AICE_OUT_BUFFER_SIZE) {
-		LOG_ERROR("aice_write illegal out_length=%d (max=%d)",
+		LOG_ERROR("aice_write illegal out_length=%" PRId32 " (max=%" PRId32 ")",
 				out_length, AICE_OUT_BUFFER_SIZE);
 		return -1;
 	}
@@ -366,7 +366,7 @@ static int aice_usb_write(uint8_t *out_buffer, int out_length)
 	result = usb_bulk_write_ex(aice_handler.usb_handle, aice_handler.usb_write_ep,
 			(char *)out_buffer, out_length, AICE_USB_TIMEOUT);
 
-	DEBUG_JTAG_IO("aice_usb_write, out_length = %d, result = %d",
+	DEBUG_JTAG_IO("aice_usb_write, out_length = %" PRId32 ", result = %" PRId32,
 			out_length, result);
 
 	return result;
@@ -378,7 +378,7 @@ static int aice_usb_read(uint8_t *in_buffer, int expected_size)
 	int result = usb_bulk_read_ex(aice_handler.usb_handle, aice_handler.usb_read_ep,
 			(char *)in_buffer, expected_size, AICE_USB_TIMEOUT);
 
-	DEBUG_JTAG_IO("aice_usb_read, result = %d", result);
+	DEBUG_JTAG_IO("aice_usb_read, result = %" PRId32, result);
 
 	return result;
 }
@@ -523,7 +523,7 @@ static int aice_scan_chain(uint32_t *id_codes, uint8_t *num_of_ids)
 		/** TODO: modify receive length */
 		result = aice_usb_read(usb_in_buffer, AICE_FORMAT_DTHA);
 		if (AICE_FORMAT_DTHA != result) {
-			LOG_ERROR("aice_usb_read failed (requested=%d, result=%d)",
+			LOG_ERROR("aice_usb_read failed (requested=%" PRId32 ", result=%" PRId32 ")",
 					AICE_FORMAT_DTHA, result);
 			return ERROR_FAIL;
 		}
@@ -535,7 +535,7 @@ static int aice_scan_chain(uint32_t *id_codes, uint8_t *num_of_ids)
 		if (cmd_ack_code != AICE_CMD_SCAN_CHAIN) {
 
 			if (retry_times > aice_max_retry_times) {
-				LOG_ERROR("aice command timeout (command=0x%x, response=0x%x)",
+				LOG_ERROR("aice command timeout (command=0x%" PRIx32 ", response=0x%" PRIx32 ")",
 						AICE_CMD_SCAN_CHAIN, cmd_ack_code);
 				return ERROR_FAIL;
 			}
@@ -548,7 +548,7 @@ static int aice_scan_chain(uint32_t *id_codes, uint8_t *num_of_ids)
 			continue;
 		}
 
-		LOG_DEBUG("SCAN_CHAIN response, # of IDs: %d", *num_of_ids);
+		LOG_DEBUG("SCAN_CHAIN response, # of IDs: %" PRIu32, *num_of_ids);
 
 		if (*num_of_ids == 0xFF) {
 			LOG_ERROR("No target connected");
@@ -576,11 +576,11 @@ int aice_read_ctrl(uint32_t address, uint32_t *data)
 
 	aice_usb_write(usb_out_buffer, AICE_FORMAT_HTDA);
 
-	LOG_DEBUG("READ_CTRL, address: 0x%x", address);
+	LOG_DEBUG("READ_CTRL, address: 0x%" PRIx32, address);
 
 	result = aice_usb_read(usb_in_buffer, AICE_FORMAT_DTHA);
 	if (AICE_FORMAT_DTHA != result) {
-		LOG_ERROR("aice_usb_read failed (requested=%d, result=%d)",
+		LOG_ERROR("aice_usb_read failed (requested=%" PRId32 ", result=%" PRId32 ")",
 				AICE_FORMAT_DTHA, result);
 		return ERROR_FAIL;
 	}
@@ -589,10 +589,10 @@ int aice_read_ctrl(uint32_t address, uint32_t *data)
 	uint8_t extra_length;
 	aice_unpack_dtha(&cmd_ack_code, &extra_length, data, AICE_LITTLE_ENDIAN);
 
-	LOG_DEBUG("READ_CTRL response, data: 0x%x", *data);
+	LOG_DEBUG("READ_CTRL response, data: 0x%" PRIx32, *data);
 
 	if (cmd_ack_code != AICE_CMD_READ_CTRL) {
-		LOG_ERROR("aice command error (command=0x%x, response=0x%x)",
+		LOG_ERROR("aice command error (command=0x%" PRIx32 ", response=0x%" PRIx32 ")",
 				AICE_CMD_READ_CTRL, cmd_ack_code);
 		return ERROR_FAIL;
 	}
@@ -616,11 +616,11 @@ int aice_write_ctrl(uint32_t address, uint32_t data)
 
 	aice_usb_write(usb_out_buffer, AICE_FORMAT_HTDC);
 
-	LOG_DEBUG("WRITE_CTRL, address: 0x%x, data: 0x%x", address, data);
+	LOG_DEBUG("WRITE_CTRL, address: 0x%" PRIx32 ", data: 0x%" PRIx32, address, data);
 
 	result = aice_usb_read(usb_in_buffer, AICE_FORMAT_DTHB);
 	if (AICE_FORMAT_DTHB != result) {
-		LOG_ERROR("aice_usb_read failed (requested=%d, result=%d)",
+		LOG_ERROR("aice_usb_read failed (requested=%" PRId32 ", result=%" PRId32 ")",
 				AICE_FORMAT_DTHB, result);
 		return ERROR_FAIL;
 	}
@@ -632,7 +632,7 @@ int aice_write_ctrl(uint32_t address, uint32_t data)
 	LOG_DEBUG("WRITE_CTRL response");
 
 	if (cmd_ack_code != AICE_CMD_WRITE_CTRL) {
-		LOG_ERROR("aice command error (command=0x%x, response=0x%x)",
+		LOG_ERROR("aice command error (command=0x%" PRIx32 ", response=0x%" PRIx32 ")",
 				AICE_CMD_WRITE_CTRL, cmd_ack_code);
 		return ERROR_FAIL;
 	}
@@ -654,11 +654,11 @@ int aice_read_dtr(uint8_t target_id, uint32_t *data)
 
 		aice_usb_write(usb_out_buffer, AICE_FORMAT_HTDMA);
 
-		LOG_DEBUG("READ_DTR, COREID: %d", target_id);
+		LOG_DEBUG("READ_DTR, COREID: %" PRIu32, target_id);
 
 		result = aice_usb_read(usb_in_buffer, AICE_FORMAT_DTHMA);
 		if (AICE_FORMAT_DTHMA != result) {
-			LOG_ERROR("aice_usb_read failed (requested=%d, result=%d)",
+			LOG_ERROR("aice_usb_read failed (requested=%" PRId32 ", result=%" PRId32 ")",
 					AICE_FORMAT_DTHMA, result);
 			return ERROR_FAIL;
 		}
@@ -670,12 +670,12 @@ int aice_read_dtr(uint8_t target_id, uint32_t *data)
 				data, AICE_LITTLE_ENDIAN);
 
 		if (cmd_ack_code == AICE_CMD_T_READ_DTR) {
-			LOG_DEBUG("READ_DTR response, data: 0x%x", *data);
+			LOG_DEBUG("READ_DTR response, data: 0x%" PRIx32, *data);
 			break;
 		} else {
 
 			if (retry_times > aice_max_retry_times) {
-				LOG_ERROR("aice command timeout (command=0x%x, response=0x%x)",
+				LOG_ERROR("aice command timeout (command=0x%" PRIx32 ", response=0x%" PRIx32 ")",
 						AICE_CMD_T_READ_DTR, cmd_ack_code);
 				return ERROR_FAIL;
 			}
@@ -709,11 +709,11 @@ int aice_read_dtr_to_buffer(uint8_t target_id, uint32_t buffer_idx)
 
 		aice_usb_write(usb_out_buffer, AICE_FORMAT_HTDMA);
 
-		LOG_DEBUG("READ_DTR_TO_BUFFER, COREID: %d", target_id);
+		LOG_DEBUG("READ_DTR_TO_BUFFER, COREID: %" PRIu32, target_id);
 
 		result = aice_usb_read(usb_in_buffer, AICE_FORMAT_DTHMB);
 		if (AICE_FORMAT_DTHMB != result) {
-			LOG_ERROR("aice_usb_read failed (requested=%d, result=%d)", AICE_FORMAT_DTHMB, result);
+			LOG_ERROR("aice_usb_read failed (requested=%" PRId32 ", result=%" PRId32 ")", AICE_FORMAT_DTHMB, result);
 			return ERROR_FAIL;
 		}
 
@@ -726,7 +726,7 @@ int aice_read_dtr_to_buffer(uint8_t target_id, uint32_t buffer_idx)
 			break;
 		} else {
 			if (retry_times > aice_max_retry_times) {
-				LOG_ERROR("aice command timeout (command=0x%x, response=0x%x)",
+				LOG_ERROR("aice command timeout (command=0x%" PRIx32 ", response=0x%" PRIx32 ")",
 						AICE_CMD_READ_DTR_TO_BUFFER, cmd_ack_code);
 
 				return ERROR_FAIL;
@@ -761,11 +761,11 @@ int aice_write_dtr(uint8_t target_id, uint32_t data)
 
 		aice_usb_write(usb_out_buffer, AICE_FORMAT_HTDMC);
 
-		LOG_DEBUG("WRITE_DTR, COREID: %d, data: 0x%x", target_id, data);
+		LOG_DEBUG("WRITE_DTR, COREID: %" PRIu32 ", data: 0x%" PRIx32, target_id, data);
 
 		result = aice_usb_read(usb_in_buffer, AICE_FORMAT_DTHMB);
 		if (AICE_FORMAT_DTHMB != result) {
-			LOG_ERROR("aice_usb_read failed (requested=%d, result=%d)", AICE_FORMAT_DTHMB, result);
+			LOG_ERROR("aice_usb_read failed (requested=%" PRId32 ", result=%" PRId32 ")", AICE_FORMAT_DTHMB, result);
 			return ERROR_FAIL;
 		}
 
@@ -779,7 +779,7 @@ int aice_write_dtr(uint8_t target_id, uint32_t data)
 			break;
 		} else {
 			if (retry_times > aice_max_retry_times) {
-				LOG_ERROR("aice command timeout (command=0x%x, response=0x%x)",
+				LOG_ERROR("aice command timeout (command=0x%" PRIx32 ", response=0x%" PRIx32 ")",
 						AICE_CMD_T_WRITE_DTR, cmd_ack_code);
 
 				return ERROR_FAIL;
@@ -814,11 +814,11 @@ int aice_write_dtr_from_buffer(uint8_t target_id, uint32_t buffer_idx)
 
 		aice_usb_write(usb_out_buffer, AICE_FORMAT_HTDMA);
 
-		LOG_DEBUG("WRITE_DTR_FROM_BUFFER, COREID: %d", target_id);
+		LOG_DEBUG("WRITE_DTR_FROM_BUFFER, COREID: %" PRIu32 "", target_id);
 
 		result = aice_usb_read(usb_in_buffer, AICE_FORMAT_DTHMB);
 		if (AICE_FORMAT_DTHMB != result) {
-			LOG_ERROR("aice_usb_read failed (requested=%d, result=%d)", AICE_FORMAT_DTHMB, result);
+			LOG_ERROR("aice_usb_read failed (requested=%" PRId32 ", result=%" PRId32 ")", AICE_FORMAT_DTHMB, result);
 			return ERROR_FAIL;
 		}
 
@@ -831,7 +831,7 @@ int aice_write_dtr_from_buffer(uint8_t target_id, uint32_t buffer_idx)
 			break;
 		} else {
 			if (retry_times > aice_max_retry_times) {
-				LOG_ERROR("aice command timeout (command=0x%x, response=0x%x)",
+				LOG_ERROR("aice command timeout (command=0x%" PRIx32 ", response=0x%" PRIx32 ")",
 						AICE_CMD_WRITE_DTR_FROM_BUFFER, cmd_ack_code);
 
 				return ERROR_FAIL;
@@ -862,11 +862,11 @@ int aice_read_misc(uint8_t target_id, uint32_t address, uint32_t *data)
 
 		aice_usb_write(usb_out_buffer, AICE_FORMAT_HTDMA);
 
-		LOG_DEBUG("READ_MISC, COREID: %d, address: 0x%x", target_id, address);
+		LOG_DEBUG("READ_MISC, COREID: %" PRIu32 ", address: 0x%" PRIx32, target_id, address);
 
 		result = aice_usb_read(usb_in_buffer, AICE_FORMAT_DTHMA);
 		if (AICE_FORMAT_DTHMA != result) {
-			LOG_ERROR("aice_usb_read failed (requested=%d, result=%d)",
+			LOG_ERROR("aice_usb_read failed (requested=%" PRId32 ", result=%" PRId32 ")",
 					AICE_FORMAT_DTHMA, result);
 			return ERROR_AICE_DISCONNECT;
 		}
@@ -878,11 +878,11 @@ int aice_read_misc(uint8_t target_id, uint32_t address, uint32_t *data)
 				data, AICE_LITTLE_ENDIAN);
 
 		if (cmd_ack_code == AICE_CMD_T_READ_MISC) {
-			LOG_DEBUG("READ_MISC response, data: 0x%x", *data);
+			LOG_DEBUG("READ_MISC response, data: 0x%" PRIx32, *data);
 			break;
 		} else {
 			if (retry_times > aice_max_retry_times) {
-				LOG_ERROR("aice command timeout (command=0x%x, response=0x%x)",
+				LOG_ERROR("aice command timeout (command=0x%" PRIx32 ", response=0x%" PRIx32 ")",
 						AICE_CMD_T_READ_MISC, cmd_ack_code);
 				return ERROR_FAIL;
 			}
@@ -918,12 +918,12 @@ int aice_write_misc(uint8_t target_id, uint32_t address, uint32_t data)
 
 		aice_usb_write(usb_out_buffer, AICE_FORMAT_HTDMC);
 
-		LOG_DEBUG("WRITE_MISC, COREID: %d, address: 0x%x, data: 0x%x",
+		LOG_DEBUG("WRITE_MISC, COREID: %" PRIu32 ", address: 0x%" PRIx32 ", data: 0x%" PRIx32,
 				target_id, address, data);
 
 		result = aice_usb_read(usb_in_buffer, AICE_FORMAT_DTHMB);
 		if (AICE_FORMAT_DTHMB != result) {
-			LOG_ERROR("aice_usb_read failed (requested=%d, result=%d)",
+			LOG_ERROR("aice_usb_read failed (requested=%" PRId32 ", result=%" PRId32 ")",
 					AICE_FORMAT_DTHMB, result);
 			return ERROR_FAIL;
 		}
@@ -938,7 +938,7 @@ int aice_write_misc(uint8_t target_id, uint32_t address, uint32_t data)
 			break;
 		} else {
 			if (retry_times > aice_max_retry_times) {
-				LOG_ERROR("aice command timeout (command=0x%x, response=0x%x)",
+				LOG_ERROR("aice command timeout (command=0x%" PRIx32 ", response=0x%" PRIx32 ")",
 						AICE_CMD_T_WRITE_MISC, cmd_ack_code);
 
 				return ERROR_FAIL;
@@ -969,11 +969,11 @@ int aice_read_edmsr(uint8_t target_id, uint32_t address, uint32_t *data)
 
 		aice_usb_write(usb_out_buffer, AICE_FORMAT_HTDMA);
 
-		LOG_DEBUG("READ_EDMSR, COREID: %d, address: 0x%x", target_id, address);
+		LOG_DEBUG("READ_EDMSR, COREID: %" PRIu32 ", address: 0x%" PRIx32, target_id, address);
 
 		result = aice_usb_read(usb_in_buffer, AICE_FORMAT_DTHMA);
 		if (AICE_FORMAT_DTHMA != result) {
-			LOG_ERROR("aice_usb_read failed (requested=%d, result=%d)",
+			LOG_ERROR("aice_usb_read failed (requested=%" PRId32 ", result=%" PRId32 ")",
 					AICE_FORMAT_DTHMA, result);
 			return ERROR_FAIL;
 		}
@@ -985,11 +985,11 @@ int aice_read_edmsr(uint8_t target_id, uint32_t address, uint32_t *data)
 				data, AICE_LITTLE_ENDIAN);
 
 		if (cmd_ack_code == AICE_CMD_T_READ_EDMSR) {
-			LOG_DEBUG("READ_EDMSR response, data: 0x%x", *data);
+			LOG_DEBUG("READ_EDMSR response, data: 0x%" PRIx32, *data);
 			break;
 		} else {
 			if (retry_times > aice_max_retry_times) {
-				LOG_ERROR("aice command timeout (command=0x%x, response=0x%x)",
+				LOG_ERROR("aice command timeout (command=0x%" PRIx32 ", response=0x%" PRIx32 ")",
 						AICE_CMD_T_READ_EDMSR, cmd_ack_code);
 
 				return ERROR_FAIL;
@@ -1026,12 +1026,12 @@ int aice_write_edmsr(uint8_t target_id, uint32_t address, uint32_t data)
 
 		aice_usb_write(usb_out_buffer, AICE_FORMAT_HTDMC);
 
-		LOG_DEBUG("WRITE_EDMSR, COREID: %d, address: 0x%x, data: 0x%x",
+		LOG_DEBUG("WRITE_EDMSR, COREID: %" PRIu32 ", address: 0x%" PRIx32 ", data: 0x%" PRIx32,
 				target_id, address, data);
 
 		result = aice_usb_read(usb_in_buffer, AICE_FORMAT_DTHMB);
 		if (AICE_FORMAT_DTHMB != result) {
-			LOG_ERROR("aice_usb_read failed (requested=%d, result=%d)",
+			LOG_ERROR("aice_usb_read failed (requested=%" PRId32 ", result=%" PRId32 ")",
 					AICE_FORMAT_DTHMB, result);
 			return ERROR_FAIL;
 		}
@@ -1046,7 +1046,7 @@ int aice_write_edmsr(uint8_t target_id, uint32_t address, uint32_t data)
 			break;
 		} else {
 			if (retry_times > aice_max_retry_times) {
-				LOG_ERROR("aice command timeout (command=0x%x, response=0x%x)",
+				LOG_ERROR("aice command timeout (command=0x%" PRIx32 ", response=0x%" PRIx32 ")",
 						AICE_CMD_T_WRITE_EDMSR, cmd_ack_code);
 
 				return ERROR_FAIL;
@@ -1105,7 +1105,7 @@ static int aice_write_dim(uint8_t target_id, uint32_t *word, uint8_t num_of_word
 
 		aice_usb_write(usb_out_buffer, AICE_FORMAT_HTDMC + (num_of_words - 1) * 4);
 
-		LOG_DEBUG("WRITE_DIM, COREID: %d, data: 0x%08x, 0x%08x, 0x%08x, 0x%08x",
+		LOG_DEBUG("WRITE_DIM, COREID: %" PRIu32 ", data: 0x%08x, 0x%08x, 0x%08x, 0x%08x",
 				target_id,
 				big_endian_word[0],
 				big_endian_word[1],
@@ -1114,7 +1114,7 @@ static int aice_write_dim(uint8_t target_id, uint32_t *word, uint8_t num_of_word
 
 		result = aice_usb_read(usb_in_buffer, AICE_FORMAT_DTHMB);
 		if (AICE_FORMAT_DTHMB != result) {
-			LOG_ERROR("aice_usb_read failed (requested=%d, result=%d)", AICE_FORMAT_DTHMB, result);
+			LOG_ERROR("aice_usb_read failed (requested=%" PRId32 ", result=%" PRId32 ")", AICE_FORMAT_DTHMB, result);
 			return ERROR_FAIL;
 		}
 
@@ -1129,7 +1129,9 @@ static int aice_write_dim(uint8_t target_id, uint32_t *word, uint8_t num_of_word
 			break;
 		} else {
 			if (retry_times > aice_max_retry_times) {
-				LOG_ERROR("aice command timeout (command=0x%x, response=0x%x)", AICE_CMD_T_WRITE_DIM, cmd_ack_code);
+				LOG_ERROR("aice command timeout (command=0x%" PRIx32
+						", response=0x%" PRIx32 ")",
+						AICE_CMD_T_WRITE_DIM, cmd_ack_code);
 
 				return ERROR_FAIL;
 			}
@@ -1164,11 +1166,11 @@ static int aice_do_execute(uint8_t target_id)
 
 		aice_usb_write(usb_out_buffer, AICE_FORMAT_HTDMC);
 
-		LOG_DEBUG("EXECUTE, COREID: %d", target_id);
+		LOG_DEBUG("EXECUTE, COREID: %" PRIu32 "", target_id);
 
 		result = aice_usb_read(usb_in_buffer, AICE_FORMAT_DTHMB);
 		if (AICE_FORMAT_DTHMB != result) {
-			LOG_ERROR("aice_usb_read failed (requested=%d, result=%d)",
+			LOG_ERROR("aice_usb_read failed (requested=%" PRId32 ", result=%" PRId32 ")",
 					AICE_FORMAT_DTHMB, result);
 			return ERROR_FAIL;
 		}
@@ -1183,7 +1185,7 @@ static int aice_do_execute(uint8_t target_id)
 			break;
 		} else {
 			if (retry_times > aice_max_retry_times) {
-				LOG_ERROR("aice command timeout (command=0x%x, response=0x%x)",
+				LOG_ERROR("aice command timeout (command=0x%" PRIx32 ", response=0x%" PRIx32 ")",
 						AICE_CMD_T_EXECUTE, cmd_ack_code);
 
 				return ERROR_FAIL;
@@ -1205,7 +1207,7 @@ int aice_write_mem_b(uint8_t target_id, uint32_t address, uint32_t data)
 	int result;
 	int retry_times = 0;
 
-	LOG_DEBUG("WRITE_MEM_B, COREID: %d, ADDRESS %08" PRIx32 "  VALUE %08" PRIx32,
+	LOG_DEBUG("WRITE_MEM_B, COREID: %" PRIu32 ", ADDRESS %08" PRIx32 "  VALUE %08" PRIx32,
 			target_id,
 			address,
 			data);
@@ -1224,7 +1226,8 @@ int aice_write_mem_b(uint8_t target_id, uint32_t address, uint32_t data)
 
 			result = aice_usb_read(usb_in_buffer, AICE_FORMAT_DTHMB);
 			if (AICE_FORMAT_DTHMB != result) {
-				LOG_ERROR("aice_usb_read failed (requested=%d, result=%d)", AICE_FORMAT_DTHMB, result);
+				LOG_ERROR("aice_usb_read failed (requested=%" PRId32
+						", result=%" PRId32 ")", AICE_FORMAT_DTHMB, result);
 				return ERROR_FAIL;
 			}
 
@@ -1237,7 +1240,7 @@ int aice_write_mem_b(uint8_t target_id, uint32_t address, uint32_t data)
 				break;
 			} else {
 				if (retry_times > aice_max_retry_times) {
-					LOG_ERROR("aice command timeout (command=0x%x, response=0x%x)",
+					LOG_ERROR("aice command timeout (command=0x%" PRIx32 ", response=0x%" PRIx32 ")",
 							AICE_CMD_T_WRITE_MEM_B, cmd_ack_code);
 
 					return ERROR_FAIL;
@@ -1260,7 +1263,7 @@ int aice_write_mem_h(uint8_t target_id, uint32_t address, uint32_t data)
 	int result;
 	int retry_times = 0;
 
-	LOG_DEBUG("WRITE_MEM_H, COREID: %d, ADDRESS %08" PRIx32 "  VALUE %08" PRIx32,
+	LOG_DEBUG("WRITE_MEM_H, COREID: %" PRIu32 ", ADDRESS %08" PRIx32 "  VALUE %08" PRIx32,
 			target_id,
 			address,
 			data);
@@ -1279,7 +1282,7 @@ int aice_write_mem_h(uint8_t target_id, uint32_t address, uint32_t data)
 
 			result = aice_usb_read(usb_in_buffer, AICE_FORMAT_DTHMB);
 			if (AICE_FORMAT_DTHMB != result) {
-				LOG_ERROR("aice_usb_read failed (requested=%d, result=%d)",
+				LOG_ERROR("aice_usb_read failed (requested=%" PRId32 ", result=%" PRId32 ")",
 						AICE_FORMAT_DTHMB, result);
 				return ERROR_FAIL;
 			}
@@ -1293,7 +1296,7 @@ int aice_write_mem_h(uint8_t target_id, uint32_t address, uint32_t data)
 				break;
 			} else {
 				if (retry_times > aice_max_retry_times) {
-					LOG_ERROR("aice command timeout (command=0x%x, response=0x%x)",
+					LOG_ERROR("aice command timeout (command=0x%" PRIx32 ", response=0x%" PRIx32 ")",
 							AICE_CMD_T_WRITE_MEM_H, cmd_ack_code);
 
 					return ERROR_FAIL;
@@ -1316,7 +1319,7 @@ int aice_write_mem(uint8_t target_id, uint32_t address, uint32_t data)
 	int result;
 	int retry_times = 0;
 
-	LOG_DEBUG("WRITE_MEM, COREID: %d, ADDRESS %08" PRIx32 "  VALUE %08" PRIx32,
+	LOG_DEBUG("WRITE_MEM, COREID: %" PRIu32 ", ADDRESS %08" PRIx32 "  VALUE %08" PRIx32,
 			target_id,
 			address,
 			data);
@@ -1335,7 +1338,7 @@ int aice_write_mem(uint8_t target_id, uint32_t address, uint32_t data)
 
 			result = aice_usb_read(usb_in_buffer, AICE_FORMAT_DTHMB);
 			if (AICE_FORMAT_DTHMB != result) {
-				LOG_ERROR("aice_usb_read failed (requested=%d, result=%d)",
+				LOG_ERROR("aice_usb_read failed (requested=%" PRId32 ", result=%" PRId32 ")",
 						AICE_FORMAT_DTHMB, result);
 				return ERROR_FAIL;
 			}
@@ -1349,7 +1352,7 @@ int aice_write_mem(uint8_t target_id, uint32_t address, uint32_t data)
 				break;
 			} else {
 				if (retry_times > aice_max_retry_times) {
-					LOG_ERROR("aice command timeout (command=0x%x, response=0x%x)",
+					LOG_ERROR("aice command timeout (command=0x%" PRIx32 ", response=0x%" PRIx32 ")",
 							AICE_CMD_T_WRITE_MEM, cmd_ack_code);
 
 					return ERROR_FAIL;
@@ -1381,12 +1384,12 @@ int aice_fastread_mem(uint8_t target_id, uint8_t *word, uint32_t num_of_words)
 
 		aice_usb_write(usb_out_buffer, AICE_FORMAT_HTDMB);
 
-		LOG_DEBUG("FASTREAD_MEM, COREID: %d, # of DATA %08" PRIx32,
+		LOG_DEBUG("FASTREAD_MEM, COREID: %" PRIu32 ", # of DATA %08" PRIx32,
 				target_id, num_of_words);
 
 		result = aice_usb_read(usb_in_buffer, AICE_FORMAT_DTHMA + (num_of_words - 1) * 4);
 		if (result < 0) {
-			LOG_ERROR("aice_usb_read failed (requested=%d, result=%d)",
+			LOG_ERROR("aice_usb_read failed (requested=%" PRId32 ", result=%" PRId32 ")",
 					AICE_FORMAT_DTHMA + (num_of_words - 1) * 4, result);
 			return ERROR_FAIL;
 		}
@@ -1401,7 +1404,7 @@ int aice_fastread_mem(uint8_t target_id, uint8_t *word, uint32_t num_of_words)
 			break;
 		} else {
 			if (retry_times > aice_max_retry_times) {
-				LOG_ERROR("aice command timeout (command=0x%x, response=0x%x)",
+				LOG_ERROR("aice command timeout (command=0x%" PRIx32 ", response=0x%" PRIx32 ")",
 						AICE_CMD_T_FASTREAD_MEM, cmd_ack_code);
 
 				return ERROR_FAIL;
@@ -1439,12 +1442,12 @@ int aice_fastwrite_mem(uint8_t target_id, const uint8_t *word, uint32_t num_of_w
 
 		aice_usb_write(usb_out_buffer, AICE_FORMAT_HTDMD + (num_of_words - 1) * 4);
 
-		LOG_DEBUG("FASTWRITE_MEM, COREID: %d, # of DATA %08" PRIx32,
+		LOG_DEBUG("FASTWRITE_MEM, COREID: %" PRIu32 ", # of DATA %08" PRIx32,
 				target_id, num_of_words);
 
 		result = aice_usb_read(usb_in_buffer, AICE_FORMAT_DTHMB);
 		if (AICE_FORMAT_DTHMB != result) {
-			LOG_ERROR("aice_usb_read failed (requested=%d, result=%d)",
+			LOG_ERROR("aice_usb_read failed (requested=%" PRId32 ", result=%" PRId32 ")",
 					AICE_FORMAT_DTHMB, result);
 			return ERROR_FAIL;
 		}
@@ -1458,7 +1461,7 @@ int aice_fastwrite_mem(uint8_t target_id, const uint8_t *word, uint32_t num_of_w
 			break;
 		} else {
 			if (retry_times > aice_max_retry_times) {
-				LOG_ERROR("aice command timeout (command=0x%x, response=0x%x)",
+				LOG_ERROR("aice command timeout (command=0x%" PRIx32 ", response=0x%" PRIx32 ")",
 						AICE_CMD_T_FASTWRITE_MEM, cmd_ack_code);
 
 				return ERROR_FAIL;
@@ -1489,11 +1492,11 @@ int aice_read_mem_b(uint8_t target_id, uint32_t address, uint32_t *data)
 
 		aice_usb_write(usb_out_buffer, AICE_FORMAT_HTDMB);
 
-		LOG_DEBUG("READ_MEM_B, COREID: %d", target_id);
+		LOG_DEBUG("READ_MEM_B, COREID: %" PRIu32 "", target_id);
 
 		result = aice_usb_read(usb_in_buffer, AICE_FORMAT_DTHMA);
 		if (AICE_FORMAT_DTHMA != result) {
-			LOG_ERROR("aice_usb_read failed (requested=%d, result=%d)",
+			LOG_ERROR("aice_usb_read failed (requested=%" PRId32 ", result=%" PRId32 ")",
 					AICE_FORMAT_DTHMA, result);
 			return ERROR_FAIL;
 		}
@@ -1509,7 +1512,7 @@ int aice_read_mem_b(uint8_t target_id, uint32_t address, uint32_t *data)
 			break;
 		} else {
 			if (retry_times > aice_max_retry_times) {
-				LOG_ERROR("aice command timeout (command=0x%x, response=0x%x)",
+				LOG_ERROR("aice command timeout (command=0x%" PRIx32 ", response=0x%" PRIx32 ")",
 						AICE_CMD_T_READ_MEM_B, cmd_ack_code);
 
 				return ERROR_FAIL;
@@ -1540,11 +1543,11 @@ int aice_read_mem_h(uint8_t target_id, uint32_t address, uint32_t *data)
 
 		aice_usb_write(usb_out_buffer, AICE_FORMAT_HTDMB);
 
-		LOG_DEBUG("READ_MEM_H, CORE_ID: %d", target_id);
+		LOG_DEBUG("READ_MEM_H, CORE_ID: %" PRIu32 "", target_id);
 
 		result = aice_usb_read(usb_in_buffer, AICE_FORMAT_DTHMA);
 		if (AICE_FORMAT_DTHMA != result) {
-			LOG_ERROR("aice_usb_read failed (requested=%d, result=%d)",
+			LOG_ERROR("aice_usb_read failed (requested=%" PRId32 ", result=%" PRId32 ")",
 					AICE_FORMAT_DTHMA, result);
 			return ERROR_FAIL;
 		}
@@ -1556,11 +1559,11 @@ int aice_read_mem_h(uint8_t target_id, uint32_t address, uint32_t *data)
 				data, data_endian);
 
 		if (cmd_ack_code == AICE_CMD_T_READ_MEM_H) {
-			LOG_DEBUG("READ_MEM_H response, data: 0x%x", *data);
+			LOG_DEBUG("READ_MEM_H response, data: 0x%" PRIx32, *data);
 			break;
 		} else {
 			if (retry_times > aice_max_retry_times) {
-				LOG_ERROR("aice command timeout (command=0x%x, response=0x%x)",
+				LOG_ERROR("aice command timeout (command=0x%" PRIx32 ", response=0x%" PRIx32 ")",
 						AICE_CMD_T_READ_MEM_H, cmd_ack_code);
 
 				return ERROR_FAIL;
@@ -1592,11 +1595,11 @@ int aice_read_mem(uint8_t target_id, uint32_t address, uint32_t *data)
 
 		aice_usb_write(usb_out_buffer, AICE_FORMAT_HTDMB);
 
-		LOG_DEBUG("READ_MEM, COREID: %d", target_id);
+		LOG_DEBUG("READ_MEM, COREID: %" PRIu32 "", target_id);
 
 		result = aice_usb_read(usb_in_buffer, AICE_FORMAT_DTHMA);
 		if (AICE_FORMAT_DTHMA != result) {
-			LOG_ERROR("aice_usb_read failed (requested=%d, result=%d)",
+			LOG_ERROR("aice_usb_read failed (requested=%" PRId32 ", result=%" PRId32 ")",
 					AICE_FORMAT_DTHMA, result);
 			return ERROR_FAIL;
 		}
@@ -1608,11 +1611,11 @@ int aice_read_mem(uint8_t target_id, uint32_t address, uint32_t *data)
 				data, data_endian);
 
 		if (cmd_ack_code == AICE_CMD_T_READ_MEM) {
-			LOG_DEBUG("READ_MEM response, data: 0x%x", *data);
+			LOG_DEBUG("READ_MEM response, data: 0x%" PRIx32, *data);
 			break;
 		} else {
 			if (retry_times > aice_max_retry_times) {
-				LOG_ERROR("aice command timeout (command=0x%x, response=0x%x)",
+				LOG_ERROR("aice command timeout (command=0x%" PRIx32 ", response=0x%" PRIx32 ")",
 						AICE_CMD_T_READ_MEM, cmd_ack_code);
 
 				return ERROR_FAIL;
@@ -1643,7 +1646,7 @@ int aice_batch_buffer_read(uint8_t buf_index, uint32_t *word, uint32_t num_of_wo
 
 		result = aice_usb_read(usb_in_buffer, AICE_FORMAT_DTHMA + (num_of_words - 1) * 4);
 		if (result < 0) {
-			LOG_ERROR("aice_usb_read failed (requested=%d, result=%d)",
+			LOG_ERROR("aice_usb_read failed (requested=%" PRId32 ", result=%" PRId32 ")",
 					AICE_FORMAT_DTHMA + (num_of_words - 1) * 4, result);
 			return ERROR_FAIL;
 		}
@@ -1658,7 +1661,7 @@ int aice_batch_buffer_read(uint8_t buf_index, uint32_t *word, uint32_t num_of_wo
 			break;
 		} else {
 			if (retry_times > aice_max_retry_times) {
-				LOG_ERROR("aice command timeout (command=0x%x, response=0x%x)",
+				LOG_ERROR("aice command timeout (command=0x%" PRIx32 ", response=0x%" PRIx32 ")",
 						AICE_CMD_BATCH_BUFFER_READ, cmd_ack_code);
 
 				return ERROR_FAIL;
@@ -1697,7 +1700,7 @@ int aice_batch_buffer_write(uint8_t buf_index, const uint8_t *word, uint32_t num
 
 		result = aice_usb_read(usb_in_buffer, AICE_FORMAT_DTHMB);
 		if (AICE_FORMAT_DTHMB != result) {
-			LOG_ERROR("aice_usb_read failed (requested=%d, result=%d)",
+			LOG_ERROR("aice_usb_read failed (requested=%" PRId32 ", result=%" PRId32 ")",
 					AICE_FORMAT_DTHMB, result);
 			return ERROR_FAIL;
 		}
@@ -1711,7 +1714,7 @@ int aice_batch_buffer_write(uint8_t buf_index, const uint8_t *word, uint32_t num
 			break;
 		} else {
 			if (retry_times > aice_max_retry_times) {
-				LOG_ERROR("aice command timeout (command=0x%x, response=0x%x)",
+				LOG_ERROR("aice command timeout (command=0x%" PRIx32 ", response=0x%" PRIx32 ")",
 						AICE_CMD_BATCH_BUFFER_WRITE, cmd_ack_code);
 
 				return ERROR_FAIL;
@@ -2168,7 +2171,7 @@ static int aice_get_version_info(void)
 	if (aice_read_ctrl(AICE_READ_CTRL_GET_FPGA_VERSION, &fpga_version) != ERROR_OK)
 		return ERROR_FAIL;
 
-	LOG_INFO("AICE version: hw_ver = 0x%x, fw_ver = 0x%x, fpga_ver = 0x%x",
+	LOG_INFO("AICE version: hw_ver = 0x%" PRIx32 ", fw_ver = 0x%" PRIx32 ", fpga_ver = 0x%" PRIx32,
 			hardware_version, firmware_version, fpga_version);
 
 	return ERROR_OK;
@@ -3064,7 +3067,8 @@ static int aice_usb_set_address_dim(uint32_t coreid, uint32_t address)
 static int aice_usb_read_memory_unit(uint32_t coreid, uint32_t addr, uint32_t size,
 		uint32_t count, uint8_t *buffer)
 {
-	LOG_DEBUG("aice_usb_read_memory_unit, addr: 0x%08x, size: %d, count: %d",
+	LOG_DEBUG("aice_usb_read_memory_unit, addr: 0x%08" PRIx32
+			", size: %" PRIu32 ", count: %" PRIu32 "",
 			addr, size, count);
 
 	if (NDS_MEMORY_ACC_CPU == core_info[coreid].access_channel)
@@ -3182,7 +3186,8 @@ static int aice_usb_write_mem_w_dim(uint32_t coreid, uint32_t address, uint32_t 
 static int aice_usb_write_memory_unit(uint32_t coreid, uint32_t addr, uint32_t size,
 		uint32_t count, const uint8_t *buffer)
 {
-	LOG_DEBUG("aice_usb_write_memory_unit, addr: 0x%08x, size: %d, count: %d",
+	LOG_DEBUG("aice_usb_write_memory_unit, addr: 0x%08" PRIx32
+			", size: %" PRId32 ", count: %" PRId32 "",
 			addr, size, count);
 
 	if (NDS_MEMORY_ACC_CPU == core_info[coreid].access_channel)
@@ -3360,7 +3365,7 @@ static int aice_usb_write_debug_reg(uint32_t coreid, uint32_t addr, const uint32
 
 static int aice_usb_memory_access(uint32_t coreid, enum nds_memory_access channel)
 {
-	LOG_DEBUG("aice_usb_memory_access, access channel: %d", channel);
+	LOG_DEBUG("aice_usb_memory_access, access channel: %" PRId32, channel);
 
 	core_info[coreid].access_channel = channel;
 
@@ -3372,7 +3377,7 @@ static int aice_usb_memory_mode(uint32_t coreid, enum nds_memory_select mem_sele
 	if (core_info[coreid].memory_select == mem_select)
 		return ERROR_OK;
 
-	LOG_DEBUG("aice_usb_memory_mode, memory select: %d", mem_select);
+	LOG_DEBUG("aice_usb_memory_mode, memory select: %" PRId32, mem_select);
 
 	core_info[coreid].memory_select = mem_select;
 
@@ -3470,8 +3475,8 @@ static int aice_usb_init_cache(uint32_t coreid)
 		icache->log2_line_size = 0;
 	}
 
-	LOG_DEBUG("\ticache set: %d, way: %d, line size: %d, "
-			"log2(set): %d, log2(line_size): %d",
+	LOG_DEBUG("\ticache set: %" PRIu32 ", way: %" PRIu32 ", line size: %" PRIu32 ", "
+			"log2(set): %" PRIu32 ", log2(line_size): %" PRIu32 "",
 			icache->set, icache->way, icache->line_size,
 			icache->log2_set, icache->log2_line_size);
 
@@ -3489,8 +3494,8 @@ static int aice_usb_init_cache(uint32_t coreid)
 		dcache->log2_line_size = 0;
 	}
 
-	LOG_DEBUG("\tdcache set: %d, way: %d, line size: %d, "
-			"log2(set): %d, log2(line_size): %d",
+	LOG_DEBUG("\tdcache set: %" PRIu32 ", way: %" PRIu32 ", line size: %" PRIu32 ", "
+			"log2(set): %" PRIu32 ", log2(line_size): %" PRIu32 "",
 			dcache->set, dcache->way, dcache->line_size,
 			dcache->log2_set, dcache->log2_line_size);
 
