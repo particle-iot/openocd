@@ -913,9 +913,9 @@ COMMAND_HANDLER(psoc4_handle_mass_erase_command)
 
 	retval = psoc4_mass_erase(bank);
 	if (retval == ERROR_OK)
-		command_print(CMD_CTX, "psoc mass erase complete");
+		command_print(cmd, "psoc mass erase complete");
 	else
-		command_print(CMD_CTX, "psoc mass erase failed");
+		command_print(cmd, "psoc mass erase failed");
 
 	return retval;
 }

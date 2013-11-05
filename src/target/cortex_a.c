@@ -2954,7 +2954,7 @@ COMMAND_HANDLER(cortex_a_handle_cache_info_command)
 	struct target *target = get_current_target(CMD_CTX);
 	struct armv7a_common *armv7a = target_to_armv7a(target);
 
-	return armv7a_handle_cache_info_command(CMD_CTX,
+	return armv7a_handle_cache_info_command(cmd,
 			&armv7a->armv7a_mmu.armv7a_cache);
 }
 
@@ -3021,7 +3021,7 @@ COMMAND_HANDLER(cortex_a_handle_smp_gdb_command)
 			target->gdb_service->core[1] = coreid;
 
 		}
-		command_print(CMD_CTX, "gdb coreid  %" PRId32 " -> %" PRId32, target->gdb_service->core[0]
+		command_print(cmd, "gdb coreid  %" PRId32 " -> %" PRId32, target->gdb_service->core[0]
 			, target->gdb_service->core[1]);
 	}
 	return ERROR_OK;
@@ -3050,7 +3050,7 @@ COMMAND_HANDLER(handle_cortex_a_mask_interrupts_command)
 	}
 
 	n = Jim_Nvp_value2name_simple(nvp_maskisr_modes, cortex_a->isrmasking_mode);
-	command_print(CMD_CTX, "cortex_a interrupt mask %s", n->name);
+	command_print(cmd, "cortex_a interrupt mask %s", n->name);
 
 	return ERROR_OK;
 }
@@ -3076,7 +3076,7 @@ COMMAND_HANDLER(handle_cortex_a_dacrfixup_command)
 	}
 
 	n = Jim_Nvp_value2name_simple(nvp_dacrfixup_modes, cortex_a->dacrfixup_mode);
-	command_print(CMD_CTX, "cortex_a domain access control fixup %s", n->name);
+	command_print(cmd, "cortex_a domain access control fixup %s", n->name);
 
 	return ERROR_OK;
 }
