@@ -300,7 +300,7 @@ COMMAND_HANDLER(tms470_handle_flash_keyset_command)
 			int start = (0 == strncmp(CMD_ARGV[i], "0x", 2)) ? 2 : 0;
 
 			if (1 != sscanf(&CMD_ARGV[i][start], "%" SCNx32 "", &flashKeys[i])) {
-				command_print(CMD_CTX, "could not process flash key %s",
+				command_print(cmd, "could not process flash key %s",
 					CMD_ARGV[i]);
 				LOG_ERROR("could not process flash key %s", CMD_ARGV[i]);
 				return ERROR_COMMAND_SYNTAX_ERROR;
@@ -309,19 +309,19 @@ COMMAND_HANDLER(tms470_handle_flash_keyset_command)
 
 		keysSet = 1;
 	} else if (CMD_ARGC != 0) {
-		command_print(CMD_CTX, "tms470 flash_keyset <key0> <key1> <key2> <key3>");
+		command_print(cmd, "tms470 flash_keyset <key0> <key1> <key2> <key3>");
 		return ERROR_COMMAND_SYNTAX_ERROR;
 	}
 
 	if (keysSet) {
-		command_print(CMD_CTX,
+		command_print(cmd,
 			"using flash keys 0x%08" PRIx32 ", 0x%08" PRIx32 ", 0x%08" PRIx32 ", 0x%08" PRIx32 "",
 			flashKeys[0],
 			flashKeys[1],
 			flashKeys[2],
 			flashKeys[3]);
 	} else
-		command_print(CMD_CTX, "flash keys not set");
+		command_print(cmd, "flash keys not set");
 
 	return ERROR_OK;
 }
@@ -351,12 +351,12 @@ COMMAND_HANDLER(tms470_handle_osc_megahertz_command)
 
 	if (oscMHz <= 0) {
 		LOG_ERROR("osc_megahertz must be positive and non-zero!");
-		command_print(CMD_CTX, "osc_megahertz must be positive and non-zero!");
+		command_print(cmd, "osc_megahertz must be positive and non-zero!");
 		oscMHz = 12;
 		return ERROR_COMMAND_SYNTAX_ERROR;
 	}
 
-	command_print(CMD_CTX, "osc_megahertz=%d", oscMHz);
+	command_print(cmd, "osc_megahertz=%d", oscMHz);
 
 	return ERROR_OK;
 }
@@ -374,7 +374,7 @@ COMMAND_HANDLER(tms470_handle_plldis_command)
 		plldis = plldis ? 1 : 0;
 	}
 
-	command_print(CMD_CTX, "plldis=%d", plldis);
+	command_print(cmd, "plldis=%d", plldis);
 
 	return ERROR_OK;
 }

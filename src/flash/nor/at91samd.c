@@ -946,9 +946,9 @@ COMMAND_HANDLER(samd_handle_chip_erase_command)
 		 * perform the erase. */
 		res = target_write_u8(target, SAMD_DSU + SAMD_DSU_CTRL_EXT, (1<<4));
 		if (res == ERROR_OK)
-			command_print(CMD_CTX, "chip erase started");
+			command_print(cmd, "chip erase started");
 		else
-			command_print(CMD_CTX, "write to DSU CTRL failed");
+			command_print(cmd, "write to DSU CTRL failed");
 	}
 
 	return res;
@@ -960,7 +960,7 @@ COMMAND_HANDLER(samd_handle_set_security_command)
 	struct target *target = get_current_target(CMD_CTX);
 
 	if (CMD_ARGC < 1 || (CMD_ARGC >= 1 && (strcmp(CMD_ARGV[0], "enable")))) {
-		command_print(CMD_CTX, "supply the \"enable\" argument to proceed.");
+		command_print(cmd, "supply the \"enable\" argument to proceed.");
 		return ERROR_COMMAND_SYNTAX_ERROR;
 	}
 
@@ -974,9 +974,9 @@ COMMAND_HANDLER(samd_handle_set_security_command)
 
 		/* Check (and clear) error conditions */
 		if (res == ERROR_OK)
-			command_print(CMD_CTX, "chip secured on next power-cycle");
+			command_print(cmd, "chip secured on next power-cycle");
 		else
-			command_print(CMD_CTX, "failed to secure chip");
+			command_print(cmd, "failed to secure chip");
 	}
 
 	return res;
@@ -1007,7 +1007,7 @@ COMMAND_HANDLER(samd_handle_eeprom_command)
 				}
 
 				if (code > 6) {
-					command_print(CMD_CTX, "Invalid EEPROM size.  Please see "
+					command_print(cmd, "Invalid EEPROM size.  Please see "
 							"datasheet for a list valid sizes.");
 					return ERROR_COMMAND_SYNTAX_ERROR;
 				}
@@ -1021,10 +1021,10 @@ COMMAND_HANDLER(samd_handle_eeprom_command)
 				uint32_t size = ((val >> 4) & 0x7); /* grab size code */
 
 				if (size == 0x7)
-					command_print(CMD_CTX, "EEPROM is disabled");
+					command_print(cmd, "EEPROM is disabled");
 				else {
 					/* Otherwise, 6 is 256B, 0 is 16KB */
-					command_print(CMD_CTX, "EEPROM size is %u bytes",
+					command_print(cmd, "EEPROM size is %u bytes",
 							(2 << (13 - size)));
 				}
 			}
@@ -1037,7 +1037,7 @@ COMMAND_HANDLER(samd_handle_eeprom_command)
 static COMMAND_HELPER(get_u64_from_hexarg, unsigned int num, uint64_t *value)
 {
 	if (num >= CMD_ARGC) {
-		command_print(CMD_CTX, "Too few Arguments.");
+		command_print(cmd, "Too few Arguments.");
 		return ERROR_COMMAND_SYNTAX_ERROR;
 	}
 
@@ -1048,12 +1048,12 @@ static COMMAND_HELPER(get_u64_from_hexarg, unsigned int num, uint64_t *value)
 		*value = strtoull(&(CMD_ARGV[num][2]), &check, 16);
 		if ((value == 0 && errno == ERANGE) ||
 			check == NULL || *check != 0) {
-			command_print(CMD_CTX, "Invalid 64-bit hex value in argument %d.",
+			command_print(cmd, "Invalid 64-bit hex value in argument %d.",
 				num + 1);
 			return ERROR_COMMAND_SYNTAX_ERROR;
 		}
 	} else {
-		command_print(CMD_CTX, "Argument %d needs to be a hex value.", num + 1);
+		command_print(cmd, "Argument %d needs to be a hex value.", num + 1);
 		return ERROR_COMMAND_SYNTAX_ERROR;
 	}
 	return ERROR_OK;
@@ -1066,7 +1066,7 @@ COMMAND_HANDLER(samd_handle_nvmuserrow_command)
 
 	if (target) {
 		if (CMD_ARGC > 2) {
-			command_print(CMD_CTX, "Too much Arguments given.");
+			command_print(cmd, "Too much Arguments given.");
 			return ERROR_COMMAND_SYNTAX_ERROR;
 		}
 
@@ -1104,7 +1104,7 @@ COMMAND_HANDLER(samd_handle_nvmuserrow_command)
 		uint64_t value;
 		res = read_userrow(target, &value);
 		if (res == ERROR_OK)
-			command_print(CMD_CTX, "NVMUSERROW: 0x%016"PRIX64, value);
+			command_print(cmd, "NVMUSERROW: 0x%016"PRIX64, value);
 		else
 			LOG_ERROR("NVMUSERROW could not be read.");
 	}
@@ -1144,7 +1144,7 @@ COMMAND_HANDLER(samd_handle_bootloader_command)
 				}
 
 				if (code > 6) {
-					command_print(CMD_CTX, "Invalid bootloader size.  Please "
+					command_print(cmd, "Invalid bootloader size.  Please "
 							"see datasheet for a list valid sizes.");
 					return ERROR_COMMAND_SYNTAX_ERROR;
 				}
@@ -1165,7 +1165,7 @@ COMMAND_HANDLER(samd_handle_bootloader_command)
 					nb = (2 << (8 - size)) * page_size;
 
 				/* There are 4 pages per row */
-				command_print(CMD_CTX, "Bootloader size is %" PRIu32 " bytes (%" PRIu32 " rows)",
+				command_print(cmd, "Bootloader size is %" PRIu32 " bytes (%" PRIu32 " rows)",
 					   nb, (uint32_t)(nb / (page_size * 4)));
 			}
 		}

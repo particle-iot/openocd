@@ -1825,11 +1825,11 @@ COMMAND_HANDLER(numicro_handle_chip_erase_command)
 
 	retval = numicro_fmc_cmd(target, ISPCMD_CHIPERASE, 0, 0, &rdat);
 	if (retval != ERROR_OK) {
-		command_print(CMD_CTX, "numicro chip_erase failed");
+		command_print(cmd, "numicro chip_erase failed");
 		return retval;
 	}
 
-	command_print(CMD_CTX, "numicro chip_erase complete");
+	command_print(cmd, "numicro chip_erase complete");
 
 	return ERROR_OK;
 }
