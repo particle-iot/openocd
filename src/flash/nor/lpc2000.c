@@ -945,11 +945,11 @@ COMMAND_HANDLER(lpc2000_handle_part_id_command)
 	int status_code = lpc2000_iap_call(bank, iap_working_area, 54, param_table, result_table);
 	if (status_code != 0x0) {
 		if (status_code == ERROR_FLASH_OPERATION_FAILED) {
-			command_print(CMD_CTX, "no sufficient working area specified, can't access LPC2000 IAP interface");
+			command_print(cmd, "no sufficient working area specified, can't access LPC2000 IAP interface");
 		} else
-			command_print(CMD_CTX, "lpc2000 IAP returned status code %i", status_code);
+			command_print(cmd, "lpc2000 IAP returned status code %i", status_code);
 	} else
-		command_print(CMD_CTX, "lpc2000 part id: 0x%8.8" PRIx32, result_table[0]);
+		command_print(cmd, "lpc2000 part id: 0x%8.8" PRIx32, result_table[0]);
 
 	return retval;
 }

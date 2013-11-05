@@ -583,7 +583,7 @@ COMMAND_HANDLER(nuc1x_handle_mass_erase_command)
 {
 	int i; /* for erasing sectors */
 	if (CMD_ARGC < 1) {
-		command_print(CMD_CTX, "nuc1x mass_erase <bank>");
+		command_print(cmd, "nuc1x mass_erase <bank>");
 		return ERROR_OK;
 	}
 
@@ -598,9 +598,9 @@ COMMAND_HANDLER(nuc1x_handle_mass_erase_command)
 		for (i = 0; i < bank->num_sectors; i++)
 			bank->sectors[i].is_erased = 1;
 
-		command_print(CMD_CTX, "nuc1x mass erase complete");
+		command_print(cmd, "nuc1x mass erase complete");
 	} else
-		command_print(CMD_CTX, "nuc1x mass erase failed");
+		command_print(cmd, "nuc1x mass erase failed");
 
 	return retval;
 }

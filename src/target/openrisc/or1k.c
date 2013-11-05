@@ -1301,7 +1301,7 @@ COMMAND_HANDLER(or1k_tap_list_command_handler)
 
 	list_for_each_entry(or1k_tap, &tap_list, list) {
 		if (or1k_tap->name)
-			command_print(CMD_CTX, "%s", or1k_tap->name);
+			command_print(cmd, "%s", or1k_tap->name);
 	}
 
 	return ERROR_OK;
@@ -1349,7 +1349,7 @@ COMMAND_HANDLER(or1k_du_list_command_handler)
 
 	list_for_each_entry(or1k_du, &du_list, list) {
 		if (or1k_du->name)
-			command_print(CMD_CTX, "%s", or1k_du->name);
+			command_print(cmd, "%s", or1k_du->name);
 	}
 
 	return ERROR_OK;

@@ -305,22 +305,22 @@ done:
 	return retval;
 }
 
-static int armv7a_handle_inner_cache_info_command(struct command_context *cmd_ctx,
+static int armv7a_handle_inner_cache_info_command(struct command_invocation *cmd,
 	struct armv7a_cache_common *armv7a_cache)
 {
 	if (armv7a_cache->ctype == -1) {
-		command_print(cmd_ctx, "cache not yet identified");
+		command_print(cmd, "cache not yet identified");
 		return ERROR_OK;
 	}
 
-	command_print(cmd_ctx,
+	command_print(cmd,
 		"D-Cache: linelen %" PRIi32 ", associativity %" PRIi32 ", nsets %" PRIi32 ", cachesize %" PRId32 " KBytes",
 		armv7a_cache->d_u_size.linelen,
 		armv7a_cache->d_u_size.associativity,
 		armv7a_cache->d_u_size.nsets,
 		armv7a_cache->d_u_size.cachesize);
 
-	command_print(cmd_ctx,
+	command_print(cmd,
 		"I-Cache: linelen %" PRIi32 ", associativity %" PRIi32 ", nsets %" PRIi32 ", cachesize %" PRId32 " KBytes",
 		armv7a_cache->i_size.linelen,
 		armv7a_cache->i_size.associativity,
@@ -421,7 +421,7 @@ static int armv7a_l2x_flush_all_data(struct target *target)
 	return retval;
 }
 
-static int armv7a_handle_l2x_cache_info_command(struct command_context *cmd_ctx,
+static int armv7a_handle_l2x_cache_info_command(struct command_invocation *cmd,
 	struct armv7a_cache_common *armv7a_cache)
 {
 
@@ -429,24 +429,24 @@ static int armv7a_handle_l2x_cache_info_command(struct command_context *cmd_ctx,
 		(armv7a_cache->l2_cache);
 
 	if (armv7a_cache->ctype == -1) {
-		command_print(cmd_ctx, "cache not yet identified");
+		command_print(cmd, "cache not yet identified");
 		return ERROR_OK;
 	}
 
-	command_print(cmd_ctx,
+	command_print(cmd,
 		"L1 D-Cache: linelen %" PRIi32 ", associativity %" PRIi32 ", nsets %" PRIi32 ", cachesize %" PRId32 " KBytes",
 		armv7a_cache->d_u_size.linelen,
 		armv7a_cache->d_u_size.associativity,
 		armv7a_cache->d_u_size.nsets,
 		armv7a_cache->d_u_size.cachesize);
 
-	command_print(cmd_ctx,
+	command_print(cmd,
 		"L1 I-Cache: linelen %" PRIi32 ", associativity %" PRIi32 ", nsets %" PRIi32 ", cachesize %" PRId32 " KBytes",
 		armv7a_cache->i_size.linelen,
 		armv7a_cache->i_size.associativity,
 		armv7a_cache->i_size.nsets,
 		armv7a_cache->i_size.cachesize);
-	command_print(cmd_ctx, "L2 unified cache Base Address 0x%" PRIx32 ", %" PRId32 " ways",
+	command_print(cmd, "L2 unified cache Base Address 0x%" PRIx32 ", %" PRId32 " ways",
 		l2x_cache->base, l2x_cache->way);
 
 
@@ -502,7 +502,7 @@ COMMAND_HANDLER(handle_cache_l2x)
 			return ERROR_COMMAND_SYNTAX_ERROR;
 			break;
 		case 2:
-			/* command_print(CMD_CTX, "%s %s", CMD_ARGV[0], CMD_ARGV[1]); */
+			/* command_print(cmd, "%s %s", CMD_ARGV[0], CMD_ARGV[1]); */
 			COMMAND_PARSE_NUMBER(u32, CMD_ARGV[0], base);
 			COMMAND_PARSE_NUMBER(u32, CMD_ARGV[1], way);
 
@@ -515,16 +515,16 @@ COMMAND_HANDLER(handle_cache_l2x)
 	return ERROR_OK;
 }
 
-int armv7a_handle_cache_info_command(struct command_context *cmd_ctx,
+int armv7a_handle_cache_info_command(struct command_invocation *cmd,
 	struct armv7a_cache_common *armv7a_cache)
 {
 	if (armv7a_cache->ctype == -1) {
-		command_print(cmd_ctx, "cache not yet identified");
+		command_print(cmd, "cache not yet identified");
 		return ERROR_OK;
 	}
 
 	if (armv7a_cache->display_cache_info)
-		armv7a_cache->display_cache_info(cmd_ctx, armv7a_cache);
+		armv7a_cache->display_cache_info(cmd, armv7a_cache);
 	return ERROR_OK;
 }
 

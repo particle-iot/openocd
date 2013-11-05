@@ -2013,11 +2013,11 @@ static int cortex_m_target_create(struct target *target, Jim_Interp *interp)
 
 /*--------------------------------------------------------------------------*/
 
-static int cortex_m_verify_pointer(struct command_context *cmd_ctx,
+static int cortex_m_verify_pointer(struct command_invocation *cmd,
 	struct cortex_m_common *cm)
 {
 	if (cm->common_magic != CORTEX_M_COMMON_MAGIC) {
-		command_print(cmd_ctx, "target is not a Cortex-M");
+		command_print(cmd, "target is not a Cortex-M");
 		return ERROR_TARGET_INVALID;
 	}
 	return ERROR_OK;
@@ -2052,7 +2052,7 @@ COMMAND_HANDLER(handle_cortex_m_vector_catch_command)
 	uint32_t demcr = 0;
 	int retval;
 
-	retval = cortex_m_verify_pointer(CMD_CTX, cortex_m);
+	retval = cortex_m_verify_pointer(cmd, cortex_m);
 	if (retval != ERROR_OK)
 		return retval;
 
@@ -2107,7 +2107,7 @@ write:
 	}
 
 	for (unsigned i = 0; i < ARRAY_SIZE(vec_ids); i++) {
-		command_print(CMD_CTX, "%9s: %s", vec_ids[i].name,
+		command_print(cmd, "%9s: %s", vec_ids[i].name,
 			(demcr & vec_ids[i].mask) ? "catch" : "ignore");
 	}
 
@@ -2129,12 +2129,12 @@ COMMAND_HANDLER(handle_cortex_m_mask_interrupts_command)
 	const Jim_Nvp *n;
 
 
-	retval = cortex_m_verify_pointer(CMD_CTX, cortex_m);
+	retval = cortex_m_verify_pointer(cmd, cortex_m);
 	if (retval != ERROR_OK)
 		return retval;
 
 	if (target->state != TARGET_HALTED) {
-		command_print(CMD_CTX, "target must be stopped for \"%s\" command", CMD_NAME);
+		command_print(cmd, "target must be stopped for \"%s\" command", CMD_NAME);
 		return ERROR_OK;
 	}
 
@@ -2152,7 +2152,7 @@ COMMAND_HANDLER(handle_cortex_m_mask_interrupts_command)
 	}
 
 	n = Jim_Nvp_value2name_simple(nvp_maskisr_modes, cortex_m->isrmasking_mode);
-	command_print(CMD_CTX, "cortex_m interrupt mask %s", n->name);
+	command_print(cmd, "cortex_m interrupt mask %s", n->name);
 
 	return ERROR_OK;
 }
@@ -2164,7 +2164,7 @@ COMMAND_HANDLER(handle_cortex_m_reset_config_command)
 	int retval;
 	char *reset_config;
 
-	retval = cortex_m_verify_pointer(CMD_CTX, cortex_m);
+	retval = cortex_m_verify_pointer(cmd, cortex_m);
 	if (retval != ERROR_OK)
 		return retval;
 
@@ -2189,7 +2189,7 @@ COMMAND_HANDLER(handle_cortex_m_reset_config_command)
 			break;
 	}
 
-	command_print(CMD_CTX, "cortex_m reset_config %s", reset_config);
+	command_print(cmd, "cortex_m reset_config %s", reset_config);
 
 	return ERROR_OK;
 }

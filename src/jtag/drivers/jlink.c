@@ -714,78 +714,78 @@ static int jlink_get_status(void)
 	return ERROR_OK;
 }
 
-#define jlink_dump_printf(context, expr ...) \
+#define jlink_dump_printf(cmd, expr ...) \
 	do { \
-		if (context) \
-			command_print(context, expr); \
+		if (cmd) \
+			command_print(cmd, expr); \
 			else \
 			LOG_INFO(expr); \
 	} while (0);
 
-static void jlink_caps_dump(struct command_context *ctx)
+static void jlink_caps_dump(struct command_invocation *cmd)
 {
 	int i;
 
-	jlink_dump_printf(ctx, "J-Link Capabilities");
+	jlink_dump_printf(cmd, "J-Link Capabilities");
 
 	for (i = 1; i < 31; i++)
 		if (jlink_caps & (1 << i))
-			jlink_dump_printf(ctx, "%s", jlink_cap_str[i]);
+			jlink_dump_printf(cmd, "%s", jlink_cap_str[i]);
 }
 
-static void jlink_config_usb_address_dump(struct command_context *ctx, struct jlink_config *cfg)
+static void jlink_config_usb_address_dump(struct command_invocation *cmd, struct jlink_config *cfg)
 {
 	if (!cfg)
 		return;
 
-	jlink_dump_printf(ctx, "USB-Address: 0x%x", cfg->usb_address);
+	jlink_dump_printf(cmd, "USB-Address: 0x%x", cfg->usb_address);
 }
 
-static void jlink_config_kickstart_dump(struct command_context *ctx, struct jlink_config *cfg)
+static void jlink_config_kickstart_dump(struct command_invocation *cmd, struct jlink_config *cfg)
 {
 	if (!cfg)
 		return;
 
-	jlink_dump_printf(ctx, "Kickstart power on JTAG-pin 19: 0x%x",
+	jlink_dump_printf(cmd, "Kickstart power on JTAG-pin 19: 0x%x",
 		cfg->kickstart_power_on_jtag_pin_19);
 }
 
-static void jlink_config_mac_address_dump(struct command_context *ctx, struct jlink_config *cfg)
+static void jlink_config_mac_address_dump(struct command_invocation *cmd, struct jlink_config *cfg)
 {
 	if (!cfg)
 		return;
 
-	jlink_dump_printf(ctx, "MAC Address: %.02x:%.02x:%.02x:%.02x:%.02x:%.02x",
+	jlink_dump_printf(cmd, "MAC Address: %.02x:%.02x:%.02x:%.02x:%.02x:%.02x",
 		cfg->mac_address[5], cfg->mac_address[4],
 		cfg->mac_address[3], cfg->mac_address[2],
 		cfg->mac_address[1], cfg->mac_address[0]);
 }
 
-static void jlink_config_ip_dump(struct command_context *ctx, struct jlink_config *cfg)
+static void jlink_config_ip_dump(struct command_invocation *cmd, struct jlink_config *cfg)
 {
 	if (!cfg)
 		return;
 
-	jlink_dump_printf(ctx, "IP Address: %d.%d.%d.%d",
+	jlink_dump_printf(cmd, "IP Address: %d.%d.%d.%d",
 		cfg->ip_address[3], cfg->ip_address[2],
 		cfg->ip_address[1], cfg->ip_address[0]);
-	jlink_dump_printf(ctx, "Subnet Mask: %d.%d.%d.%d",
+	jlink_dump_printf(cmd, "Subnet Mask: %d.%d.%d.%d",
 		cfg->subnet_mask[3], cfg->subnet_mask[2],
 		cfg->subnet_mask[1], cfg->subnet_mask[0]);
 }
 
-static void jlink_config_dump(struct command_context *ctx, struct jlink_config *cfg)
+static void jlink_config_dump(struct command_invocation *cmd, struct jlink_config *cfg)
 {
 	if (!cfg)
 		return;
 
-	jlink_dump_printf(ctx, "J-Link configuration");
-	jlink_config_usb_address_dump(ctx, cfg);
-	jlink_config_kickstart_dump(ctx, cfg);
+	jlink_dump_printf(cmd, "J-Link configuration");
+	jlink_config_usb_address_dump(cmd, cfg);
+	jlink_config_kickstart_dump(cmd, cfg);
 
 	if (jlink_hw_type == JLINK_HW_TYPE_JLINK_PRO) {
-		jlink_config_ip_dump(ctx, cfg);
-		jlink_config_mac_address_dump(ctx, cfg);
+		jlink_config_ip_dump(cmd, cfg);
+		jlink_config_mac_address_dump(cmd, cfg);
 	}
 }
 
@@ -975,7 +975,7 @@ COMMAND_HANDLER(jlink_handle_jlink_info_command)
 
 COMMAND_HANDLER(jlink_handle_jlink_caps_command)
 {
-	jlink_caps_dump(CMD_CTX);
+	jlink_caps_dump(cmd);
 
 	return ERROR_OK;
 }
@@ -984,7 +984,7 @@ COMMAND_HANDLER(jlink_handle_jlink_hw_jtag_command)
 {
 	switch (CMD_ARGC) {
 		case 0:
-			command_print(CMD_CTX, "J-Link hw jtag  %i", jlink_hw_jtag_version);
+			command_print(cmd, "J-Link hw jtag  %i", jlink_hw_jtag_version);
 			break;
 		case 1: {
 			int request_version = atoi(CMD_ARGV[0]);
@@ -1010,7 +1010,7 @@ COMMAND_HANDLER(jlink_handle_jlink_kickstart_command)
 	uint32_t kickstart;
 
 	if (CMD_ARGC < 1) {
-		jlink_config_kickstart_dump(CMD_CTX, &jlink_cfg);
+		jlink_config_kickstart_dump(cmd, &jlink_cfg);
 		return ERROR_OK;
 	}
 
@@ -1028,7 +1028,7 @@ COMMAND_HANDLER(jlink_handle_jlink_mac_address_command)
 	const char *str;
 
 	if (CMD_ARGC < 1) {
-		jlink_config_mac_address_dump(CMD_CTX, &jlink_cfg);
+		jlink_config_mac_address_dump(cmd, &jlink_cfg);
 		return ERROR_OK;
 	}
 
@@ -1036,7 +1036,7 @@ COMMAND_HANDLER(jlink_handle_jlink_mac_address_command)
 
 	if ((strlen(str) != 17) || (str[2] != ':' || str[5] != ':' || str[8] != ':' ||
 		str[11] != ':' || str[14] != ':')) {
-		command_print(CMD_CTX, "ethaddr miss format ff:ff:ff:ff:ff:ff");
+		command_print(cmd, "ethaddr miss format ff:ff:ff:ff:ff:ff");
 		return ERROR_COMMAND_SYNTAX_ERROR;
 	}
 
@@ -1046,12 +1046,12 @@ COMMAND_HANDLER(jlink_handle_jlink_mac_address_command)
 	}
 
 	if (!(addr[0] | addr[1] | addr[2] | addr[3] | addr[4] | addr[5])) {
-		command_print(CMD_CTX, "invalid it's zero mac_address");
+		command_print(cmd, "invalid it's zero mac_address");
 		return ERROR_COMMAND_SYNTAX_ERROR;
 	}
 
 	if (!(0x01 & addr[0])) {
-		command_print(CMD_CTX, "invalid it's a multicat mac_address");
+		command_print(cmd, "invalid it's a multicat mac_address");
 		return ERROR_COMMAND_SYNTAX_ERROR;
 	}
 
@@ -1102,7 +1102,7 @@ COMMAND_HANDLER(jlink_handle_jlink_ip_command)
 	uint8_t subnet_bits = 24;
 
 	if (CMD_ARGC < 1) {
-		jlink_config_ip_dump(CMD_CTX, &jlink_cfg);
+		jlink_config_ip_dump(cmd, &jlink_cfg);
 		return ERROR_OK;
 	}
 
@@ -1146,11 +1146,11 @@ COMMAND_HANDLER(jlink_handle_jlink_reset_command)
 COMMAND_HANDLER(jlink_handle_jlink_save_command)
 {
 	if (!(jlink_caps & (1 << EMU_CAP_WRITE_CONFIG))) {
-		command_print(CMD_CTX, "J-Link write emulator configuration not supported");
+		command_print(cmd, "J-Link write emulator configuration not supported");
 		return ERROR_OK;
 	}
 
-	command_print(CMD_CTX, "The J-Link need to be unpluged and repluged ta have the config effective");
+	command_print(cmd, "The J-Link need to be unpluged and repluged ta have the config effective");
 	return jlink_set_config(&jlink_cfg);
 }
 
@@ -1159,14 +1159,14 @@ COMMAND_HANDLER(jlink_handle_jlink_usb_address_command)
 	uint32_t address;
 
 	if (CMD_ARGC < 1) {
-		jlink_config_usb_address_dump(CMD_CTX, &jlink_cfg);
+		jlink_config_usb_address_dump(cmd, &jlink_cfg);
 		return ERROR_OK;
 	}
 
 	COMMAND_PARSE_NUMBER(u32, CMD_ARGV[0], address);
 
 	if (address > 0x3 && address != 0xff) {
-		command_print(CMD_CTX, "USB Address must be between 0x00 and 0x03 or 0xff");
+		command_print(cmd, "USB Address must be between 0x00 and 0x03 or 0xff");
 		return ERROR_COMMAND_SYNTAX_ERROR;
 	}
 
@@ -1181,16 +1181,16 @@ COMMAND_HANDLER(jlink_handle_jlink_config_command)
 
 	if (CMD_ARGC == 0) {
 		if (!(jlink_caps & (1 << EMU_CAP_READ_CONFIG))) {
-			command_print(CMD_CTX, "J-Link read emulator configuration not supported");
+			command_print(cmd, "J-Link read emulator configuration not supported");
 			goto exit;
 		}
 
 		ret = jlink_get_config(&cfg);
 
 		if (ret != ERROR_OK)
-			command_print(CMD_CTX, "J-Link read emulator configuration failled");
+			command_print(cmd, "J-Link read emulator configuration failled");
 		else
-			jlink_config_dump(CMD_CTX, &jlink_cfg);
+			jlink_config_dump(cmd, &jlink_cfg);
 	}
 
 exit:

@@ -549,14 +549,14 @@ COMMAND_HANDLER(handle_at91sam9_cle_command)
 	unsigned num, address_line;
 
 	if (CMD_ARGC != 2) {
-		command_print(CMD_CTX, "incorrect number of arguments for 'at91sam9 cle' command");
+		command_print(cmd, "incorrect number of arguments for 'at91sam9 cle' command");
 		return ERROR_OK;
 	}
 
 	COMMAND_PARSE_NUMBER(uint, CMD_ARGV[0], num);
 	nand = get_nand_device_by_num(num);
 	if (!nand) {
-		command_print(CMD_CTX, "invalid nand device number: %s", CMD_ARGV[0]);
+		command_print(cmd, "invalid nand device number: %s", CMD_ARGV[0]);
 		return ERROR_OK;
 	}
 
@@ -584,7 +584,7 @@ COMMAND_HANDLER(handle_at91sam9_ale_command)
 	COMMAND_PARSE_NUMBER(uint, CMD_ARGV[0], num);
 	nand = get_nand_device_by_num(num);
 	if (!nand) {
-		command_print(CMD_CTX, "invalid nand device number: %s", CMD_ARGV[0]);
+		command_print(cmd, "invalid nand device number: %s", CMD_ARGV[0]);
 		return ERROR_COMMAND_ARGUMENT_INVALID;
 	}
 
@@ -612,7 +612,7 @@ COMMAND_HANDLER(handle_at91sam9_rdy_busy_command)
 	COMMAND_PARSE_NUMBER(uint, CMD_ARGV[0], num);
 	nand = get_nand_device_by_num(num);
 	if (!nand) {
-		command_print(CMD_CTX, "invalid nand device number: %s", CMD_ARGV[0]);
+		command_print(cmd, "invalid nand device number: %s", CMD_ARGV[0]);
 		return ERROR_COMMAND_ARGUMENT_INVALID;
 	}
 
@@ -643,7 +643,7 @@ COMMAND_HANDLER(handle_at91sam9_ce_command)
 	COMMAND_PARSE_NUMBER(uint, CMD_ARGV[0], num);
 	nand = get_nand_device_by_num(num);
 	if (!nand) {
-		command_print(CMD_CTX, "invalid nand device number: %s", CMD_ARGV[0]);
+		command_print(cmd, "invalid nand device number: %s", CMD_ARGV[0]);
 		return ERROR_COMMAND_ARGUMENT_INVALID;
 	}
 

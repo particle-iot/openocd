@@ -2629,7 +2629,7 @@ COMMAND_HANDLER(cortex_a8_handle_cache_info_command)
 	struct target *target = get_current_target(CMD_CTX);
 	struct armv7a_common *armv7a = target_to_armv7a(target);
 
-	return armv7a_handle_cache_info_command(CMD_CTX,
+	return armv7a_handle_cache_info_command(cmd,
 			&armv7a->armv7a_mmu.armv7a_cache);
 }
 
@@ -2696,7 +2696,7 @@ COMMAND_HANDLER(cortex_a8_handle_smp_gdb_command)
 			target->gdb_service->core[1] = coreid;
 
 		}
-		command_print(CMD_CTX, "gdb coreid  %" PRId32 " -> %" PRId32, target->gdb_service->core[0]
+		command_print(cmd, "gdb coreid  %" PRId32 " -> %" PRId32, target->gdb_service->core[0]
 			, target->gdb_service->core[1]);
 	}
 	return ERROR_OK;

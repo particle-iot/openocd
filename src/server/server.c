@@ -616,7 +616,7 @@ COMMAND_HELPER(server_port_command, unsigned short *out)
 {
 	switch (CMD_ARGC) {
 		case 0:
-			command_print(CMD_CTX, "%d", *out);
+			command_print(cmd, "%d", *out);
 			break;
 		case 1:
 		{
@@ -635,7 +635,7 @@ COMMAND_HELPER(server_pipe_command, char **out)
 {
 	switch (CMD_ARGC) {
 		case 0:
-			command_print(CMD_CTX, "%s", *out);
+			command_print(cmd, "%s", *out);
 			break;
 		case 1:
 		{

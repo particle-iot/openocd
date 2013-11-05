@@ -208,7 +208,7 @@ COMMAND_HANDLER(handle_swd_wcr)
 			return retval;
 		}
 
-		command_print(CMD_CTX,
+		command_print(cmd,
 			"turnaround=%" PRIu32 ", prescale=%" PRIu32,
 			WCR_TO_TRN(wcr),
 			WCR_TO_PRESCALE(wcr));

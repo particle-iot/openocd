@@ -2144,8 +2144,8 @@ COMMAND_HANDLER(handle_targets_command)
 	}
 
 	struct target *target = all_targets;
-	command_print(CMD_CTX, "    TargetName         Type       Endian TapName            State       ");
-	command_print(CMD_CTX, "--  ------------------ ---------- ------ ------------------ ------------");
+	command_print(cmd, "    TargetName         Type       Endian TapName            State       ");
+	command_print(cmd, "--  ------------------ ---------- ------ ------------------ ------------");
 	while (target) {
 		const char *state;
 		char marker = ' ';
@@ -2159,7 +2159,7 @@ COMMAND_HANDLER(handle_targets_command)
 			marker = '*';
 
 		/* keep columns lined up to match the headers above */
-		command_print(CMD_CTX,
+		command_print(cmd,
 				"%2d%c %-18s %-10s %-6s %-18s %s",
 				target->target_number,
 				marker,
@@ -2357,7 +2357,7 @@ COMMAND_HANDLER(handle_reg_command)
 		while (cache) {
 			unsigned i;
 
-			command_print(CMD_CTX, "===== %s", cache->name);
+			command_print(cmd, "===== %s", cache->name);
 
 			for (i = 0, reg = cache->reg_list;
 					i < cache->num_regs;
@@ -2366,7 +2366,7 @@ COMMAND_HANDLER(handle_reg_command)
 				if (reg->valid) {
 					value = buf_to_str(reg->value,
 							reg->size, 16);
-					command_print(CMD_CTX,
+					command_print(cmd,
 							"(%i) %s (/%" PRIu32 "): 0x%s%s",
 							count, reg->name,
 							reg->size, value,
@@ -2375,7 +2375,7 @@ COMMAND_HANDLER(handle_reg_command)
 								: "");
 					free(value);
 				} else {
-					command_print(CMD_CTX, "(%i) %s (/%" PRIu32 ")",
+					command_print(cmd, "(%i) %s (/%" PRIu32 ")",
 							  count, reg->name,
 							  reg->size) ;
 				}
@@ -2407,7 +2407,7 @@ COMMAND_HANDLER(handle_reg_command)
 		}
 
 		if (!reg) {
-			command_print(CMD_CTX, "%i is out of bounds, the current target "
+			command_print(cmd, "%i is out of bounds, the current target "
 					"has only %i registers (0 - %i)", num, count, count - 1);
 			return ERROR_OK;
 		}
@@ -2416,7 +2416,7 @@ COMMAND_HANDLER(handle_reg_command)
 		reg = register_get_by_name(target->reg_cache, CMD_ARGV[0], 1);
 
 		if (!reg) {
-			command_print(CMD_CTX, "register %s not found in current target", CMD_ARGV[0]);
+			command_print(cmd, "register %s not found in current target", CMD_ARGV[0]);
 			return ERROR_OK;
 		}
 	}
@@ -2432,7 +2432,7 @@ COMMAND_HANDLER(handle_reg_command)
 		if (reg->valid == 0)
 			reg->type->get(reg);
 		value = buf_to_str(reg->value, reg->size, 16);
-		command_print(CMD_CTX, "%s (/%i): 0x%s", reg->name, (int)(reg->size), value);
+		command_print(cmd, "%s (/%i): 0x%s", reg->name, (int)(reg->size), value);
 		free(value);
 		return ERROR_OK;
 	}
@@ -2447,7 +2447,7 @@ COMMAND_HANDLER(handle_reg_command)
 		reg->type->set(reg, buf);
 
 		value = buf_to_str(reg->value, reg->size, 16);
-		command_print(CMD_CTX, "%s (/%i): 0x%s", reg->name, (int)(reg->size), value);
+		command_print(cmd, "%s (/%i): 0x%s", reg->name, (int)(reg->size), value);
 		free(value);
 
 		free(buf);
@@ -2464,9 +2464,9 @@ COMMAND_HANDLER(handle_poll_command)
 	struct target *target = get_current_target(CMD_CTX);
 
 	if (CMD_ARGC == 0) {
-		command_print(CMD_CTX, "background polling: %s",
+		command_print(cmd, "background polling: %s",
 				jtag_poll_get_enabled() ? "on" : "off");
-		command_print(CMD_CTX, "TAP: %s (%s)",
+		command_print(cmd, "TAP: %s (%s)",
 				target->tap->dotted_name,
 				target->tap->enabled ? "enabled" : "disabled");
 		if (!target->tap->enabled)
@@ -2635,7 +2635,7 @@ COMMAND_HANDLER(handle_step_command)
 	return target->type->step(target, current_pc, addr, 1);
 }
 
-static void handle_md_output(struct command_context *cmd_ctx,
+static void handle_md_output(struct command_invocation *cmd,
 		struct target *target, uint32_t address, unsigned size,
 		unsigned count, const uint8_t *buffer)
 {
@@ -2687,7 +2687,7 @@ static void handle_md_output(struct command_context *cmd_ctx,
 				value_fmt, value);
 
 		if ((i % line_modulo == line_modulo - 1) || (i == count - 1)) {
-			command_print(cmd_ctx, "%s", output);
+			command_print(cmd, "%s", output);
 			output_len = 0;
 		}
 	}
@@ -2737,7 +2737,7 @@ COMMAND_HANDLER(handle_md_command)
 	struct target *target = get_current_target(CMD_CTX);
 	int retval = fn(target, address, size, count, buffer);
 	if (ERROR_OK == retval)
-		handle_md_output(CMD_CTX, target, address, size, count, buffer);
+		handle_md_output(cmd, target, address, size, count, buffer);
 
 	free(buffer);
 
@@ -2904,7 +2904,7 @@ COMMAND_HANDLER(handle_load_image_command)
 	for (i = 0; i < image.num_sections; i++) {
 		buffer = malloc(image.sections[i].size);
 		if (buffer == NULL) {
-			command_print(CMD_CTX,
+			command_print(cmd,
 						  "error allocating buffer for section (%d bytes)",
 						  (int)(image.sections[i].size));
 			break;
@@ -2940,7 +2940,7 @@ COMMAND_HANDLER(handle_load_image_command)
 				break;
 			}
 			image_size += length;
-			command_print(CMD_CTX, "%u bytes written at address 0x%8.8" PRIx32 "",
+			command_print(cmd, "%u bytes written at address 0x%8.8" PRIx32 "",
 					(unsigned int)length,
 					image.sections[i].base_address + offset);
 		}
@@ -2949,7 +2949,7 @@ COMMAND_HANDLER(handle_load_image_command)
 	}
 
 	if ((ERROR_OK == retval) && (duration_measure(&bench) == ERROR_OK)) {
-		command_print(CMD_CTX, "downloaded %" PRIu32 " bytes "
+		command_print(cmd, "downloaded %" PRIu32 " bytes "
 				"in %fs (%0.3f KiB/s)", image_size,
 				duration_elapsed(&bench), duration_kbps(&bench, image_size));
 	}
@@ -3010,7 +3010,7 @@ COMMAND_HANDLER(handle_dump_image_command)
 		retval = fileio_size(&fileio, &filesize);
 		if (retval != ERROR_OK)
 			return retval;
-		command_print(CMD_CTX,
+		command_print(cmd,
 				"dumped %ld bytes in %fs (%0.3f KiB/s)", (long)filesize,
 				duration_elapsed(&bench), duration_kbps(&bench, filesize));
 	}
@@ -3069,7 +3069,7 @@ static COMMAND_HELPER(handle_verify_image_command_internal, int verify)
 	for (i = 0; i < image.num_sections; i++) {
 		buffer = malloc(image.sections[i].size);
 		if (buffer == NULL) {
-			command_print(CMD_CTX,
+			command_print(cmd,
 					"error allocating buffer for section (%d bytes)",
 					(int)(image.sections[i].size));
 			break;
@@ -3115,14 +3115,14 @@ static COMMAND_HELPER(handle_verify_image_command_internal, int verify)
 					uint32_t t;
 					for (t = 0; t < buf_cnt; t++) {
 						if (data[t] != buffer[t]) {
-							command_print(CMD_CTX,
+							command_print(cmd,
 										  "diff %d address 0x%08x. Was 0x%02x instead of 0x%02x",
 										  diffs,
 										  (unsigned)(t + image.sections[i].base_address),
 										  data[t],
 										  buffer[t]);
 							if (diffs++ >= 127) {
-								command_print(CMD_CTX, "More than 128 errors, the rest are not printed.");
+								command_print(cmd, "More than 128 errors, the rest are not printed.");
 								free(data);
 								free(buffer);
 								goto done;
@@ -3134,7 +3134,7 @@ static COMMAND_HELPER(handle_verify_image_command_internal, int verify)
 				free(data);
 			}
 		} else {
-			command_print(CMD_CTX, "address 0x%08" PRIx32 " length 0x%08zx",
+			command_print(cmd, "address 0x%08" PRIx32 " length 0x%08zx",
 						  image.sections[i].base_address,
 						  buf_cnt);
 		}
@@ -3143,12 +3143,12 @@ static COMMAND_HELPER(handle_verify_image_command_internal, int verify)
 		image_size += buf_cnt;
 	}
 	if (diffs > 0)
-		command_print(CMD_CTX, "No more differences found.");
+		command_print(cmd, "No more differences found.");
 done:
 	if (diffs > 0)
 		retval = ERROR_FAIL;
 	if ((ERROR_OK == retval) && (duration_measure(&bench) == ERROR_OK)) {
-		command_print(CMD_CTX, "verified %" PRIu32 " bytes "
+		command_print(cmd, "verified %" PRIu32 " bytes "
 				"in %fs (%0.3f KiB/s)", image_size,
 				duration_elapsed(&bench), duration_kbps(&bench, image_size));
 	}
@@ -3168,32 +3168,32 @@ COMMAND_HANDLER(handle_test_image_command)
 	return CALL_COMMAND_HANDLER(handle_verify_image_command_internal, 0);
 }
 
-static int handle_bp_command_list(struct command_context *cmd_ctx)
+static int handle_bp_command_list(struct command_invocation *cmd)
 {
-	struct target *target = get_current_target(cmd_ctx);
+	struct target *target = get_current_target(CMD_CTX);
 	struct breakpoint *breakpoint = target->breakpoints;
 	while (breakpoint) {
 		if (breakpoint->type == BKPT_SOFT) {
 			char *buf = buf_to_str(breakpoint->orig_instr,
 					breakpoint->length, 16);
-			command_print(cmd_ctx, "IVA breakpoint: 0x%8.8" PRIx32 ", 0x%x, %i, 0x%s",
+			command_print(cmd, "IVA breakpoint: 0x%8.8" PRIx32 ", 0x%x, %i, 0x%s",
 					breakpoint->address,
 					breakpoint->length,
 					breakpoint->set, buf);
 			free(buf);
 		} else {
 			if ((breakpoint->address == 0) && (breakpoint->asid != 0))
-				command_print(cmd_ctx, "Context breakpoint: 0x%8.8" PRIx32 ", 0x%x, %i",
+				command_print(cmd, "Context breakpoint: 0x%8.8" PRIx32 ", 0x%x, %i",
 							breakpoint->asid,
 							breakpoint->length, breakpoint->set);
 			else if ((breakpoint->address != 0) && (breakpoint->asid != 0)) {
-				command_print(cmd_ctx, "Hybrid breakpoint(IVA): 0x%8.8" PRIx32 ", 0x%x, %i",
+				command_print(cmd, "Hybrid breakpoint(IVA): 0x%8.8" PRIx32 ", 0x%x, %i",
 							breakpoint->address,
 							breakpoint->length, breakpoint->set);
-				command_print(cmd_ctx, "\t|--->linked with ContextID: 0x%8.8" PRIx32,
+				command_print(cmd, "\t|--->linked with ContextID: 0x%8.8" PRIx32,
 							breakpoint->asid);
 			} else
-				command_print(cmd_ctx, "Breakpoint(IVA): 0x%8.8" PRIx32 ", 0x%x, %i",
+				command_print(cmd, "Breakpoint(IVA): 0x%8.8" PRIx32 ", 0x%x, %i",
 							breakpoint->address,
 							breakpoint->length, breakpoint->set);
 		}
@@ -3203,15 +3203,15 @@ static int handle_bp_command_list(struct command_context *cmd_ctx)
 	return ERROR_OK;
 }
 
-static int handle_bp_command_set(struct command_context *cmd_ctx,
+static int handle_bp_command_set(struct command_invocation *cmd,
 		uint32_t addr, uint32_t asid, uint32_t length, int hw)
 {
-	struct target *target = get_current_target(cmd_ctx);
+	struct target *target = get_current_target(CMD_CTX);
 
 	if (asid == 0) {
 		int retval = breakpoint_add(target, addr, length, hw);
 		if (ERROR_OK == retval)
-			command_print(cmd_ctx, "breakpoint set at 0x%8.8" PRIx32 "", addr);
+			command_print(cmd, "breakpoint set at 0x%8.8" PRIx32 "", addr);
 		else {
 			LOG_ERROR("Failure setting breakpoint, the same address(IVA) is already used");
 			return retval;
@@ -3219,7 +3219,7 @@ static int handle_bp_command_set(struct command_context *cmd_ctx,
 	} else if (addr == 0) {
 		int retval = context_breakpoint_add(target, asid, length, hw);
 		if (ERROR_OK == retval)
-			command_print(cmd_ctx, "Context breakpoint set at 0x%8.8" PRIx32 "", asid);
+			command_print(cmd, "Context breakpoint set at 0x%8.8" PRIx32 "", asid);
 		else {
 			LOG_ERROR("Failure setting breakpoint, the same address(CONTEXTID) is already used");
 			return retval;
@@ -3227,7 +3227,7 @@ static int handle_bp_command_set(struct command_context *cmd_ctx,
 	} else {
 		int retval = hybrid_breakpoint_add(target, addr, asid, length, hw);
 		if (ERROR_OK == retval)
-			command_print(cmd_ctx, "Hybrid breakpoint set at 0x%8.8" PRIx32 "", asid);
+			command_print(cmd, "Hybrid breakpoint set at 0x%8.8" PRIx32 "", asid);
 		else {
 			LOG_ERROR("Failure setting breakpoint, the same address is already used");
 			return retval;
@@ -3245,13 +3245,13 @@ COMMAND_HANDLER(handle_bp_command)
 
 	switch (CMD_ARGC) {
 		case 0:
-			return handle_bp_command_list(CMD_CTX);
+			return handle_bp_command_list(cmd);
 
 		case 2:
 			asid = 0;
 			COMMAND_PARSE_NUMBER(u32, CMD_ARGV[0], addr);
 			COMMAND_PARSE_NUMBER(u32, CMD_ARGV[1], length);
-			return handle_bp_command_set(CMD_CTX, addr, asid, length, hw);
+			return handle_bp_command_set(cmd, addr, asid, length, hw);
 
 		case 3:
 			if (strcmp(CMD_ARGV[2], "hw") == 0) {
@@ -3261,13 +3261,13 @@ COMMAND_HANDLER(handle_bp_command)
 				COMMAND_PARSE_NUMBER(u32, CMD_ARGV[1], length);
 
 				asid = 0;
-				return handle_bp_command_set(CMD_CTX, addr, asid, length, hw);
+				return handle_bp_command_set(cmd, addr, asid, length, hw);
 			} else if (strcmp(CMD_ARGV[2], "hw_ctx") == 0) {
 				hw = BKPT_HARD;
 				COMMAND_PARSE_NUMBER(u32, CMD_ARGV[0], asid);
 				COMMAND_PARSE_NUMBER(u32, CMD_ARGV[1], length);
 				addr = 0;
-				return handle_bp_command_set(CMD_CTX, addr, asid, length, hw);
+				return handle_bp_command_set(cmd, addr, asid, length, hw);
 			}
 
 		case 4:
@@ -3275,7 +3275,7 @@ COMMAND_HANDLER(handle_bp_command)
 			COMMAND_PARSE_NUMBER(u32, CMD_ARGV[0], addr);
 			COMMAND_PARSE_NUMBER(u32, CMD_ARGV[1], asid);
 			COMMAND_PARSE_NUMBER(u32, CMD_ARGV[2], length);
-			return handle_bp_command_set(CMD_CTX, addr, asid, length, hw);
+			return handle_bp_command_set(cmd, addr, asid, length, hw);
 
 		default:
 			return ERROR_COMMAND_SYNTAX_ERROR;
@@ -3304,7 +3304,7 @@ COMMAND_HANDLER(handle_wp_command)
 		struct watchpoint *watchpoint = target->watchpoints;
 
 		while (watchpoint) {
-			command_print(CMD_CTX, "address: 0x%8.8" PRIx32
+			command_print(cmd, "address: 0x%8.8" PRIx32
 					", len: 0x%8.8" PRIx32
 					", r/w/a: %i, value: 0x%8.8" PRIx32
 					", mask: 0x%8.8" PRIx32,
@@ -3396,7 +3396,7 @@ COMMAND_HANDLER(handle_virt2phys_command)
 	struct target *target = get_current_target(CMD_CTX);
 	int retval = target->type->virt2phys(target, va, &pa);
 	if (retval == ERROR_OK)
-		command_print(CMD_CTX, "Physical address 0x%08" PRIx32 "", pa);
+		command_print(cmd, "Physical address 0x%08" PRIx32 "", pa);
 
 	return retval;
 }
@@ -3587,7 +3587,7 @@ COMMAND_HANDLER(handle_profile_command)
 
 	write_gmon(samples, num_of_sampels, CMD_ARGV[1],
 			with_range, start_address, end_address);
-	command_print(CMD_CTX, "Wrote %s", CMD_ARGV[1]);
+	command_print(cmd, "Wrote %s", CMD_ARGV[1]);
 
 	free(samples);
 	return retval;
@@ -4757,11 +4757,13 @@ static int jim_target_wait_state(Jim_Interp *interp, int argc, Jim_Obj *const *a
  */
 static int jim_target_event_list(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
 {
+#if 0
 	struct command_context *cmd_ctx = current_command_context(interp);
 	assert(cmd_ctx != NULL);
 
 	struct target *target = Jim_CmdPrivData(interp);
 	struct target_event_action *teap = target->event_action;
+
 	command_print(cmd_ctx, "Event actions for target (%d) %s\n",
 				   target->target_number,
 				   target_name(target));
@@ -4775,6 +4777,7 @@ static int jim_target_event_list(Jim_Interp *interp, int argc, Jim_Obj *const *a
 		teap = teap->next;
 	}
 	command_print(cmd_ctx, "***END***");
+#endif
 	return JIM_OK;
 }
 static int jim_target_current_state(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
@@ -5400,7 +5403,7 @@ COMMAND_HANDLER(handle_fast_load_image_command)
 	fastload_num = image.num_sections;
 	fastload = (struct FastLoad *)malloc(sizeof(struct FastLoad)*image.num_sections);
 	if (fastload == NULL) {
-		command_print(CMD_CTX, "out of memory");
+		command_print(cmd, "out of memory");
 		image_close(&image);
 		return ERROR_FAIL;
 	}
@@ -5408,7 +5411,7 @@ COMMAND_HANDLER(handle_fast_load_image_command)
 	for (i = 0; i < image.num_sections; i++) {
 		buffer = malloc(image.sections[i].size);
 		if (buffer == NULL) {
-			command_print(CMD_CTX, "error allocating buffer for section (%d bytes)",
+			command_print(cmd, "error allocating buffer for section (%d bytes)",
 						  (int)(image.sections[i].size));
 			retval = ERROR_FAIL;
 			break;
@@ -5440,7 +5443,7 @@ COMMAND_HANDLER(handle_fast_load_image_command)
 			fastload[i].data = malloc(length);
 			if (fastload[i].data == NULL) {
 				free(buffer);
-				command_print(CMD_CTX, "error allocating buffer for section (%" PRIu32 " bytes)",
+				command_print(cmd, "error allocating buffer for section (%" PRIu32 " bytes)",
 							  length);
 				retval = ERROR_FAIL;
 				break;
@@ -5449,7 +5452,7 @@ COMMAND_HANDLER(handle_fast_load_image_command)
 			fastload[i].length = length;
 
 			image_size += length;
-			command_print(CMD_CTX, "%u bytes written at address 0x%8.8x",
+			command_print(cmd, "%u bytes written at address 0x%8.8x",
 						  (unsigned int)length,
 						  ((unsigned int)(image.sections[i].base_address + offset)));
 		}
@@ -5458,11 +5461,11 @@ COMMAND_HANDLER(handle_fast_load_image_command)
 	}
 
 	if ((ERROR_OK == retval) && (duration_measure(&bench) == ERROR_OK)) {
-		command_print(CMD_CTX, "Loaded %" PRIu32 " bytes "
+		command_print(cmd, "Loaded %" PRIu32 " bytes "
 				"in %fs (%0.3f KiB/s)", image_size,
 				duration_elapsed(&bench), duration_kbps(&bench, image_size));
 
-		command_print(CMD_CTX,
+		command_print(cmd,
 				"WARNING: image has not been loaded to target!"
 				"You can issue a 'fast_load' to finish loading.");
 	}
@@ -5489,7 +5492,7 @@ COMMAND_HANDLER(handle_fast_load_command)
 	int retval = ERROR_OK;
 	for (i = 0; i < fastload_num; i++) {
 		struct target *target = get_current_target(CMD_CTX);
-		command_print(CMD_CTX, "Write to 0x%08x, length 0x%08x",
+		command_print(cmd, "Write to 0x%08x, length 0x%08x",
 					  (unsigned int)(fastload[i].address),
 					  (unsigned int)(fastload[i].length));
 		retval = target_write_buffer(target, fastload[i].address, fastload[i].length, fastload[i].data);
@@ -5499,7 +5502,7 @@ COMMAND_HANDLER(handle_fast_load_command)
 	}
 	if (retval == ERROR_OK) {
 		int after = timeval_ms();
-		command_print(CMD_CTX, "Loaded image %f kBytes/s", (float)(size/1024.0)/((float)(after-ms)/1000.0));
+		command_print(cmd, "Loaded image %f kBytes/s", (float)(size/1024.0)/((float)(after-ms)/1000.0));
 	}
 	return retval;
 }
@@ -5554,7 +5557,7 @@ COMMAND_HANDLER(handle_ps_command)
 	if ((target->rtos) && (target->rtos->type)
 			&& (target->rtos->type->ps_command)) {
 		display = target->rtos->type->ps_command(target);
-		command_print(CMD_CTX, "%s", display);
+		command_print(cmd, "%s", display);
 		free(display);
 		return ERROR_OK;
 	} else {

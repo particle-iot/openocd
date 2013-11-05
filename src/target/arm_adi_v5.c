@@ -1069,7 +1069,7 @@ int dap_lookup_cs_component(struct adiv5_dap *dap, int ap,
 	return retval;
 }
 
-static int dap_info_command(struct command_context *cmd_ctx,
+static int dap_info_command(struct command_invocation *cmd,
 		struct adiv5_dap *dap, int ap)
 {
 	int retval;
@@ -1087,20 +1087,20 @@ static int dap_info_command(struct command_context *cmd_ctx,
 
 	/* Now we read ROM table ID registers, ref. ARM IHI 0029B sec  */
 	mem_ap = ((apid&0x10000) && ((apid&0x0F) != 0));
-	command_print(cmd_ctx, "AP ID register 0x%8.8" PRIx32, apid);
+	command_print(cmd, "AP ID register 0x%8.8" PRIx32, apid);
 	if (apid) {
 		switch (apid&0x0F) {
 			case 0:
-				command_print(cmd_ctx, "\tType is JTAG-AP");
+				command_print(cmd, "\tType is JTAG-AP");
 				break;
 			case 1:
-				command_print(cmd_ctx, "\tType is MEM-AP AHB");
+				command_print(cmd, "\tType is MEM-AP AHB");
 				break;
 			case 2:
-				command_print(cmd_ctx, "\tType is MEM-AP APB");
+				command_print(cmd, "\tType is MEM-AP APB");
 				break;
 			default:
-				command_print(cmd_ctx, "\tUnknown AP type");
+				command_print(cmd, "\tUnknown AP type");
 				break;
 		}
 
@@ -1108,9 +1108,9 @@ static int dap_info_command(struct command_context *cmd_ctx,
 		 * not a ROM table ... or have no such components at all.
 		 */
 		if (mem_ap)
-			command_print(cmd_ctx, "AP BASE 0x%8.8" PRIx32, dbgbase);
+			command_print(cmd, "AP BASE 0x%8.8" PRIx32, dbgbase);
 	} else
-		command_print(cmd_ctx, "No AP found at this ap 0x%x", ap);
+		command_print(cmd, "No AP found at this ap 0x%x", ap);
 
 	romtable_present = ((mem_ap) && (dbgbase != 0xFFFFFFFF));
 	if (romtable_present) {
@@ -1119,9 +1119,9 @@ static int dap_info_command(struct command_context *cmd_ctx,
 
 		/* bit 16 of apid indicates a memory access port */
 		if (dbgbase & 0x02)
-			command_print(cmd_ctx, "\tValid ROM table present");
+			command_print(cmd, "\tValid ROM table present");
 		else
-			command_print(cmd_ctx, "\tROM table in legacy format");
+			command_print(cmd, "\tROM table in legacy format");
 
 		/* Now we read ROM table ID registers, ref. ARM IHI 0029B sec  */
 		retval = mem_ap_read_u32(dap, (dbgbase&0xFFFFF000) | 0xFF0, &cid0);
@@ -1144,16 +1144,16 @@ static int dap_info_command(struct command_context *cmd_ctx,
 			return retval;
 
 		if (!is_dap_cid_ok(cid3, cid2, cid1, cid0))
-			command_print(cmd_ctx, "\tCID3 0x%2.2x"
+			command_print(cmd, "\tCID3 0x%2.2x"
 					", CID2 0x%2.2x"
 					", CID1 0x%2.2x"
 					", CID0 0x%2.2x",
 					(unsigned) cid3, (unsigned)cid2,
 					(unsigned) cid1, (unsigned) cid0);
 		if (memtype & 0x01)
-			command_print(cmd_ctx, "\tMEMTYPE system memory present on bus");
+			command_print(cmd, "\tMEMTYPE system memory present on bus");
 		else
-			command_print(cmd_ctx, "\tMEMTYPE System memory not present. "
+			command_print(cmd, "\tMEMTYPE System memory not present. "
 					"Dedicated debug bus.");
 
 		/* Now we read ROM table entries from dbgbase&0xFFFFF000) | 0x000 until we get 0x00000000 */
@@ -1162,7 +1162,7 @@ static int dap_info_command(struct command_context *cmd_ctx,
 			retval = mem_ap_read_atomic_u32(dap, (dbgbase&0xFFFFF000) | entry_offset, &romentry);
 			if (retval != ERROR_OK)
 				return retval;
-			command_print(cmd_ctx, "\tROMTABLE[0x%x] = 0x%" PRIx32 "", entry_offset, romentry);
+			command_print(cmd, "\tROMTABLE[0x%x] = 0x%" PRIx32 "", entry_offset, romentry);
 			if (romentry & 0x01) {
 				uint32_t c_cid0, c_cid1, c_cid2, c_cid3;
 				uint32_t c_pid0, c_pid1, c_pid2, c_pid3, c_pid4;
@@ -1211,11 +1211,11 @@ static int dap_info_command(struct command_context *cmd_ctx,
 					return retval;
 				c_cid3 &= 0xff;
 
-				command_print(cmd_ctx, "\t\tComponent base address 0x%" PRIx32 ","
+				command_print(cmd, "\t\tComponent base address 0x%" PRIx32 ","
 						"start address 0x%" PRIx32, component_base,
 				/* component may take multiple 4K pages */
 				component_base - 0x1000*(c_pid4 >> 4));
-				command_print(cmd_ctx, "\t\tComponent class is 0x%x, %s",
+				command_print(cmd, "\t\tComponent class is 0x%x, %s",
 						(int) (c_cid1 >> 4) & 0xf,
 						/* See ARM IHI 0029B Table 3-3 */
 						class_description[(c_cid1 >> 4) & 0xf]);
@@ -1327,14 +1327,14 @@ static int dap_info_command(struct command_context *cmd_ctx,
 						}
 						break;
 					}
-					command_print(cmd_ctx, "\t\tType is 0x%2.2x, %s, %s",
+					command_print(cmd, "\t\tType is 0x%2.2x, %s, %s",
 							(unsigned) (devtype & 0xff),
 							major, subtype);
 					/* REVISIT also show 0xfc8 DevId */
 				}
 
 				if (!is_dap_cid_ok(cid3, cid2, cid1, cid0))
-					command_print(cmd_ctx,
+					command_print(cmd,
 							"\t\tCID3 0%2.2x"
 							", CID2 0%2.2x"
 							", CID1 0%2.2x"
@@ -1343,7 +1343,7 @@ static int dap_info_command(struct command_context *cmd_ctx,
 							(int) c_cid2,
 							(int)c_cid1,
 							(int)c_cid0);
-				command_print(cmd_ctx,
+				command_print(cmd,
 				"\t\tPeripheral ID[4..0] = hex "
 				"%2.2x %2.2x %2.2x %2.2x %2.2x",
 				(int) c_pid4, (int) c_pid3, (int) c_pid2,
@@ -1448,18 +1448,18 @@ static int dap_info_command(struct command_context *cmd_ctx,
 					full = "";
 					break;
 				}
-				command_print(cmd_ctx, "\t\tPart is %s %s",
+				command_print(cmd, "\t\tPart is %s %s",
 						type, full);
 			} else {
 				if (romentry)
-					command_print(cmd_ctx, "\t\tComponent not present");
+					command_print(cmd, "\t\tComponent not present");
 				else
-					command_print(cmd_ctx, "\t\tEnd of ROM table");
+					command_print(cmd, "\t\tEnd of ROM table");
 			}
 			entry_offset += 4;
 		} while (romentry > 0);
 	} else
-		command_print(cmd_ctx, "\tNo ROM table present");
+		command_print(cmd, "\tNo ROM table present");
 	dap_ap_select(dap, ap_old);
 
 	return ERROR_OK;
@@ -1483,7 +1483,7 @@ COMMAND_HANDLER(handle_dap_info_command)
 		return ERROR_COMMAND_SYNTAX_ERROR;
 	}
 
-	return dap_info_command(CMD_CTX, dap, apsel);
+	return dap_info_command(cmd, dap, apsel);
 }
 
 COMMAND_HANDLER(dap_baseaddr_command)
@@ -1523,7 +1523,7 @@ COMMAND_HANDLER(dap_baseaddr_command)
 	if (retval != ERROR_OK)
 		return retval;
 
-	command_print(CMD_CTX, "0x%8.8" PRIx32, baseaddr);
+	command_print(cmd, "0x%8.8" PRIx32, baseaddr);
 
 	return retval;
 }
@@ -1548,7 +1548,7 @@ COMMAND_HANDLER(dap_memaccess_command)
 	}
 	dap->memaccess_tck = memaccess_tck;
 
-	command_print(CMD_CTX, "memory bus access delay set to %" PRIi32 " tck",
+	command_print(cmd, "memory bus access delay set to %" PRIi32 " tck",
 			dap->memaccess_tck);
 
 	return ERROR_OK;
@@ -1587,7 +1587,7 @@ COMMAND_HANDLER(dap_apsel_command)
 	if (retval != ERROR_OK)
 		return retval;
 
-	command_print(CMD_CTX, "ap %" PRIi32 " selected, identification register 0x%8.8" PRIx32,
+	command_print(cmd, "ap %" PRIi32 " selected, identification register 0x%8.8" PRIx32,
 			apsel, apid);
 
 	return retval;
@@ -1603,7 +1603,7 @@ COMMAND_HANDLER(dap_apcsw_command)
 
 	switch (CMD_ARGC) {
 	case 0:
-		command_print(CMD_CTX, "apsel %" PRIi32 " selected, csw 0x%8.8" PRIx32,
+		command_print(cmd, "apsel %" PRIi32 " selected, csw 0x%8.8" PRIx32,
 			(dap->apsel), apcsw);
 		break;
 	case 1:
@@ -1658,7 +1658,7 @@ COMMAND_HANDLER(dap_apid_command)
 	if (retval != ERROR_OK)
 		return retval;
 
-	command_print(CMD_CTX, "0x%8.8" PRIx32, apid);
+	command_print(cmd, "0x%8.8" PRIx32, apid);
 
 	return retval;
 }

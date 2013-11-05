@@ -336,7 +336,7 @@ COMMAND_HANDLER(handle_svf_command)
 		if (strcmp(CMD_ARGV[i], "-tap") == 0) {
 			tap = jtag_tap_by_string(CMD_ARGV[i+1]);
 			if (!tap) {
-				command_print(CMD_CTX, "Tap: %s unknown", CMD_ARGV[i+1]);
+				command_print(cmd, "Tap: %s unknown", CMD_ARGV[i+1]);
 				return ERROR_FAIL;
 			}
 			i++;
@@ -352,7 +352,7 @@ COMMAND_HANDLER(handle_svf_command)
 			svf_fd = fopen(CMD_ARGV[i], "r");
 			if (svf_fd == NULL) {
 				int err = errno;
-				command_print(CMD_CTX, "open(\"%s\"): %s", CMD_ARGV[i], strerror(err));
+				command_print(cmd, "open(\"%s\"): %s", CMD_ARGV[i], strerror(err));
 				/* no need to free anything now */
 				return ERROR_COMMAND_SYNTAX_ERROR;
 			} else
@@ -500,7 +500,7 @@ COMMAND_HANDLER(handle_svf_command)
 	time_measure_m = time_measure_s / 60;
 	time_measure_s %= 60;
 	if (time_measure_ms < 1000)
-		command_print(CMD_CTX,
+		command_print(cmd,
 			"\r\nTime used: %dm%ds%lldms ",
 			time_measure_m,
 			time_measure_s,
@@ -545,11 +545,11 @@ free_all:
 	svf_free_xxd_para(&svf_para.sir_para);
 
 	if (ERROR_OK == ret)
-		command_print(CMD_CTX,
+		command_print(cmd,
 			"svf file programmed successfully for %d commands",
 			command_num);
 	else
-		command_print(CMD_CTX, "svf file programmed failed");
+		command_print(cmd, "svf file programmed failed");
 
 	return ret;
 }
