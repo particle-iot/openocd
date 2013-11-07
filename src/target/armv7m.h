@@ -158,6 +158,9 @@ struct armv7m_common {
 	int (*post_debug_entry)(struct target *target);
 
 	void (*pre_restore_context)(struct target *target);
+
+	/* adapter private state */
+	void *private;
 };
 
 static inline struct armv7m_common *

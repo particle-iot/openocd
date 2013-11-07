@@ -117,43 +117,50 @@ static int target_hexmsg(struct target *target, int size, uint32_t length)
 
 /* handle requests from the target received by a target specific
  * side-band channel (e.g. ARM7/9 DCC)
+  if target==NULL,
+    returns the number of additional words required to fulfill the request
+  used by some adapters to avoid blocking
  */
 int target_request(struct target *target, uint32_t request)
 {
+	int result = ERROR_OK;
 	target_req_cmd_t target_req_cmd = request & 0xff;
+	if (target) {
+		assert(target->type->target_request_data);
 
-	assert(target->type->target_request_data);
+		/* Record that we got a target message for back-off algorithm */
+		got_message = true;
 
-	/* Record that we got a target message for back-off algorithm */
-	got_message = true;
+		if (charmsg_mode)
+			return target_charmsg(target, target_req_cmd);
 
-	if (charmsg_mode) {
-		target_charmsg(target, target_req_cmd);
-		return ERROR_OK;
+		switch (target_req_cmd) {
+			case TARGET_REQ_TRACEMSG:
+				result = trace_point(target, (request & 0xffffff00) >> 8);
+				break;
+			case TARGET_REQ_DEBUGMSG:
+				if (((request & 0xff00) >> 8) == 0)
+					result = target_asciimsg(target, (request & 0xffff0000) >> 16);
+				else
+					result = target_hexmsg(target, (request & 0xff00) >> 8,
+											 (request & 0xffff0000) >> 16);
+				break;
+			case TARGET_REQ_DEBUGCHAR:
+				result = target_charmsg(target, (request & 0x00ff0000) >> 16);
+				break;
+	/*		case TARGET_REQ_SEMIHOSTING:
+	 *			break;
+	 */
+			default:
+				LOG_ERROR("unknown target request: %2.2x", target_req_cmd);
+				break;
+		}
+	} else if (!charmsg_mode && target_req_cmd == TARGET_REQ_DEBUGMSG) {
+		int size = (request & 0xff00) >> 8;
+		int items = (request & 0xffff0000) >> 16;
+		result = DIV_ROUND_UP(size ? items * size : items, 4);
 	}
-
-	switch (target_req_cmd) {
-		case TARGET_REQ_TRACEMSG:
-			trace_point(target, (request & 0xffffff00) >> 8);
-			break;
-		case TARGET_REQ_DEBUGMSG:
-			if (((request & 0xff00) >> 8) == 0)
-				target_asciimsg(target, (request & 0xffff0000) >> 16);
-			else
-				target_hexmsg(target, (request & 0xff00) >> 8, (request & 0xffff0000) >> 16);
-			break;
-		case TARGET_REQ_DEBUGCHAR:
-			target_charmsg(target, (request & 0x00ff0000) >> 16);
-			break;
-/*		case TARGET_REQ_SEMIHOSTING:
- *			break;
- */
-		default:
-			LOG_ERROR("unknown target request: %2.2x", target_req_cmd);
-			break;
-	}
-
-	return ERROR_OK;
+	return result;
 }
 
 static int add_debug_msg_receiver(struct command_context *cmd_ctx, struct target *target)
