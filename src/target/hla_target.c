@@ -5,7 +5,7 @@
  *   Copyright (C) 2011 by Spencer Oliver                                  *
  *   spen@spen-soft.co.uk                                                  *
  *                                                                         *
- *   revised:  4/25/13 by brent@mbari.org [DCC target request support]	   *
+ *   revised:  11/6/13 by brent@mbari.org [non-blocking DCC support]	   *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -45,6 +45,106 @@
 
 #define ARMV7M_SCS_DCRSR	DCB_DCRSR
 #define ARMV7M_SCS_DCRDR	DCB_DCRDR
+
+#define NOT_READY  ERROR_TARGET_NOT_READY
+/*
+  max and initial sizes of a DCC request
+*/
+#define MaxDCCreqSize  ((1<<16)-1)
+#define InitialDCCreqSize (256)
+
+/*
+  primitives for accumulating incoming DCC data
+  this is not used as general purpose queue as tail must always >= head
+*/
+struct dccQ {
+	size_t size, head, tail;
+	uint32_t *body;
+};
+
+struct dcc {
+	int requestLen;		/* number of request words expected */
+	uint32_t request;   /* incoming request word accumulator */
+	uint32_t nextWord;	/* incoming word accumulator */
+	struct dccQ  q;		/* incoming request accumulator */
+};
+
+static inline void dccQclear(struct dccQ *q)
+{
+	q->head = q->tail = 0;
+}
+
+static inline bool dccQempty(struct dccQ *q)
+{
+	return q->head == q->tail;
+}
+
+static inline size_t dccQlen(struct dccQ *q)
+{
+	size_t len = q->tail - q->head;
+	if (len >= q->size)
+		len -= q->size;
+	return len;
+}
+
+static inline bool dccQspace(struct dccQ *q)
+{
+	return q->size - dccQlen(q) - 1;
+}
+
+static inline bool dccQfull(struct dccQ *q)
+{
+	return dccQspace(q) != 0;
+}
+
+static inline void dccQput(struct dccQ *q, uint32_t data)
+{
+	q->body[q->tail++] = data;
+	if (q->tail >= q->size)
+		q->tail = 0;
+}
+
+static inline uint32_t dccQget(struct dccQ *q)
+{
+	uint32_t data = q->body[q->head++];
+	if (q->head >= q->size)
+		q->head = 0;
+	return data;
+}
+
+static uint32_t *dccQrealloc(struct dccQ *q, size_t newSize)
+/*
+  this requires that tail >= head and newSize >= size
+*/
+{
+	uint32_t *body = q->body;
+	body = realloc(body, newSize*sizeof(uint32_t));
+	if (body) {
+		q->size = newSize;
+		q->body = body;
+	}
+	return body;
+}
+
+static inline void dccNewWord(struct dcc *dcc)
+{
+	dcc->nextWord = 0xa5<<24;
+}
+
+static inline void dccReset(struct dcc *dcc)
+{
+	dcc->requestLen = -1;
+	dccNewWord(dcc);
+}
+
+static inline uint32_t dccShift(struct dcc *dcc, uint8_t data)
+{
+	return (dcc->nextWord>>8) | ((uint32_t)data<<24);
+}
+
+
+/********************/
+
 
 static inline struct hl_interface_s *target_to_adapter(struct target *target)
 {
@@ -256,77 +356,106 @@ static int adapter_examine_debug_reason(struct target *target)
 	return ERROR_OK;
 }
 
-static int hl_dcc_read(struct hl_interface_s *hl_if, uint8_t *value, uint8_t *ctrl)
+static int hl_dcc_read(struct hl_interface_s *hl_if, uint8_t *value)
 {
 	uint16_t dcrdr;
 	int retval = hl_if->layout->api->read_mem(hl_if->fd,
 			DCB_DCRDR, 1, sizeof(dcrdr), (uint8_t *)&dcrdr);
 	if (retval == ERROR_OK) {
-	    *ctrl = (uint8_t)dcrdr;
+	    if (!(dcrdr & 1))
+			return NOT_READY;
 	    *value = (uint8_t)(dcrdr >> 8);
 
-	    LOG_DEBUG("data 0x%x ctrl 0x%x", *value, *ctrl);
-
-	    if (dcrdr & 1) {
-			/* write ack back to software dcc register
-			 * to signify we have read data */
-			/* atomically clear just the byte containing the busy bit */
-			static const uint8_t zero;
-			retval = hl_if->layout->api->write_mem(hl_if->fd, DCB_DCRDR, 1, 1, &zero);
-		}
+		/* write ack back to software dcc register
+		 * to signify we have read data */
+		/* atomically clear just the byte containing the busy bit */
+		static const uint8_t zero;
+		retval =
+			hl_if->layout->api->write_mem(hl_if->fd, DCB_DCRDR, 1, 1, &zero);
+	    LOG_DEBUG("DCC: 0x%x", *value);
 	}
 	return retval;
 }
 
 static int hl_target_request_data(struct target *target,
 	uint32_t size, uint8_t *buffer)
+/* size is the number of 32-bit words to copy */
 {
-	struct hl_interface_s *hl_if = target_to_adapter(target);
-	uint8_t data;
-	uint8_t ctrl;
-	uint32_t i;
+	struct armv7m_common *armv7m = target_to_armv7m(target);
+	struct dcc *dcc = armv7m->private;
+	int retval = ERROR_OK;
+	size_t len = dccQlen(&dcc->q);
 
-	for (i = 0; i < (size * 4); i++) {
-		hl_dcc_read(hl_if, &data, &ctrl);
-		buffer[i] = data;
+	if (size > len) {
+		size_t overage = size - len;
+		LOG_ERROR("DCC processed %d more word(s) than requested", overage);
+		memset(buffer+len*sizeof(uint32_t), 0, overage*sizeof(uint32_t));
+		size = len;
+		retval = ERROR_TARGET_DATA_ABORT;
 	}
-
-	return ERROR_OK;
+	memcpy(buffer, dcc->q.body+dcc->q.head, size*sizeof(uint32_t));
+	dcc->q.head += size;
+	return retval;
 }
 
 static int hl_handle_target_request(void *priv)
 {
 	struct target *target = priv;
-	if (!target_was_examined(target))
-		return ERROR_OK;
-	struct hl_interface_s *hl_if = target_to_adapter(target);
-
-	if (!target->dbg_msg_enabled)
-		return ERROR_OK;
-
-	if (target->state == TARGET_RUNNING) {
-		uint8_t data;
-		uint8_t ctrl;
-
-		hl_dcc_read(hl_if, &data, &ctrl);
-
-		/* check if we have data */
-		if (ctrl & (1 << 0)) {
-			uint32_t request;
-
-			/* we assume target is quick enough */
-			request = data;
-			hl_dcc_read(hl_if, &data, &ctrl);
-			request |= (data << 8);
-			hl_dcc_read(hl_if, &data, &ctrl);
-			request |= (data << 16);
-			hl_dcc_read(hl_if, &data, &ctrl);
-			request |= (data << 24);
-			target_request(target, request);
+	int retval = ERROR_OK;
+	if (target_was_examined(target)) {
+		struct armv7m_common *armv7m = target_to_armv7m(target);
+		struct dcc *dcc = armv7m->private;
+		if (dcc && target->dbg_msg_enabled && target->state == TARGET_RUNNING) {
+			struct hl_interface_s *hl_if = target_to_adapter(target);
+			uint8_t data;
+			int maxReqsPerPoll = 50;
+			while ((retval = hl_dcc_read(hl_if, &data)) == ERROR_OK) {
+				if ((dcc->nextWord & 0xff) == 0)
+					dcc->nextWord = dccShift(dcc, data);
+				else {
+					if (dcc->requestLen < 0) { /* got request type word */
+						dcc->request = dccShift(dcc, data);
+						dccQclear(&dcc->q);
+						int reqLen = target_request(NULL, dcc->request);
+LOG_DEBUG("DCC request 0x%x; expecting %d more words", dcc->request, reqLen);
+						if (reqLen >= 0) {
+							dcc->requestLen = reqLen;
+							if (reqLen == 0)
+								goto processRequest;  /*no data needed*/
+							if (reqLen > MaxDCCreqSize ||
+								((size_t)reqLen >= dcc->q.size &&
+									!dccQrealloc(&dcc->q, reqLen+1))) {
+								LOG_ERROR(
+						"DCC could not handle %d word request -- shutting down.",
+								 reqLen);
+								armv7m->private = NULL;  /* disable DCC */
+								return ERROR_TARGET_RESOURCE_NOT_AVAILABLE;
+							}
+						}
+					} else {  /* append next request data word */
+						uint32_t word = dccShift(dcc, data);
+						dccQput(&dcc->q, word);
+						if (dcc->q.tail >= (size_t)dcc->requestLen) {/*got all*/
+processRequest:				target_request(target, dcc->request);
+							if (!dccQempty(&dcc->q))
+								LOG_WARNING(
+							   "DCC did not process %d of %d word(s) requested",
+									dccQlen(&dcc->q), dcc->requestLen);
+							dccReset(dcc);
+							if (!--maxReqsPerPoll)
+								return ERROR_OK;
+						}
+					}
+					dccNewWord(dcc);
+				}
+			}
+			if (retval != NOT_READY) {
+				LOG_ERROR("DCC read failed -- shutting it down!");
+				armv7m->private = NULL;  /* disable DCC */
+			}
 		}
 	}
-
-	return ERROR_OK;
+	return retval;
 }
 
 static int adapter_init_arch_info(struct target *target,
@@ -346,6 +475,19 @@ static int adapter_init_arch_info(struct target *target,
 	armv7m->examine_debug_reason = adapter_examine_debug_reason;
 	armv7m->stlink = true;
 
+	struct dcc *dcc = (struct dcc *) malloc(sizeof(struct dcc));
+	if (dcc) {
+		dccReset(dcc);
+		dcc->q.body = NULL;
+		dcc->q.body = dccQrealloc(&dcc->q, InitialDCCreqSize);
+		if (dcc->q.body) {
+			free(dcc);
+			dcc = NULL;
+		}
+	}
+	if (!dcc)
+		LOG_ERROR("failed to allocate DCC memory");
+	armv7m->private = dcc;
 	target_register_timer_callback(hl_handle_target_request, 1, 1, target);
 
 	return ERROR_OK;
@@ -569,6 +711,10 @@ static int adapter_deassert_reset(struct target *target)
 	 */
 	jtag_add_reset(0, 0);
 
+		/* resync DCC parser after target reset */
+	struct armv7m_common *armv7m = target_to_armv7m(target);
+	struct dcc *dcc = armv7m->private;
+	dccReset(dcc);
 	target->savedDCRDR = 0;  /* clear both DCC busy bits on initial resume */
 
 	return target->reset_halt ? ERROR_OK : target_resume(target, 1, 0, 0, 0);
