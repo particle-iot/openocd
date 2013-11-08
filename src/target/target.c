@@ -934,7 +934,8 @@ int target_run_flash_async_algorithm(struct target *target,
 			/* to stop an infinite loop on some targets check and increment a timeout
 			 * this issue was observed on a stellaris using the new ICDI interface */
 			if (timeout++ >= 500) {
-				LOG_ERROR("timeout waiting for algorithm, a target reset is recommended");
+				LOG_ERROR("Timeout waiting for algorithm");
+				LOG_INFO("Try resetting the target before performing this operation, check power supply rails, !RESET, strap options and external clocks (when applicable)");
 				return ERROR_FLASH_OPERATION_FAILED;
 			}
 			continue;
