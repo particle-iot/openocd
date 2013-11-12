@@ -128,6 +128,31 @@ static int wait_for_pracc_rw(struct mips_ejtag *ejtag_info, uint32_t *ctrl)
 	return ERROR_OK;
 }
 
+int mips32_pracc_clean_text_jump(struct mips_ejtag *ejtag_info)
+{
+	uint32_t jt_code = MIPS32_J((0x0FFFFFFF & MIPS32_PRACC_TEXT) >> 2);
+	/* Write 3 0/nops to clean pipeline before a J jump to pracc text, nop in delay slot */
+
+	for (int i = 0; i != 5; i++) {
+		/* Wait for pracc */
+		uint32_t ctrl;
+		int retval = wait_for_pracc_rw(ejtag_info, &ctrl);
+		if (retval != ERROR_OK)
+			return retval;
+
+		/* Data or instruction out */
+		mips_ejtag_set_instr(ejtag_info, EJTAG_INST_DATA);
+		uint32_t data = (i == 3) ? jt_code : 0;
+		mips_ejtag_drscan_32_out(ejtag_info, data);
+
+		/* finish pa */
+		ctrl = ejtag_info->ejtag_ctrl & ~EJTAG_CTRL_PRACC;
+		mips_ejtag_set_instr(ejtag_info, EJTAG_INST_CONTROL);
+		mips_ejtag_drscan_32_out(ejtag_info, ctrl);
+	}
+	return jtag_execute_queue();
+}
+
 static int mips32_pracc_exec_read(struct mips32_pracc_context *ctx, uint32_t address)
 {
 	struct mips_ejtag *ejtag_info = ctx->ejtag_info;
@@ -398,6 +423,8 @@ int mips32_pracc_queue_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_in
 	}
 exit:
 	free(scan_in);
+	if (retval != ERROR_OK)
+		mips32_pracc_clean_text_jump(ejtag_info);
 	return retval;
 }
 
