@@ -32,8 +32,11 @@
 #endif
 
 #include <jtag/jtag.h>
+#include <target/target.h>
 #include "svf.h"
 #include <helper/time_support.h>
+
+#define IS_LITTLE_ENDIAN (1 == *(unsigned char *)&(const int){1})
 
 /* SVF command */
 enum svf_command {
@@ -213,7 +216,7 @@ static struct svf_check_tdo_para *svf_check_tdo_para;
 static int svf_check_tdo_para_index;
 
 static int svf_read_command_from_file(FILE *fd);
-static int svf_check_tdo(void);
+static int svf_check_tdo(struct command_context *cmd_ctx);
 static int svf_add_check_para(uint8_t enabled, int buffer_offset, int bit_len);
 static int svf_run_command(struct command_context *cmd_ctx, char *cmd_str);
 
@@ -490,7 +493,7 @@ COMMAND_HANDLER(handle_svf_command)
 
 	if ((!svf_nil) && (ERROR_OK != jtag_execute_queue()))
 		ret = ERROR_FAIL;
-	else if (ERROR_OK != svf_check_tdo())
+	else if (ERROR_OK != svf_check_tdo(CMD_CTX))
 		ret = ERROR_FAIL;
 
 	/* print time */
@@ -759,6 +762,7 @@ static int svf_set_padding(struct svf_xxr_para *para, int len, unsigned char tdi
 static int svf_copy_hexstring_to_binary(char *str, uint8_t **bin, int orig_bit_len, int bit_len)
 {
 	int i, str_len = strlen(str), str_hbyte_len = (bit_len + 3) >> 2;
+	int j = str_hbyte_len;
 	uint8_t ch = 0;
 
 	if (ERROR_OK != svf_adjust_array_length(bin, orig_bit_len, bit_len)) {
@@ -766,7 +770,7 @@ static int svf_copy_hexstring_to_binary(char *str, uint8_t **bin, int orig_bit_l
 		return ERROR_FAIL;
 	}
 
-	/* fill from LSB (end of str) to MSB (beginning of str) */
+	/* fill from LSB (end of str) to MSB (beginning of str)as  */
 	for (i = 0; i < str_hbyte_len; i++) {
 		ch = 0;
 		while (str_len > 0) {
@@ -786,7 +790,7 @@ static int svf_copy_hexstring_to_binary(char *str, uint8_t **bin, int orig_bit_l
 					ch = ch - 'A' + 10;
 					break;
 				} else {
-					LOG_ERROR("invalid hex string");
+					LOG_ERROR("invalid hex string %s", str);
 					return ERROR_FAIL;
 				}
 			}
@@ -794,14 +798,27 @@ static int svf_copy_hexstring_to_binary(char *str, uint8_t **bin, int orig_bit_l
 			ch = 0;
 		}
 
-		/* write bin */
-		if (i % 2) {
-			/* MSB */
-			(*bin)[i / 2] |= ch << 4;
+		if (IS_LITTLE_ENDIAN) {
+			/* LE write bin */
+			if (i % 2) {
+				/* MSB */
+				(*bin)[i / 2] |= ch << 4;
+			} else {
+				/* LSB */
+				(*bin)[i / 2] = 0;
+				(*bin)[i / 2] |= ch;
+			}
 		} else {
-			/* LSB */
-			(*bin)[i / 2] = 0;
-			(*bin)[i / 2] |= ch;
+			/* BE write bin */
+			--j;
+			if (j % 2) {
+				/* LSB */
+				(*bin)[j / 2] = 0;
+				(*bin)[j / 2] |= ch;
+			} else {
+				/* MSB */
+				(*bin)[j / 2] |= ch << 4;
+			}
 		}
 	}
 
@@ -819,15 +836,18 @@ static int svf_copy_hexstring_to_binary(char *str, uint8_t **bin, int orig_bit_l
 	return ERROR_OK;
 }
 
-static int svf_check_tdo(void)
+static int svf_check_tdo(struct command_context *cmd_ctx)
 {
 	int i, len, index_var;
+	uint32_t read_val;
+	struct target *current_target = get_current_target(cmd_ctx);
 
 	for (i = 0; i < svf_check_tdo_para_index; i++) {
 		index_var = svf_check_tdo_para[i].buffer_offset;
 		len = svf_check_tdo_para[i].bit_len;
+		read_val = target_buffer_get_u32(current_target, (uint8_t *) &svf_tdi_buffer[index_var]);
 		if ((svf_check_tdo_para[i].enabled)
-				&& buf_cmp_mask(&svf_tdi_buffer[index_var], &svf_tdo_buffer[index_var],
+				&& buf_cmp_mask(&read_val, &svf_tdo_buffer[index_var],
 				&svf_mask_buffer[index_var], len)) {
 			unsigned bitmask;
 			unsigned received, expected, tapmask;
@@ -838,10 +858,11 @@ static int svf_check_tdo(void)
 			memcpy(&tapmask, svf_mask_buffer + index_var, sizeof(unsigned));
 			LOG_ERROR("tdo check error at line %d",
 				svf_check_tdo_para[i].line_num);
-			LOG_ERROR("read = 0x%X, want = 0x%X, mask = 0x%X",
-				received & bitmask,
+			LOG_ERROR("read = 0x%X, want = 0x%X, mask = 0x%X len=%d",
+				read_val & bitmask,
 				expected & bitmask,
-				tapmask & bitmask);
+				tapmask & bitmask,
+				len);
 			return ERROR_FAIL;
 		}
 	}
@@ -866,11 +887,11 @@ static int svf_add_check_para(uint8_t enabled, int buffer_offset, int bit_len)
 	return ERROR_OK;
 }
 
-static int svf_execute_tap(void)
+static int svf_execute_tap(struct command_context *cmd_ctx)
 {
 	if ((!svf_nil) && (ERROR_OK != jtag_execute_queue()))
 		return ERROR_FAIL;
-	else if (ERROR_OK != svf_check_tdo())
+	else if (ERROR_OK != svf_check_tdo(cmd_ctx))
 		return ERROR_FAIL;
 
 	svf_buffer_index = 0;
@@ -946,7 +967,7 @@ static int svf_run_command(struct command_context *cmd_ctx, char *cmd_str)
 					LOG_ERROR("HZ not found in FREQUENCY command");
 					return ERROR_FAIL;
 				}
-				if (ERROR_OK != svf_execute_tap())
+				if (ERROR_OK != svf_execute_tap(cmd_ctx))
 					return ERROR_FAIL;
 				svf_para.frequency = atof(argus[1]);
 				/* TODO: set jtag speed to */
@@ -1524,7 +1545,7 @@ XXR_common:
 				return ERROR_FAIL;
 			}
 			if (svf_para.trst_mode != TRST_ABSENT) {
-				if (ERROR_OK != svf_execute_tap())
+				if (ERROR_OK != svf_execute_tap(cmd_ctx))
 					return ERROR_FAIL;
 				i_tmp = svf_find_string_in_array(argus[1],
 						(char **)svf_trst_mode_name,
@@ -1568,7 +1589,7 @@ XXR_common:
 		if ((svf_buffer_index > 0) && \
 				(((command != STATE) && (command != RUNTEST)) || \
 						((command == STATE) && (num_of_argu == 2)))) {
-			if (ERROR_OK != svf_execute_tap())
+			if (ERROR_OK != svf_execute_tap(cmd_ctx))
 				return ERROR_FAIL;
 
 			/* output debug info */
@@ -1587,7 +1608,7 @@ XXR_common:
 				(svf_check_tdo_para_index >= SVF_CHECK_TDO_PARA_SIZE / 2)) && \
 				(((command != STATE) && (command != RUNTEST)) || \
 						((command == STATE) && (num_of_argu == 2))))
-			return svf_execute_tap();
+			return svf_execute_tap(cmd_ctx);
 	}
 
 	return ERROR_OK;
