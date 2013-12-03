@@ -113,114 +113,92 @@ static int wait_for_pracc_rw(struct mips_ejtag *ejtag_info, uint32_t *ctrl)
 	return ERROR_OK;
 }
 
-static int mips32_pracc_exec_read(struct mips32_pracc_context *ctx, uint32_t address)
+int mips32_pracc_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_info *ctx, uint32_t *param_out)
 {
-	uint32_t code;
+	int code_count = 0;
+	uint32_t store_fifo[4];		/* store addresses, only 3 are needed, but it's simpler with 4 */
+	unsigned int pull_count = 0, push_count = 0;	/* store instr push address to fifo, store pa pulls for check */
 
-	if ((address >= MIPS32_PRACC_TEXT)
-		&& (address < MIPS32_PRACC_TEXT + ctx->code_len * 4)) {
-		int offset = (address - MIPS32_PRACC_TEXT) / 4;
-		code = ctx->code[offset];
-	} else if (address >= 0xFF200000) {
-		/* CPU keeps reading at the end of execution.
-		 * If we after 0xF0000000  address range, we can use
-		 * one shot jump instruction.
-		 * Since this instruction is limited to
-		 * 26bit, we need to do some magic to fit it to our needs. */
-		LOG_DEBUG("Reading unexpected address. Jump to 0xFF200200\n");
-		code = MIPS32_J((0x0FFFFFFF & 0xFF200200) >> 2);
-	} else {
-		LOG_ERROR("Error reading unexpected address 0x%8.8" PRIx32 "", address);
-		return ERROR_JTAG_DEVICE_ERROR;
-	}
+	while (code_count < ctx->code_count) {
 
-	struct mips_ejtag *ejtag_info = ctx->ejtag_info;
-
-	/* Send the data out */
-	mips_ejtag_set_instr(ctx->ejtag_info, EJTAG_INST_DATA);
-	mips_ejtag_drscan_32_out(ctx->ejtag_info, code);
-
-	/* Clear the access pending bit (let the processor eat!) */
-	uint32_t ejtag_ctrl = ejtag_info->ejtag_ctrl & ~EJTAG_CTRL_PRACC;
-	mips_ejtag_set_instr(ctx->ejtag_info, EJTAG_INST_CONTROL);
-	mips_ejtag_drscan_32_out(ctx->ejtag_info, ejtag_ctrl);
-
-	return jtag_execute_queue();
-}
-
-static int mips32_pracc_exec_write(struct mips32_pracc_context *ctx, uint32_t address)
-{
-	uint32_t ejtag_ctrl, data;
-	struct mips_ejtag *ejtag_info = ctx->ejtag_info;
-
-	mips_ejtag_set_instr(ctx->ejtag_info, EJTAG_INST_DATA);
-	int retval = mips_ejtag_drscan_32(ctx->ejtag_info, &data);
-	if (retval != ERROR_OK)
-		return retval;
-
-	/* Clear access pending bit */
-	ejtag_ctrl = ejtag_info->ejtag_ctrl & ~EJTAG_CTRL_PRACC;
-	mips_ejtag_set_instr(ctx->ejtag_info, EJTAG_INST_CONTROL);
-	mips_ejtag_drscan_32_out(ctx->ejtag_info, ejtag_ctrl);
-
-	retval = jtag_execute_queue();
-	if (retval != ERROR_OK)
-		return retval;
-
-	if ((address >= MIPS32_PRACC_PARAM_OUT)
-		&& (address < MIPS32_PRACC_PARAM_OUT + ctx->num_oparam * 4)) {
-		int offset = (address - MIPS32_PRACC_PARAM_OUT) / 4;
-		ctx->local_oparam[offset] = data;
-	} else {
-		LOG_ERROR("Error writing unexpected address 0x%8.8" PRIx32 "", address);
-		return ERROR_JTAG_DEVICE_ERROR;
-	}
-
-	return ERROR_OK;
-}
-
-int mips32_pracc_exec(struct mips_ejtag *ejtag_info, int code_len, const uint32_t *code,
-						int num_param_out, uint32_t *param_out, int cycle)
-{
-	struct mips32_pracc_context ctx;
-	ctx.local_oparam = param_out;
-	ctx.num_oparam = num_param_out;
-	ctx.code = code;
-	ctx.code_len = code_len;
-	ctx.ejtag_info = ejtag_info;
-	int pass = 0;
-
-	while (1) {
+		/* read ejtag control register and wait if needed */
 		uint32_t ejtag_ctrl;
 		int retval = wait_for_pracc_rw(ejtag_info, &ejtag_ctrl);
 		if (retval != ERROR_OK)
 			return retval;
 
+		/* read pa address */
 		uint32_t address = 0;
 		mips_ejtag_set_instr(ejtag_info, EJTAG_INST_ADDRESS);
 		retval = mips_ejtag_drscan_32(ejtag_info, &address);
 		if (retval != ERROR_OK)
 			return retval;
 
-		/* Check for read or write */
-		if (ejtag_ctrl & EJTAG_CTRL_PRNW) {
-			retval = mips32_pracc_exec_write(&ctx, address);
-			if (retval != ERROR_OK)
-				return retval;
-		} else {
-			/* Check to see if its reading at the debug vector. The first pass through
-			 * the module is always read at the vector, so the first one we allow.  When
-			 * the second read from the vector occurs we are done and just exit. */
-			if ((address == MIPS32_PRACC_TEXT) && (pass++))
-				break;
+		/* Check for read or write access */
+		if (ejtag_ctrl & EJTAG_CTRL_PRNW) {	/* write/store access */
 
-			retval = mips32_pracc_exec_read(&ctx, address);
+			/* Check if a store is pending from a previos store instruction at dmseg */
+			if (pull_count == push_count) {		/* fifo empty */
+				LOG_DEBUG("pa error: unexpected write at address %x", address);
+				return ERROR_JTAG_DEVICE_ERROR;
+
+			} else {	/* check address */
+				if (store_fifo[pull_count & 3u] != address) {
+					LOG_DEBUG("pa error: writing at unexpected address %x, expected %x",
+									address, store_fifo[pull_count & 3u]);
+				return ERROR_JTAG_DEVICE_ERROR;
+				}
+			}
+			pull_count++;
+
+			/* read data */
+			uint32_t data;
+			mips_ejtag_set_instr(ejtag_info, EJTAG_INST_DATA);
+			retval = mips_ejtag_drscan_32(ejtag_info, &data);
 			if (retval != ERROR_OK)
 				return retval;
+
+			/* store data at param out, address based offset */
+			param_out[(address - MIPS32_PRACC_PARAM_OUT) / 4] = data;
+
+		} else {	/* read/fetch access */
+
+			/* check address */
+			if (address != (MIPS32_PRACC_TEXT + code_count * 4)) {
+				LOG_DEBUG("pa error: reading at unexpected address %x, expected %x",
+									address, MIPS32_PRACC_TEXT + code_count * 4);
+				return ERROR_JTAG_DEVICE_ERROR;
+			}
+
+			/* check for store instruction at dmseg, and load address to fifo */
+			uint32_t store_addr = ctx->pracc_list[ctx->max_code + code_count];
+			if (store_addr != 0) {
+				if ((push_count - pull_count) > 2) {	/* store fifo full */
+					LOG_DEBUG("pa error: failed to execute some store instruction");
+					return ERROR_JTAG_DEVICE_ERROR;
+				} else
+					store_fifo[push_count++ & 3u] = store_addr;
+			}
+
+			/* Send instruction out */
+			mips_ejtag_set_instr(ejtag_info, EJTAG_INST_DATA);
+			mips_ejtag_drscan_32_out(ejtag_info, ctx->pracc_list[code_count++]);
 		}
 
-		if (cycle == 0)
-			break;
+		/* Clear the PrAcc pending bit to finish pa, let the processor eat! */
+		ejtag_ctrl = ejtag_info->ejtag_ctrl & ~EJTAG_CTRL_PRACC;
+		mips_ejtag_set_instr(ejtag_info, EJTAG_INST_CONTROL);
+		mips_ejtag_drscan_32_out(ejtag_info, ejtag_ctrl);
+
+		retval = jtag_execute_queue();
+		if (retval != ERROR_OK)
+			return retval;
+	}
+
+	/* check if all store instructions at dmseg have been executed,fifo must be empty */
+	if (pull_count != push_count) {
+		LOG_DEBUG("pa error: at exit, some store pa missed");
+		return ERROR_JTAG_DEVICE_ERROR;
 	}
 
 	return ERROR_OK;
@@ -258,8 +236,7 @@ inline void pracc_queue_free(struct pracc_queue_info *ctx)
 int mips32_pracc_queue_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_info *ctx, uint32_t *buf)
 {
 	if (ejtag_info->mode == 0)
-		return mips32_pracc_exec(ejtag_info, ctx->code_count, ctx->pracc_list,
-					ctx->store_count, buf, ctx->code_count - 1);
+		return mips32_pracc_exec(ejtag_info, ctx, buf);
 
 	union scan_in {
 		uint8_t scan_96[12];
