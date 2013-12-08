@@ -234,7 +234,7 @@ int mips_ejtag_config_step(struct mips_ejtag *ejtag_info, int enable_step)
 
 	ctx.retval = mips32_pracc_queue_exec(ejtag_info, &ctx, NULL);
 exit:
-	pracc_queue_free(&ctx);
+	pracc_queue_free(ejtag_info, &ctx);
 	return ctx.retval;
 }
 
