@@ -113,17 +113,56 @@ static int wait_for_pracc_rw(struct mips_ejtag *ejtag_info, uint32_t *ctrl)
 	return ERROR_OK;
 }
 
+static int mips32_pracc_clean_text_jump(struct mips_ejtag *ejtag_info)
+{
+	uint32_t jt_code = MIPS32_J((0x0FFFFFFF & MIPS32_PRACC_TEXT) >> 2);
+
+	/* do 3 0/nops to clean pipeline before a jump to pracc text, nop in delay slot */
+	for (int i = 0; i != 5; i++) {
+		/* Wait for pracc */
+		uint32_t ctrl;
+		int retval = wait_for_pracc_rw(ejtag_info, &ctrl);
+		if (retval != ERROR_OK)
+			return retval;
+
+		/* Data or instruction out */
+		mips_ejtag_set_instr(ejtag_info, EJTAG_INST_DATA);
+		uint32_t data = (i == 3) ? jt_code : 0;
+		mips_ejtag_drscan_32_out(ejtag_info, data);
+
+		/* finish pa */
+		ctrl = ejtag_info->ejtag_ctrl & ~EJTAG_CTRL_PRACC;
+		mips_ejtag_set_instr(ejtag_info, EJTAG_INST_CONTROL);
+		mips_ejtag_drscan_32_out(ejtag_info, ctrl);
+	}
+	return jtag_execute_queue();
+}
+
 int mips32_pracc_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_info *ctx, uint32_t *param_out)
 {
 	int code_count = 0;
 	uint32_t store_fifo[4];		/* store addresses, only 3 are needed, but it's simpler with 4 */
 	unsigned int pull_count = 0, push_count = 0;	/* store instr push address to fifo, store pa pulls for check */
+	int restart = 0, restart_count = 0;
+	int retval;
 
 	while (code_count < ctx->code_count) {
+		if (restart) {
+			if (restart_count < 3) {
+				retval = mips32_pracc_clean_text_jump(ejtag_info);
+				if (retval != ERROR_OK)
+					return retval;
+			} else
+				return ERROR_JTAG_DEVICE_ERROR;
+			restart_count++;
+			restart = 0;
+			code_count = 0;
+			LOG_DEBUG("restarting code");
+		}
 
 		/* read ejtag control register and wait if needed */
 		uint32_t ejtag_ctrl;
-		int retval = wait_for_pracc_rw(ejtag_info, &ejtag_ctrl);
+		retval = wait_for_pracc_rw(ejtag_info, &ejtag_ctrl);
 		if (retval != ERROR_OK)
 			return retval;
 
@@ -140,7 +179,11 @@ int mips32_pracc_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_info *ct
 			/* Check if a store is pending from a previos store instruction at dmseg */
 			if (pull_count == push_count) {		/* fifo empty */
 				LOG_DEBUG("pa error: unexpected write at address %x", address);
-				return ERROR_JTAG_DEVICE_ERROR;
+				if (code_count < 2) {	/* restart code */
+					restart = 1;
+					continue;
+				} else
+					return ERROR_JTAG_DEVICE_ERROR;
 
 			} else {	/* check address */
 				if (store_fifo[pull_count & 3u] != address) {
@@ -167,6 +210,19 @@ int mips32_pracc_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_info *ct
 			if (address != (MIPS32_PRACC_TEXT + code_count * 4)) {
 				LOG_DEBUG("pa error: reading at unexpected address %x, expected %x",
 									address, MIPS32_PRACC_TEXT + code_count * 4);
+
+				/* restart code execution only in some cases */
+				if (code_count == 1 && address == MIPS32_PRACC_TEXT && restart_count == 0) {
+					LOG_DEBUG("restarting, no clean jump");
+					restart_count++;
+					code_count = 0;
+					continue;
+
+				} else if (code_count < 2) {
+					restart = 1;
+					continue;
+				}
+
 				return ERROR_JTAG_DEVICE_ERROR;
 			}
 
