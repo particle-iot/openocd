@@ -26,6 +26,8 @@
 #ifndef MIPS32_PRACC_H
 #define MIPS32_PRACC_H
 
+#define ERROR_PRACC_TEXT_JUMP -2013	/* should not conflict with jtag error codes */
+
 #include <target/mips32.h>
 #include <target/mips_ejtag.h>
 
@@ -44,6 +46,41 @@
 #define NEG16(v)						(((~(v)) + 1) & 0xFFFF)
 /*#define NEG18(v) (((~(v)) + 1) & 0x3FFFF)*/
 
+/* Exception codes for 24kc, from Mips doc MD00343 Revision 03.11 December 19, 2008 */
+#define DEBUG_EXCEPTION_CODE_LIST \
+	"00 Interrupt",\
+	"01 Mod TLB modification exception",\
+	"02 TLB exception (load or instruction fetch)",\
+	"03 TLBS TLB exception (store)",\
+	"04 AdEL Address error exception (load or instruction fetch)",\
+	"05 AdES Address error exception (store)",\
+	"06 IBE Bus error exception (instruction fetch)",\
+	"07 DBE Bus error exception (data reference: load or store)",\
+	"08 Sys Syscall exception",\
+	"09 Bp Breakpoint exception / SDBBP in Debug Mode",\
+	"10 RI Reserved instruction exception",\
+	"11 CpU Coprocessor Unusable exception",\
+	"12 Ov Arithmetic Overflow exception",\
+	"13 Tr Trap exception",\
+	"14 Reserved",\
+	"15 FPE Floating point exception",\
+	"16 IS1 Coprocessor 2 implementation specific exception",\
+	"17 CEU CorExtend Unusable",\
+	"18 C2E Precise Coprocessor 2 exception",\
+	"19 Reserved",\
+	"20 Reserved",\
+	"21 Reserved",\
+	"22 Reserved",\
+	"23 WATCH Reference to WatchHi/WatchLo address",\
+	"24 MCheck Machine checkcore",\
+	"25 Reserved",\
+	"26 Reserved",\
+	"27 Reserved",\
+	"28 Reserved",\
+	"29 Reserved",\
+	"30 CacheErr Cache error",\
+	"31 Reserved"
+
 struct pracc_queue_info {
 	int retval;
 	const int max_code;
@@ -53,7 +90,7 @@ struct pracc_queue_info {
 };
 void pracc_queue_init(struct pracc_queue_info *ctx);
 void pracc_add(struct pracc_queue_info *ctx, uint32_t addr, uint32_t instr);
-void pracc_queue_free(struct pracc_queue_info *ctx);
+void pracc_queue_free(struct mips_ejtag *ejtag_info, struct pracc_queue_info *ctx);
 int mips32_pracc_queue_exec(struct mips_ejtag *ejtag_info,
 			    struct pracc_queue_info *ctx, uint32_t *buf);
 

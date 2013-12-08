@@ -75,6 +75,8 @@
 #include "mips32.h"
 #include "mips32_pracc.h"
 
+const char *excep_code[] = {DEBUG_EXCEPTION_CODE_LIST};
+
 struct mips32_pracc_context {
 	uint32_t *local_oparam;
 	int num_oparam;
@@ -223,6 +225,8 @@ int mips32_pracc_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_info *ct
 					continue;
 				}
 
+				if (address == MIPS32_PRACC_TEXT)
+					return ERROR_PRACC_TEXT_JUMP;
 				return ERROR_JTAG_DEVICE_ERROR;
 			}
 
@@ -281,12 +285,32 @@ inline void pracc_add(struct pracc_queue_info *ctx, uint32_t addr, uint32_t inst
 		ctx->store_count++;
 }
 
-inline void pracc_queue_free(struct pracc_queue_info *ctx)
+inline void pracc_queue_free(struct mips_ejtag *ejtag_info, struct pracc_queue_info *ctx)
 {
 	if (ctx->code_count > ctx->max_code)	/* Only for internal check, will be erased */
 		LOG_ERROR("Internal error, code count: %d > max code: %d", ctx->code_count, ctx->max_code);
 	if (ctx->pracc_list != NULL)
 		free(ctx->pracc_list);
+
+	if (ctx->retval == ERROR_PRACC_TEXT_JUMP) {
+		ctx->retval = ERROR_JTAG_DEVICE_ERROR;	/* change to standard error code */
+
+		static int exception_check;
+		if (exception_check)		/* a fail during exception check ?...return inmediately */
+			return;
+
+		exception_check = 1;
+		uint32_t val;
+		int retval = mips32_cp0_read(ejtag_info, &val, 23, 0);	/* read Cp0 Debug register */
+		uint32_t exc_addr;
+		if (retval == ERROR_OK)
+			retval = mips32_cp0_read(ejtag_info, &exc_addr, 24, 0);	/* read Cp0 DEPC register */
+		exception_check = 0;
+
+		if (retval == ERROR_OK && (val & EJTAG_DEBUG_CAUSE_MASK) == 0)
+			LOG_WARNING("Debug mode exception, code: %s, at address: %x",
+				excep_code[(val & EJTAG_DEBUG_EXCEPCODE_MASK) >> EJTAG_DEBUG_EXCEPCODE_SHIFT], exc_addr);
+	}
 }
 
 int mips32_pracc_queue_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_info *ctx, uint32_t *buf)
@@ -404,7 +428,7 @@ int mips32_pracc_read_u32(struct mips_ejtag *ejtag_info, uint32_t addr, uint32_t
 
 	ctx.retval = mips32_pracc_queue_exec(ejtag_info, &ctx, buf);
 exit:
-	pracc_queue_free(&ctx);
+	pracc_queue_free(ejtag_info, &ctx);
 	return ctx.retval;
 }
 
@@ -487,7 +511,7 @@ int mips32_pracc_read_mem(struct mips_ejtag *ejtag_info, uint32_t addr, int size
 		count -= this_round_count;
 	}
 exit:
-	pracc_queue_free(&ctx);
+	pracc_queue_free(ejtag_info, &ctx);
 	if (data != NULL)
 		free(data);
 	return ctx.retval;
@@ -511,7 +535,7 @@ int mips32_cp0_read(struct mips_ejtag *ejtag_info, uint32_t *val, uint32_t cp0_r
 
 	ctx.retval = mips32_pracc_queue_exec(ejtag_info, &ctx, val);
 exit:
-	pracc_queue_free(&ctx);
+	pracc_queue_free(ejtag_info, &ctx);
 	return ctx.retval;
 
 	/**
@@ -549,7 +573,7 @@ int mips32_cp0_write(struct mips_ejtag *ejtag_info, uint32_t val, uint32_t cp0_r
 
 	ctx.retval = mips32_pracc_queue_exec(ejtag_info, &ctx, NULL);
 exit:
-	pracc_queue_free(&ctx);
+	pracc_queue_free(ejtag_info, &ctx);
 	return ctx.retval;
 
 	/**
@@ -683,7 +707,7 @@ static int mips32_pracc_synchronize_cache(struct mips_ejtag *ejtag_info,
 
 	ctx.retval = mips32_pracc_queue_exec(ejtag_info, &ctx, NULL);
 exit:
-	pracc_queue_free(&ctx);
+	pracc_queue_free(ejtag_info, &ctx);
 	return ctx.retval;
 }
 
@@ -750,7 +774,7 @@ static int mips32_pracc_write_mem_generic(struct mips_ejtag *ejtag_info, uint32_
 		count -= this_round_count;
 	}
 exit:
-	pracc_queue_free(&ctx);
+	pracc_queue_free(ejtag_info, &ctx);
 	return ctx.retval;
 }
 
@@ -852,7 +876,7 @@ int mips32_pracc_write_regs(struct mips_ejtag *ejtag_info, uint32_t *regs)
 	ejtag_info->reg8 = regs[8];
 	ejtag_info->reg9 = regs[9];
 exit:
-	pracc_queue_free(&ctx);
+	pracc_queue_free(ejtag_info, &ctx);
 	return ctx.retval;
 }
 
@@ -900,7 +924,7 @@ int mips32_pracc_read_regs(struct mips_ejtag *ejtag_info, uint32_t *regs)
 	ejtag_info->reg8 = regs[8];	/* reg8 is saved but not restored, next called function should restore it */
 	ejtag_info->reg9 = regs[9];
 exit:
-	pracc_queue_free(&ctx);
+	pracc_queue_free(ejtag_info, &ctx);
 	return ctx.retval;
 }
 
