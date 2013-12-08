@@ -234,7 +234,7 @@ int mips_ejtag_config_step(struct mips_ejtag *ejtag_info, int enable_step)
 
 	ctx.retval = mips32_pracc_queue_exec(ejtag_info, &ctx, NULL);
 exit:
-	pracc_queue_free(&ctx);
+	pracc_queue_free(ejtag_info, &ctx);
 	return ctx.retval;
 }
 
@@ -391,6 +391,7 @@ int mips_ejtag_init(struct mips_ejtag *ejtag_info)
 	/* set initial state for ejtag control reg */
 	ejtag_info->ejtag_ctrl = EJTAG_CTRL_ROCC | EJTAG_CTRL_PRACC | EJTAG_CTRL_PROBEN | EJTAG_CTRL_SETDEV;
 	ejtag_info->fast_access_save = -1;
+	ejtag_info->exception_check = 0;
 
 	mips_ejtag_init_mmr(ejtag_info);
 
