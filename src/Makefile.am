@@ -93,7 +93,8 @@ libopenocd_la_LIBADD = \
 	$(top_builddir)/src/server/libserver.la \
 	$(top_builddir)/src/rtos/librtos.la \
 	$(top_builddir)/src/helper/libhelper.la \
-	$(FTDI2232LIB) $(MINGWLDADD) $(LIBUSB)
+	$(FTDI2232LIB) $(HIDAPI_LIBS) \
+	$(MINGWLDADD) $(LIBUSB)
 
 STARTUP_TCL_SRCS = \
 	$(srcdir)/helper/startup.tcl \
@@ -121,7 +122,7 @@ CLEANFILES = startup.tcl startup_tcl.c
 # we do not want generated file in the dist
 dist-hook:
 	rm -f $(distdir)/startup_tcl.c
-	
+
 MAINTAINERCLEANFILES = $(srcdir)/Makefile.in
 
 # The "quick" target builds executables & reinstalls the executables
