@@ -49,6 +49,7 @@ struct lpcspifi_flash_bank {
 	uint32_t ssp_base;
 	uint32_t io_base;
 	uint32_t ioconfig_base;
+	uint32_t stack_pointer;
 	uint32_t bank_num;
 	uint32_t max_spi_clock_mhz;
 	struct flash_device *dev;
@@ -61,12 +62,13 @@ struct lpcspifi_target {
 	uint32_t ssp_base;
 	uint32_t io_base;
 	uint32_t ioconfig_base; /* base address for the port word pin registers */
+	uint32_t stack_pointer;
 };
 
 static struct lpcspifi_target target_devices[] = {
-	/* name,          tap_idcode, spifi_base, ssp_base,   io_base,    ioconfig_base */
-	{ "LPC43xx/18xx", 0x4ba00477, 0x14000000, 0x40083000, 0x400F4000, 0x40086000 },
-	{ NULL,           0,          0,          0,          0,          0 }
+	/* name,          tap_idcode, spifi_base, ssp_base,   io_base,    ioconfig_base, stack_pointer */
+	{ "LPC43xx/18xx", 0x4ba00477, 0x14000000, 0x40083000, 0x400F4000, 0x40086000, 0x10087FF0 },
+	{ NULL,           0,          0,          0,          0,          0,          0 }
 };
 
 /* flash_bank lpcspifi <base> <size> <chip_width> <bus_width> <target>
@@ -151,7 +153,7 @@ static int lpcspifi_set_hw_mode(struct flash_bank *bank)
 	uint32_t ssp_base = lpcspifi_info->ssp_base;
 	struct armv7m_algorithm armv7m_info;
 	struct working_area *spifi_init_algorithm;
-	struct reg_param reg_params[1];
+	struct reg_param reg_params[2];
 	int retval = ERROR_OK;
 
 	LOG_DEBUG("Uninitializing LPC43xx SSP");
@@ -214,6 +216,8 @@ static int lpcspifi_set_hw_mode(struct flash_bank *bank)
 	}
 
 	init_reg_param(&reg_params[0], "r0", 32, PARAM_OUT);		/* spifi clk speed */
+	/* the spifi_init() rom API makes use of the stack */
+	init_reg_param(&reg_params[1], "sp", 32, PARAM_OUT);
 
 	/* For now, the algorithm will set up the SPIFI module
 	 * @ the IRC clock speed. In the future, it could be made
@@ -221,10 +225,12 @@ static int lpcspifi_set_hw_mode(struct flash_bank *bank)
 	 * already configured them in order to speed up memory-
 	 * mapped reads. */
 	buf_set_u32(reg_params[0].value, 0, 32, 12);
+	/* valid stack pointer (same address as the one used by the boot ROM) */
+	buf_set_u32(reg_params[1].value, 0, 32, lpcspifi_info->stack_pointer);
 
 	/* Run the algorithm */
 	LOG_DEBUG("Running SPIFI init algorithm");
-	retval = target_run_algorithm(target, 0 , NULL, 1, reg_params,
+	retval = target_run_algorithm(target, 0 , NULL, 2, reg_params,
 		spifi_init_algorithm->address,
 		spifi_init_algorithm->address + sizeof(spifi_init_code) - 2,
 		1000, &armv7m_info);
@@ -235,6 +241,7 @@ static int lpcspifi_set_hw_mode(struct flash_bank *bank)
 	target_free_working_area(target, spifi_init_algorithm);
 
 	destroy_reg_param(&reg_params[0]);
+	destroy_reg_param(&reg_params[1]);
 
 	return retval;
 }
@@ -871,6 +878,7 @@ static int lpcspifi_probe(struct flash_bank *bank)
 	lpcspifi_info->ssp_base = ssp_base;
 	lpcspifi_info->io_base = io_base;
 	lpcspifi_info->ioconfig_base = ioconfig_base;
+	lpcspifi_info->stack_pointer = target_device->stack_pointer;
 	lpcspifi_info->bank_num = bank->bank_number;
 
 	LOG_DEBUG("Valid SPIFI on device %s at address 0x%" PRIx32,
