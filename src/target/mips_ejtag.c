@@ -400,37 +400,23 @@ int mips_ejtag_init(struct mips_ejtag *ejtag_info)
 
 int mips_ejtag_fastdata_scan(struct mips_ejtag *ejtag_info, int write_t, uint32_t *data)
 {
-	struct jtag_tap *tap;
+	assert(ejtag_info->tap != NULL);
+	struct jtag_tap *tap = ejtag_info->tap;
 
-	tap = ejtag_info->tap;
-	assert(tap != NULL);
+	struct scan_field field;
+	uint8_t scan_out[5] = {0, 0, 0, 0, 0};
 
-	struct scan_field fields[2];
-	uint8_t spracc = 0;
-	uint8_t t[4] = {0, 0, 0, 0};
-
-	/* fastdata 1-bit register */
-	fields[0].num_bits = 1;
-	fields[0].out_value = &spracc;
-	fields[0].in_value = NULL;
-
-	/* processor access data register 32 bit */
-	fields[1].num_bits = 32;
-	fields[1].out_value = t;
+	field.num_bits = 33;
+	field.out_value = scan_out;
 
 	if (write_t) {
-		fields[1].in_value = NULL;
-		buf_set_u32(t, 0, 32, *data);
+		field.in_value = NULL;
+		buf_set_u32(scan_out, 1, 32, *data);
 	} else
-		fields[1].in_value = (uint8_t *) data;
+		field.in_value = (uint8_t *)data;
 
-	jtag_add_dr_scan(tap, 2, fields, TAP_IDLE);
-
-	if (!write_t && data)
-		jtag_add_callback(mips_le_to_h_u32,
-			(jtag_callback_data_t) data);
+	jtag_add_dr_scan(tap, 1, &field, TAP_IDLE);
 
 	keep_alive();
-
 	return ERROR_OK;
 }

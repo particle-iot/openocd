@@ -540,22 +540,22 @@ void mpsse_clock_tms_cs(struct mpsse_ctx *ctx, const uint8_t *out, unsigned out_
 		if (this_bits > 7)
 			this_bits = 7;
 
-		if (this_bits > 0) {
-			buffer_write_byte(ctx, mode);
-			buffer_write_byte(ctx, this_bits - 1);
-			uint8_t data = 0;
-			/* TODO: Fix MSB first, if allowed in MPSSE */
-			bit_copy(&data, 0, out, out_offset, this_bits);
-			out_offset += this_bits;
-			buffer_write_byte(ctx, data | (tdi ? 0x80 : 0x00));
-			if (in)
-				in_offset += buffer_add_read(ctx,
-						in,
-						in_offset,
-						this_bits,
-						8 - this_bits);
-			length -= this_bits;
+		buffer_write_byte(ctx, mode);
+		buffer_write_byte(ctx, this_bits - 1);
+		uint8_t data = 0;
+		/* TODO: Fix MSB first, if allowed in MPSSE */
+		bit_copy(&data, 0, out, out_offset, this_bits);
+		out_offset += this_bits;
+		buffer_write_byte(ctx, data | (tdi ? 0x80 : 0x00));
+		if (in) {
+			in_offset += buffer_add_read(ctx,
+					in,
+					in_offset,
+					1,
+					8 - this_bits);
+			in = NULL;
 		}
+		length -= this_bits;
 	}
 }
 
