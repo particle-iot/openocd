@@ -373,7 +373,7 @@ static int icdi_usb_query(void *handle)
 			LOG_ERROR("invalid max packet, using defaults");
 		else
 			h->max_packet = max_packet;
-		LOG_DEBUG("max packet supported : %" PRIu32 " bytes", h->max_packet);
+		LOG_DEBUG("max packet supported : %i bytes", h->max_packet);
 	}
 
 
