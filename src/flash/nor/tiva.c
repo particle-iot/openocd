@@ -311,7 +311,7 @@ static int tiva_protect_check(struct flash_bank *bank)
 	if (tiva->did1 == 0)
 		return ERROR_FLASH_BANK_NOT_PROBED;
 
-    for (page = 0; page < (unsigned) bank->num_sectors; page++)
+	for (page = 0; page < (unsigned) bank->num_sectors; page++)
 		bank->sectors[page].is_protected = -1;
 
 	/* Read each Flash Memory Protection Program Enable (FMPPE) register
