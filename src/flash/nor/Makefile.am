@@ -30,6 +30,7 @@ NOR_DRIVERS = \
 	spi.c \
 	stmsmi.c \
 	stellaris.c \
+	tiva.c \
 	stm32f1x.c \
 	stm32f2x.c \
 	stm32lx.c \
