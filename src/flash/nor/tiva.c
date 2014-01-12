@@ -175,7 +175,6 @@ static int get_tiva_info(struct flash_bank *bank, char *buf, int buf_size)
 	buf += printed;
 	buf_size -= printed;
 
-	
 	printed = snprintf(buf,
 			   buf_size,
 			   "did1: 0x%8.8" PRIx32 ", arch: 0x%4.4" PRIx32
@@ -211,7 +210,7 @@ static void tiva_set_flash_timing(struct flash_bank *bank)
 	struct tiva_flash_bank *tiva_info = bank->driver_priv;
 	struct target *target = bank->target;
 	uint32_t memtim0;
-	
+
 	target_read_u32(target, SCB_BASE | MEMTIM0, &memtim0);
 
 	LOG_WARNING("function tiva_set_flash_timing is not implemented, MEMTIM0 should be set here");
@@ -233,10 +232,10 @@ static int tiva_read_part_info(struct flash_bank *bank)
 	target_read_u32(target, SCB_BASE | DID1, &did1);
 	target_read_u32(target, FLASH_FLASHPP, &tiva_info->flashpp);
 	target_read_u32(target, FLASH_SSIZE, &tiva_info->ssize);
-	
+
 	LOG_DEBUG("did0 0x%" PRIx32 ", did1 0x%" PRIx32 ", flashpp 0x%" PRIx32 ", ssize 0x%" PRIx32 "",
 	did0, did1, tiva_info->flashpp, tiva_info->ssize);
-		  
+
 	ver = did0 >> 28;
 	if ((ver != 0) && (ver != 1)) {
 		LOG_WARNING("Unknown did0 version, cannot identify target");
@@ -286,10 +285,10 @@ static int tiva_read_part_info(struct flash_bank *bank)
 	tiva_info->pages_in_lockregion = 1;
 	tiva_info->num_lockbits = tiva_info->num_pages;  /* 8 bits in FMPPEx protect 1 page, 1bit=2k, 8bit = 1page */
 	tiva_info->flshsz = tiva_info->pagesize * tiva_info->num_pages;
-	
+
 	tiva_info->sramsiz = 256 * (1 + (tiva_info->ssize & 0xFFFF));
 
-	
+
 	/* REVISIT for at least Tempest parts, read NVMSTAT.FWB too.
 	 * That exposes a 32-word Flash Write Buffer ... enabling
 	 * writes of more than one word at a time.
@@ -312,17 +311,16 @@ static int tiva_protect_check(struct flash_bank *bank)
 	if (tiva->did1 == 0)
 		return ERROR_FLASH_BANK_NOT_PROBED;
 
-    for (page = 0; page < (unsigned) bank->num_sectors; page++) {
+    for (page = 0; page < (unsigned) bank->num_sectors; page++)
 		bank->sectors[page].is_protected = -1;
-	}
-	
+
 	/* Read each Flash Memory Protection Program Enable (FMPPE) register
 	 * to report any pages that we can't write.  Ignore the Read Enable
 	 * register (FMPRE).
 	 */
 	for (page = 0; page < (unsigned) bank->num_sectors; page++) {
 	    uint32_t lockbits;
-		
+
 		i=page/4; /* FMPPE register index*/
 		status = target_read_u32(bank->target,
 				SCB_BASE + (FMPPE0 + 4 * i),
@@ -405,7 +403,7 @@ static int tiva_protect(struct flash_bank *bank, int set, int first, int last)
 
 	LOG_ERROR("No support yet for protection");
 		return ERROR_FLASH_OPERATION_FAILED;
-	
+
 	if (bank->target->state != TARGET_HALTED) {
 		LOG_ERROR("Target not halted");
 		return ERROR_TARGET_NOT_HALTED;
@@ -443,7 +441,7 @@ static int tiva_protect(struct flash_bank *bank, int set, int first, int last)
 		return ERROR_FLASH_OPERATION_FAILED;
 	}
 
-	//target_read_u32(target, SCB_BASE | FMPPE, &fmppe);
+	/* target_read_u32(target, SCB_BASE | FMPPE, &fmppe); */
 
 	for (lockregion = first; lockregion <= last; lockregion++)
 		fmppe &= ~(1 << lockregion);
@@ -457,7 +455,7 @@ static int tiva_protect(struct flash_bank *bank, int set, int first, int last)
 	 */
 
 	LOG_DEBUG("fmppe 0x%" PRIx32 "", fmppe);
-	//target_write_u32(target, SCB_BASE | FMPPE, fmppe);
+	/* target_write_u32(target, SCB_BASE | FMPPE, fmppe); */
 
 	/* Commit FMPPE */
 	target_write_u32(target, FLASH_FMA, 1);
