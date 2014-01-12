@@ -207,7 +207,7 @@ static int get_tiva_info(struct flash_bank *bank, char *buf, int buf_size)
 /* Set the flash timimg register to match current clocking */
 static void tiva_set_flash_timing(struct flash_bank *bank)
 {
-	struct tiva_flash_bank *tiva_info = bank->driver_priv;
+	/* struct tiva_flash_bank *tiva_info = bank->driver_priv; */
 	struct target *target = bank->target;
 	uint32_t memtim0;
 
@@ -311,7 +311,7 @@ static int tiva_protect_check(struct flash_bank *bank)
 	if (tiva->did1 == 0)
 		return ERROR_FLASH_BANK_NOT_PROBED;
 
-    for (page = 0; page < (unsigned) bank->num_sectors; page++)
+	for (page = 0; page < (unsigned) bank->num_sectors; page++)
 		bank->sectors[page].is_protected = -1;
 
 	/* Read each Flash Memory Protection Program Enable (FMPPE) register
@@ -321,7 +321,7 @@ static int tiva_protect_check(struct flash_bank *bank)
 	for (page = 0; page < (unsigned) bank->num_sectors; page++) {
 	    uint32_t lockbits;
 
-		i=page/4; /* FMPPE register index*/
+		i = page/4; /* FMPPE register index*/
 		status = target_read_u32(bank->target,
 				SCB_BASE + (FMPPE0 + 4 * i),
 				&lockbits);
