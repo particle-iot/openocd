@@ -171,7 +171,8 @@ static int cmsis_dap_usb_open(void)
 	debuggers to idenify a CMSIS-DAP compliant Debug Unit that is connected to a host computer."
 	*/
 	devs = hid_enumerate(0x0, 0x0);
-	cur_dev = devs;	
+	cur_dev = devs;
+
 	while (NULL != cur_dev) {
 		if (wcsstr(cur_dev->product_string, L"CMSIS-DAP")) {
 			break;
