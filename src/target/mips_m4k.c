@@ -95,6 +95,10 @@ static int mips_m4k_debug_entry(struct target *target)
 	struct mips32_common *mips32 = target_to_mips32(target);
 	struct mips_ejtag *ejtag_info = &mips32->ejtag_info;
 
+	/* workaround for 24kc in queued mode */
+	if (ejtag_info->mode != 0)
+		mips32_pracc_clean_text_jump(ejtag_info);
+
 	mips32_save_context(target);
 
 	/* make sure stepping disabled, SSt bit in CP0 debug register cleared */
