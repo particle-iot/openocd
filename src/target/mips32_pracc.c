@@ -115,7 +115,7 @@ static int wait_for_pracc_rw(struct mips_ejtag *ejtag_info, uint32_t *ctrl)
 	return ERROR_OK;
 }
 
-static int mips32_pracc_clean_text_jump(struct mips_ejtag *ejtag_info)
+int mips32_pracc_clean_text_jump(struct mips_ejtag *ejtag_info)
 {
 	uint32_t jt_code = MIPS32_J((0x0FFFFFFF & MIPS32_PRACC_TEXT) >> 2);
 
@@ -400,6 +400,8 @@ int mips32_pracc_queue_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_in
 				LOG_ERROR("Fetch addr mismatch, read: %" PRIx32 " expected: %" PRIx32 " count: %d",
 					  addr, fetch_addr, scan_count);
 				retval = ERROR_FAIL;
+				if (addr == MIPS32_PRACC_TEXT)
+					retval = ERROR_PRACC_TEXT_JUMP;
 				goto exit;
 			}
 			fetch_addr += 4;
@@ -408,6 +410,9 @@ int mips32_pracc_queue_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_in
 	}
 exit:
 	free(scan_in);
+	if (retval != ERROR_OK)
+		mips32_pracc_clean_text_jump(ejtag_info);
+
 	return retval;
 }
 
