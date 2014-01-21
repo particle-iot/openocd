@@ -153,6 +153,7 @@ const struct {
 #define KINETIS_K_SDID_K11  0x00000220
 #define KINETIS_K_SDID_K12  0x00000200
 #define KINETIS_K_SDID_K20  0x00000290
+#define KINETIS_K_SDID_K20_mchck 0x00000010
 #define KINETIS_K_SDID_K21  0x00000230
 #define KINETIS_K_SDID_K22  0x00000210
 #define KINETIS_K_SDID_K30  0x00000120
@@ -783,6 +784,8 @@ static int kinetis_read_part_info(struct flash_bank *bank)
 
 	kinfo->klxx = 0;
 
+	LOG_DEBUG("sim_sdid: %d, mcu_type: %d", kinfo->sim_sdid, kinfo->sim_sdid & KINETIS_K_SDID_TYPE_MASK);
+
 	/* K-series MCU? */
 	if ((kinfo->sim_sdid & (~KINETIS_SDID_K_SERIES_MASK)) == 0) {
 		uint32_t mcu_type = kinfo->sim_sdid & KINETIS_K_SDID_TYPE_MASK;
@@ -790,6 +793,9 @@ static int kinetis_read_part_info(struct flash_bank *bank)
 		switch (mcu_type) {
 		case KINETIS_K_SDID_K20:
 			/* 1kB sectors */
+			granularity = 0;
+			break;
+		case KINETIS_K_SDID_K20_mchck:
 			granularity = 0;
 			break;
 		case KINETIS_K_SDID_K30:
