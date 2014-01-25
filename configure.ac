@@ -388,11 +388,11 @@ AC_ARG_ENABLE([parport_giveio],
     [parport_use_giveio=$enableval], [parport_use_giveio=])
 
 AC_ARG_ENABLE([ft2232_libftdi],
-  AS_HELP_STRING([--enable-ft2232_libftdi], [Enable building support for FT2232 based devices using the libftdi driver, opensource alternate of FTD2XX]),
+  AS_HELP_STRING([--enable-ft2232_libftdi], [(DEPRECATED) Enable building support for FT2232 based devices using the libftdi driver, opensource alternate of FTD2XX]),
   [build_ft2232_libftdi=$enableval], [build_ft2232_libftdi=no])
 
 AC_ARG_ENABLE([ft2232_ftd2xx],
-  AS_HELP_STRING([--enable-ft2232_ftd2xx], [Enable building support for FT2232 based devices using the FTD2XX driver from ftdichip.com]),
+  AS_HELP_STRING([--enable-ft2232_ftd2xx], [(DEPRECATED) Enable building support for FT2232 based devices using the FTD2XX driver from ftdichip.com]),
   [build_ft2232_ftd2xx=$enableval], [build_ft2232_ftd2xx=no])
 
 AC_ARG_ENABLE([jtag_vpi],
@@ -1320,3 +1320,7 @@ m4_foreach([adapter], [USB1_ADAPTERS, USB_ADAPTERS, USB0_ADAPTERS, HIDAPI_ADAPTE
 	esac
 ])
 echo
+
+if test \( $build_ft2232_libftdi = yes -o $build_ft2232_ftd2xx = yes \) -a $enable_ftdi = no; then
+	AC_MSG_WARN([--enable-ft2232_* is deprecated. You are recommended to use --enable-ftdi instead.])
+fi
