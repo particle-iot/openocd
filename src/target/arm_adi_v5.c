@@ -1074,9 +1074,7 @@ static int dap_rom_display(struct command_context *cmd_ctx,
 				", CID2 0x%2.2x"
 				", CID1 0x%2.2x"
 				", CID0 0x%2.2x",
-				tabs,
-				(unsigned) cid3, (unsigned)cid2,
-				(unsigned) cid1, (unsigned) cid0);
+				tabs,(unsigned) cid3, (unsigned) cid2,(unsigned) cid1, (unsigned) cid0);
 	if (memtype & 0x01)
 		command_print(cmd_ctx, "\t%sEMTYPE system memory present on bus", tabs);
 	else
@@ -1139,7 +1137,7 @@ static int dap_rom_display(struct command_context *cmd_ctx,
 				return retval;
 			c_cid3 &= 0xff;
 
-			command_print(cmd_ctx, "\t%s\tComponent base address 0x%" PRIx32 ","
+			command_print(cmd_ctx, "\t%s\tComponent base address 0x%" PRIx32 ", "
 					"start address 0x%" PRIx32, tabs, component_base,
 			/* component may take multiple 4K pages */
 			component_base - 0x1000*(c_pid4 >> 4));
@@ -1270,8 +1268,8 @@ static int dap_rom_display(struct command_context *cmd_ctx,
 						tabs,
 						(int) c_cid3,
 						(int) c_cid2,
-						(int)c_cid1,
-						(int)c_cid0);
+						(int) c_cid1,
+						(int) c_cid0);
 			command_print(cmd_ctx,
 			"\t%s\tPeripheral ID[4..0] = hex "
 			"%2.2x %2.2x %2.2x %2.2x %2.2x", tabs,
