@@ -1074,7 +1074,7 @@ static int dap_rom_display(struct command_context *cmd_ctx,
 				", CID2 0x%2.2x"
 				", CID1 0x%2.2x"
 				", CID0 0x%2.2x",
-				tabs,(unsigned) cid3, (unsigned) cid2,(unsigned) cid1, (unsigned) cid0);
+				tabs, (unsigned) cid3, (unsigned) cid2, (unsigned) cid1, (unsigned) cid0);
 	if (memtype & 0x01)
 		command_print(cmd_ctx, "\t%sEMTYPE system memory present on bus", tabs);
 	else
