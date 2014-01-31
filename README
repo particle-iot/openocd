@@ -6,7 +6,7 @@ layered architecture of JTAG interface and TAP support including:
 
 - (X)SVF playback to faciliate automated boundary scan and FPGA/CPLD
   programming;
-- debug target support (e.g. ARM, MIPS): single-stepping,
+- debug target support (e.g. ARM, MIPS, Intel Quark): single-stepping,
   breakpoints/watchpoints, gprof profiling, etc;
 - flash chip drivers (e.g. CFI, NAND, internal flash);
 - embedded TCL interpreter for easy scripting.
@@ -117,7 +117,7 @@ Debug targets
 
 ARM11, ARM7, ARM9, AVR32, Cortex-A, Cortex-R, Cortex-M,
 Feroceon/Dragonite, DSP563xx, DSP5680xx, FA526, MIPS EJTAG, NDS32,
-XScale.
+XScale, Intel Quark.
 
 Flash drivers
 -------------
