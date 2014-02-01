@@ -2029,8 +2029,10 @@ static int get_reg_features_list(struct target *target, char **feature_list[], i
 static int gdb_generate_target_description(struct target *target, char **tdesc_out)
 {
 	int retval = ERROR_OK;
-	struct reg **reg_list;
+	struct reg **reg_list = NULL;
 	int reg_list_size;
+	char **features = NULL;
+	int feature_list_size = 0;
 	char *tdesc = NULL;
 	int pos = 0;
 	int size = 0;
@@ -2040,21 +2042,20 @@ static int gdb_generate_target_description(struct target *target, char **tdesc_o
 
 	if (retval != ERROR_OK) {
 		LOG_ERROR("get register list failed");
-		return ERROR_FAIL;
+		retval = ERROR_FAIL;
+		goto error;
 	}
 
 	if (reg_list_size <= 0) {
-		free(reg_list);
-		return ERROR_FAIL;
+		retval = ERROR_FAIL;
 	}
 
-	char **features = NULL;
 	/* Get a list of available target registers features */
-	retval = get_reg_features_list(target, &features, NULL, reg_list, reg_list_size);
+	retval = get_reg_features_list(target, &features, &feature_list_size, reg_list, reg_list_size);
 	if (retval != ERROR_OK) {
 		LOG_ERROR("Can't get the registers feature list");
-		free(reg_list);
-		return ERROR_FAIL;
+		retval = ERROR_FAIL;
+		goto error;
 	}
 
 	/* If we found some features associated with registers, create sections */
@@ -2134,8 +2135,12 @@ static int gdb_generate_target_description(struct target *target, char **tdesc_o
 	xml_printf(&retval, &tdesc, &pos, &size,
 			"</target>\n");
 
-	free(reg_list);
+error:
+
+	for (int j = feature_list_size - 1; j >= 0; j--)
+		free(features[j]);
 	free(features);
+	free(reg_list);
 
 	if (retval == ERROR_OK)
 		*tdesc_out = tdesc;
@@ -2204,6 +2209,7 @@ static int gdb_target_description_supported(struct target *target, int *supporte
 	int retval = ERROR_OK;
 	struct reg **reg_list = NULL;
 	int reg_list_size = 0;
+	char **features = NULL;
 	int feature_list_size = 0;
 
 	retval = target_get_gdb_reg_list(target, &reg_list,
@@ -2218,7 +2224,6 @@ static int gdb_target_description_supported(struct target *target, int *supporte
 		goto error;
 	}
 
-	char **features = NULL;
 	/* Get a list of available target registers features */
 	retval = get_reg_features_list(target, &features, &feature_list_size, reg_list, reg_list_size);
 	if (retval != ERROR_OK) {
@@ -2234,11 +2239,12 @@ static int gdb_target_description_supported(struct target *target, int *supporte
 	}
 
 error:
-	if (reg_list != NULL)
-		free(reg_list);
 
-	if (features != NULL)
-		free(features);
+	for (int j = feature_list_size - 1; j >= 0; j--)
+		free(features[j]);
+	free(features);
+
+	free(reg_list);
 
 	return retval;
 }
