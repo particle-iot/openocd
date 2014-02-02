@@ -351,7 +351,7 @@ const struct rtos_type Linux_os = {
 	.ps_command = linux_ps_command,
 };
 
-static int linux_thread_packet(struct connection *connection, char *packet,
+static int linux_thread_packet(struct connection *connection, char const *packet,
 		int packet_size);
 static void linux_identify_current_threads(struct target *target);
 
@@ -1116,8 +1116,8 @@ static int linux_task_update(struct target *target, int context)
 	return ERROR_OK;
 }
 
-int linux_gdb_thread_packet(struct target *target,
-	struct connection *connection, char *packet,
+static int linux_gdb_thread_packet(struct target *target,
+	struct connection *connection, char const *packet,
 	int packet_size)
 {
 	int retval;
@@ -1152,8 +1152,8 @@ int linux_gdb_thread_packet(struct target *target,
 	return ERROR_OK;
 }
 
-int linux_gdb_thread_update(struct target *target,
-	struct connection *connection, char *packet,
+static int linux_gdb_thread_update(struct target *target,
+	struct connection *connection, char const *packet,
 	int packet_size)
 {
 	int found = 0;
@@ -1199,8 +1199,8 @@ int linux_gdb_thread_update(struct target *target,
 	return ERROR_OK;
 }
 
-int linux_thread_extra_info(struct target *target,
-	struct connection *connection, char *packet,
+static int linux_thread_extra_info(struct target *target,
+	struct connection *connection, char const *packet,
 	int packet_size)
 {
 	int64_t threadid = 0;
@@ -1246,8 +1246,8 @@ int linux_thread_extra_info(struct target *target,
 	return ERROR_OK;
 }
 
-int linux_gdb_T_packet(struct connection *connection,
-	struct target *target, char *packet, int packet_size)
+static int linux_gdb_T_packet(struct connection *connection,
+	struct target *target, char const *packet, int packet_size)
 {
 	int64_t threadid;
 	struct linux_os *linux_os = (struct linux_os *)
@@ -1307,8 +1307,8 @@ int linux_gdb_T_packet(struct connection *connection,
 	return retval;
 }
 
-int linux_gdb_h_packet(struct connection *connection,
-	struct target *target, char *packet, int packet_size)
+static int linux_gdb_h_packet(struct connection *connection,
+	struct target *target, char const *packet, int packet_size)
 {
 	struct linux_os *linux_os = (struct linux_os *)
 		target->rtos->rtos_specific_params;
@@ -1376,7 +1376,7 @@ int linux_gdb_h_packet(struct connection *connection,
 	return ERROR_OK;
 }
 
-static int linux_thread_packet(struct connection *connection, char *packet,
+static int linux_thread_packet(struct connection *connection, char const *packet,
 	int packet_size)
 {
 	int retval = ERROR_OK;
