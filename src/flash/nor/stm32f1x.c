@@ -921,11 +921,19 @@ static int stm32x_probe(struct flash_bank *bank)
 		stm32x_info->option_offset = 6;
 		stm32x_info->default_rdp = 0x55AA;
 		break;
-	case 0x440: /* stm32f0x */
-	case 0x444:
+	case 0x440: /* stm32f05x */
+	case 0x444: /* stm32f03x */
 		page_size = 1024;
 		stm32x_info->ppage_size = 4;
 		max_flash_size_in_kb = 64;
+		stm32x_info->user_data_offset = 16;
+		stm32x_info->option_offset = 6;
+		stm32x_info->default_rdp = 0x55AA;
+		break;
+	case 0x448: /* stm32f07x */
+		page_size = 2048;
+		stm32x_info->ppage_size = 4;
+		max_flash_size_in_kb = 128;
 		stm32x_info->user_data_offset = 16;
 		stm32x_info->option_offset = 6;
 		stm32x_info->default_rdp = 0x55AA;
