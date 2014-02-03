@@ -1659,15 +1659,19 @@ static void xml_printf(int *retval, char **xml, int *pos, int *size,
 	}
 }
 
-static int decode_xfer_read(char *buf, int *ofs, unsigned int *len)
+static int decode_xfer_read(char *_buf, int *ofs, unsigned int *len)
 {
+	int ret = 0;
+	char *buf = strdup(_buf);
 	char *separator;
 
 	/* Extract and NUL-terminate the annex. */
 	while (*buf && *buf != ':')
 		buf++;
-	if (*buf == '\0')
-		return -1;
+	if (*buf == '\0') {
+		ret = -1;
+		goto out;
+	}
 	*buf++ = 0;
 
 	/* After the read marker and annex, qXfer looks like a
@@ -1675,12 +1679,16 @@ static int decode_xfer_read(char *buf, int *ofs, unsigned int *len)
 
 	*ofs = strtoul(buf, &separator, 16);
 
-	if (*separator != ',')
-		return -1;
+	if (*separator != ',') {
+		ret = -1;
+		goto out;
+	}
 
 	*len = strtoul(separator + 1, NULL, 16);
 
-	return 0;
+out:
+	free(buf);
+	return ret;
 }
 
 static int compare_bank(const void *a, const void *b)
