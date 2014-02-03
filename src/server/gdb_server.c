@@ -1659,12 +1659,11 @@ static void xml_printf(int *retval, char **xml, int *pos, int *size,
 	}
 }
 
-static int decode_xfer_read(char *buf, char **annex, int *ofs, unsigned int *len)
+static int decode_xfer_read(char *buf, int *ofs, unsigned int *len)
 {
 	char *separator;
 
 	/* Extract and NUL-terminate the annex. */
-	*annex = buf;
 	while (*buf && *buf != ':')
 		buf++;
 	if (*buf == '\0')
@@ -2360,12 +2359,11 @@ static int gdb_query_packet(struct connection *connection,
 
 		int offset;
 		unsigned int length;
-		char *annex;
 
 		/* skip command character */
 		packet += 20;
 
-		if (decode_xfer_read(packet, &annex, &offset, &length) < 0) {
+		if (decode_xfer_read(packet, &offset, &length) < 0) {
 			gdb_send_error(connection, 01);
 			return ERROR_OK;
 		}
