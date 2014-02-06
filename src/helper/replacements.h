@@ -283,4 +283,8 @@ typedef struct {
 const char *libusb_error_name(int error_code);
 #endif /* defined HAVE_LIBUSB1 && !defined HAVE_LIBUSB_ERROR_NAME */
 
+#ifndef IPV6_V6ONLY
+#define IPV6_V6ONLY            27
+#endif
+
 #endif	/* REPLACEMENTS_H */
