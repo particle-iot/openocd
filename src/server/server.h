@@ -60,7 +60,7 @@ struct service {
 	char *port;
 	unsigned short portnumber;
 	int fd;
-	struct sockaddr_in sin;
+	struct sockaddr_storage sin;
 	int max_connections;
 	struct connection *connections;
 	new_connection_handler_t new_connection;

@@ -215,7 +215,7 @@ int add_service(char *name,
 	if (c->type == CONNECTION_TCP) {
 		c->max_connections = max_connections;
 
-		c->fd = socket(AF_INET, SOCK_STREAM, 0);
+		c->fd = socket(AF_INET6, SOCK_STREAM, 0);
 		if (c->fd == -1) {
 			LOG_ERROR("error creating socket: %s", strerror(errno));
 			exit(-1);
@@ -229,12 +229,10 @@ int add_service(char *name,
 
 		socket_nonblock(c->fd);
 
-		memset(&c->sin, 0, sizeof(c->sin));
-		c->sin.sin_family = AF_INET;
-		c->sin.sin_addr.s_addr = INADDR_ANY;
-		c->sin.sin_port = htons(c->portnumber);
+		struct sockaddr_in6 sin = { AF_INET6, htons(c->portnumber), 0,
+					IN6ADDR_ANY_INIT, 0 };
 
-		if (bind(c->fd, (struct sockaddr *)&c->sin, sizeof(c->sin)) == -1) {
+		if (bind(c->fd, (struct sockaddr *)&sin, sizeof(sin)) == -1) {
 			LOG_ERROR("couldn't bind to socket: %s", strerror(errno));
 			exit(-1);
 		}
