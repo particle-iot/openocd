@@ -46,7 +46,7 @@ static struct service *services;
 /* shutdown_openocd == 1: exit the main event loop, and quit the debugger */
 static int shutdown_openocd;
 
-static int add_connection(struct service *service, struct command_context *cmd_ctx)
+static int add_connection(int fd, struct service *service, struct command_context *cmd_ctx)
 {
 	socklen_t address_size;
 	struct connection *c, **p;
@@ -66,7 +66,7 @@ static int add_connection(struct service *service, struct command_context *cmd_c
 	if (service->type == CONNECTION_TCP) {
 		address_size = sizeof(c->sin);
 
-		c->fd = accept(service->fd, (struct sockaddr *)&service->sin, &address_size);
+		c->fd = accept(fd, (struct sockaddr *)&service->sin, &address_size);
 		c->fd_out = c->fd;
 
 		/* This increases performance dramatically for e.g. GDB load which
@@ -175,6 +175,37 @@ static int remove_connection(struct service *service, struct connection *connect
 	return ERROR_OK;
 }
 
+static void setup_tcp_socket(int fd)
+{
+	int so_reuseaddr_option = 1;
+
+	setsockopt(fd,
+		   SOL_SOCKET,
+		   SO_REUSEADDR,
+		   (void *)&so_reuseaddr_option,
+		   sizeof(int));
+
+	socket_nonblock(fd);
+
+#ifndef _WIN32
+	int segsize = 65536;
+	setsockopt(fd, IPPROTO_TCP, TCP_MAXSEG,  &segsize, sizeof(int));
+#endif
+	int window_size = 128 * 1024;
+
+	/* These setsockopt()s must happen before the listen() */
+
+	setsockopt(fd, SOL_SOCKET, SO_SNDBUF,
+		   (char *)&window_size, sizeof(window_size));
+	setsockopt(fd, SOL_SOCKET, SO_RCVBUF,
+		   (char *)&window_size, sizeof(window_size));
+
+	if (listen(fd, 1) == -1) {
+		LOG_ERROR("couldn't listen on socket: %s", strerror(errno));
+		exit(-1);
+	}
+}
+
 /* FIX! make service return error instead of invoking exit() */
 int add_service(char *name,
 	const char *port,
@@ -185,14 +216,13 @@ int add_service(char *name,
 	void *priv)
 {
 	struct service *c, **p;
-	int so_reuseaddr_option = 1;
 
 	c = malloc(sizeof(struct service));
 
 	c->name = strdup(name);
 	c->port = strdup(port);
 	c->max_connections = 1;	/* Only TCP/IP ports can support more than one connection */
-	c->fd = -1;
+	c->fd = c->fd2 = -1;
 	c->connections = NULL;
 	c->new_connection = new_connection_handler;
 	c->input = input_handler;
@@ -221,39 +251,38 @@ int add_service(char *name,
 			exit(-1);
 		}
 
+		int so_ipv6_v6only_option = 1;
 		setsockopt(c->fd,
-			SOL_SOCKET,
-			SO_REUSEADDR,
-			(void *)&so_reuseaddr_option,
+			IPPROTO_IPV6,
+			IPV6_V6ONLY,
+			&so_ipv6_v6only_option,
 			sizeof(int));
 
-		socket_nonblock(c->fd);
-
-		struct sockaddr_in6 sin = { AF_INET6, htons(c->portnumber), 0,
+		struct sockaddr_in6 sin6 = { AF_INET6, htons(c->portnumber), 0,
 					IN6ADDR_ANY_INIT, 0 };
 
-		if (bind(c->fd, (struct sockaddr *)&sin, sizeof(sin)) == -1) {
+		if (bind(c->fd, (struct sockaddr *)&sin6, sizeof(sin6)) == -1) {
 			LOG_ERROR("couldn't bind to socket: %s", strerror(errno));
 			exit(-1);
 		}
 
-#ifndef _WIN32
-		int segsize = 65536;
-		setsockopt(c->fd, IPPROTO_TCP, TCP_MAXSEG,  &segsize, sizeof(int));
-#endif
-		int window_size = 128 * 1024;
+		setup_tcp_socket(c->fd);
 
-		/* These setsockopt()s must happen before the listen() */
-
-		setsockopt(c->fd, SOL_SOCKET, SO_SNDBUF,
-			(char *)&window_size, sizeof(window_size));
-		setsockopt(c->fd, SOL_SOCKET, SO_RCVBUF,
-			(char *)&window_size, sizeof(window_size));
-
-		if (listen(c->fd, 1) == -1) {
-			LOG_ERROR("couldn't listen on socket: %s", strerror(errno));
+		c->fd2 = socket(AF_INET, SOCK_STREAM, 0);
+		if (c->fd2 == -1) {
+			LOG_ERROR("error creating socket: %s", strerror(errno));
 			exit(-1);
 		}
+
+		struct sockaddr_in sin = { AF_INET, htons(c->portnumber),
+					{ INADDR_ANY }, { 0 } };
+
+		if (bind(c->fd2, (struct sockaddr *)&sin, sizeof(sin)) == -1) {
+			LOG_ERROR("couldn't bind to socket: %s", strerror(errno));
+			exit(-1);
+		}
+
+		setup_tcp_socket(c->fd2);
 	} else if (c->type == CONNECTION_STDINOUT) {
 		c->fd = fileno(stdin);
 
@@ -357,6 +386,13 @@ int server_loop(struct command_context *command_context)
 				if (service->fd > fd_max)
 					fd_max = service->fd;
 			}
+			if (service->fd2 != -1) {
+				/* listen for new connections */
+				FD_SET(service->fd2, &read_fds);
+
+				if (service->fd2 > fd_max)
+					fd_max = service->fd2;
+			}
 
 			if (service->connections) {
 				struct connection *c;
@@ -434,16 +470,20 @@ int server_loop(struct command_context *command_context)
 
 		for (service = services; service; service = service->next) {
 			/* handle new connections on listeners */
-			if ((service->fd != -1)
-			    && (FD_ISSET(service->fd, &read_fds))) {
+			int pend_fd = -1;
+			if (FD_ISSET(service->fd, &read_fds))
+				pend_fd = service->fd;
+			else if (FD_ISSET(service->fd2, &read_fds))
+				pend_fd = service->fd2;
+			if (pend_fd != -1) {
 				if (service->max_connections > 0)
-					add_connection(service, command_context);
+					add_connection(pend_fd, service, command_context);
 				else {
 					if (service->type == CONNECTION_TCP) {
-						struct sockaddr_in sin;
+						struct sockaddr_storage sin;
 						socklen_t address_size = sizeof(sin);
 						int tmp_fd;
-						tmp_fd = accept(service->fd,
+						tmp_fd = accept(pend_fd,
 								(struct sockaddr *)&service->sin,
 								&address_size);
 						close_socket(tmp_fd);
