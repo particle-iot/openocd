@@ -987,7 +987,8 @@ COMMAND_HANDLER(ublast_handle_lowlevel_drv_command)
 		info.lowlevel_name = strdup(CMD_ARGV[0]);
 	else
 		LOG_ERROR("require exactly one argument to "
-				  "usb_blaster_lowlevel_driver (ftdi|ftd2xx)");
+				  "usb_blaster_lowlevel_driver "
+				  "(ftdi|ftd2xx|ublast2)");
 	return ERROR_OK;
 }
 
