@@ -22,6 +22,9 @@
  *
  */
 
+#ifndef __UBLAST_ACCESS_H__
+#define __UBLAST_ACCESS_H__
+
 #include <libusb_common.h>
 
 /* Low level flags */
@@ -64,3 +67,5 @@ struct ublast_lowlevel {
 extern struct ublast_lowlevel *ublast_register_ftdi(void);
 extern struct ublast_lowlevel *ublast_register_ftd2xx(void);
 extern struct ublast_lowlevel *ublast2_register_libusb(void);
+
+#endif /* __UBLAST_ACCESS_H__ */
