@@ -1511,7 +1511,8 @@ static void minimodule_reset(int trst, int srst)
 
 static void turtle_reset(int trst, int srst)
 {
-	trst = trst;
+	/* unused parameter */
+	(void)trst;
 
 	if (srst == 1)
 		low_output |= nSRST;
