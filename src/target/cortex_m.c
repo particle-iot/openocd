@@ -2119,7 +2119,7 @@ COMMAND_HANDLER(handle_cortex_m_mask_interrupts_command)
 	if (retval != ERROR_OK)
 		return retval;
 
-	if (target->state != TARGET_HALTED) {
+	if (target->state != TARGET_HALTED && target->state != TARGET_RESET) {
 		command_print(CMD_CTX, "target must be stopped for \"%s\" command", CMD_NAME);
 		return ERROR_OK;
 	}
