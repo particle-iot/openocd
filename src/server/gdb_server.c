@@ -1034,7 +1034,7 @@ static void gdb_send_error(struct connection *connection, uint8_t the_error)
 }
 
 static int gdb_last_signal_packet(struct connection *connection,
-		char *packet, int packet_size)
+		char const *packet, int packet_size)
 {
 	struct target *target = get_target_from_connection(connection);
 	struct gdb_connection *gdb_con = connection->priv;
@@ -1091,7 +1091,7 @@ static void gdb_str_to_target(struct target *target,
 
 /* copy over in register buffer */
 static void gdb_target_to_reg(struct target *target,
-		char *tstr, int str_len, uint8_t *bin)
+		char const *tstr, int str_len, uint8_t *bin)
 {
 	if (str_len % 2) {
 		LOG_ERROR("BUG: gdb value with uneven number of characters encountered");
@@ -1112,7 +1112,7 @@ static void gdb_target_to_reg(struct target *target,
 }
 
 static int gdb_get_registers_packet(struct connection *connection,
-		char *packet, int packet_size)
+		char const *packet, int packet_size)
 {
 	struct target *target = get_target_from_connection(connection);
 	struct reg **reg_list;
@@ -1168,14 +1168,14 @@ static int gdb_get_registers_packet(struct connection *connection,
 }
 
 static int gdb_set_registers_packet(struct connection *connection,
-		char *packet, int packet_size)
+		char const *packet, int packet_size)
 {
 	struct target *target = get_target_from_connection(connection);
 	int i;
 	struct reg **reg_list;
 	int reg_list_size;
 	int retval;
-	char *packet_p;
+	char const *packet_p;
 
 #ifdef _DEBUG_GDB_IO_
 	LOG_DEBUG("-");
@@ -1223,7 +1223,7 @@ static int gdb_set_registers_packet(struct connection *connection,
 }
 
 static int gdb_get_register_packet(struct connection *connection,
-	char *packet, int packet_size)
+	char const *packet, int packet_size)
 {
 	struct target *target = get_target_from_connection(connection);
 	char *reg_packet;
@@ -1262,7 +1262,7 @@ static int gdb_get_register_packet(struct connection *connection,
 }
 
 static int gdb_set_register_packet(struct connection *connection,
-	char *packet, int packet_size)
+	char const *packet, int packet_size)
 {
 	struct target *target = get_target_from_connection(connection);
 	char *separator;
@@ -1328,7 +1328,7 @@ static int gdb_error(struct connection *connection, int retval)
  * 8191 bytes by the looks of it. Why 8191 bytes instead of 8192?????
  */
 static int gdb_read_memory_packet(struct connection *connection,
-		char *packet, int packet_size)
+		char const *packet, int packet_size)
 {
 	struct target *target = get_target_from_connection(connection);
 	char *separator;
@@ -1399,7 +1399,7 @@ static int gdb_read_memory_packet(struct connection *connection,
 }
 
 static int gdb_write_memory_packet(struct connection *connection,
-		char *packet, int packet_size)
+		char const *packet, int packet_size)
 {
 	struct target *target = get_target_from_connection(connection);
 	char *separator;
@@ -1446,7 +1446,7 @@ static int gdb_write_memory_packet(struct connection *connection,
 }
 
 static int gdb_write_memory_binary_packet(struct connection *connection,
-		char *packet, int packet_size)
+		char const *packet, int packet_size)
 {
 	struct target *target = get_target_from_connection(connection);
 	char *separator;
@@ -1503,7 +1503,7 @@ static int gdb_write_memory_binary_packet(struct connection *connection,
 }
 
 static int gdb_step_continue_packet(struct connection *connection,
-		char *packet, int packet_size)
+		char const *packet, int packet_size)
 {
 	struct target *target = get_target_from_connection(connection);
 	int current = 0;
@@ -1531,7 +1531,7 @@ static int gdb_step_continue_packet(struct connection *connection,
 }
 
 static int gdb_breakpoint_watchpoint_packet(struct connection *connection,
-		char *packet, int packet_size)
+		char const *packet, int packet_size)
 {
 	struct target *target = get_target_from_connection(connection);
 	int type;
@@ -1659,7 +1659,7 @@ static void xml_printf(int *retval, char **xml, int *pos, int *size,
 	}
 }
 
-static int decode_xfer_read(char *_buf, char **annex, int *ofs, unsigned int *len)
+static int decode_xfer_read(char const *_buf, char **annex, int *ofs, unsigned int *len)
 {
 	int ret = 0;
 	char *buf = strdup(_buf);
@@ -1711,7 +1711,7 @@ static int compare_bank(const void *a, const void *b)
 }
 
 static int gdb_memory_map(struct connection *connection,
-		char *packet, int packet_size)
+		char const *packet, int packet_size)
 {
 	/* We get away with only specifying flash here. Regions that are not
 	 * specified are treated as if we provided no memory map(if not we
@@ -2261,7 +2261,7 @@ error:
 }
 
 static int gdb_query_packet(struct connection *connection,
-		char *packet, int packet_size)
+		char const *packet, int packet_size)
 {
 	struct command_context *cmd_ctx = connection->cmd_ctx;
 	struct gdb_connection *gdb_connection = connection->priv;
@@ -2410,7 +2410,7 @@ static int gdb_query_packet(struct connection *connection,
 }
 
 static int gdb_v_packet(struct connection *connection,
-		char *packet, int packet_size)
+		char const *packet, int packet_size)
 {
 	struct gdb_connection *gdb_connection = connection->priv;
 	struct gdb_service *gdb_service = connection->service->priv;
@@ -2427,20 +2427,20 @@ static int gdb_v_packet(struct connection *connection,
 		unsigned long addr;
 		unsigned long length;
 
-		char *parse = packet + 12;
+		char const *parse = packet + 12;
 		if (*parse == '\0') {
 			LOG_ERROR("incomplete vFlashErase packet received, dropping connection");
 			return ERROR_SERVER_REMOTE_CLOSED;
 		}
 
-		addr = strtoul(parse, &parse, 16);
+		addr = strtoul(parse, (char **)&parse, 16);
 
 		if (*(parse++) != ',' || *parse == '\0') {
 			LOG_ERROR("incomplete vFlashErase packet received, dropping connection");
 			return ERROR_SERVER_REMOTE_CLOSED;
 		}
 
-		length = strtoul(parse, &parse, 16);
+		length = strtoul(parse, (char **)&parse, 16);
 
 		if (*parse != '\0') {
 			LOG_ERROR("incomplete vFlashErase packet received, dropping connection");
@@ -2483,13 +2483,13 @@ static int gdb_v_packet(struct connection *connection,
 		int retval;
 		unsigned long addr;
 		unsigned long length;
-		char *parse = packet + 12;
+		char const *parse = packet + 12;
 
 		if (*parse == '\0') {
 			LOG_ERROR("incomplete vFlashErase packet received, dropping connection");
 			return ERROR_SERVER_REMOTE_CLOSED;
 		}
-		addr = strtoul(parse, &parse, 16);
+		addr = strtoul(parse, (char **)&parse, 16);
 		if (*(parse++) != ':') {
 			LOG_ERROR("incomplete vFlashErase packet received, dropping connection");
 			return ERROR_SERVER_REMOTE_CLOSED;
@@ -2504,7 +2504,7 @@ static int gdb_v_packet(struct connection *connection,
 
 		/* create new section with content from packet buffer */
 		retval = image_add_section(gdb_connection->vflash_image,
-				addr, length, 0x0, (uint8_t *)parse);
+				addr, length, 0x0, (uint8_t const *)parse);
 		if (retval != ERROR_OK)
 			return retval;
 
@@ -2556,7 +2556,7 @@ static int gdb_detach(struct connection *connection)
  * Fretcode,errno,Ctrl-C flag;call-specific attachment
  */
 static int gdb_fileio_response_packet(struct connection *connection,
-		char *packet, int packet_size)
+		char const *packet, int packet_size)
 {
 	struct target *target = get_target_from_connection(connection);
 	char *separator;
@@ -2628,7 +2628,7 @@ static int gdb_input_inner(struct connection *connection)
 
 	struct gdb_service *gdb_service = connection->service->priv;
 	struct target *target = gdb_service->target;
-	char *packet = gdb_packet_buffer;
+	char const *packet = gdb_packet_buffer;
 	int packet_size;
 	int retval;
 	struct gdb_connection *gdb_con = connection->priv;
@@ -2647,12 +2647,12 @@ static int gdb_input_inner(struct connection *connection)
 	 */
 	do {
 		packet_size = GDB_BUFFER_SIZE-1;
-		retval = gdb_get_packet(connection, packet, &packet_size);
+		retval = gdb_get_packet(connection, gdb_packet_buffer, &packet_size);
 		if (retval != ERROR_OK)
 			return retval;
 
 		/* terminate with zero */
-		packet[packet_size] = 0;
+		gdb_packet_buffer[packet_size] = '\0';
 
 		if (LOG_LEVEL_IS(LOG_LVL_DEBUG)) {
 			if (packet[0] == 'X') {
