@@ -28,6 +28,9 @@
 
 #include <jtag/interface.h>
 #include <jtag/commands.h>
+#include <jtag/swd.h>
+#include <jtag/tcl.h>
+#include <target/arm_adi_v5.h>
 #include "usb_common.h"
 
 #include "versaloon/versaloon_include.h"
@@ -87,8 +90,52 @@ static int tap_buffer_size;
 static uint8_t *tms_buffer;
 static uint8_t *tdi_buffer;
 static uint8_t *tdo_buffer;
+static uint16_t swd_delay;
 
 struct vsllink *vsllink_handle;
+
+/* global command context from openocd.c */
+extern struct command_context *global_cmd_ctx;
+
+static const struct command_registration vsllink_swd_command_handlers[];
+
+static int vsllink_swd_read_reg(uint8_t cmd, uint32_t *value)
+{
+	int retval;
+	uint32_t val = 0;
+	uint8_t ack;
+
+	versaloon_interface.adaptors.swd.transact(0, cmd, &val, &ack);
+	retval = versaloon_interface.adaptors.peripheral_commit();
+
+	if (ERROR_OK != retval)
+		return ERROR_FAIL;
+
+	if (ack != 0x01)
+		return ack;
+
+	if (value)
+		*value = val;
+
+	return retval;
+}
+
+static int vsllink_swd_write_reg(uint8_t cmd, uint32_t value)
+{
+	int retval;
+	uint8_t ack;
+
+	versaloon_interface.adaptors.swd.transact(0, cmd, &value, &ack);
+	retval = versaloon_interface.adaptors.peripheral_commit();
+
+	if (ERROR_OK != retval)
+		return ERROR_FAIL;
+
+	if (ack != 0x01)
+		return ack;
+
+	return retval;
+}
 
 static int vsllink_execute_queue(void)
 {
@@ -232,7 +279,9 @@ static int vsllink_execute_queue(void)
 
 static int vsllink_speed(int speed)
 {
-	versaloon_interface.adaptors.jtag_raw.config(0, (uint16_t)speed);
+	if (transport_is_swd())
+		return ERROR_OK;
+
 	return versaloon_interface.adaptors.peripheral_commit();
 }
 
@@ -271,7 +320,12 @@ static int vsllink_quit(void)
 	versaloon_interface.adaptors.gpio.config(0, GPIO_SRST | GPIO_TRST,
 		0, 0, GPIO_SRST | GPIO_TRST);
 	versaloon_interface.adaptors.gpio.fini(0);
-	versaloon_interface.adaptors.jtag_raw.fini(0);
+
+	if (transport_is_swd())
+		versaloon_interface.adaptors.swd.fini(0);
+	else
+		versaloon_interface.adaptors.jtag_raw.fini(0);
+
 	versaloon_interface.adaptors.peripheral_commit();
 	versaloon_interface.fini();
 
@@ -281,8 +335,10 @@ static int vsllink_quit(void)
 	return ERROR_OK;
 }
 
-static int vsllink_init(void)
+static int vsllink_interface_init(void)
 {
+	uint16_t voltage;
+
 	vsllink_handle = vsllink_usb_open();
 	if (vsllink_handle == 0) {
 		LOG_ERROR("Can't find USB JTAG Interface!" \
@@ -301,22 +357,68 @@ static int vsllink_init(void)
 		return ERROR_FAIL;
 	}
 
-	/* malloc buffer size for tap */
-	tap_buffer_size = versaloon_interface.usb_setting.buf_size / 2 - 32;
-	vsllink_free_buffer();
-	tdi_buffer = malloc(tap_buffer_size);
-	tdo_buffer = malloc(tap_buffer_size);
-	tms_buffer = malloc(tap_buffer_size);
-	if ((NULL == tdi_buffer) || (NULL == tdo_buffer) || (NULL == tms_buffer)) {
-		vsllink_quit();
+	versaloon_interface.adaptors.target_voltage.get(&voltage);
+	LOG_INFO("Target runs at %.3fV", voltage / 1000.0);
+
+	return ERROR_OK;
+}
+
+static int vsllink_swd_init(uint8_t trn)
+{
+	if (!global_cmd_ctx)
 		return ERROR_FAIL;
+
+	register_commands(global_cmd_ctx, NULL, vsllink_swd_command_handlers);
+
+	return ERROR_OK;
+}
+
+static int vsllink_init(void)
+{
+	int retval = vsllink_interface_init();
+	if (ERROR_OK != retval)
+		return retval;
+
+	versaloon_interface.adaptors.gpio.init(0);
+	versaloon_interface.adaptors.gpio.config(0, GPIO_SRST, 0, GPIO_SRST,
+		GPIO_SRST);
+	versaloon_interface.adaptors.delay.delayms(100);
+	versaloon_interface.adaptors.peripheral_commit();
+
+	if (transport_is_swd()) {
+		versaloon_interface.adaptors.gpio.config(0, GPIO_TRST, 0,
+			GPIO_TRST, GPIO_TRST);
+		versaloon_interface.adaptors.swd.init(0);
+		versaloon_interface.adaptors.swd.config(0, 2, 0, swd_delay);
+
+		const uint8_t jtag_to_swd_seq[] = {
+			0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+			0x9e, 0xe7,
+			0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x0f,
+		};
+
+		versaloon_interface.adaptors.swd.seqout(0,
+			(uint8_t *) jtag_to_swd_seq,
+			sizeof(jtag_to_swd_seq) * 8);
+
+	} else {
+		/* malloc buffer size for tap */
+		tap_buffer_size = versaloon_interface.usb_setting.buf_size / 2 - 32;
+		vsllink_free_buffer();
+		tdi_buffer = malloc(tap_buffer_size);
+		tdo_buffer = malloc(tap_buffer_size);
+		tms_buffer = malloc(tap_buffer_size);
+		if ((NULL == tdi_buffer) || (NULL == tdo_buffer) || (NULL == tms_buffer)) {
+			vsllink_quit();
+			return ERROR_FAIL;
+		}
+
+		versaloon_interface.adaptors.jtag_raw.init(0);
+		versaloon_interface.adaptors.jtag_raw.config(0, jtag_get_speed_khz());
+		versaloon_interface.adaptors.gpio.config(0, GPIO_SRST | GPIO_TRST,
+			GPIO_TRST, GPIO_SRST, GPIO_SRST);
 	}
 
-	versaloon_interface.adaptors.jtag_raw.init(0);
-	versaloon_interface.adaptors.jtag_raw.config(0, jtag_get_speed_khz());
-	versaloon_interface.adaptors.gpio.init(0);
-	versaloon_interface.adaptors.gpio.config(0, GPIO_SRST | GPIO_TRST,
-		GPIO_TRST, GPIO_SRST, GPIO_SRST);
 	if (ERROR_OK != versaloon_interface.adaptors.peripheral_commit())
 		return ERROR_FAIL;
 
@@ -442,11 +544,30 @@ static void vsllink_reset(int trst, int srst)
 	else
 		versaloon_interface.adaptors.gpio.config(0, GPIO_SRST, GPIO_SRST, 0, 0);
 
-	if (!trst)
-		versaloon_interface.adaptors.gpio.out(0, GPIO_TRST, GPIO_TRST);
-	else
-		versaloon_interface.adaptors.gpio.out(0, GPIO_TRST, 0);
+	if (!transport_is_swd()) {
+		if (!trst)
+			versaloon_interface.adaptors.gpio.out(0, GPIO_TRST, GPIO_TRST);
+		else
+			versaloon_interface.adaptors.gpio.out(0, GPIO_TRST, 0);
+	}
+
 	versaloon_interface.adaptors.peripheral_commit();
+}
+
+COMMAND_HANDLER(vsllink_handle_swd_delay_command)
+{
+	if (CMD_ARGC != 1)
+		return ERROR_COMMAND_SYNTAX_ERROR;
+
+	COMMAND_PARSE_NUMBER(u16, CMD_ARGV[0], swd_delay);
+	command_print(CMD_CTX, "swd_delay: %d us", swd_delay);
+	return ERROR_OK;
+}
+
+COMMAND_HANDLER(vsllink_jtag_command)
+{
+	LOG_DEBUG("vsllink_jtag_command");
+	return ERROR_OK;
 }
 
 COMMAND_HANDLER(vsllink_handle_usb_vid_command)
@@ -660,6 +781,9 @@ static int vsllink_jtag_execute(void)
 
 static int vsllink_tap_execute(void)
 {
+	if (transport_is_swd())
+		return ERROR_OK;
+
 	return vsllink_jtag_execute();
 }
 
@@ -815,6 +939,39 @@ static void vsllink_debug_buffer(uint8_t *buffer, int length)
 }
 #endif	/* _DEBUG_JTAG_IO_ */
 
+static const struct command_registration vsllink_jtag_subcommand_handlers[] = {
+	{
+		.name = "arp_init-reset",
+		.mode = COMMAND_ANY,
+		.handler = vsllink_jtag_command,
+		.usage = ""
+	},
+	{
+		.name = "tapisenabled",
+		.mode = COMMAND_EXEC,
+		.jim_handler = jim_jtag_tap_enabler,
+	},
+	COMMAND_REGISTRATION_DONE
+};
+
+static const struct command_registration vsllink_swd_command_handlers[] = {
+	{
+		.name = "swd_delay",
+		.handler = &vsllink_handle_swd_delay_command,
+		.mode = COMMAND_CONFIG,
+		.usage = "microseconds",
+	},
+	{
+		/* this is currently a nasty hack so we get
+		 * reset working with non jtag interfaces */
+		.name = "jtag",
+		.mode = COMMAND_ANY,
+		.usage = "",
+		.chain = vsllink_jtag_subcommand_handlers,
+	},
+	COMMAND_REGISTRATION_DONE
+};
+
 static const struct command_registration vsllink_command_handlers[] = {
 	{
 		.name = "vsllink_usb_vid",
@@ -851,11 +1008,18 @@ static const struct command_registration vsllink_command_handlers[] = {
 
 static const char *vsllink_transports[] = {"jtag", "swd", NULL};
 
+static const struct swd_driver vsllink_swd_driver = {
+	.init       = vsllink_swd_init,
+	.read_reg   = vsllink_swd_read_reg,
+	.write_reg  = vsllink_swd_write_reg,
+};
+
 struct jtag_interface vsllink_interface = {
 	.name = "vsllink",
 	.supported = DEBUG_CAP_TMS_SEQ,
 	.commands = vsllink_command_handlers,
 	.transports = vsllink_transports,
+	.swd = &vsllink_swd_driver,
 
 	.init = vsllink_init,
 	.quit = vsllink_quit,
