@@ -72,6 +72,7 @@
 
 /* project specific includes */
 #include <jtag/interface.h>
+#include <jtag/swd.h>
 #include <transport/transport.h>
 #include <helper/time_support.h>
 
@@ -85,10 +86,13 @@
 #include "mpsse.h"
 
 #define JTAG_MODE (LSB_FIRST | POS_EDGE_IN | NEG_EDGE_OUT)
+#define SWD_MODE (LSB_FIRST | POS_EDGE_IN | NEG_EDGE_OUT)
 
 static char *ftdi_device_desc;
 static char *ftdi_serial;
 static uint8_t ftdi_channel;
+
+static bool swd_mode;
 
 #define MAX_USB_IDS 8
 /* vid = pid = 0 marks the end of the list */
@@ -607,6 +611,30 @@ static int ftdi_initialize(void)
 
 	mpsse_loopback_config(mpsse_ctx, false);
 
+	if (swd_mode) {
+		mpsse_flush(mpsse_ctx);
+		/* Adapter frequency is not set at this point, use something low for the switch sequence */
+		mpsse_set_frequency(mpsse_ctx, 1000);
+		static const uint8_t jtag2swd_bitseq[] = {
+			/* More than 50 TCK/SWCLK cycles with TMS/SWDIO high,
+			 * putting both JTAG and SWD logic into reset state.
+			 */
+			0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+			/* Switching sequence enables SWD and disables JTAG
+			 * NOTE: bits in the DP's IDCODE may expose the need for
+			 * an old/obsolete/deprecated sequence (0xb6 0xed).
+			 */
+			0x9e, 0xe7,
+			/* More than 50 TCK/SWCLK cycles with TMS/SWDIO high,
+			 * putting both JTAG and SWD logic into reset state.
+			 */
+			0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x0f,
+		};
+
+		mpsse_clock_data_out(mpsse_ctx, jtag2swd_bitseq, 0, sizeof(jtag2swd_bitseq) * 8, SWD_MODE);
+		LOG_INFO("JTAG->SWD");
+	}
+
 	return mpsse_flush(mpsse_ctx);
 }
 
@@ -824,11 +852,114 @@ static const struct command_registration ftdi_command_handlers[] = {
 	COMMAND_REGISTRATION_DONE
 };
 
+static int ftdi_swd_init(uint8_t trn)
+{
+	LOG_INFO("Init SWD");
+	swd_mode = true;
+
+	return ERROR_OK;
+}
+
+static void ftdi_swd_swdio_en(bool enable)
+{
+	struct signal *trst = find_signal_by_name("nTRST");
+	if (trst)
+		ftdi_set_signal(trst, enable ? '1' : '0');
+}
+
+static int ftdi_swd_read_reg(uint8_t cmd, uint32_t *value)
+{
+
+	cmd |= (1 << 0) | (1 << 7); /* Add Start and Park bits */
+	mpsse_clock_data_out(mpsse_ctx, &cmd, 0, 8, SWD_MODE);
+
+	ftdi_swd_swdio_en(false);
+
+	uint8_t trn_ack_data_parity_trn[5] = { 0 };
+	mpsse_clock_data_in(mpsse_ctx, trn_ack_data_parity_trn, 0, 1 + 3 + 32 + 1 + 1, SWD_MODE);
+
+	ftdi_swd_swdio_en(true);
+
+	static const uint8_t idle = 0x00;
+	mpsse_clock_data_out(mpsse_ctx, &idle, 0, 8, SWD_MODE);
+
+	int retval = mpsse_flush(mpsse_ctx);
+
+	if (retval != ERROR_OK) {
+		LOG_ERROR("MPSSE failed");
+		return retval;
+	}
+
+	unsigned ack = buf_get_u32(trn_ack_data_parity_trn, 1, 3);
+	uint32_t data = buf_get_u32(trn_ack_data_parity_trn, 4, 32);
+	int parity = buf_get_u32(trn_ack_data_parity_trn, 36, 1);
+	LOG_DEBUG("%s read reg %x = %08"PRIx32, cmd & 2 ? "AP" : "DP", (cmd >> 1) & 0xc, data);
+
+	if (ack != 0x1) {
+		LOG_ERROR("Ack = %d", ack);
+		return ERROR_FAIL;
+	}
+
+	if (parity != parity_u32(data)) {
+		LOG_ERROR("Parity mismatch");
+		return ERROR_FAIL;
+	}
+
+	if (value != NULL)
+		*value = data;
+
+	return ERROR_OK;
+}
+
+static int ftdi_swd_write_reg(uint8_t cmd, uint32_t value)
+{
+	cmd |= (1 << 0) | (1 << 7); /* Add Start and Park bits */
+	LOG_DEBUG("%s write reg %x = %08"PRIx32, cmd & 2 ? "AP" : "DP", (cmd >> 1) & 0xc, value);
+	mpsse_clock_data_out(mpsse_ctx, &cmd, 0, 8, SWD_MODE);
+
+	ftdi_swd_swdio_en(false);
+
+	uint8_t trn_ack_trn[5] = { 0 };
+	mpsse_clock_data_in(mpsse_ctx, trn_ack_trn, 0, 1 + 3 + 1, SWD_MODE);
+
+	ftdi_swd_swdio_en(true);
+
+	uint8_t data_parity_idle[6] = { 0 };
+	buf_set_u32(data_parity_idle, 0, 32, value);
+	buf_set_u32(data_parity_idle, 32, 1, parity_u32(value));
+	buf_set_u32(data_parity_idle, 33, 8, 0);
+	mpsse_clock_data_out(mpsse_ctx, data_parity_idle, 0, 32 + 1 + 8, SWD_MODE);
+
+	int retval = mpsse_flush(mpsse_ctx);
+
+	if (retval != ERROR_OK) {
+		LOG_ERROR("MPSSE failed");
+		return retval;
+	}
+
+	unsigned ack = buf_get_u32(trn_ack_trn, 1, 3);
+	if (ack != 0x1) {
+		LOG_ERROR("Ack = %d", ack);
+		return ERROR_FAIL;
+	}
+
+	return ERROR_OK;
+}
+
+static const struct swd_driver ftdi_swd = {
+		.init       = ftdi_swd_init,
+		.read_reg   = ftdi_swd_read_reg,
+		.write_reg  = ftdi_swd_write_reg,
+};
+
+static const char * const ftdi_transports[] = { "jtag", "swd", NULL };
+
 struct jtag_interface ftdi_interface = {
 	.name = "ftdi",
 	.supported = DEBUG_CAP_TMS_SEQ,
 	.commands = ftdi_command_handlers,
-	.transports = jtag_only,
+	.transports = ftdi_transports,
+	.swd = &ftdi_swd,
 
 	.init = ftdi_initialize,
 	.quit = ftdi_quit,
