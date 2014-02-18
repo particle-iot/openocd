@@ -31,7 +31,7 @@
 #include <jtag/swd.h>
 #include <jtag/tcl.h>
 #include <target/arm_adi_v5.h>
-#include "usb_common.h"
+#include <libusb.h>
 
 #include "versaloon/versaloon_include.h"
 #include "versaloon/versaloon.h"
@@ -75,10 +75,11 @@ static void vsllink_tap_append_scan(int length, uint8_t *buffer,
 
 /* VSLLink lowlevel functions */
 struct vsllink {
-	struct usb_dev_handle *usb_handle;
+	struct libusb_context *libusb_ctx;
+	struct libusb_device_handle *usb_device_handle;
 };
 
-static struct vsllink *vsllink_usb_open(void);
+static int vsllink_usb_open(struct vsllink *vsllink);
 static void vsllink_usb_close(struct vsllink *vsllink);
 
 #if defined _DEBUG_JTAG_IO_
@@ -92,7 +93,7 @@ static uint8_t *tdi_buffer;
 static uint8_t *tdo_buffer;
 static uint16_t swd_delay;
 
-struct vsllink *vsllink_handle;
+static struct vsllink *vsllink_handle;
 
 /* global command context from openocd.c */
 extern struct command_context *global_cmd_ctx;
@@ -337,6 +338,8 @@ static int vsllink_quit(void)
 	vsllink_free_buffer();
 	vsllink_usb_close(vsllink_handle);
 
+	free(vsllink_handle);
+
 	return ERROR_OK;
 }
 
@@ -344,8 +347,15 @@ static int vsllink_interface_init(void)
 {
 	uint16_t voltage;
 
-	vsllink_handle = vsllink_usb_open();
-	if (vsllink_handle == 0) {
+	vsllink_handle = malloc(sizeof(struct vsllink));
+	if (NULL == vsllink_handle) {
+		LOG_ERROR("unable to allocate memory");
+		return ERROR_FAIL;
+	}
+
+	libusb_init(&vsllink_handle->libusb_ctx);
+
+	if (ERROR_OK != vsllink_usb_open(vsllink_handle)) {
 		LOG_ERROR("Can't find USB JTAG Interface!" \
 			"Please check connection and permissions.");
 		return ERROR_JTAG_INIT_FAILED;
@@ -353,7 +363,7 @@ static int vsllink_interface_init(void)
 	LOG_DEBUG("vsllink found on %04X:%04X",
 		versaloon_interface.usb_setting.vid,
 		versaloon_interface.usb_setting.pid);
-	versaloon_usb_device_handle = vsllink_handle->usb_handle;
+	versaloon_usb_device_handle = vsllink_handle->usb_device_handle;
 
 	if (ERROR_OK != versaloon_interface.init())
 		return ERROR_FAIL;
@@ -795,132 +805,94 @@ static int vsllink_tap_execute(void)
 /****************************************************************************
  * VSLLink USB low-level functions */
 
-static uint8_t usb_check_string(usb_dev_handle *usb, uint8_t stringidx,
-	char *string, char *buff, uint16_t buf_size)
+static int vsllink_check_usb_strings(
+	struct libusb_device_handle *usb_device_handle,
+	struct libusb_device_descriptor *usb_desc)
 {
-	int len;
-	uint8_t alloced = 0;
-	uint8_t ret = 1;
+	char desc_string[256];
+	int retval;
 
-	if (NULL == buff) {
-		buf_size = 256;
-		buff = malloc(buf_size);
-		if (NULL == buff) {
-			ret = 0;
-			goto free_and_return;
-		}
-		alloced = 1;
+	if (NULL != versaloon_interface.usb_setting.serialstring) {
+		retval = libusb_get_string_descriptor_ascii(usb_device_handle,
+			usb_desc->iSerialNumber, (unsigned char *)desc_string,
+			sizeof(desc_string));
+		if (retval < 0)
+			return ERROR_FAIL;
+
+		if (strncmp(desc_string, versaloon_interface.usb_setting.serialstring,
+				sizeof(desc_string)))
+			return ERROR_FAIL;
 	}
 
-	strcpy(buff, "");
-	len = usb_get_string_simple(usb, stringidx, buff, buf_size);
-	if ((len < 0) || ((size_t)len != strlen(buff))) {
-		ret = 0;
-		goto free_and_return;
-	}
+	retval = libusb_get_string_descriptor_ascii(usb_device_handle,
+		usb_desc->iProduct, (unsigned char *)desc_string,
+		sizeof(desc_string));
+	if (retval < 0)
+		return ERROR_FAIL;
 
-	buff[len] = '\0';
-	if ((string != NULL) && strcmp(buff, string)) {
-		ret = 0;
-		goto free_and_return;
-	}
+	if (strstr(desc_string, "Versaloon") == NULL)
+		return ERROR_FAIL;
 
-free_and_return:
-	if (alloced && (buff != NULL)) {
-		free(buff);
-		buff = NULL;
-	}
-	return ret;
+	return ERROR_OK;
 }
 
-static usb_dev_handle *find_usb_device(uint16_t VID, uint16_t PID, uint8_t interface,
-		char *serialstring, char *productstring)
+static int vsllink_usb_open(struct vsllink *vsllink)
 {
-	usb_dev_handle *dev_handle = NULL;
-	struct usb_bus *busses;
-	struct usb_bus *bus;
-	struct usb_device *dev;
+	ssize_t num_devices, i;
+	libusb_device **usb_devices;
+	struct libusb_device_descriptor usb_desc;
+	struct libusb_device_handle *usb_device_handle;
+	int retval;
 
-	usb_init();
-	usb_find_busses();
-	usb_find_devices();
-	busses = usb_get_busses();
+	num_devices = libusb_get_device_list(vsllink->libusb_ctx, &usb_devices);
 
-	for (bus = busses; bus; bus = bus->next) {
-		for (dev = bus->devices; dev; dev = dev->next) {
-			if ((dev->descriptor.idVendor == VID)
-			    && (dev->descriptor.idProduct == PID)) {
-				dev_handle = usb_open(dev);
-				if (NULL == dev_handle) {
-					LOG_ERROR("failed to open %04X:%04X, %s", VID, PID,
-						usb_strerror());
-					continue;
-				}
+	if (num_devices <= 0)
+		return ERROR_FAIL;
 
-				/* check description string */
-				if ((productstring != NULL && !usb_check_string(dev_handle,
-						dev->descriptor.iProduct, productstring, NULL, 0))
-					|| (serialstring != NULL && !usb_check_string(dev_handle,
-								dev->descriptor.iSerialNumber, serialstring, NULL, 0))) {
-					usb_close(dev_handle);
-					dev_handle = NULL;
-					continue;
-				}
+	for (i = 0; i < num_devices; i++) {
+		libusb_device *device = usb_devices[i];
 
-				if (usb_claim_interface(dev_handle, interface) != 0) {
-					LOG_ERROR(ERRMSG_FAILURE_OPERATION_MESSAGE,
-						"claim interface", usb_strerror());
-					usb_close(dev_handle);
-					dev_handle = NULL;
-					continue;
-				}
+		retval = libusb_get_device_descriptor(device, &usb_desc);
+		if (retval != 0)
+			continue;
 
-				if (dev_handle != NULL)
-					return dev_handle;
-			}
-		}
+		if (usb_desc.idVendor != versaloon_interface.usb_setting.vid ||
+			usb_desc.idProduct != versaloon_interface.usb_setting.pid)
+			continue;
+
+		retval = libusb_open(device, &usb_device_handle);
+		if (retval != 0)
+			continue;
+
+		retval = vsllink_check_usb_strings(usb_device_handle, &usb_desc);
+		if (ERROR_OK == retval)
+			break;
+
+		libusb_close(usb_device_handle);
 	}
 
-	return dev_handle;
-}
+	libusb_free_device_list(usb_devices, 1);
 
-static struct vsllink *vsllink_usb_open(void)
-{
-	usb_init();
+	if (i == num_devices)
+		return ERROR_FAIL;
 
-	struct usb_dev_handle *dev;
+	retval = libusb_claim_interface(usb_device_handle,
+		versaloon_interface.usb_setting.interface);
+	if (retval != 0) {
+		LOG_ERROR("unable to claim interface");
+		libusb_close(usb_device_handle);
+		return ERROR_FAIL;
+	}
 
-	dev = find_usb_device(versaloon_interface.usb_setting.vid,
-			versaloon_interface.usb_setting.pid,
-			versaloon_interface.usb_setting.interface,
-			versaloon_interface.usb_setting.serialstring, "Versaloon");
-	if (NULL == dev)
-		return NULL;
-
-	struct vsllink *result = malloc(sizeof(struct vsllink));
-	result->usb_handle = dev;
-	return result;
+	vsllink->usb_device_handle = usb_device_handle;
+	return ERROR_OK;
 }
 
 static void vsllink_usb_close(struct vsllink *vsllink)
 {
-	int ret;
-
-	ret = usb_release_interface(vsllink->usb_handle,
-			versaloon_interface.usb_setting.interface);
-	if (ret != 0) {
-		LOG_ERROR("fail to release interface %d, %d returned",
-			versaloon_interface.usb_setting.interface, ret);
-		exit(-1);
-	}
-
-	ret = usb_close(vsllink->usb_handle);
-	if (ret != 0) {
-		LOG_ERROR("fail to close usb, %d returned", ret);
-		exit(-1);
-	}
-
-	free(vsllink);
+	libusb_release_interface(vsllink->usb_device_handle,
+		versaloon_interface.usb_setting.interface);
+	libusb_close(vsllink->usb_device_handle);
 }
 
 #define BYTES_PER_LINE  16
