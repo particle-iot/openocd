@@ -730,6 +730,136 @@ static int mips32_pracc_clean_invalidate_cache(struct mips_ejtag *ejtag_info,
 	return retval;
 }
 
+static int pracc_cache_loop(struct mips_ejtag *ejtag_info,
+					uint32_t cbaddr,		/* base or start  address for cache operation */
+					unsigned clcount,		/* line count */
+					unsigned clsiz,			/* line size */
+					uint32_t caopcode,		/* cache encoding */
+					bool use_synci)			/* use SYNCI instruction, caopcode ignored */
+{
+	struct pracc_queue_info ctx = {.max_code = 512 + 9};		/* alloc memory for the worst case */
+	pracc_queue_init(&ctx);
+	if (ctx.retval != ERROR_OK)
+		goto exit;
+
+	while (clcount > 0) {
+		ctx.code_count = 0;
+		uint32_t last_upper_base_addr = UPPER16((cbaddr + 0x8000));
+		pracc_add(&ctx, 0, MIPS32_MTC0(15, 31, 0));
+		pracc_add(&ctx, 0, MIPS32_LUI(15, last_upper_base_addr));		/* load $15 with memory base address */
+
+		int this_round_count = (clcount > 512) ? 512 : clcount;
+		for (int i = 0; i != this_round_count; i++, cbaddr += clsiz) {
+
+			uint32_t upper_base_addr = UPPER16((cbaddr + 0x8000));
+			if (last_upper_base_addr != upper_base_addr) {
+				pracc_add(&ctx, 0, MIPS32_LUI(15, upper_base_addr));	/* if needed, change upper address in $15*/
+				last_upper_base_addr = upper_base_addr;
+			}
+			if (use_synci)
+				pracc_add(&ctx, 0, MIPS32_SYNCI(LOWER16(cbaddr), 15));
+			else
+				pracc_add(&ctx, 0, MIPS32_CACHE(caopcode, LOWER16(cbaddr), 15));
+		}
+		clcount -= this_round_count;
+		if (clcount == 0) {				/* after sourcing by address or index */
+			pracc_add(&ctx, 0, MIPS32_SYNC);	/* recommended secuence to avoid hazards, see docs */
+			pracc_add(&ctx, 0, MIPS32_EHB);		/* execution hazard barrier, SSNOP variant in release 1 */
+			pracc_add(&ctx, 0, MIPS32_EHB);		/* additional code for 24k */
+			pracc_add(&ctx, 0, MIPS32_EHB);		/* some 24k core needs this to work in queued mode */
+		}
+		pracc_add(&ctx, 0, MIPS32_B(NEG16(ctx.code_count + 1)));			/* jump to start */
+		pracc_add(&ctx, 0, MIPS32_MFC0(15, 31, 0));					/* restore reg15 from DeSave */
+		ctx.retval = mips32_pracc_queue_exec(ejtag_info, &ctx, NULL);
+		if (ctx.retval != ERROR_OK)
+			goto exit;
+	}
+exit:
+	pracc_queue_free(&ctx);
+	return ctx.retval;
+}
+
+/**	pracc cache code with index opcodes to operate over entire
+	primary caches: initialization or synchronization
+*/
+int mips32_pracc_cache_op_index(struct mips_ejtag *ejtag_info, bool init,  uint32_t kseg0cca)
+{
+	/* get cache info */
+	uint32_t cp0config1;
+	int retval = mips32_cp0_read(ejtag_info, &cp0config1, 16, 1);
+	if (retval != ERROR_OK)
+		return retval;
+	/* cp0 config1 encoding: 0 => no cache, 1 => 4 bytes, 2 => 8 bytes,... max 6 => 128 bytes cache line size */
+	unsigned ilshift = (cp0config1 & MIPS32_CONFIG1_IL_MASK) >> MIPS32_CONFIG1_IL_SHIFT;
+	unsigned dlshift = (cp0config1 & MIPS32_CONFIG1_DL_MASK) >> MIPS32_CONFIG1_DL_SHIFT;
+
+	if (dlshift == 0 && ilshift == 0) {
+		LOG_INFO("No cache present");
+		return ERROR_OK;
+	}
+
+	if (init)
+		/* initialize TagLo and TagHi to 0 in cp0 28 and 29 registers, select 0 and 2 */
+		for (int reg = 28; reg <= 29; reg++)
+			for (int sel = 0; sel <= 2; sel += 2) {
+				retval = mips32_cp0_write(ejtag_info, 0, reg, sel);
+				if (retval != ERROR_OK)
+					return retval;
+			}
+	/* read cacheability and coherency attribute for Kseg0, change value if needed */
+	uint32_t cp0config;
+	retval = mips32_cp0_read(ejtag_info, &cp0config, 16, 0);
+	if (retval != ERROR_OK)
+		return retval;
+	uint32_t cca = cp0config & MIPS32_CONFIG0_K0_MASK;
+	kseg0cca &= MIPS32_CONFIG0_K0_MASK;
+	if (init && (cca != kseg0cca)) {
+		retval = mips32_cp0_write(ejtag_info, (cp0config & ~MIPS32_CONFIG0_K0_MASK) | kseg0cca, 16, 0);
+		if (retval != ERROR_OK)
+			return retval;
+	}
+	/* Cache lines = sets per_way * ways (or associativity), see docs for encoding */
+	unsigned setspw = (cp0config1 & MIPS32_CONFIG1_IS_MASK) >> MIPS32_CONFIG1_IS_SHIFT;
+	setspw = 32 << ((1 + setspw) & 0x7);
+	unsigned ways = 1 + ((cp0config1 & MIPS32_CONFIG1_IA_MASK) >> MIPS32_CONFIG1_IA_SHIFT);
+
+	unsigned ilcount = setspw * ways;
+	unsigned ilsize = 2 << ilshift;
+	if (init)
+		LOG_INFO("Icache size: %d bytes   Sets per way: %d   Ways: %d   Line size: %d bytes",
+						ilsize * ilcount, setspw, ways, ilsize);
+
+	setspw = (cp0config1 & MIPS32_CONFIG1_DS_MASK) >> MIPS32_CONFIG1_DS_SHIFT;
+	setspw = 32 << ((1 + setspw) & 0x7);
+	ways = 1 + ((cp0config1 & MIPS32_CONFIG1_DA_MASK) >> MIPS32_CONFIG1_DA_SHIFT);
+
+	unsigned dlcount = setspw * ways;
+	unsigned dlsize = 2 << dlshift;
+	if (init)
+		LOG_INFO("Dcache size: %d bytes   Sets per way: %d   Ways: %d   Line size: %d bytes",
+						  dlsize * dlcount, setspw, ways, dlsize);
+
+	uint32_t base_addr = UPPER16(KSEG0);	/* use unmapped base address to avoid TLB related exceptions, see docs */
+
+	if (dlshift && (init || cca == 3)) {		/* if data cache is present... */
+		uint32_t dcaopcode = init ? MIPS32_DCACHE_INDEX_STORE_TAG : MIPS32_DCACHE_WBACK_INV_BY_INDEX;
+
+		retval = pracc_cache_loop(ejtag_info, base_addr, dlcount, dlsize, dcaopcode, 0);
+		if (retval != ERROR_OK)
+			return retval;
+	}
+
+	if (ilshift) {			/* if instruction cache is present */
+		uint32_t icaopcode = init ?  MIPS32_ICACHE_INDEX_STORE_TAG : MIPS32_ICACHE_INVALIDATE_BY_INDEX;
+
+		retval = pracc_cache_loop(ejtag_info, base_addr, ilcount, ilsize, icaopcode, 0);
+		if (retval != ERROR_OK)
+			return retval;
+	}
+
+	return retval;
+}
+
 static int mips32_pracc_write_mem_generic(struct mips_ejtag *ejtag_info,
 		uint32_t addr, int size, int count, const void *buf)
 {

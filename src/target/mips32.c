@@ -841,6 +841,49 @@ COMMAND_HANDLER(mips32_handle_scan_delay_command)
 	return ERROR_OK;
 }
 
+COMMAND_HANDLER(mips32_handle_cache_command)
+{
+	struct target *target = get_current_target(CMD_CTX);
+	struct mips32_common *mips32 = target_to_mips32(target);
+	struct mips_ejtag *ejtag_info = &mips32->ejtag_info;
+
+	int retval = mips32_verify_pointer(CMD_CTX, mips32);
+	if (retval != ERROR_OK)
+		return retval;
+
+	if (target->state != TARGET_HALTED) {
+		command_print(CMD_CTX, "target must be stopped for \"%s\" command", CMD_NAME);
+		return ERROR_OK;
+	}
+
+	uint32_t kseg0cca;
+	if (CMD_ARGC == 1)
+		if (*CMD_ARGV[0] == 's')
+			kseg0cca = 8;
+		else {
+			COMMAND_PARSE_NUMBER(uint, CMD_ARGV[0], kseg0cca);
+			if (kseg0cca > 7) {
+				command_print(CMD_CTX, "valid values 0 to 7 or s");
+				return ERROR_OK;
+			}
+		}
+	else
+		if (CMD_ARGC == 0 || CMD_ARGC > 1)
+			return ERROR_COMMAND_SYNTAX_ERROR;
+
+	if (kseg0cca <= 7) {
+		retval = mips32_pracc_cache_op_index(ejtag_info, 1, kseg0cca);
+		if (retval != ERROR_OK)
+			command_print(CMD_CTX, "couldn't initialize cache");
+	} else {
+		retval = mips32_pracc_cache_op_index(ejtag_info, 0, 0);
+		if (retval != ERROR_OK)
+			command_print(CMD_CTX, "couldn't sync cache");
+	}
+
+	return ERROR_OK;
+}
+
 static const struct command_registration mips32_exec_command_handlers[] = {
 	{
 		.name = "cp0",
@@ -854,6 +897,13 @@ static const struct command_registration mips32_exec_command_handlers[] = {
 		.handler = mips32_handle_scan_delay_command,
 		.mode = COMMAND_ANY,
 		.help = "display/set scan delay in nano seconds",
+		.usage = "[value]",
+	},
+		{
+		.name = "cache",
+		.handler = mips32_handle_cache_command,
+		.mode = COMMAND_EXEC,
+		.help = "init/sync mips32 primary caches, initialize with cca = value (0 to 7), if s sync entire cache",
 		.usage = "[value]",
 	},
 	COMMAND_REGISTRATION_DONE

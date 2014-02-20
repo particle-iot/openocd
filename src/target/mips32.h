@@ -44,7 +44,7 @@
 /** Returns the kernel segment base of a given address */
 #define KSEGX(a)		((a) & 0xe0000000)
 
-/** CP0 CONFIG regites fields */
+/** CP0 CONFIG register fields */
 #define MIPS32_CONFIG0_KU_SHIFT 25
 #define MIPS32_CONFIG0_KU_MASK (0x7 << MIPS32_CONFIG0_KU_SHIFT)
 
@@ -57,8 +57,23 @@
 #define MIPS32_CONFIG0_AR_SHIFT 10
 #define MIPS32_CONFIG0_AR_MASK (0x7 << MIPS32_CONFIG0_AR_SHIFT)
 
-#define MIPS32_CONFIG1_DL_SHIFT 10
+#define MIPS32_CONFIG1_DL_SHIFT 10	/* D cache line size */
 #define MIPS32_CONFIG1_DL_MASK (0x7 << MIPS32_CONFIG1_DL_SHIFT)
+
+#define MIPS32_CONFIG1_IL_SHIFT 19	/* I cache line size */
+#define MIPS32_CONFIG1_IL_MASK (0x7 << MIPS32_CONFIG1_IL_SHIFT)
+
+#define MIPS32_CONFIG1_DS_SHIFT 13	/* D cache sets per way */
+#define MIPS32_CONFIG1_DS_MASK (0x7 << MIPS32_CONFIG1_DS_SHIFT)
+
+#define MIPS32_CONFIG1_IS_SHIFT 22	/* I cache sets per way */
+#define MIPS32_CONFIG1_IS_MASK (0x7 << MIPS32_CONFIG1_IS_SHIFT)
+
+#define MIPS32_CONFIG1_DA_SHIFT 7	/* D cache associativity */
+#define MIPS32_CONFIG1_DA_MASK (0x7 << MIPS32_CONFIG1_DA_SHIFT)
+
+#define MIPS32_CONFIG1_IA_SHIFT 16	/* I cache associativity */
+#define MIPS32_CONFIG1_IA_MASK (0x7 << MIPS32_CONFIG1_IA_SHIFT)
 
 #define MIPS32_ARCH_REL1 0x0
 #define MIPS32_ARCH_REL2 0x1
@@ -201,8 +216,11 @@ struct mips32_algorithm {
 
 #define MIPS32_SYNC			0xF
 #define MIPS32_SYNCI_STEP	0x1	/* reg num od address step size to be used with synci instruction */
+/* EHB execution hazard barrier in release 2,defaults to SSNOP variant in release 1 */
+#define MIPS32_EHB              0xC0
 
 /**
+
  * Cache operations definietions
  * Operation field is 5 bits long :
  * 1) bits 1..0 hold cache type
@@ -210,6 +228,14 @@ struct mips32_algorithm {
  */
 #define MIPS32_CACHE_D_HIT_WRITEBACK ((0x1 << 0) | (0x6 << 2))
 #define MIPS32_CACHE_I_HIT_INVALIDATE ((0x0 << 0) | (0x4 << 2))
+
+/* required encodings to synchronize entire caches */
+#define MIPS32_DCACHE_WBACK_INV_BY_INDEX		((0x1 << 0) | (0x0 << 2))
+#define MIPS32_ICACHE_INVALIDATE_BY_INDEX		((0x0 << 0) | (0x0 << 2))
+
+/* required encodings for cache initialization */
+#define MIPS32_DCACHE_INDEX_STORE_TAG			((0x1 << 0) | (0x2 << 2))
+#define MIPS32_ICACHE_INDEX_STORE_TAG			((0x0 << 0) | (0x2 << 2))
 
 /* ejtag specific instructions */
 #define MIPS32_DRET					0x4200001F
