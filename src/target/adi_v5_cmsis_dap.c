@@ -60,24 +60,18 @@ static int (cmsis_dap_queue_ap_abort)(struct adiv5_dap *dap, uint8_t *ack)
 
 	/* FIXME: implement this properly cmsis-dap has DAP_WriteABORT()
 	 * for now just hack @ everything */
-	return jtag_interface->swd->write_reg(
+	jtag_interface->swd->write_reg(dap,
 			(CMSIS_CMD_DP | CMSIS_CMD_WRITE | CMSIS_CMD_A32(DP_ABORT)), 0x1e);
+	return ERROR_OK;
 }
 
 static int cmsis_dap_queue_dp_read(struct adiv5_dap *dap, unsigned reg, uint32_t *data)
 {
 	LOG_DEBUG("CMSIS-ADI: cmsis_dap_queue_dp_read %d", reg);
 
-	int retval = jtag_interface->swd->read_reg(
+	jtag_interface->swd->read_reg(dap,
 			(CMSIS_CMD_DP | CMSIS_CMD_READ | CMSIS_CMD_A32(reg)), data);
-
-	if (retval != ERROR_OK) {
-		/* fault response */
-		uint8_t ack = retval & 0xff;
-		cmsis_dap_queue_ap_abort(dap, &ack);
-	}
-
-	return retval;
+	return ERROR_OK;
 }
 
 static int (cmsis_dap_queue_dp_write)(struct adiv5_dap *dap, unsigned reg, uint32_t data)
@@ -91,16 +85,9 @@ static int (cmsis_dap_queue_dp_write)(struct adiv5_dap *dap, unsigned reg, uint3
 		data &= ~CORUNDETECT;
 	}
 
-	int retval = jtag_interface->swd->write_reg(
+	jtag_interface->swd->write_reg(dap,
 			(CMSIS_CMD_DP | CMSIS_CMD_WRITE | CMSIS_CMD_A32(reg)), data);
-
-	if (retval != ERROR_OK) {
-		/* fault response */
-		uint8_t ack = retval & 0xff;
-		cmsis_dap_queue_ap_abort(dap, &ack);
-	}
-
-	return retval;
+	return ERROR_OK;
 }
 
 /** Select the AP register bank matching bits 7:4 of reg. */
@@ -125,14 +112,8 @@ static int (cmsis_dap_queue_ap_read)(struct adiv5_dap *dap, unsigned reg, uint32
 	if (retval != ERROR_OK)
 		return retval;
 
-	retval = jtag_interface->swd->read_reg(
+	jtag_interface->swd->read_reg(dap,
 			(CMSIS_CMD_AP | CMSIS_CMD_READ | CMSIS_CMD_A32(reg)), data);
-
-	if (retval != ERROR_OK) {
-		/* fault response */
-		uint8_t ack = retval & 0xff;
-		cmsis_dap_queue_ap_abort(dap, &ack);
-	}
 
 	return retval;
 }
@@ -150,14 +131,8 @@ static int (cmsis_dap_queue_ap_write)(struct adiv5_dap *dap, unsigned reg, uint3
 	if (retval != ERROR_OK)
 		return retval;
 
-	retval = jtag_interface->swd->write_reg(
+	jtag_interface->swd->write_reg(dap,
 			(CMSIS_CMD_AP | CMSIS_CMD_WRITE | CMSIS_CMD_A32(reg)), data);
-
-	if (retval != ERROR_OK) {
-		/* fault response */
-		uint8_t ack = retval & 0xff;
-		cmsis_dap_queue_ap_abort(dap, &ack);
-	}
 
 	return retval;
 }
@@ -167,6 +142,13 @@ static int cmsis_dap_run(struct adiv5_dap *dap)
 {
 	LOG_DEBUG("CMSIS-ADI: cmsis_dap_run");
 	/* FIXME: for now the CMSIS-DAP interface hard-wires a zero-size queue. */
+
+	int retval = jtag_interface->swd->run(dap);
+	if (retval != ERROR_OK) {
+		/* fault response */
+		uint8_t ack = retval & 0xff;
+		cmsis_dap_queue_ap_abort(dap, &ack);
+	}
 
 	return ERROR_OK;
 }
