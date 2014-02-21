@@ -852,104 +852,166 @@ static const struct command_registration ftdi_command_handlers[] = {
 	COMMAND_REGISTRATION_DONE
 };
 
+/* FIXME: Where to store per-instance data? We need an SWD context. */
+static struct swd_cmd_queue_entry {
+	uint8_t cmd;
+	uint32_t *dst;
+	uint8_t trn_ack_data_parity_trn[DIV_ROUND_UP(4 + 3 + 32 + 1 + 4, 8)];
+} *swd_cmd_queue;
+static size_t swd_cmd_queue_length;
+static size_t swd_cmd_queue_alloced;
+static int queued_retval;
+static int swd_trn;
+
 static int ftdi_swd_init(uint8_t trn)
 {
-	LOG_INFO("Init SWD");
+	LOG_INFO("FTDI SWD mode enabled");
 	swd_mode = true;
+	swd_trn = trn;
 
-	return ERROR_OK;
+	swd_cmd_queue_alloced = 10;
+	swd_cmd_queue = malloc(swd_cmd_queue_alloced * sizeof(*swd_cmd_queue));
+
+	return swd_cmd_queue != NULL ? ERROR_OK : ERROR_FAIL;
 }
 
 static void ftdi_swd_swdio_en(bool enable)
 {
-	struct signal *trst = find_signal_by_name("nTRST");
-	if (trst)
-		ftdi_set_signal(trst, enable ? '1' : '0');
+	struct signal *oe = find_signal_by_name("SWDIO_OE");
+	if (oe)
+		ftdi_set_signal(oe, enable ? '1' : '0');
 }
 
-static int ftdi_swd_read_reg(uint8_t cmd, uint32_t *value)
+/**
+ * Flush the MPSSE queue and process the SWD transaction queue
+ * @param dap
+ * @return
+ */
+static int ftdi_swd_run_queue(struct adiv5_dap *dap)
 {
+	LOG_DEBUG("Executing %zu queued transactions", swd_cmd_queue_length);
+	int retval;
+	if (queued_retval != ERROR_OK) {
+		LOG_DEBUG("Skipping due to previous errors: %d", queued_retval);
+		goto skip;
+	}
 
-	cmd |= (1 << 0) | (1 << 7); /* Add Start and Park bits */
-	mpsse_clock_data_out(mpsse_ctx, &cmd, 0, 8, SWD_MODE);
+	/* A transaction must be followed by another transaction or at least 8 idle cycles to
+	 * ensure that data is clocked through the AP. */
+	mpsse_clock_data_out(mpsse_ctx, NULL, 0, 8, SWD_MODE);
 
-	ftdi_swd_swdio_en(false);
-
-	uint8_t trn_ack_data_parity_trn[5] = { 0 };
-	mpsse_clock_data_in(mpsse_ctx, trn_ack_data_parity_trn, 0, 1 + 3 + 32 + 1 + 1, SWD_MODE);
-
-	ftdi_swd_swdio_en(true);
-
-	static const uint8_t idle = 0x00;
-	mpsse_clock_data_out(mpsse_ctx, &idle, 0, 8, SWD_MODE);
-
-	int retval = mpsse_flush(mpsse_ctx);
-
-	if (retval != ERROR_OK) {
+	queued_retval = mpsse_flush(mpsse_ctx);
+	if (queued_retval != ERROR_OK) {
 		LOG_ERROR("MPSSE failed");
-		return retval;
+		goto skip;
 	}
 
-	unsigned ack = buf_get_u32(trn_ack_data_parity_trn, 1, 3);
-	uint32_t data = buf_get_u32(trn_ack_data_parity_trn, 4, 32);
-	int parity = buf_get_u32(trn_ack_data_parity_trn, 36, 1);
-	LOG_DEBUG("%s read reg %x = %08"PRIx32, cmd & 2 ? "AP" : "DP", (cmd >> 1) & 0xc, data);
+	for (size_t i = 0; i < swd_cmd_queue_length; i++) {
+		int ack = buf_get_u32(&swd_cmd_queue[i].trn_ack_data_parity_trn, swd_trn, 3);
 
-	if (ack != 0x1) {
-		LOG_ERROR("Ack = %d", ack);
-		return ERROR_FAIL;
+		LOG_DEBUG("%s %s %s reg %X = %08"PRIx32,
+				ack == SWD_ACK_OK ? "OK" : ack == SWD_ACK_WAIT ? "WAIT" : ack == SWD_ACK_FAULT ? "FAULT" : "JUNK",
+				swd_cmd_queue[i].cmd & SWD_CMD_APnDP ? "AP" : "DP",
+				swd_cmd_queue[i].cmd & SWD_CMD_RnW ? "read" : "write",
+				(swd_cmd_queue[i].cmd & SWD_CMD_A32) >> 1,
+				buf_get_u32(swd_cmd_queue[i].trn_ack_data_parity_trn, swd_trn + 3, 32));
+
+		if (ack != SWD_ACK_OK) {
+			queued_retval = ack;
+			goto skip;
+
+		} else if (swd_cmd_queue[i].cmd & SWD_CMD_RnW) {
+			uint32_t data = buf_get_u32(swd_cmd_queue[i].trn_ack_data_parity_trn, swd_trn + 3, 32);
+			int parity = buf_get_u32(swd_cmd_queue[i].trn_ack_data_parity_trn, swd_trn + 3 + 32, 1);
+
+			if (parity != parity_u32(data)) {
+				LOG_ERROR("SWD Read data parity mismatch");
+				queued_retval = ERROR_FAIL;
+				goto skip;
+			}
+
+			if (swd_cmd_queue[i].dst != NULL)
+				*swd_cmd_queue[i].dst = data;
+		}
 	}
 
-	if (parity != parity_u32(data)) {
-		LOG_ERROR("Parity mismatch");
-		return ERROR_FAIL;
-	}
-
-	if (value != NULL)
-		*value = data;
-
-	return ERROR_OK;
+skip:
+	swd_cmd_queue_length = 0;
+	retval = queued_retval;
+	queued_retval = ERROR_OK;
+	return retval;
 }
 
-static int ftdi_swd_write_reg(uint8_t cmd, uint32_t value)
+static void ftdi_swd_queue_cmd(struct adiv5_dap *dap, uint8_t cmd, uint32_t *dst, uint32_t data)
 {
-	cmd |= (1 << 0) | (1 << 7); /* Add Start and Park bits */
-	LOG_DEBUG("%s write reg %x = %08"PRIx32, cmd & 2 ? "AP" : "DP", (cmd >> 1) & 0xc, value);
-	mpsse_clock_data_out(mpsse_ctx, &cmd, 0, 8, SWD_MODE);
-
-	ftdi_swd_swdio_en(false);
-
-	uint8_t trn_ack_trn[5] = { 0 };
-	mpsse_clock_data_in(mpsse_ctx, trn_ack_trn, 0, 1 + 3 + 1, SWD_MODE);
-
-	ftdi_swd_swdio_en(true);
-
-	uint8_t data_parity_idle[6] = { 0 };
-	buf_set_u32(data_parity_idle, 0, 32, value);
-	buf_set_u32(data_parity_idle, 32, 1, parity_u32(value));
-	buf_set_u32(data_parity_idle, 33, 8, 0);
-	mpsse_clock_data_out(mpsse_ctx, data_parity_idle, 0, 32 + 1 + 8, SWD_MODE);
-
-	int retval = mpsse_flush(mpsse_ctx);
-
-	if (retval != ERROR_OK) {
-		LOG_ERROR("MPSSE failed");
-		return retval;
+	if (swd_cmd_queue_length >= swd_cmd_queue_alloced) {
+		/* Not enough room in the queue. Run the queue and increase its size for next time.
+		 * Note that it's not possible to avoid running the queue here, because mpsse contains
+		 * pointers into the queue which may be invalid after the realloc. */
+		queued_retval = ftdi_swd_run_queue(dap);
+		struct swd_cmd_queue_entry *q = realloc(swd_cmd_queue, swd_cmd_queue_alloced * 2 * sizeof(*swd_cmd_queue));
+		if (q != NULL) {
+			swd_cmd_queue = q;
+			swd_cmd_queue_alloced *= 2;
+			LOG_DEBUG("Increased SWD command queue to %zu elements", swd_cmd_queue_alloced);
+		}
 	}
 
-	unsigned ack = buf_get_u32(trn_ack_trn, 1, 3);
-	if (ack != 0x1) {
-		LOG_ERROR("Ack = %d", ack);
-		return ERROR_FAIL;
+	if (queued_retval != ERROR_OK)
+		return;
+
+	size_t i = swd_cmd_queue_length++;
+	swd_cmd_queue[i].cmd = cmd | SWD_CMD_START | (1 << 7); /* Park bit needs to be driven high, despite some docs? */
+
+	mpsse_clock_data_out(mpsse_ctx, &swd_cmd_queue[i].cmd, 0, 8, SWD_MODE);
+
+	if (swd_cmd_queue[i].cmd & SWD_CMD_RnW) {
+		/* Queue a read transaction */
+		swd_cmd_queue[i].dst = dst;
+
+		ftdi_swd_swdio_en(false);
+		mpsse_clock_data_in(mpsse_ctx, swd_cmd_queue[i].trn_ack_data_parity_trn,
+				0, swd_trn + 3 + 32 + 1 + swd_trn, SWD_MODE);
+		ftdi_swd_swdio_en(true);
+	} else {
+		/* Queue a write transaction */
+		ftdi_swd_swdio_en(false);
+
+		mpsse_clock_data_in(mpsse_ctx, swd_cmd_queue[i].trn_ack_data_parity_trn,
+				0, swd_trn + 3 + swd_trn, SWD_MODE);
+
+		ftdi_swd_swdio_en(true);
+
+		buf_set_u32(swd_cmd_queue[i].trn_ack_data_parity_trn, swd_trn + 3, 32, data);
+		buf_set_u32(swd_cmd_queue[i].trn_ack_data_parity_trn, swd_trn + 3 + 32, 1, parity_u32(data));
+
+		mpsse_clock_data_out(mpsse_ctx, swd_cmd_queue[i].trn_ack_data_parity_trn,
+				swd_trn + 3, 32 + 1, SWD_MODE);
 	}
 
-	return ERROR_OK;
+	/* Insert idle cycles after AP accesses to avoid WAIT */
+	if (cmd & SWD_CMD_APnDP)
+		mpsse_clock_data_out(mpsse_ctx, NULL, 0, dap->memaccess_tck, SWD_MODE);
+
+}
+
+static void ftdi_swd_read_reg(struct adiv5_dap *dap, uint8_t cmd, uint32_t *value)
+{
+	assert(cmd & SWD_CMD_RnW);
+	ftdi_swd_queue_cmd(dap, cmd, value, 0);
+}
+
+static void ftdi_swd_write_reg(struct adiv5_dap *dap, uint8_t cmd, uint32_t value)
+{
+	assert(!(cmd & SWD_CMD_RnW));
+	ftdi_swd_queue_cmd(dap, cmd, NULL, value);
 }
 
 static const struct swd_driver ftdi_swd = {
-		.init       = ftdi_swd_init,
-		.read_reg   = ftdi_swd_read_reg,
-		.write_reg  = ftdi_swd_write_reg,
+	.init = ftdi_swd_init,
+	.read_reg = ftdi_swd_read_reg,
+	.write_reg = ftdi_swd_write_reg,
+	.run = ftdi_swd_run_queue,
 };
 
 static const char * const ftdi_transports[] = { "jtag", "swd", NULL };
