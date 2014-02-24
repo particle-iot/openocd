@@ -934,6 +934,11 @@ static int ftdi_swd_run_queue(struct adiv5_dap *dap)
 	 * ensure that data is clocked through the AP. */
 	mpsse_clock_data_out(mpsse_ctx, NULL, 0, 8, SWD_MODE);
 
+	/* Terminate the "blink", if the current layout has that feature */
+	struct signal *led = find_signal_by_name("LED");
+	if (led)
+		ftdi_set_signal(led, '0');
+
 	queued_retval = mpsse_flush(mpsse_ctx);
 	if (queued_retval != ERROR_OK) {
 		LOG_ERROR("MPSSE failed");
@@ -973,6 +978,11 @@ skip:
 	swd_cmd_queue_length = 0;
 	retval = queued_retval;
 	queued_retval = ERROR_OK;
+
+	/* Queue a new "blink" */
+	if (led && retval == ERROR_OK)
+		ftdi_set_signal(led, '1');
+
 	return retval;
 }
 
