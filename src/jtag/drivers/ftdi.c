@@ -925,6 +925,8 @@ static int ftdi_swd_run_queue(struct adiv5_dap *dap)
 {
 	LOG_DEBUG("Executing %zu queued transactions", swd_cmd_queue_length);
 	int retval;
+	struct signal *led = find_signal_by_name("LED");
+
 	if (queued_retval != ERROR_OK) {
 		LOG_DEBUG("Skipping due to previous errors: %d", queued_retval);
 		goto skip;
@@ -933,6 +935,10 @@ static int ftdi_swd_run_queue(struct adiv5_dap *dap)
 	/* A transaction must be followed by another transaction or at least 8 idle cycles to
 	 * ensure that data is clocked through the AP. */
 	mpsse_clock_data_out(mpsse_ctx, NULL, 0, 8, SWD_MODE);
+
+	/* Terminate the "blink", if the current layout has that feature */
+	if (led)
+		ftdi_set_signal(led, '0');
 
 	queued_retval = mpsse_flush(mpsse_ctx);
 	if (queued_retval != ERROR_OK) {
@@ -973,6 +979,11 @@ skip:
 	swd_cmd_queue_length = 0;
 	retval = queued_retval;
 	queued_retval = ERROR_OK;
+
+	/* Queue a new "blink" */
+	if (led && retval == ERROR_OK)
+		ftdi_set_signal(led, '1');
+
 	return retval;
 }
 
