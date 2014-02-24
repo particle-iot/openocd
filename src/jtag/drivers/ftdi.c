@@ -821,6 +821,31 @@ COMMAND_HANDLER(ftdi_handle_vid_pid_command)
 	return ERROR_OK;
 }
 
+#if 1
+COMMAND_HANDLER(reset_hack_command)
+{
+	LOG_DEBUG("Yuk!");
+	return ERROR_OK;
+}
+
+#include <jtag/tcl.h>
+
+static const struct command_registration ugly_fcking_hack_handlers[] = {
+	{
+		.name = "arp_init-reset",
+		.mode = COMMAND_ANY,
+		.handler = reset_hack_command,
+		.usage = ""
+	},
+	{
+		.name = "tapisenabled",
+		.mode = COMMAND_EXEC,
+		.jim_handler = jim_jtag_tap_enabler,
+	},
+	COMMAND_REGISTRATION_DONE
+};
+#endif
+
 static const struct command_registration ftdi_command_handlers[] = {
 	{
 		.name = "ftdi_device_desc",
@@ -883,6 +908,15 @@ static const struct command_registration ftdi_command_handlers[] = {
 		.help = "the vendor ID and product ID of the FTDI device",
 		.usage = "(vid pid)* ",
 	},
+#if 1
+	/* FIXME: Investigate what the non-hackish version of getting reset working is. */
+	{
+		.name = "jtag",
+		.mode = COMMAND_ANY,
+		.usage = "",
+		.chain = ugly_fcking_hack_handlers,
+	},
+#endif
 	COMMAND_REGISTRATION_DONE
 };
 
