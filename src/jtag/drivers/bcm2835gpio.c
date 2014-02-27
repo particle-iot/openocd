@@ -54,6 +54,8 @@ static volatile uint32_t *pio_base;
 static int bcm2835gpio_read(void);
 static void bcm2835gpio_write(int tck, int tms, int tdi);
 static void bcm2835gpio_reset(int trst, int srst);
+static int bcm2835gpio_swdio_read(void);
+static void bcm2835gpio_drive(bool on);
 
 static int bcm2835gpio_init(void);
 static int bcm2835gpio_quit(void);
@@ -62,6 +64,8 @@ static struct bitbang_interface bcm2835gpio_bitbang = {
 	.read = bcm2835gpio_read,
 	.write = bcm2835gpio_write,
 	.reset = bcm2835gpio_reset,
+	.swdio_read = bcm2835gpio_swdio_read,
+	.swdio_drive = bcm2835gpio_drive,
 	.blink = NULL
 };
 
@@ -78,6 +82,9 @@ static int trst_gpio = -1;
 static int trst_gpio_mode;
 static int srst_gpio = -1;
 static int srst_gpio_mode;
+static int swdio_drive_gpio = -1;
+static bool swdio_drive_neg;
+static int swdio_drive_gpio_mode;
 
 /* Transition delay coefficients */
 static int speed_coeff = 113714;
@@ -87,6 +94,14 @@ static unsigned int jtag_delay;
 static int bcm2835gpio_read(void)
 {
 	return !!(GPIO_LEV & 1<<tdo_gpio);
+}
+
+static int bcm2835gpio_swdio_read(void)
+{
+	if (swdio_drive_gpio != -1)
+		return !!(GPIO_LEV & 1<<tdo_gpio);
+	else
+		return !!(GPIO_LEV & 1<<tdi_gpio);
 }
 
 static void bcm2835gpio_write(int tck, int tms, int tdi)
@@ -119,6 +134,21 @@ static void bcm2835gpio_reset(int trst, int srst)
 
 	GPIO_SET = set;
 	GPIO_CLR = clear;
+}
+
+static void bcm2835gpio_drive(bool on)
+{
+	if (swdio_drive_gpio != -1) {
+		if (on ^ swdio_drive_neg)
+			GPIO_SET = 1 << swdio_drive_gpio;
+		else
+			GPIO_CLR = 1 << swdio_drive_gpio;
+	} else {
+		if (on)
+			OUT_GPIO(tdi_gpio);
+		else
+			INP_GPIO(tdi_gpio);
+	}
 }
 
 static int bcm2835gpio_khz(int khz, int *jtag_speed)
@@ -222,6 +252,21 @@ COMMAND_HANDLER(bcm2835gpio_handle_jtag_gpionum_trst)
 	return ERROR_OK;
 }
 
+COMMAND_HANDLER(bcm2835gpio_handle_swdio_drive_gpionum)
+{
+	if (CMD_ARGC == 1) {
+		if (CMD_ARGV[0][0] == '!') {
+			swdio_drive_neg = true;
+			COMMAND_PARSE_NUMBER(int, &CMD_ARGV[0][1], swdio_drive_gpio);
+		} else
+			COMMAND_PARSE_NUMBER(int, CMD_ARGV[0], swdio_drive_gpio);
+	}
+
+	command_print(CMD_CTX, "BCM2835 GPIO config: %sswdio_drive = %d",
+		      swdio_drive_neg ? "!" : "", swdio_drive_gpio);
+	return ERROR_OK;
+}
+
 COMMAND_HANDLER(bcm2835gpio_handle_speed_coeffs)
 {
 	if (CMD_ARGC == 2) {
@@ -276,6 +321,12 @@ static const struct command_registration bcm2835gpio_command_handlers[] = {
 		.help = "gpio number for trst.",
 	},
 	{
+		.name = "bcm2835gpio_swdio_drive_num",
+		.handler = &bcm2835gpio_handle_swdio_drive_gpionum,
+		.mode = COMMAND_CONFIG,
+		.help = "gpio number for SWDIO drive enable.",
+	},
+	{
 		.name = "bcm2835gpio_speed_coeffs",
 		.handler = &bcm2835gpio_handle_speed_coeffs,
 		.mode = COMMAND_CONFIG,
@@ -284,11 +335,15 @@ static const struct command_registration bcm2835gpio_command_handlers[] = {
 	COMMAND_REGISTRATION_DONE
 };
 
+static const char * const bcm2835_transports[] = { "jtag", "swd", NULL };
+
 struct jtag_interface bcm2835gpio_interface = {
 	.name = "bcm2835gpio",
 	.supported = DEBUG_CAP_TMS_SEQ,
 	.execute_queue = bitbang_execute_queue,
-	.transports = jtag_only,
+	.transports = bcm2835_transports,
+	.swd = &bitbang_swd,
+
 	.speed = bcm2835gpio_speed,
 	.khz = bcm2835gpio_khz,
 	.speed_div = bcm2835gpio_speed_div,
@@ -361,16 +416,26 @@ static int bcm2835gpio_init(void)
 		GPIO_SET = 1 << srst_gpio;
 		OUT_GPIO(srst_gpio);
 	}
+	if (swdio_drive_gpio != -1) {
+		swdio_drive_gpio_mode = MODE_GPIO(swdio_drive_gpio);
+		GPIO_SET = 1 << swdio_drive_gpio;
+		OUT_GPIO(swdio_drive_gpio);
+	}
 
 	LOG_DEBUG("saved pinmux settings: tck %d tms %d tdi %d "
 		  "tdo %d trst %d srst %d", tck_gpio_mode, tms_gpio_mode,
 		  tdi_gpio_mode, tdo_gpio_mode, trst_gpio_mode, srst_gpio_mode);
+
+	if (swd_mode)
+		bitbang_switch_to_swd();
 
 	return ERROR_OK;
 }
 
 static int bcm2835gpio_quit(void)
 {
+	if (swdio_drive_gpio != -1)
+		SET_MODE_GPIO(swdio_drive_gpio, swdio_drive_gpio_mode);
 	SET_MODE_GPIO(tdo_gpio, tdo_gpio_mode);
 	SET_MODE_GPIO(tdi_gpio, tdi_gpio_mode);
 	SET_MODE_GPIO(tck_gpio, tck_gpio_mode);
