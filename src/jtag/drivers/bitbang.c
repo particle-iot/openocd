@@ -337,3 +337,157 @@ int bitbang_execute_queue(void)
 
 	return retval;
 }
+
+bool swd_mode;
+static uint8_t swd_trn;
+static int queued_retval;
+
+static int bitbang_swd_init(uint8_t trn)
+{
+	swd_mode = true;
+	swd_trn = trn;
+	return ERROR_OK;
+}
+
+static void bitbang_exchange(bool rnw, uint8_t buf[], unsigned int offset, unsigned int bit_cnt)
+{
+	int tdi;
+
+	for (unsigned int i = offset; i < bit_cnt + offset; i++) {
+		int bytec = i/8;
+		int bcval = 1 << (i % 8);
+		tdi = !rnw && (buf[bytec] & bcval);
+
+		bitbang_interface->write(0, 0, tdi);
+
+		if (rnw && buf) {
+			if (bitbang_interface->read())
+				buf[bytec] |= bcval;
+			else
+				buf[bytec] &= ~bcval;
+		}
+
+		bitbang_interface->write(1, 0, tdi);
+	}
+}
+
+void bitbang_switch_to_swd(void)
+{
+	static uint8_t jtag2swd_bitseq[] = {
+		/* More than 50 TCK/SWCLK cycles with TMS/SWDIO high,
+		 * putting both JTAG and SWD logic into reset state.
+		 */
+		0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+		/* Switching sequence enables SWD and disables JTAG
+		 * NOTE: bits in the DP's IDCODE may expose the need for
+		 * an old/obsolete/deprecated sequence (0xb6 0xed).
+		 */
+		0x9e, 0xe7,
+		/* More than 50 TCK/SWCLK cycles with TMS/SWDIO high,
+		 * putting both JTAG and SWD logic into reset state.
+		 */
+		0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x0f,
+	};
+
+	bitbang_exchange(false, jtag2swd_bitseq, 0, sizeof(jtag2swd_bitseq) * 8);
+}
+
+static void bitbang_swd_read_reg(struct adiv5_dap *dap, uint8_t cmd, uint32_t *value)
+{
+	assert(cmd & SWD_CMD_RnW);
+
+	if (queued_retval != ERROR_OK)
+		return;
+
+	uint8_t trn_ack_data_parity_trn[DIV_ROUND_UP(4 + 3 + 32 + 1 + 4, 8)];
+
+	cmd |= SWD_CMD_START | (1 << 7);
+	bitbang_exchange(false, &cmd, 0, 8);
+
+	bitbang_interface->swdio_drive(false);
+	bitbang_exchange(true, trn_ack_data_parity_trn, 0, swd_trn + 3 + 32 + 1 + swd_trn);
+	bitbang_interface->swdio_drive(true);
+
+	int ack = buf_get_u32(trn_ack_data_parity_trn, swd_trn, 3);
+	uint32_t data = buf_get_u32(trn_ack_data_parity_trn, swd_trn + 3, 32);
+	int parity = buf_get_u32(trn_ack_data_parity_trn, swd_trn + 3 + 32, 1);
+
+	LOG_DEBUG("%s %s %s reg %X = %08"PRIx32,
+		  ack == SWD_ACK_OK ? "OK" : ack == SWD_ACK_WAIT ? "WAIT" : ack == SWD_ACK_FAULT ? "FAULT" : "JUNK",
+		  cmd & SWD_CMD_APnDP ? "AP" : "DP",
+		  cmd & SWD_CMD_RnW ? "read" : "write",
+		  (cmd & SWD_CMD_A32) >> 1,
+		  data);
+
+	if (ack != SWD_ACK_OK) {
+		queued_retval = ack;
+		return;
+	}
+
+	if (parity != parity_u32(data)) {
+		queued_retval = ERROR_FAIL;
+		return;
+	}
+
+	if (value)
+		*value = data;
+
+	if (cmd & SWD_CMD_APnDP)
+		bitbang_exchange(true, NULL, 0, dap->memaccess_tck);
+}
+
+static void bitbang_swd_write_reg(struct adiv5_dap *dap, uint8_t cmd, uint32_t value)
+{
+	assert(!(cmd & SWD_CMD_RnW));
+
+	if (queued_retval != ERROR_OK)
+		return;
+
+	uint8_t trn_ack_data_parity_trn[DIV_ROUND_UP(4 + 3 + 32 + 1 + 4, 8)];
+	buf_set_u32(trn_ack_data_parity_trn, swd_trn + 3 + swd_trn, 32, value);
+	buf_set_u32(trn_ack_data_parity_trn, swd_trn + 3 + swd_trn + 32, 1, parity_u32(value));
+
+	cmd |= SWD_CMD_START | (1 << 7);
+	bitbang_exchange(false, &cmd, 0, 8);
+
+	bitbang_interface->swdio_drive(false);
+	bitbang_exchange(true, trn_ack_data_parity_trn, 0, swd_trn + 3 + swd_trn);
+	bitbang_interface->swdio_drive(true);
+
+	int ack = buf_get_u32(trn_ack_data_parity_trn, swd_trn, 3);
+	LOG_DEBUG("%s %s %s reg %X = %08"PRIx32,
+		  ack == SWD_ACK_OK ? "OK" : ack == SWD_ACK_WAIT ? "WAIT" : ack == SWD_ACK_FAULT ? "FAULT" : "JUNK",
+		  cmd & SWD_CMD_APnDP ? "AP" : "DP",
+		  cmd & SWD_CMD_RnW ? "read" : "write",
+		  (cmd & SWD_CMD_A32) >> 1,
+		  buf_get_u32(trn_ack_data_parity_trn, swd_trn + 3 + swd_trn, 32));
+
+	if (ack != SWD_ACK_OK) {
+		queued_retval = ack;
+		return;
+	}
+
+	bitbang_exchange(false, trn_ack_data_parity_trn, swd_trn + 3 + swd_trn, 32 + 1);
+
+	if (cmd & SWD_CMD_APnDP)
+		bitbang_exchange(true, NULL, 0, dap->memaccess_tck);
+}
+
+static int bitbang_swd_run_queue(struct adiv5_dap *dap)
+{
+	/* A transaction must be followed by another transaction or at least 8 idle cycles to
+	 * ensure that data is clocked through the AP. */
+	bitbang_exchange(true, NULL, 0, 8);
+
+	int retval = queued_retval;
+	queued_retval = ERROR_OK;
+	LOG_DEBUG("SWD queue return value: %02x", retval);
+	return retval;
+}
+
+const struct swd_driver bitbang_swd = {
+	.init = bitbang_swd_init,
+	.read_reg = bitbang_swd_read_reg,
+	.write_reg = bitbang_swd_write_reg,
+	.run = bitbang_swd_run_queue,
+};
