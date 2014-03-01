@@ -68,3 +68,5 @@ $_TARGETNAME configure -work-area-phys 0x20000000 -work-area-size $_WORKAREASIZE
 
 set _FLASHNAME $_CHIPNAME.flash
 flash bank $_FLASHNAME nrf51 0x00000000 0 1 1 $_TARGETNAME
+set _FLASHNAME $_CHIPNAME.uicr
+flash bank $_FLASHNAME nrf51 0x10001000 0 1 1 $_TARGETNAME
