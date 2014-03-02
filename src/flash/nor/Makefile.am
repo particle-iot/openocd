@@ -43,7 +43,8 @@ NOR_DRIVERS = \
 	kinetis.c \
 	mini51.c \
 	nuc1x.c \
-	nrf51.c
+	nrf51.c \
+  sim3x.c
 
 noinst_HEADERS = \
 	core.h \
