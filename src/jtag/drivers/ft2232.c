@@ -2342,9 +2342,8 @@ static int ft2232_init(void)
 	uint32_t bytes_written;
 
 #ifdef BUILD_FT2232_WINDOWS_FTD2XX_DLL
-   if (!ftd2xx_dll_api_init()) {
-      return ERROR_JTAG_INIT_FAILED;
-   }
+  if (!ftd2xx_dll_api_init())
+    return ERROR_JTAG_INIT_FAILED;
 #endif
 
    if (tap_get_tms_path_len(TAP_IRPAUSE, TAP_IRPAUSE) == 7)
