@@ -29,7 +29,7 @@
 
 #include "ublast_access.h"
 
-#include <ftd2xx.h>
+#include "jtag/drivers/ftd2xx_api.h"
 #include "jtag/drivers/ftd2xx_common.h"
 
 static FT_HANDLE *ublast_getftdih(struct ublast_lowlevel *low)
@@ -44,7 +44,7 @@ static int ublast_ftd2xx_write(struct ublast_lowlevel *low, uint8_t *buf, int si
 	DWORD dw_bytes_written;
 	FT_HANDLE *ftdih = ublast_getftdih(low);
 
-	status = FT_Write(*ftdih, buf, size, &dw_bytes_written);
+	status = FTAPI_Write(*ftdih, buf, size, &dw_bytes_written);
 	if (status != FT_OK) {
 		*bytes_written = dw_bytes_written;
 		LOG_ERROR("FT_Write returned: %s", ftd2xx_status_string(status));
@@ -61,7 +61,7 @@ static int ublast_ftd2xx_read(struct ublast_lowlevel *low, uint8_t *buf,
 	FT_STATUS status;
 	FT_HANDLE *ftdih = ublast_getftdih(low);
 
-	status = FT_Read(*ftdih, buf, size, &dw_bytes_read);
+	status = FTAPI_Read(*ftdih, buf, size, &dw_bytes_read);
 	if (status != FT_OK) {
 		*bytes_read = dw_bytes_read;
 		LOG_ERROR("FT_Read returned: %s", ftd2xx_status_string(status));
@@ -77,7 +77,13 @@ static int ublast_ftd2xx_init(struct ublast_lowlevel *low)
 	FT_HANDLE *ftdih = ublast_getftdih(low);
 	uint8_t latency_timer;
 
-	LOG_INFO("usb blaster interface using FTD2XX");
+#ifdef BUILD_FT2232_WINDOWS_FTD2XX_DLL
+   if (!ftd2xx_dll_api_init()) {
+      return ERROR_JTAG_INIT_FAILED;
+   }
+#endif
+
+   LOG_INFO("usb blaster interface using FTD2XX");
 	/* Open by device description */
 	if (low->ublast_device_desc == NULL) {
 		LOG_WARNING("no usb blaster device description specified, "
@@ -93,14 +99,14 @@ static int ublast_ftd2xx_init(struct ublast_lowlevel *low)
 			    low->ublast_vid, low->ublast_pid);
 	}
 #endif
-	status = FT_OpenEx(low->ublast_device_desc, FT_OPEN_BY_DESCRIPTION,
+	status = FTAPI_OpenEx(low->ublast_device_desc, FT_OPEN_BY_DESCRIPTION,
 			   ftdih);
 	if (status != FT_OK) {
 		DWORD num_devices;
 
 		LOG_ERROR("unable to open ftdi device: %s",
 			  ftd2xx_status_string(status));
-		status = FT_ListDevices(&num_devices, NULL, FT_LIST_NUMBER_ONLY);
+		status = FTAPI_ListDevices(&num_devices, NULL, FT_LIST_NUMBER_ONLY);
 		if (status == FT_OK) {
 			char **desc_array =
 				malloc(sizeof(char *) * (num_devices + 1));
@@ -110,7 +116,7 @@ static int ublast_ftd2xx_init(struct ublast_lowlevel *low)
 				desc_array[i] = malloc(64);
 			desc_array[num_devices] = NULL;
 
-			status = FT_ListDevices(desc_array, &num_devices,
+			status = FTAPI_ListDevices(desc_array, &num_devices,
 						FT_LIST_ALL | FT_OPEN_BY_DESCRIPTION);
 
 			if (status == FT_OK) {
@@ -128,21 +134,21 @@ static int ublast_ftd2xx_init(struct ublast_lowlevel *low)
 		return ERROR_JTAG_INIT_FAILED;
 	}
 
-	status = FT_SetLatencyTimer(*ftdih, 2);
+	status = FTAPI_SetLatencyTimer(*ftdih, 2);
 	if (status != FT_OK) {
 		LOG_ERROR("unable to set latency timer: %s",
 				ftd2xx_status_string(status));
 		return ERROR_JTAG_INIT_FAILED;
 	}
 
-	status = FT_GetLatencyTimer(*ftdih, &latency_timer);
+	status = FTAPI_GetLatencyTimer(*ftdih, &latency_timer);
 	if (status != FT_OK)
 		LOG_ERROR("unable to get latency timer: %s",
 				ftd2xx_status_string(status));
 	else
 		LOG_DEBUG("current latency timer: %i", latency_timer);
 
-	status = FT_SetBitMode(*ftdih, 0x00, 0);
+	status = FTAPI_SetBitMode(*ftdih, 0x00, 0);
 	if (status != FT_OK) {
 		LOG_ERROR("unable to disable bit i/o mode: %s",
 				ftd2xx_status_string(status));
@@ -155,7 +161,12 @@ static int ublast_ftd2xx_quit(struct ublast_lowlevel *low)
 {
 	FT_HANDLE *ftdih = ublast_getftdih(low);
 
-	FT_Close(*ftdih);
+	FTAPI_Close(*ftdih);
+
+#ifdef BUILD_FT2232_WINDOWS_FTD2XX_DLL
+   ftd2xx_dll_api_shutdown();
+#endif
+
 	return ERROR_OK;
 }
 

@@ -98,7 +98,7 @@
 
 /* FT2232 access library includes */
 #if BUILD_FT2232_FTD2XX == 1
-#include <ftd2xx.h>
+#include <ftd2xx_api.h>
 #include "ftd2xx_common.h"
 
 enum ftdi_interface {
@@ -524,7 +524,7 @@ static int ft2232_write(uint8_t *buf, int size, uint32_t *bytes_written)
 #if BUILD_FT2232_FTD2XX == 1
 	FT_STATUS status;
 	DWORD dw_bytes_written = 0;
-	status = FT_Write(ftdih, buf, size, &dw_bytes_written);
+	status = FTAPI_Write(ftdih, buf, size, &dw_bytes_written);
 	if (status != FT_OK) {
 		*bytes_written = dw_bytes_written;
 		LOG_ERROR("FT_Write returned: %s", ftd2xx_status_string(status));
@@ -558,7 +558,7 @@ static int ft2232_read(uint8_t *buf, uint32_t size, uint32_t *bytes_read)
 	*bytes_read = 0;
 
 	while ((*bytes_read < size) && timeout--) {
-		status = FT_Read(ftdih, buf + *bytes_read, size -
+		status = FTAPI_Read(ftdih, buf + *bytes_read, size -
 				*bytes_read, &dw_bytes_read);
 		if (status != FT_OK) {
 			*bytes_read = 0;
@@ -2084,7 +2084,7 @@ static int ft2232_init_ftd2xx(uint16_t vid, uint16_t pid, int more, int *try_mor
 		return ERROR_JTAG_INIT_FAILED;
 	}
 
-	status = FT_OpenEx(openex_string, openex_flags, &ftdih);
+	status = FTAPI_OpenEx(openex_string, openex_flags, &ftdih);
 	if (status != FT_OK) {
 		/* under Win32, the FTD2XX driver appends an "A" to the end
 		 * of the description, if we tried by the desc, then
@@ -2092,7 +2092,7 @@ static int ft2232_init_ftd2xx(uint16_t vid, uint16_t pid, int more, int *try_mor
 		if (openex_string == ft2232_device_desc) {
 			/* Try the alternate method. */
 			openex_string = ft2232_device_desc_A;
-			status = FT_OpenEx(openex_string, openex_flags, &ftdih);
+			status = FTAPI_OpenEx(openex_string, openex_flags, &ftdih);
 			if (status == FT_OK) {
 				/* yea, the "alternate" method worked! */
 			} else {
@@ -2116,7 +2116,7 @@ static int ft2232_init_ftd2xx(uint16_t vid, uint16_t pid, int more, int *try_mor
 		}
 		LOG_ERROR("unable to open ftdi device: %s",
 			ftd2xx_status_string(status));
-		status = FT_ListDevices(&num_devices, NULL, FT_LIST_NUMBER_ONLY);
+		status = FTAPI_ListDevices(&num_devices, NULL, FT_LIST_NUMBER_ONLY);
 		if (status == FT_OK) {
 			char **desc_array = malloc(sizeof(char *) * (num_devices + 1));
 			uint32_t i;
@@ -2126,7 +2126,7 @@ static int ft2232_init_ftd2xx(uint16_t vid, uint16_t pid, int more, int *try_mor
 
 			desc_array[num_devices] = NULL;
 
-			status = FT_ListDevices(desc_array, &num_devices, FT_LIST_ALL | openex_flags);
+			status = FTAPI_ListDevices(desc_array, &num_devices, FT_LIST_ALL | openex_flags);
 
 			if (status == FT_OK) {
 				LOG_ERROR("ListDevices: %" PRIu32, (uint32_t)num_devices);
@@ -2143,20 +2143,20 @@ static int ft2232_init_ftd2xx(uint16_t vid, uint16_t pid, int more, int *try_mor
 		return ERROR_JTAG_INIT_FAILED;
 	}
 
-	status = FT_SetLatencyTimer(ftdih, ft2232_latency);
+	status = FTAPI_SetLatencyTimer(ftdih, ft2232_latency);
 	if (status != FT_OK) {
 		LOG_ERROR("unable to set latency timer: %s",
 			ftd2xx_status_string(status));
 		return ERROR_JTAG_INIT_FAILED;
 	}
 
-	status = FT_GetLatencyTimer(ftdih, &latency_timer);
+	status = FTAPI_GetLatencyTimer(ftdih, &latency_timer);
 	if (status != FT_OK) {
 		/* ftd2xx 1.04 (linux) has a bug when calling FT_GetLatencyTimer
 		 * so ignore errors if using this driver version */
 		DWORD dw_version;
 
-		status = FT_GetDriverVersion(ftdih, &dw_version);
+		status = FTAPI_GetDriverVersion(ftdih, &dw_version);
 		LOG_ERROR("unable to get latency timer: %s",
 			ftd2xx_status_string(status));
 
@@ -2168,21 +2168,21 @@ static int ft2232_init_ftd2xx(uint16_t vid, uint16_t pid, int more, int *try_mor
 	} else
 		LOG_DEBUG("current latency timer: %i", latency_timer);
 
-	status = FT_SetTimeouts(ftdih, 5000, 5000);
+	status = FTAPI_SetTimeouts(ftdih, 5000, 5000);
 	if (status != FT_OK) {
 		LOG_ERROR("unable to set timeouts: %s",
 			ftd2xx_status_string(status));
 		return ERROR_JTAG_INIT_FAILED;
 	}
 
-	status = FT_SetBitMode(ftdih, 0x0b, 2);
+	status = FTAPI_SetBitMode(ftdih, 0x0b, 2);
 	if (status != FT_OK) {
 		LOG_ERROR("unable to enable bit i/o mode: %s",
 			ftd2xx_status_string(status));
 		return ERROR_JTAG_INIT_FAILED;
 	}
 
-	status = FT_GetDeviceInfo(ftdih, &ftdi_device, &deviceID,
+	status = FTAPI_GetDeviceInfo(ftdih, &ftdi_device, &deviceID,
 			SerialNumber, Description, NULL);
 	if (status != FT_OK) {
 		LOG_ERROR("unable to get FT_GetDeviceInfo: %s",
@@ -2208,7 +2208,7 @@ static int ft2232_purge_ftd2xx(void)
 {
 	FT_STATUS status;
 
-	status = FT_Purge(ftdih, FT_PURGE_RX | FT_PURGE_TX);
+	status = FTAPI_Purge(ftdih, FT_PURGE_RX | FT_PURGE_TX);
 	if (status != FT_OK) {
 		LOG_ERROR("error purging ftd2xx device: %s",
 			ftd2xx_status_string(status));
@@ -2341,7 +2341,13 @@ static int ft2232_init(void)
 	int retval;
 	uint32_t bytes_written;
 
-	if (tap_get_tms_path_len(TAP_IRPAUSE, TAP_IRPAUSE) == 7)
+#ifdef BUILD_FT2232_WINDOWS_FTD2XX_DLL
+   if (!ftd2xx_dll_api_init()) {
+      return ERROR_JTAG_INIT_FAILED;
+   }
+#endif
+
+   if (tap_get_tms_path_len(TAP_IRPAUSE, TAP_IRPAUSE) == 7)
 		LOG_DEBUG("ft2232 interface using 7 step jtag state transitions");
 	else
 		LOG_DEBUG("ft2232 interface using shortest path jtag state transitions");
@@ -3143,7 +3149,7 @@ static int ft2232_quit(void)
 {
 #if BUILD_FT2232_FTD2XX == 1
 
-	FT_Close(ftdih);
+	FTAPI_Close(ftdih);
 #elif BUILD_FT2232_LIBFTDI == 1
 	ftdi_usb_close(&ftdic);
 
@@ -3153,7 +3159,11 @@ static int ft2232_quit(void)
 	free(ft2232_buffer);
 	ft2232_buffer = NULL;
 
-	return ERROR_OK;
+#ifdef BUILD_FT2232_WINDOWS_FTD2XX_DLL
+   ftd2xx_dll_api_shutdown();
+#endif
+
+   return ERROR_OK;
 }
 
 COMMAND_HANDLER(ft2232_handle_device_desc_command)
@@ -3454,7 +3464,7 @@ static int signalyzer_h_ctrl_read(int address, unsigned short *value);
 static int signalyzer_h_ctrl_write(int address, unsigned short value)
 {
 #if BUILD_FT2232_FTD2XX == 1
-	return FT_WriteEE(ftdih, address, value);
+	return FTAPI_WriteEE(ftdih, address, value);
 #elif BUILD_FT2232_LIBFTDI == 1
 	return 0;
 #endif
@@ -3463,7 +3473,7 @@ static int signalyzer_h_ctrl_write(int address, unsigned short value)
 #if BUILD_FT2232_FTD2XX == 1
 static int signalyzer_h_ctrl_read(int address, unsigned short *value)
 {
-	return FT_ReadEE(ftdih, address, value);
+	return FTAPI_ReadEE(ftdih, address, value);
 }
 #endif
 

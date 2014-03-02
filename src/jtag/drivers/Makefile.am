@@ -45,6 +45,9 @@ endif
 if FTDI
 DRIVERFILES += ftdi.c mpsse.c
 endif
+if FT2232_DLL
+DRIVERFILES += ftd2xx_api.c
+endif
 if JTAG_VPI
 DRIVERFILES += jtag_vpi.c
 endif

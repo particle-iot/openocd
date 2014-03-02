@@ -140,6 +140,7 @@ build_bitq=no
 is_cygwin=no
 is_mingw=no
 is_win32=no
+is_win32_ftd2xx_dll=no
 is_darwin=no
 
 # guess-rev.sh only exists in the repository, not in the released archives
@@ -214,13 +215,14 @@ m4_define([HIDAPI_ADAPTERS],
 	[[[cmsis_dap], [CMSIS-DAP Compliant Debugger], [CMSIS_DAP]]])
 
 #========================================
-# FTD2XXX support comes in 4 forms.
-#    (1) win32 - via a zip file
-#    (2) linux - via a tar file
-#    (3) linux/cygwin/mingw - via libftdi
-#    (4) darwin - installed under /usr/local
+# FTD2XXX support comes in 5 forms.
+#    (1) win32 - via a zip file (static library)
+#    (2) win32 - via a zip file (loading ftd2xx.dll at runtime)
+#    (3) linux - via a tar file
+#    (4) linux/cygwin/mingw - via libftdi
+#    (5) darwin - installed under /usr/local
 #
-# In case (1) and (2) we need to know where the package was unpacked.
+# In case (1), (2), and (3) we need to know where the package was unpacked.
 
 AC_ARG_WITH(ftd2xx-win32-zipdir,
   AS_HELP_STRING([--with-ftd2xx-win32-zipdir],[Where (CYGWIN/MINGW) the zip file from ftdichip.com was unpacked (default=search)]),
@@ -785,7 +787,7 @@ then
 fi
 
 if test $build_ft2232_ftd2xx = yes -o $build_presto_ftd2xx = yes -o $build_usb_blaster_ftd2xx = yes -o $build_openjtag_ftd2xx = yes; then
-  AC_MSG_CHECKING([for ftd2xx.lib exists (win32)])
+  AC_MSG_CHECKING([whether ftd2xx library files exist (win32)])
 
   # if we are given a zipdir...
   if test "${with_ftd2xx_win32_zipdir+set}" = set
@@ -797,6 +799,7 @@ if test $build_ft2232_ftd2xx = yes -o $build_presto_ftd2xx = yes -o $build_usb_b
     fi
     CFLAGS="$CFLAGS -I$with_ftd2xx_win32_zipdir"
 
+    if test $with_ftd2xx_lib = static; then
     # And calculate the LDFLAGS for the machine
     case "$host_cpu" in
     i?86|x86_32)
@@ -816,10 +819,21 @@ if test $build_ft2232_ftd2xx = yes -o $build_presto_ftd2xx = yes -o $build_usb_b
     if test ! -f $f ; then
          AC_MSG_ERROR([Library: $f not found])
     fi
+    fi # with_ftd2xx_lib = static
+    AC_MSG_RESULT([looks OK])
   else
+  AC_MSG_RESULT([not found.])
+  if test $with_ftd2xx_lib = static; then
     LIBS="$LIBS -lftd2xx"
-    AC_MSG_WARN([ASSUMPTION: The (win32) FTDICHIP.COM files: ftd2xx.h and ftd2xx.lib are in a proper place])
+    AC_MSG_WARN([ASSUMPTION: The (win32) FTDICHIP.COM files: ftd2xx.h and ftd2xx.lib will be found during the build])
+  else
+    AC_MSG_WARN([ASSUMPTION: The (win32) FTDICHIP.COM file: ftd2xx.h will be found during the build])
   fi
+  fi
+fi
+if test $with_ftd2xx_lib = shared; then
+  AC_DEFINE([BUILD_FT2232_WINDOWS_FTD2XX_DLL], [1], [1 if you want ftd2xx ft2232 through the DLL.])
+  is_win32_ftd2xx_dll=yes
 fi
 fi # win32
 
@@ -831,6 +845,9 @@ fi
 if test "${with_ftd2xx_linux_tardir+set}" = set
 then
    AC_MSG_ERROR([The option: with_ftd2xx_linux_tardir is for LINUX only.])
+fi
+if test $with_ftd2xx_lib = shared; then
+   AC_MSG_ERROR([The option: --with-ftd2xx_lib=shared is for Linux and win32 only])
 fi
 
 if test $build_ft2232_ftd2xx = yes -o $build_presto_ftd2xx = yes -o $build_usb_blaster_ftd2xx = yes ; then
@@ -922,7 +939,6 @@ if test $build_ft2232_ftd2xx = yes -o $build_presto_ftd2xx = yes -o $build_usb_b
 # Before we go any further - make sure we can *BUILD* and *RUN*
 # a simple app with the "ftd2xx.lib" file - in what ever form we where given
 # We should be able to compile, link and run this test program now
-AC_MSG_CHECKING([whether ftd2xx library works])
 
 #
 # Save the LDFLAGS for later..
@@ -933,6 +949,24 @@ _CFLAGS=`eval echo $CFLAGS`
 LDFLAGS=$_LDFLAGS
 CFLAGS=$_CFLAGS
 
+AC_MSG_CHECKING([for ftd2xx.h])
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
+#include "confdefs.h"
+#if IS_WIN32
+#include "windows.h"
+#endif
+#include <stdio.h>
+#include <ftd2xx.h>
+
+DWORD x = FT_OK;
+    ]], [])], [
+    AC_MSG_RESULT([yes])
+  ], [
+    AC_MSG_ERROR([ftd2xx.h is not usable.])
+  ])
+
+if test $is_win32_ftd2xx_dll = no; then
+AC_MSG_CHECKING([whether ftd2xx library works])
 AC_RUN_IFELSE([AC_LANG_PROGRAM([[
 #include "confdefs.h"
 #if IS_WIN32
@@ -950,6 +984,7 @@ AC_RUN_IFELSE([AC_LANG_PROGRAM([[
   ], [
     AC_MSG_RESULT([Skipping as we are cross-compiling])
   ])
+fi
 
 AC_MSG_CHECKING([for ftd2xx highspeed device support])
 AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
@@ -1159,6 +1194,7 @@ AM_CONDITIONAL([BCM2835GPIO], [test $build_bcm2835gpio = yes])
 AM_CONDITIONAL([BITBANG], [test $build_bitbang = yes])
 AM_CONDITIONAL([FT2232_LIBFTDI], [test $build_ft2232_libftdi = yes])
 AM_CONDITIONAL([FT2232_DRIVER], [test $build_ft2232_ftd2xx = yes -o $build_ft2232_libftdi = yes])
+AM_CONDITIONAL([FT2232_DLL], [test $is_win32_ftd2xx_dll = yes])
 AM_CONDITIONAL([USB_BLASTER_LIBFTDI], [test $build_usb_blaster_libftdi = yes])
 AM_CONDITIONAL([USB_BLASTER_FTD2XX], [test $build_usb_blaster_ftd2xx = yes])
 AM_CONDITIONAL([JTAG_VPI], [test $build_jtag_vpi = yes -o $build_jtag_vpi = yes])
