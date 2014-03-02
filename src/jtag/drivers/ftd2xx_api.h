@@ -1,6 +1,4 @@
 /***************************************************************************
- *   Copyright (C) 2014 by Spencer Oliver <spen@spen-soft.co.uk>           *
- *                                                                         *
  *   Written by Rob Brown (rob@cobbleware.com)                             *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
@@ -18,6 +16,16 @@
  *   Free Software Foundation, Inc.,                                       *
  *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.           *
  ***************************************************************************/
+/**
+ * @file
+ * This file provides definitions of the FTAPI_xxx functions that are used
+ * by code that accesses FTDI chips through the FTD2XX library.
+ * If OpenOCD was built to use the FTD2XX DLL (by supplying 
+ * "--with-ftd2xx-lib=shared" to configure), then the FTAPI_xxx symbols are
+ * function pointers initialised with GetProcAddress() from the DLL.
+ * If OpenOCD was built to use the FTD2XX static library, then the FTAPI_xxx
+ * symbols are #defined to their FT_xxx equivalents.
+ */
 
 #ifndef FTD2XX_API_H
 #define FTD2XX_API_H
