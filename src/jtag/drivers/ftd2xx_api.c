@@ -62,8 +62,6 @@ FT_SetBaudRate_t FTAPI_SetBaudRate;
 
 bool ftd2xx_dll_api_init(void)
 {
-  bool b64 = false;
-
   /* Only want to load the DLL once, just in case multiple drivers call this */
   if (loadSuccess) {
     refCount++;
@@ -72,34 +70,33 @@ bool ftd2xx_dll_api_init(void)
 
   hDll = LoadLibrary("ftd2xx64.dll");
 
-  if (hDll!=NULL)
+  if (hDll != NULL)
     LOG_DEBUG("Opened the 64-bit DLL.");
   else {
     hDll = LoadLibrary("ftd2xx.dll");
     if (hDll == NULL) {
       LOG_USER("Failed to open the FTDI DLL.");
       return FALSE;
-    }
-    else
+    } else
       LOG_DEBUG("Opened the 32-bit DLL.");
   }
 
-  FTAPI_Open = (FT_Open_t)GetProcAddress(hDll,"FT_Open");
-  FTAPI_OpenEx = (FT_OpenEx_t)GetProcAddress(hDll,"FT_OpenEx");
-  FTAPI_Close = (FT_Close_t)GetProcAddress(hDll,"FT_Close");
-  FTAPI_Purge = (FT_Purge_t)GetProcAddress(hDll,"FT_Purge");
-  FTAPI_Write = (FT_Write_t)GetProcAddress(hDll,"FT_Write");
-  FTAPI_Read = (FT_Read_t)GetProcAddress(hDll,"FT_Read");
-  FTAPI_ListDevices = (FT_ListDevices_t)GetProcAddress(hDll,"FT_ListDevices");
-  FTAPI_SetLatencyTimer = (FT_SetLatencyTimer_t)GetProcAddress(hDll,"FT_SetLatencyTimer");
-  FTAPI_GetLatencyTimer = (FT_GetLatencyTimer_t)GetProcAddress(hDll,"FT_GetLatencyTimer");
-  FTAPI_GetDriverVersion = (FT_GetDriverVersion_t)GetProcAddress(hDll,"FT_GetDriverVersion");
-  FTAPI_SetTimeouts = (FT_SetTimeouts_t)GetProcAddress(hDll,"FT_SetTimeouts");
-  FTAPI_SetBitMode = (FT_SetBitMode_t)GetProcAddress(hDll,"FT_SetBitMode");
-  FTAPI_GetDeviceInfo = (FT_GetDeviceInfo_t)GetProcAddress(hDll,"FT_GetDeviceInfo");
-  FTAPI_ReadEE = (FT_ReadEE_t)GetProcAddress(hDll,"FT_ReadEE");
-  FTAPI_WriteEE = (FT_WriteEE_t)GetProcAddress(hDll,"FT_WriteEE");
-  FTAPI_SetBaudRate = (FT_SetBaudRate_t)GetProcAddress(hDll,"FT_SetBaudRate");
+  FTAPI_Open = (FT_Open_t)GetProcAddress(hDll, "FT_Open");
+  FTAPI_OpenEx = (FT_OpenEx_t)GetProcAddress(hDll, "FT_OpenEx");
+  FTAPI_Close = (FT_Close_t)GetProcAddress(hDll, "FT_Close");
+  FTAPI_Purge = (FT_Purge_t)GetProcAddress(hDll, "FT_Purge");
+  FTAPI_Write = (FT_Write_t)GetProcAddress(hDll, "FT_Write");
+  FTAPI_Read = (FT_Read_t)GetProcAddress(hDll, "FT_Read");
+  FTAPI_ListDevices = (FT_ListDevices_t)GetProcAddress(hDll, "FT_ListDevices");
+  FTAPI_SetLatencyTimer = (FT_SetLatencyTimer_t)GetProcAddress(hDll, "FT_SetLatencyTimer");
+  FTAPI_GetLatencyTimer = (FT_GetLatencyTimer_t)GetProcAddress(hDll, "FT_GetLatencyTimer");
+  FTAPI_GetDriverVersion = (FT_GetDriverVersion_t)GetProcAddress(hDll, "FT_GetDriverVersion");
+  FTAPI_SetTimeouts = (FT_SetTimeouts_t)GetProcAddress(hDll, "FT_SetTimeouts");
+  FTAPI_SetBitMode = (FT_SetBitMode_t)GetProcAddress(hDll, "FT_SetBitMode");
+  FTAPI_GetDeviceInfo = (FT_GetDeviceInfo_t)GetProcAddress(hDll, "FT_GetDeviceInfo");
+  FTAPI_ReadEE = (FT_ReadEE_t)GetProcAddress(hDll, "FT_ReadEE");
+  FTAPI_WriteEE = (FT_WriteEE_t)GetProcAddress(hDll, "FT_WriteEE");
+  FTAPI_SetBaudRate = (FT_SetBaudRate_t)GetProcAddress(hDll, "FT_SetBaudRate");
 
   if ((FTAPI_Open == NULL) ||
       (FTAPI_OpenEx == NULL) ||
