@@ -91,4 +91,4 @@ void ftd2xx_dll_api_shutdown(void);
 
 #endif
 
-#endif // FTD2XX_API_H
+#endif /* FTD2XX_API_H */
