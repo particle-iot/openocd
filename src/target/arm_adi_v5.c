@@ -580,151 +580,233 @@ int mem_ap_sel_write_buf_noincr(struct adiv5_dap *swjdp, uint8_t ap,
 #define MEM_CTRL_VLLSX_DBG_ACK	(1<<6)
 #define MEM_CTRL_VLLSX_STAT_ACK	(1<<7)
 
-#define MDM_ACCESS_TIMEOUT	3000 /* ms */
+#define MDM_ACCESS_TIMEOUT	3000 /* iterations */
 
-/**
- *
- */
-int dap_syssec_kinetis_mdmap(struct adiv5_dap *dap)
+static int dap_syssec_kinetis_mdm_write_register(struct adiv5_dap *dap, unsigned reg, uint32_t value)
 {
-	uint32_t val;
 	int retval;
-	int timeout = 0;
-	enum reset_types jtag_reset_config = jtag_get_reset_config();
+	LOG_DEBUG("MDM_REG[0x%02x] <- %08" PRIX32, reg, value);
 
-	dap_ap_select(dap, 1);
-
-	/* first check mdm-ap id register */
-	retval = dap_queue_ap_read(dap, MDM_REG_ID, &val);
+	retval = dap_queue_ap_write(dap, reg, value);
 	if (retval != ERROR_OK)
-		return retval;
-	dap_run(dap);
-
-	if (val != 0x001C0000) {
-		LOG_DEBUG("id doesn't match %08" PRIX32 " != 0x001C0000", val);
-		dap_ap_select(dap, 0);
-		return ERROR_FAIL;
-	}
-
-	/* read and parse status register
-	 * it's important that the device is out of
-	 * reset here
-	 */
-	while (1) {
-		if (timeout++ > MDM_ACCESS_TIMEOUT) {
-			LOG_DEBUG("MDMAP : flash ready timeout");
-			return ERROR_FAIL;
-		}
-		retval = dap_queue_ap_read(dap, MDM_REG_STAT, &val);
-		if (retval != ERROR_OK)
 			return retval;
-		dap_run(dap);
-
-		LOG_DEBUG("MDM_REG_STAT %08" PRIX32, val);
-		if (val & MDM_STAT_FREADY)
-			break;
-		alive_sleep(1);
-	}
-
-	if ((val & MDM_STAT_SYSSEC)) {
-		LOG_DEBUG("MDMAP: system is secured, masserase needed");
-
-		if (!(val & MDM_STAT_FMEEN))
-			LOG_DEBUG("MDMAP: masserase is disabled");
-		else {
-			/* we need to assert reset */
-			if (jtag_reset_config & RESET_HAS_SRST) {
-				/* default to asserting srst */
-				adapter_assert_reset();
-			} else {
-				LOG_DEBUG("SRST not configured");
-				dap_ap_select(dap, 0);
-				return ERROR_FAIL;
-			}
-			timeout = 0;
-			while (1) {
-				if (timeout++ > MDM_ACCESS_TIMEOUT) {
-					LOG_DEBUG("MDMAP : flash ready timeout");
-					return ERROR_FAIL;
-				}
-				retval = dap_queue_ap_write(dap, MDM_REG_CTRL, MEM_CTRL_FMEIP);
-				if (retval != ERROR_OK)
-					return retval;
-				dap_run(dap);
-				/* read status register and wait for ready */
-				retval = dap_queue_ap_read(dap, MDM_REG_STAT, &val);
-				if (retval != ERROR_OK)
-					return retval;
-				dap_run(dap);
-				LOG_DEBUG("MDM_REG_STAT %08" PRIX32, val);
-
-				if ((val & 1))
-					break;
-				alive_sleep(1);
-			}
-			timeout = 0;
-			while (1) {
-				if (timeout++ > MDM_ACCESS_TIMEOUT) {
-					LOG_DEBUG("MDMAP : flash ready timeout");
-					return ERROR_FAIL;
-				}
-				retval = dap_queue_ap_write(dap, MDM_REG_CTRL, 0);
-				if (retval != ERROR_OK)
-					return retval;
-				dap_run(dap);
-				/* read status register */
-				retval = dap_queue_ap_read(dap, MDM_REG_STAT, &val);
-				if (retval != ERROR_OK)
-					return retval;
-				dap_run(dap);
-				LOG_DEBUG("MDM_REG_STAT %08" PRIX32, val);
-				/* read control register and wait for ready */
-				retval = dap_queue_ap_read(dap, MDM_REG_CTRL, &val);
-				if (retval != ERROR_OK)
-					return retval;
-				dap_run(dap);
-				LOG_DEBUG("MDM_REG_CTRL %08" PRIX32, val);
-
-				if (val == 0x00)
-					break;
-				alive_sleep(1);
-			}
-		}
-	}
-
-	dap_ap_select(dap, 0);
+	dap_run(dap);
 
 	return ERROR_OK;
 }
 
-/** */
-struct dap_syssec_filter {
-	/** */
-	uint32_t idcode;
-	/** */
-	int (*dap_init)(struct adiv5_dap *dap);
-};
-
-/** */
-static struct dap_syssec_filter dap_syssec_filter_data[] = {
-	{ 0x4BA00477, dap_syssec_kinetis_mdmap }
-};
-
-/**
- *
- */
-int dap_syssec(struct adiv5_dap *dap)
+static int dap_syssec_kinetis_mdm_read_register(struct adiv5_dap *dap, unsigned reg, uint32_t *result)
 {
+	int retval;
+	retval = dap_queue_ap_read(dap, reg, result);
+	if (retval != ERROR_OK)
+			return retval;
+	dap_run(dap);
+
+	LOG_DEBUG("MDM_REG[0x%02x]: %08" PRIX32, reg, *result);
+
+	return ERROR_OK;
+}
+
+static int dap_syssec_kinetis_mdm_poll_register(struct adiv5_dap *dap, unsigned reg, uint32_t mask, uint32_t value)
+{
+	uint32_t val;
+	int retval;
+	int timeout = MDM_ACCESS_TIMEOUT;
+
+	do {
+		retval = dap_syssec_kinetis_mdm_read_register(dap, reg, &val);
+		if (retval != ERROR_OK || (val & mask) == value)
+			return retval;
+
+		alive_sleep(1);
+	} while (timeout--);
+
+	return ERROR_FAIL;
+}
+
+/*
+ * This function implements the procedure to mass erase the flash via
+ * SWD/JTAG on Kinetis K and L series of devices as it is described in
+ * AN4835 "Production Flash Programming Best Practices for Kinetis K-
+ * and L-series MCUs" Section 4.2.1
+ */
+static int dap_syssec_kinetis_mass_erase(struct adiv5_dap *dap)
+{
+	int retval;
+
+	/*
+	 * ... Write the MDM-AP control register to set the Flash Mass
+	 * Erase in Progress bit. This will start the mass erase
+	 * process...
+	 */
+	retval = dap_syssec_kinetis_mdm_write_register(dap, MDM_REG_CTRL,
+						       MEM_CTRL_SYS_RES_REQ | MEM_CTRL_FMEIP);
+	if (retval != ERROR_OK)
+		return retval;
+
+	/* As a sanity check make sure that device started mass erase procedure */
+	retval = dap_syssec_kinetis_mdm_poll_register(dap, MDM_REG_STAT,
+						      MDM_STAT_FMEACK, MDM_STAT_FMEACK);
+	if (retval != ERROR_OK)
+		return retval;
+
+	/*
+	 * ... Read the MDM-AP control register until the Flash Mass
+	 * Erase in Progress bit clears...
+	 */
+	retval = dap_syssec_kinetis_mdm_poll_register(dap, MDM_REG_CTRL,
+						      MEM_CTRL_FMEIP,
+						      0);
+	if (retval != ERROR_OK)
+		return retval;
+
+	return ERROR_OK;
+}
+
+/*
+ * This function implements the procedure to connect to
+ * SWD/JTAG on Kinetis K and L series of devices as it is described in
+ * AN4835 "Production Flash Programming Best Practices for Kinetis K-
+ * and L-series MCUs" Section 4.1.1
+ */
+static int dap_syssec_kinetis_mdmap(struct adiv5_dap *dap, uint32_t mdmidr)
+{
+	LOG_DEBUG(" ");
+
+	uint32_t val;
+	int retval;
+	const uint8_t origninal_ap = dap->ap_current;
+
+	/*
+	 * ... Power on the processor, or if power has already been
+	 * applied, assert the RESET pin to reset the processor. For
+	 * devices that do not have a RESET pin, write the System
+	 * Reset Request bit in the MDM-AP control register after
+	 * establishing communication...
+	 */
+	dap_ap_select(dap, 1);
+
+	retval = dap_queue_ap_write(dap, MDM_REG_CTRL, MEM_CTRL_SYS_RES_REQ);
+	if (retval != ERROR_OK)
+		return retval;
+
+	/*
+	 * ... Keep reset low and establish communication with the ARM DAP. The
+	 * MDM-AP ID register can be read to verify that the connection is
+	 * working correctly...
+	 */
+	retval = dap_syssec_kinetis_mdm_read_register(dap, MDM_REG_ID, &val);
+	if (retval != ERROR_OK) {
+		LOG_ERROR("MDMAP: failed to read ID register");
+		return retval;
+	}
+
+	if (val != mdmidr) {
+		LOG_ERROR("MDMAP: ID doesn't match(%08" PRIX32 " != %08" PRIX32")", val, mdmidr);
+		return ERROR_FAIL;
+	}
+
+	/*
+	 * ... Read the MDM-AP status register until the Flash Ready bit sets...
+	 */
+	retval = dap_syssec_kinetis_mdm_poll_register(dap, MDM_REG_STAT,
+						      MDM_STAT_FREADY | MDM_STAT_SYSRES,
+						      MDM_STAT_FREADY);
+	if (retval != ERROR_OK) {
+		LOG_ERROR("MDMAP : flash ready timeout");
+		return retval;
+	}
+
+	/*
+	 * ... Read the System Security bit to determine if security is enabled.
+	 * If System Security = 0, then proceed. If System Security = 1, then
+	 * communication with the internals of the processor, including the
+	 * flash, will not be possible without issuing a mass erase command or
+	 * unsecuring the part through other means (backdoor key unlock)...
+	 */
+	retval = dap_syssec_kinetis_mdm_read_register(dap, MDM_REG_STAT, &val);
+	if (retval != ERROR_OK)
+		return retval;
+
+	if (val & MDM_STAT_SYSSEC) {
+		LOG_INFO("MDMAP: system is secured, statring masserase");
+
+		if (!(val & MDM_STAT_FMEEN)) {
+			/*
+			  ... If Mass Erase Enable = 0, then mass
+			  erase is disabled and the processor cannot
+			  be erased or unsecured...
+			 */
+			LOG_ERROR("MDMAP: masserase is disabled. Backdoor key unlock is not supported. Bailing out.");
+			return ERROR_FAIL;
+		}
+
+		retval = dap_syssec_kinetis_mass_erase(dap);
+		if (retval != ERROR_OK)
+			return retval;
+
+		/* Just double check to make sure that the CPU is
+		 * unsecured and SWD/JTAG would work */
+		retval = dap_syssec_kinetis_mdm_read_register(dap, MDM_REG_STAT, &val);
+		if (retval != ERROR_OK)
+			return retval;
+		if (val & MDM_STAT_SYSSEC) {
+			LOG_ERROR("MDMPA: system is still secured for some reason. Nothing I can do. Bye.");
+			return ERROR_FAIL;
+		}
+	}
+
+	/*
+	 * ... Negate the RESET signal or clear the System Reset Request
+	 * bit in the MDM-AP control register...
+	 */
+	retval = dap_queue_ap_write(dap, MDM_REG_CTRL, 0);
+	if (retval != ERROR_OK)
+		return retval;
+
+	dap_ap_select(dap, origninal_ap);
+
+	return ERROR_OK;
+}
+
+struct dap_syssec_filter {
+	uint32_t idcode;
+	uint32_t mdmidr;
+
+	int (*dap_init)(struct adiv5_dap *dap, uint32_t mdmidr);
+};
+
+/*
+ * List of supported devices
+ */
+static const struct dap_syssec_filter dap_syssec_filter_data[] = {
+	/* TODO: Is this for K60 or K40? */
+	{ 0x4BA00477, 0x001C0000, dap_syssec_kinetis_mdmap },
+	/* KL26 */
+	{ 0x0BC11477, 0x001C0020, dap_syssec_kinetis_mdmap },
+};
+
+/*
+ * Go through a list of MCUs that implement some sort of DAP security
+ * mechanism and check if we are connected to one of them. If so do
+ * the necessary steps to enable debugging.
+ */
+static int dap_syssec(struct adiv5_dap *dap)
+{
+	int err;
 	unsigned int i;
 	struct jtag_tap *tap;
 
-	for (i = 0; i < sizeof(dap_syssec_filter_data); i++) {
+	for (i = 0; i < ARRAY_SIZE(dap_syssec_filter_data); i++) {
 		tap = dap->jtag_info->tap;
 
 		while (tap != NULL) {
 			if (tap->hasidcode && (dap_syssec_filter_data[i].idcode == tap->idcode)) {
 				LOG_DEBUG("DAP: mdmap_init for idcode: %08" PRIx32, tap->idcode);
-				dap_syssec_filter_data[i].dap_init(dap);
+				err = dap_syssec_filter_data[i].dap_init(dap, dap_syssec_filter_data[i].mdmidr);
+				if (err != ERROR_OK)
+					return err;
 			}
 			tap = tap->next_tap;
 		}
@@ -840,7 +922,9 @@ int ahbap_debugport_init(struct adiv5_dap *dap)
 	if (retval != ERROR_OK)
 		return retval;
 
-	dap_syssec(dap);
+	retval = dap_syssec(dap);
+	if (retval != ERROR_OK)
+		return retval;
 
 	/* check that we support packed transfers */
 	uint32_t csw;
