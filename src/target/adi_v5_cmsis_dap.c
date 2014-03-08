@@ -311,8 +311,11 @@ static int cmsis_dap_init(struct command_context *ctx)
 
 	status = cmsis_dap_queue_idcode_read(dap, &ack, &idcode);
 
-	if (status == ERROR_OK)
+	if (status == ERROR_OK) {
+		target->tap->hasidcode = true;
+		target->tap->idcode = idcode;
 		LOG_INFO("IDCODE 0x%08" PRIx32, idcode);
+	}
 
 	/* force clear all sticky faults */
 	cmsis_dap_queue_ap_abort(dap, &ack);
