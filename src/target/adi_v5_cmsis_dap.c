@@ -308,6 +308,8 @@ static int cmsis_dap_init(struct command_context *ctx)
 #endif
 
 	uint8_t ack;
+	bool found = false;
+
 
 	status = cmsis_dap_queue_idcode_read(dap, &ack, &idcode);
 
@@ -315,7 +317,27 @@ static int cmsis_dap_init(struct command_context *ctx)
 		target->tap->hasidcode = true;
 		target->tap->idcode = idcode;
 		LOG_INFO("IDCODE 0x%08" PRIx32, idcode);
+
+		int i;
+		int limit = target->tap->expected_ids_cnt;
+
+		for (i = 0; i < limit; i++) {
+			uint32_t expected = target->tap->expected_ids[i];
+
+			/* treat "-expected-id 0" as a "don't-warn" wildcard */
+			if (!expected || target->tap->idcode == expected) {
+				found = true;
+				break;
+			}
+		}
 	}
+
+	if (!found) {
+		LOG_ERROR("target not found: idcode: 0x%08" PRIx32,
+			  target->tap->idcode);
+		return ERROR_FAIL;
+	}
+
 
 	/* force clear all sticky faults */
 	cmsis_dap_queue_ap_abort(dap, &ack);
