@@ -1518,6 +1518,203 @@ static const struct sam3_chip_details all_sam3_details[] = {
 		},
 	},
 
+	{
+		.chipid_cidr    = 0x29480361,
+		.name           = "at91sam3n0b",
+		.total_flash_size     = 32 * 1024,
+		.total_sram_size      = 8 * 1024,
+		.n_gpnvms       = 3,
+		.n_banks        = 1,
+
+		/* System boots at address 0x0 */
+		/* gpnvm[1] = selects boot code */
+		/*     if gpnvm[1] == 0 */
+		/*         boot is via "SAMBA" (rom) */
+		/*     else */
+		/*         boot is via FLASH */
+		/*         Selection is via gpnvm[2] */
+		/*     endif */
+		/*  */
+		/* NOTE: banks 0 & 1 switch places */
+		/*     if gpnvm[2] == 0 */
+		/*         Bank0 is the boot rom */
+		/*      else */
+		/*         Bank1 is the boot rom */
+		/*      endif */
+/*		.bank[0] = { */
+		{
+			{
+				.probed = 0,
+				.pChip  = NULL,
+				.pBank  = NULL,
+				.bank_number = 0,
+				.base_address = FLASH_BANK_BASE_N,
+				.controller_address = 0x400e0A00,
+				.flash_wait_states = 6,	/* workaround silicon bug */
+				.present = 1,
+				.size_bytes = 32 * 1024,
+				.nsectors   = 2,
+				.sector_size = 16384,
+				.page_size   = 256,
+			},
+
+/*		.bank[1] = { */
+			{
+				.present = 0,
+				.probed = 0,
+				.bank_number = 1,
+			},
+		},
+	},
+
+	{
+		.chipid_cidr    = 0x29380361,
+		.name           = "at91sam3n0a",
+		.total_flash_size     = 32 * 1024,
+		.total_sram_size      = 8 * 1024,
+		.n_gpnvms       = 3,
+		.n_banks        = 1,
+
+		/* System boots at address 0x0 */
+		/* gpnvm[1] = selects boot code */
+		/*     if gpnvm[1] == 0 */
+		/*         boot is via "SAMBA" (rom) */
+		/*     else */
+		/*         boot is via FLASH */
+		/*         Selection is via gpnvm[2] */
+		/*     endif */
+		/*  */
+		/* NOTE: banks 0 & 1 switch places */
+		/*     if gpnvm[2] == 0 */
+		/*         Bank0 is the boot rom */
+		/*      else */
+		/*         Bank1 is the boot rom */
+		/*      endif */
+/*		.bank[0] = { */
+		{
+			{
+				.probed = 0,
+				.pChip  = NULL,
+				.pBank  = NULL,
+				.bank_number = 0,
+				.base_address = FLASH_BANK_BASE_N,
+				.controller_address = 0x400e0A00,
+				.flash_wait_states = 6,	/* workaround silicon bug */
+				.present = 1,
+				.size_bytes = 32 * 1024,
+				.nsectors   = 2,
+				.sector_size = 16384,
+				.page_size   = 256,
+			},
+
+/*		.bank[1] = { */
+			{
+				.present = 0,
+				.probed = 0,
+				.bank_number = 1,
+			},
+		},
+	},
+
+	{
+		.chipid_cidr    = 0x29450261,
+		.name           = "at91sam3n00b",
+		.total_flash_size     = 16 * 1024,
+		.total_sram_size      = 4 * 1024,
+		.n_gpnvms       = 3,
+		.n_banks        = 1,
+
+		/* System boots at address 0x0 */
+		/* gpnvm[1] = selects boot code */
+		/*     if gpnvm[1] == 0 */
+		/*         boot is via "SAMBA" (rom) */
+		/*     else */
+		/*         boot is via FLASH */
+		/*         Selection is via gpnvm[2] */
+		/*     endif */
+		/*  */
+		/* NOTE: banks 0 & 1 switch places */
+		/*     if gpnvm[2] == 0 */
+		/*         Bank0 is the boot rom */
+		/*      else */
+		/*         Bank1 is the boot rom */
+		/*      endif */
+/*		.bank[0] = { */
+		{
+			{
+				.probed = 0,
+				.pChip  = NULL,
+				.pBank  = NULL,
+				.bank_number = 0,
+				.base_address = FLASH_BANK_BASE_N,
+				.controller_address = 0x400e0A00,
+				.flash_wait_states = 6,	/* workaround silicon bug */
+				.present = 1,
+				.size_bytes = 16 * 1024,
+				.nsectors   = 1,
+				.sector_size = 16384,
+				.page_size   = 256,
+			},
+
+/*		.bank[1] = { */
+			{
+				.present = 0,
+				.probed = 0,
+				.bank_number = 1,
+			},
+		},
+	},
+
+	{
+		.chipid_cidr    = 0x29350261,
+		.name           = "at91sam3n00a",
+		.total_flash_size     = 16 * 1024,
+		.total_sram_size      = 4 * 1024,
+		.n_gpnvms       = 3,
+		.n_banks        = 1,
+
+		/* System boots at address 0x0 */
+		/* gpnvm[1] = selects boot code */
+		/*     if gpnvm[1] == 0 */
+		/*         boot is via "SAMBA" (rom) */
+		/*     else */
+		/*         boot is via FLASH */
+		/*         Selection is via gpnvm[2] */
+		/*     endif */
+		/*  */
+		/* NOTE: banks 0 & 1 switch places */
+		/*     if gpnvm[2] == 0 */
+		/*         Bank0 is the boot rom */
+		/*      else */
+		/*         Bank1 is the boot rom */
+		/*      endif */
+/*		.bank[0] = { */
+		{
+			{
+				.probed = 0,
+				.pChip  = NULL,
+				.pBank  = NULL,
+				.bank_number = 0,
+				.base_address = FLASH_BANK_BASE_N,
+				.controller_address = 0x400e0A00,
+				.flash_wait_states = 6,	/* workaround silicon bug */
+				.present = 1,
+				.size_bytes = 16 * 1024,
+				.nsectors   = 1,
+				.sector_size = 16384,
+				.page_size   = 256,
+			},
+
+/*		.bank[1] = { */
+			{
+				.present = 0,
+				.probed = 0,
+				.bank_number = 1,
+			},
+		},
+	},
+
+
 	/* Start at91sam3a series*/
 	/* System boots at address 0x0 */
 	/* gpnvm[1] = selects boot code */
@@ -2992,8 +3189,7 @@ static int sam3_GetDetails(struct sam3_bank_private *pPrivate)
 	LOG_DEBUG("Begin");
 	pDetails = all_sam3_details;
 	while (pDetails->name) {
-		/* Compare cidr without version bits */
-		if (pDetails->chipid_cidr == (pPrivate->pChip->cfg.CHIPID_CIDR & 0xFFFFFFE0))
+		if (pDetails->chipid_cidr == pPrivate->pChip->cfg.CHIPID_CIDR)
 			break;
 		else
 			pDetails++;
