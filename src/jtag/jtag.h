@@ -639,6 +639,8 @@ bool jtag_poll_get_enabled(void);
  */
 void jtag_poll_set_enabled(bool value);
 
+void jtag_force_disable_poll(void);
+bool is_jtag_forcefully_disabled(void);
 
 /* The minidriver may have inline versions of some of the low
  * level APIs that are used in inner loops. */
