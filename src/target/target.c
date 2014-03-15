@@ -611,7 +611,8 @@ static int target_process_reset(struct command_context *cmd_ctx, enum target_res
 	sprintf(buf, "ocd_process_reset %s", n->name);
 	retval = Jim_Eval(cmd_ctx->interp, buf);
 
-	jtag_poll_set_enabled(save_poll);
+	if (!is_jtag_forcefully_disabled())
+		jtag_poll_set_enabled(save_poll);
 
 	if (retval != JIM_OK) {
 		Jim_MakeErrorMessage(cmd_ctx->interp);
