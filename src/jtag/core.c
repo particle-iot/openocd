@@ -159,6 +159,17 @@ int jtag_error_clear(void)
 /************/
 
 static bool jtag_poll = 1;
+static bool jtag_force_no_poll = false;
+
+void jtag_force_disable_poll(void)
+{
+	jtag_force_no_poll = true;
+}
+
+bool is_jtag_forcefully_disabled(void)
+{
+	return jtag_force_no_poll;
+}
 
 bool is_jtag_poll_safe(void)
 {

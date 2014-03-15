@@ -453,6 +453,7 @@ COMMAND_HANDLER(kinetis_check_flash_security_status)
 	}
 
 	if (val & MDM_STAT_SYSSEC) {
+		jtag_force_disable_poll();
 		jtag_poll_set_enabled(false);
 
 		LOG_WARNING("*********** ATTENTION! ATTENTION! ATTENTION! ATTENTION! **********");
