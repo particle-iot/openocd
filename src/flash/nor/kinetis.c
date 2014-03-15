@@ -672,17 +672,74 @@ static int kinetis_write_block(struct flash_bank *bank, uint8_t *buffer,
 	return retval;
 }
 
+static int kinetis_erase(struct flash_bank *bank, int first, int last);
+static int kinetis_write(struct flash_bank *bank, uint8_t *buffer,
+			 uint32_t offset, uint32_t count);
+
+
 static int kinetis_protect(struct flash_bank *bank, int set, int first, int last)
 {
-	LOG_WARNING("kinetis_protect not supported yet");
-	/* FIXME: TODO */
-
 	if (bank->target->state != TARGET_HALTED) {
 		LOG_ERROR("Target not halted");
 		return ERROR_TARGET_NOT_HALTED;
 	}
 
-	return ERROR_FLASH_BANK_INVALID;
+	struct kinetis_flash_bank *kinfo = bank->driver_priv;
+
+	if (kinfo->flash_class == FC_PFLASH) {
+		if (((last - first + 1) * kinfo->sector_size) % kinfo->protection_size != 0) {
+			LOG_ERROR("Incorrect number of sectors. The total size of protected area must be a multiple of %d",
+				  kinfo->protection_size);
+			return ERROR_FAIL;
+		}
+
+		int result;
+		uint32_t fprot;
+
+		result = target_read_u32(bank->target, FTFx_FPROT3, &fprot);
+		if (result != ERROR_OK)
+			return result;
+
+		if ((fprot & 1) == 0) {
+			LOG_ERROR("Flash page @ 0x00000400 is portected. Flash protection settings can't be altered. Use mass erase");
+			return ERROR_FAIL;
+		}
+
+		const int pages_per_protection_zone = kinfo->protection_size / kinfo->sector_size;
+		for (int s = first; s < last; s += pages_per_protection_zone) {
+			const int bit_shift = bank->sectors[s].offset / kinfo->protection_size;
+
+			if (set)
+				fprot &= ~(1 << bit_shift);
+			else
+				fprot |=  (1 << bit_shift);
+		}
+
+		uint8_t buffer[kinfo->sector_size];
+
+		/* Read first flash page that contains flash
+		 * protection settings */
+		target_read_memory(bank->target, 0x00000400, 4, kinfo->sector_size / 4, buffer);
+		target_buffer_set_u32(bank->target, &buffer[0x008], fprot);
+
+		result = kinetis_erase(bank, 1, 1);
+		if (result != ERROR_OK) {
+			LOG_ERROR("Failed page @ 0x00000400");
+			return result;
+		}
+
+		result = kinetis_write(bank, buffer, 0x00000400, kinfo->sector_size);
+		if (result != ERROR_OK) {
+			LOG_ERROR("Failed write data back to page @ 0x00000400");
+			return result;
+		}
+	} else {
+		LOG_ERROR("Protection checks for FlexNVM not yet supported");
+		return ERROR_FLASH_BANK_INVALID;
+	}
+
+	LOG_INFO("Flash protection is done. Rest the target for setting to take effect");
+	return ERROR_OK;
 }
 
 static int kinetis_protect_check(struct flash_bank *bank)
@@ -696,17 +753,13 @@ static int kinetis_protect_check(struct flash_bank *bank)
 
 	if (kinfo->flash_class == FC_PFLASH) {
 		int result;
-		uint8_t buffer[4];
 		uint32_t fprot, psec;
 		int i, b;
 
 		/* read protection register */
-		result = target_read_memory(bank->target, FTFx_FPROT3, 1, 4, buffer);
-
+		result = target_read_u32(bank->target, FTFx_FPROT3, &fprot);
 		if (result != ERROR_OK)
 			return result;
-
-		fprot = target_buffer_get_u32(bank->target, buffer);
 
 		/*
 		 * Every bit protects 1/32 of the full flash (not necessarily
@@ -1325,7 +1378,10 @@ static int kinetis_read_part_info(struct flash_bank *bank)
 		bank->size = (pf_size / num_pflash_blocks);
 		bank->base = 0x00000000 + bank->size * bank->bank_number;
 		kinfo->sector_size = kinetis_flash_params[granularity].pflash_sector_size_bytes;
-		kinfo->protection_size = pf_size / 32;
+		/* pflash is divided into 32 protection areas for
+		 * parts with more than 32K of PFlash. For parts with
+		 * less the protection unit is set to 1024 bytes */
+		kinfo->protection_size = MAX(pf_size / 32, 1024);
 	} else if ((unsigned)bank->bank_number < num_blocks) {
 		/* nvm, banks start at address 0x10000000 */
 		kinfo->flash_class = FC_FLEX_NVM;
