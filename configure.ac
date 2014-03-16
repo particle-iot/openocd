@@ -1101,8 +1101,14 @@ PKG_CHECK_MODULES([LIBUSB1], [libusb-1.0], [
 	LIBUSB1_CFLAGS=`echo $LIBUSB1_CFLAGS | sed 's/-I/-isystem /'`
 	AC_MSG_NOTICE([libusb-1.0 header bug workaround: LIBUSB1_CFLAGS changed to "$LIBUSB1_CFLAGS"])
   ], [
-	use_libusb1=no
-	AC_MSG_WARN([libusb-1.x not found, trying legacy libusb-0.1 as a fallback; consider installing libusb-1.x instead])
+	# Fallback for FreeBSD; it offers a libusb-1.0 compatible API
+	# as part of the OS, but does not provide a libusb-1.0.pc file
+	# for it.
+	AC_CHECK_LIB([usb], [libusb_init], [
+	use_libusb1=yes
+	AC_DEFINE([HAVE_LIBUSB1], [1], [Define if you have libusb-1.x])], [
+		use_libusb1=no
+		AC_MSG_WARN([libusb-1.x not found, trying legacy libusb-0.1 as a fallback; consider installing libusb-1.x instead])])
 ])
 
 PKG_CHECK_MODULES([LIBUSB0], [libusb], [use_libusb0=yes], [use_libusb0=no])
