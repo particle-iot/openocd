@@ -30,6 +30,34 @@
  * Support functions to access arbitrary bits in a byte array
  */
 
+
+/**
+ * Sets @c num bits in @c _buffer, starting at the @c first bit,
+ * using the bits in @c value.  This routine fast-paths writes
+ * of little-endian, byte-aligned, 16-bit words.
+ * @param _buffer The buffer whose bits will be set.
+ * @param first The bit offset in @c _buffer to start writing (0-15).
+ * @param num The number of bits from @c value to copy (1-16).
+ * @param value Up to 16 bits that will be copied to _buffer.
+ */
+static inline void buf_set_u16(void *_buffer,
+	unsigned first, unsigned num, uint32_t value)
+{
+	uint8_t *buffer = _buffer;
+
+	if ((num == 16) && (first == 0)) {
+		buffer[1] = (value >> 8) & 0xff;
+		buffer[0] = (value >> 0) & 0xff;
+	} else {
+		for (unsigned i = first; i < first + num; i++) {
+			if (((value >> (i - first)) & 1) == 1)
+				buffer[i / 8] |= 1 << (i % 8);
+			else
+				buffer[i / 8] &= ~(1 << (i % 8));
+		}
+	}
+}
+
 /**
  * Sets @c num bits in @c _buffer, starting at the @c first bit,
  * using the bits in @c value.  This routine fast-paths writes
@@ -94,6 +122,33 @@ static inline void buf_set_u64(void *_buffer,
 			else
 				buffer[i / 8] &= ~(1 << (i % 8));
 		}
+	}
+}
+
+/**
+ * Retrieves @c num bits from @c _buffer, starting at the @c first bit,
+ * returning the bits in a 16-bit word.  This routine fast-paths reads
+ * of little-endian, byte-aligned, 16-bit words.
+ * @param _buffer The buffer whose bits will be read.
+ * @param first The bit offset in @c _buffer to start reading (0-15).
+ * @param num The number of bits from @c _buffer to read (1-16).
+ * @returns Up to 32-bits that were read from @c _buffer.
+ */
+static inline uint16_t buf_get_u16(const void *_buffer,
+	unsigned first, unsigned num)
+{
+	const uint8_t *buffer = _buffer;
+
+	if ((num == 16) && (first == 0)) {
+		return ((uint32_t)buffer[1]) << 8 |
+			((uint32_t)buffer[0]) << 0;
+	} else {
+		uint16_t result = 0;
+		for (unsigned i = first; i < first + num; i++) {
+			if (((buffer[i / 8] >> (i % 8)) & 1) == 1)
+				result |= 1 << (i - first);
+		}
+		return result;
 	}
 }
 
