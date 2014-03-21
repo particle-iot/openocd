@@ -119,28 +119,56 @@ int jtag_libusb_set_configuration(jtag_libusb_device_handle *devh,
 		int configuration)
 {
 	struct jtag_libusb_device *udev = jtag_libusb_get_device(devh);
-	int retCode = -99;
+	int ret = -99;
 
 	struct libusb_config_descriptor *config = NULL;
 
-	libusb_get_config_descriptor(udev, configuration, &config);
-	retCode = libusb_set_configuration(devh, config->bConfigurationValue);
+	ret = libusb_get_config_descriptor(udev, configuration, &config);
+	if (ret != 0) {
+		/* FIXME: It this codepathe is taken through a call
+		   from struct jtag_intergace -> init then this would
+		   fail with symbol lookup error being unable to find
+		   libusb_error_name. Need to fugure out why.
+		*/
+
+		LOG_ERROR("libusb_get_config_descriptor() failed: %s",
+			  libusb_error_name(ret));
+		return ret;
+	}
+
+	assert(config != NULL);
+
+	ret = libusb_set_configuration(devh, config->bConfigurationValue);
 
 	libusb_free_config_descriptor(config);
-
-	return retCode;
+	return ret;
 }
 
 int jtag_libusb_get_endpoints(struct jtag_libusb_device *udev,
 		unsigned int *usb_read_ep,
 		unsigned int *usb_write_ep)
 {
+	int ret;
 	const struct libusb_interface *inter;
 	const struct libusb_interface_descriptor *interdesc;
 	const struct libusb_endpoint_descriptor *epdesc;
 	struct libusb_config_descriptor *config;
 
-	libusb_get_config_descriptor(udev, 0, &config);
+	ret = libusb_get_config_descriptor(udev, 0, &config);
+	if (ret != 0) {
+		/* FIXME: It this codepathe is taken through a call
+		   from struct jtag_intergace -> init then this would
+		   fail with symbol lookup error being unable to find
+		   libusb_error_name. Need to fugure out why.
+		*/
+
+		LOG_ERROR("libusb_get_config_descriptor() failed with %s",
+			  libusb_error_name(ret));
+		return ret;
+	}
+
+	assert(config != NULL);
+
 	for (int i = 0; i < (int)config->bNumInterfaces; i++) {
 		inter = &config->interface[i];
 
