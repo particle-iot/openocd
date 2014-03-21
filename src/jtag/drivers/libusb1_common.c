@@ -154,7 +154,9 @@ int jtag_libusb_get_endpoints(struct jtag_libusb_device *udev,
 	const struct libusb_endpoint_descriptor *epdesc;
 	struct libusb_config_descriptor *config;
 
-	ret = libusb_get_config_descriptor(udev, 0, &config);
+
+
+	ret = libusb_get_active_config_descriptor(udev, &config);
 	if (ret != 0) {
 		/* FIXME: If this codepath is taken through a call
 		   from struct jtag_intergace -> init then this would
