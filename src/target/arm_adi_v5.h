@@ -409,23 +409,48 @@ int mem_ap_sel_read_u32(struct adiv5_dap *swjdp, uint8_t ap,
 int mem_ap_sel_write_u32(struct adiv5_dap *swjdp, uint8_t ap,
 		uint32_t address, uint32_t value);
 
-/* Synchronous MEM-AP memory mapped single word transfers with selection of ap */
+/* Synchronous MEM-AP memory mapped single word transfers with selection of ap
+ * and endianness support */
 int mem_ap_sel_read_atomic_u32(struct adiv5_dap *swjdp, uint8_t ap,
 		uint32_t address, uint32_t *value);
 int mem_ap_sel_write_atomic_u32(struct adiv5_dap *swjdp, uint8_t ap,
 		uint32_t address, uint32_t value);
 
+/* Synchronous MEM-AP memory mapped bus block transfers with endianness support */
+int mem_ap_read_endian(struct adiv5_dap *dap, uint8_t *buffer, uint32_t size,
+		uint32_t count, uint32_t address, bool addrinc, bool be);
+int mem_ap_write_endian(struct adiv5_dap *dap, const uint8_t *buffer, uint32_t size,
+		uint32_t count, uint32_t address, bool addrinc, bool be);
+
 /* Synchronous MEM-AP memory mapped bus block transfers */
-int mem_ap_read(struct adiv5_dap *dap, uint8_t *buffer, uint32_t size,
-		uint32_t count, uint32_t address, bool addrinc);
-int mem_ap_write(struct adiv5_dap *dap, const uint8_t *buffer, uint32_t size,
-		uint32_t count, uint32_t address, bool addrinc);
+static inline int mem_ap_read(struct adiv5_dap *dap, uint8_t *buffer, uint32_t size,
+		uint32_t count, uint32_t address, bool addrinc)
+{
+	return mem_ap_read_endian(dap, buffer, size, count, address, addrinc, false);
+}
+static inline int mem_ap_write(struct adiv5_dap *dap, const uint8_t *buffer, uint32_t size,
+		uint32_t count, uint32_t address, bool addrinc)
+{
+	return mem_ap_write_endian(dap, buffer, size, count, address, addrinc, false);
+}
 
 /* Synchronous MEM-AP memory mapped bus block transfers with selection of ap */
-int mem_ap_sel_read_buf(struct adiv5_dap *swjdp, uint8_t ap,
-		uint8_t *buffer, uint32_t size, uint32_t count, uint32_t address);
-int mem_ap_sel_write_buf(struct adiv5_dap *swjdp, uint8_t ap,
-		const uint8_t *buffer, uint32_t size, uint32_t count, uint32_t address);
+int mem_ap_sel_read_buf_endian(struct adiv5_dap *swjdp, uint8_t ap,
+		uint8_t *buffer, uint32_t size, uint32_t count, uint32_t address, bool be);
+int mem_ap_sel_write_buf_endian(struct adiv5_dap *swjdp, uint8_t ap,
+		const uint8_t *buffer, uint32_t size, uint32_t count, uint32_t address, bool be);
+
+/* Synchronous MEM-AP memory mapped bus block transfers with selection of ap */
+static inline int mem_ap_sel_read_buf(struct adiv5_dap *swjdp, uint8_t ap,
+		uint8_t *buffer, uint32_t size, uint32_t count, uint32_t address)
+{
+	return mem_ap_sel_read_buf_endian(swjdp, ap, buffer, size, count, address, false);
+}
+static inline int mem_ap_sel_write_buf(struct adiv5_dap *swjdp, uint8_t ap,
+		const uint8_t *buffer, uint32_t size, uint32_t count, uint32_t address)
+{
+	return mem_ap_sel_write_buf_endian(swjdp, ap, buffer, size, count, address, false);
+}
 
 /* Synchronous, non-incrementing buffer functions for accessing fifos, with
  * selection of ap */

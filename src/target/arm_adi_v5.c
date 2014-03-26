@@ -287,26 +287,43 @@ int mem_ap_write_atomic_u32(struct adiv5_dap *dap, uint32_t address,
  * @param address Address to be written; it must be writable by the currently selected MEM-AP.
  * @param addrinc Whether the target address should be increased for each write or not. This
  *  should normally be true, except when writing to e.g. a FIFO.
+ * @param be Is this big-endian memory.
  * @return ERROR_OK on success, otherwise an error code.
  */
-int mem_ap_write(struct adiv5_dap *dap, const uint8_t *buffer, uint32_t size, uint32_t count,
-		uint32_t address, bool addrinc)
+int mem_ap_write_endian(struct adiv5_dap *dap, const uint8_t *buffer, uint32_t size,
+		uint32_t count, uint32_t address, bool addrinc, bool be)
 {
 	size_t nbytes = size * count;
 	const uint32_t csw_addrincr = addrinc ? CSW_ADDRINC_SINGLE : CSW_ADDRINC_OFF;
 	uint32_t csw_size;
+	uint32_t addr_xor = 0;
 	int retval;
 
-	if (size == 4)
+	/* Writes on big-endian TMS570LS3137 behave very strangely. Observed behavior:
+	 *   size   write address   bytes written in order
+	 *   4      TAR ^ 0         (val >> 24), (val >> 16), (val >> 8), (val)
+	 *   2      TAR ^ 2         (val >> 8), (val)
+	 *   1      TAR ^ 3         (val)
+	 * For example, if you attempt to write a single byte to address 0, the processor
+	 * will actually write a byte to address 3.
+	 *
+	 * To make writes of size < 4 work as expected, we xor a value with the address before
+	 * setting the TAP, and we set the TAP after every transfer rather then relying on
+	 * address increment. */
+
+	if (size == 4) {
 		csw_size = CSW_32BIT;
-	else if (size == 2)
+		addr_xor = 0;
+	} else if (size == 2) {
 		csw_size = CSW_16BIT;
-	else if (size == 1)
+		addr_xor = be ? 2 : 0;
+	} else if (size == 1) {
 		csw_size = CSW_8BIT;
-	else
+		addr_xor = be ? 3 : 0;
+	} else
 		return ERROR_TARGET_UNALIGNED_ACCESS;
 
-	retval = dap_setup_accessport_tar(dap, address);
+	retval = dap_setup_accessport_tar(dap, address ^ addr_xor);
 	if (retval != ERROR_OK)
 		return retval;
 
@@ -314,7 +331,7 @@ int mem_ap_write(struct adiv5_dap *dap, const uint8_t *buffer, uint32_t size, ui
 		uint32_t this_size = size;
 
 		/* Select packed transfer if possible */
-		if (addrinc && dap->packed_transfers && nbytes >= 4
+		if (!addr_xor && addrinc && dap->packed_transfers && nbytes >= 4
 				&& max_tar_block_size(dap->tar_autoincr_block, address) >= 4) {
 			this_size = 4;
 			retval = dap_setup_accessport_csw(dap, csw_size | CSW_ADDRINC_PACKED);
@@ -328,14 +345,32 @@ int mem_ap_write(struct adiv5_dap *dap, const uint8_t *buffer, uint32_t size, ui
 		/* How many source bytes each transfer will consume, and their location in the DRW,
 		 * depends on the type of transfer and alignment. See ARM document IHI0031C. */
 		uint32_t outvalue = 0;
-		switch (this_size) {
-		case 4:
-			outvalue |= (uint32_t)*buffer++ << 8 * (address++ & 3);
-			outvalue |= (uint32_t)*buffer++ << 8 * (address++ & 3);
-		case 2:
-			outvalue |= (uint32_t)*buffer++ << 8 * (address++ & 3);
-		case 1:
-			outvalue |= (uint32_t)*buffer++ << 8 * (address++ & 3);
+		if (be) {
+			switch (this_size) {
+			case 4:
+				outvalue |= (uint32_t)*buffer++ << 8 * (3 ^ (address++ & 3) ^ addr_xor);
+				outvalue |= (uint32_t)*buffer++ << 8 * (3 ^ (address++ & 3) ^ addr_xor);
+				outvalue |= (uint32_t)*buffer++ << 8 * (3 ^ (address++ & 3) ^ addr_xor);
+				outvalue |= (uint32_t)*buffer++ << 8 * (3 ^ (address++ & 3) ^ addr_xor);
+				break;
+			case 2:
+				outvalue |= (uint32_t)*buffer++ << 8 * (1 ^ (address++ & 3) ^ addr_xor);
+				outvalue |= (uint32_t)*buffer++ << 8 * (1 ^ (address++ & 3) ^ addr_xor);
+				break;
+			case 1:
+				outvalue |= (uint32_t)*buffer++ << 8 * (0 ^ (address++ & 3) ^ addr_xor);
+				break;
+			}
+		} else {
+			switch (this_size) {
+			case 4:
+				outvalue |= (uint32_t)*buffer++ << 8 * (address++ & 3);
+				outvalue |= (uint32_t)*buffer++ << 8 * (address++ & 3);
+			case 2:
+				outvalue |= (uint32_t)*buffer++ << 8 * (address++ & 3);
+			case 1:
+				outvalue |= (uint32_t)*buffer++ << 8 * (address++ & 3);
+			}
 		}
 
 		nbytes -= this_size;
@@ -344,9 +379,9 @@ int mem_ap_write(struct adiv5_dap *dap, const uint8_t *buffer, uint32_t size, ui
 		if (retval != ERROR_OK)
 			break;
 
-		/* Rewrite TAR if it wrapped */
-		if (addrinc && address % dap->tar_autoincr_block < size && nbytes > 0) {
-			retval = dap_setup_accessport_tar(dap, address);
+		/* Rewrite TAR if it wrapped or we're xoring addresses */
+		if (addrinc && (addr_xor || (address % dap->tar_autoincr_block < size && nbytes > 0))) {
+			retval = dap_setup_accessport_tar(dap, address ^ addr_xor);
 			if (retval != ERROR_OK)
 				break;
 		}
@@ -378,16 +413,21 @@ int mem_ap_write(struct adiv5_dap *dap, const uint8_t *buffer, uint32_t size, ui
  * @param address Address to be read; it must be readable by the currently selected MEM-AP.
  * @param addrinc Whether the target address should be increased after each read or not. This
  *  should normally be true, except when reading from e.g. a FIFO.
+ * @param be Is this big-endian memory.
  * @return ERROR_OK on success, otherwise an error code.
  */
-int mem_ap_read(struct adiv5_dap *dap, uint8_t *buffer, uint32_t size, uint32_t count,
-		uint32_t adr, bool addrinc)
+int mem_ap_read_endian(struct adiv5_dap *dap, uint8_t *buffer, uint32_t size, uint32_t count,
+		uint32_t adr, bool addrinc, bool be)
 {
 	size_t nbytes = size * count;
 	const uint32_t csw_addrincr = addrinc ? CSW_ADDRINC_SINGLE : CSW_ADDRINC_OFF;
 	uint32_t csw_size;
 	uint32_t address = adr;
 	int retval;
+
+	/* Reads on big-endian TMS570LS3137 behave strangely differently than writes.
+	 * They read from the physical address requested, but with DRW byte-reversed.
+	 * For example, a byte read from address 0 will place the result in the high bytes of DRW. */
 
 	if (size == 4)
 		csw_size = CSW_32BIT;
@@ -476,14 +516,26 @@ int mem_ap_read(struct adiv5_dap *dap, uint8_t *buffer, uint32_t size, uint32_t 
 			this_size = 4;
 		}
 
-		switch (this_size) {
-		case 4:
-			*buffer++ = *read_ptr >> 8 * (address++ & 3);
-			*buffer++ = *read_ptr >> 8 * (address++ & 3);
-		case 2:
-			*buffer++ = *read_ptr >> 8 * (address++ & 3);
-		case 1:
-			*buffer++ = *read_ptr >> 8 * (address++ & 3);
+		if (be) {
+			switch (this_size) {
+			case 4:
+				*buffer++ = *read_ptr >> 8 * (3 - (address++ & 3));
+				*buffer++ = *read_ptr >> 8 * (3 - (address++ & 3));
+			case 2:
+				*buffer++ = *read_ptr >> 8 * (3 - (address++ & 3));
+			case 1:
+				*buffer++ = *read_ptr >> 8 * (3 - (address++ & 3));
+			}
+		} else {
+			switch (this_size) {
+			case 4:
+				*buffer++ = *read_ptr >> 8 * (address++ & 3);
+				*buffer++ = *read_ptr >> 8 * (address++ & 3);
+			case 2:
+				*buffer++ = *read_ptr >> 8 * (address++ & 3);
+			case 1:
+				*buffer++ = *read_ptr >> 8 * (address++ & 3);
+			}
 		}
 
 		read_ptr++;
@@ -525,18 +577,18 @@ int mem_ap_sel_write_atomic_u32(struct adiv5_dap *swjdp, uint8_t ap,
 	return mem_ap_write_atomic_u32(swjdp, address, value);
 }
 
-int mem_ap_sel_read_buf(struct adiv5_dap *swjdp, uint8_t ap,
-		uint8_t *buffer, uint32_t size, uint32_t count, uint32_t address)
+int mem_ap_sel_read_buf_endian(struct adiv5_dap *swjdp, uint8_t ap,
+		uint8_t *buffer, uint32_t size, uint32_t count, uint32_t address, bool be)
 {
 	dap_ap_select(swjdp, ap);
-	return mem_ap_read(swjdp, buffer, size, count, address, true);
+	return mem_ap_read_endian(swjdp, buffer, size, count, address, true, be);
 }
 
-int mem_ap_sel_write_buf(struct adiv5_dap *swjdp, uint8_t ap,
-		const uint8_t *buffer, uint32_t size, uint32_t count, uint32_t address)
+int mem_ap_sel_write_buf_endian(struct adiv5_dap *swjdp, uint8_t ap,
+		const uint8_t *buffer, uint32_t size, uint32_t count, uint32_t address, bool be)
 {
 	dap_ap_select(swjdp, ap);
-	return mem_ap_write(swjdp, buffer, size, count, address, true);
+	return mem_ap_write_endian(swjdp, buffer, size, count, address, true, be);
 }
 
 int mem_ap_sel_read_buf_noincr(struct adiv5_dap *swjdp, uint8_t ap,
@@ -843,13 +895,17 @@ int ahbap_debugport_init(struct adiv5_dap *dap)
 	dap_syssec(dap);
 
 	/* check that we support packed transfers */
-	uint32_t csw;
+	uint32_t csw, cfg;
 
 	retval = dap_setup_accessport(dap, CSW_8BIT | CSW_ADDRINC_PACKED, 0);
 	if (retval != ERROR_OK)
 		return retval;
 
 	retval = dap_queue_ap_read(dap, AP_REG_CSW, &csw);
+	if (retval != ERROR_OK)
+		return retval;
+
+	retval = dap_queue_ap_read(dap, AP_REG_CFG, &cfg);
 	if (retval != ERROR_OK)
 		return retval;
 
@@ -864,6 +920,9 @@ int ahbap_debugport_init(struct adiv5_dap *dap)
 
 	LOG_DEBUG("MEM_AP Packed Transfers: %s",
 			dap->packed_transfers ? "enabled" : "disabled");
+
+	LOG_DEBUG("MEM_AP CFG: large data %d, long address %d, big-endian %d",
+			!!(cfg & 0x04), !!(cfg & 0x02), !!(cfg & 0x01));
 
 	return ERROR_OK;
 }
