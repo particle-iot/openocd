@@ -120,11 +120,10 @@ static int sim3x_flash_lock_check(struct flash_bank *bank)
 		return ret;
 	}
 
-	if(lock_word == 0xFFFFFFFF) {
+	if (lock_word == 0xFFFFFFFF)
 		lock_word = 0; /* Unlocked */
-	} else {
+	else
 		lock_word = 1; /* Locked */
-	}
 
 	((struct sim3x_info *) bank->driver_priv)->flash_locked = lock_word;
 
@@ -135,7 +134,7 @@ static int sim3x_read_info(struct flash_bank *bank)
 {
 	int ret;
 	uint32_t cpuid = 0;
-	struct sim3x_info * sim3x_info;
+	struct sim3x_info *sim3x_info;
 
 #ifdef DEVICE_AUTO_DETECTION
 	uint32_t device_id;
@@ -168,7 +167,7 @@ static int sim3x_read_info(struct flash_bank *bank)
 	/* According to the documentation DEVICEID2 must by 0x00004D33 (..M3),
 	 * but in my case it is 0x4DF79C9D
 	 */
-	if(device_id != 0x00004D33) {
+	if (device_id != 0x00004D33) {
 		LOG_ERROR("Unsupported MCU");
 		return ERROR_FAIL;
 	}
@@ -239,7 +238,7 @@ static int sim3x_read_info(struct flash_bank *bank)
 /* flash bank sim3x 0 0 0 0 <target#> */
 FLASH_BANK_COMMAND_HANDLER(sim3x_flash_bank_command)
 {
-	struct sim3x_info * sim3x_info;
+	struct sim3x_info *sim3x_info;
 
 	if (CMD_ARGC < 6)
 		return ERROR_COMMAND_SYNTAX_ERROR;
@@ -255,11 +254,11 @@ static int sim3x_erase_page(struct flash_bank *bank, uint32_t addr)
 {
 	int ret, i;
 	uint32_t temp;
-	struct target * target;
+	struct target *target;
 
 	target = bank->target;
 
-	for(i = 0; i < FLASH_BUSY_TIMEOUT; i++) {
+	for (i = 0; i < FLASH_BUSY_TIMEOUT; i++) {
 		ret = target_read_u32(target, (uint32_t) &FLASHCTRL0_CONFIG->all, &temp);
 		if (ERROR_OK != ret)
 			return ret;
@@ -459,7 +458,7 @@ static int sim3x_write_block(struct flash_bank *bank, const uint8_t *buf,
 static int sim3x_flash_write(struct flash_bank *bank, const uint8_t * buffer, uint32_t offset, uint32_t count)
 {
 	int ret;
-	struct target * target;
+	struct target *target;
 	uint8_t *new_buffer = NULL;
 
 	target = bank->target;
@@ -504,8 +503,8 @@ static int sim3x_flash_protect(struct flash_bank *bank, int set, int first, int 
 {
 	int ret;
 	uint32_t lock_word_number;
-	struct sim3x_info * sim3x_info;
-	struct target * target;
+	struct sim3x_info *sim3x_info;
+	struct target *target;
 
 	target = bank->target;
 	if (target->state != TARGET_HALTED) {
@@ -532,7 +531,7 @@ static int sim3x_flash_protect(struct flash_bank *bank, int set, int first, int 
 static int sim3x_set_debug_mode(struct flash_bank *bank)
 {
 	int ret;
-	struct target * target;
+	struct target *target;
 
 	target = bank->target;
 
@@ -598,7 +597,7 @@ static int sim3x_device_probe(struct flash_bank *bank)
 		return ret;
 
 #ifdef DEVICE_AUTO_DETECTION
-	switch(sim3x_info->part_family) {
+	switch (sim3x_info->part_family) {
 	case 'c':
 	case 'C':
 		LOG_INFO("SiM3Cx detected");
@@ -665,7 +664,7 @@ static int sim3x_auto_probe(struct flash_bank *bank)
 static int sim3x_flash_protect_check(struct flash_bank *bank)
 {
 	int ret, i;
-	struct sim3x_info * sim3x_info;
+	struct sim3x_info *sim3x_info;
 
 	if (bank->target->state != TARGET_HALTED) {
 		LOG_ERROR("Target not halted");
@@ -689,7 +688,7 @@ static int sim3x_flash_info(struct flash_bank *bank, char *buf, int buf_size)
 	int ret;
 	int printed = 0;
 #ifdef DEVICE_AUTO_DETECTION
-	struct sim3x_info * sim3x_info;
+	struct sim3x_info *sim3x_info;
 #endif
 
 	ret = sim3x_read_info(bank);
@@ -704,16 +703,16 @@ static int sim3x_flash_info(struct flash_bank *bank, char *buf, int buf_size)
 	buf += printed;
 	buf_size -= printed;
 
-	if(buf_size <= 0)
+	if (buf_size <= 0)
 		return ERROR_BUF_TOO_SMALL;
 
 	/* Revision */
-	if(sim3x_info->device_revision <= 'Z' - 'A') {
+	if (sim3x_info->device_revision <= 'Z' - 'A') {
 		printed = snprintf(buf, buf_size, "-%c", sim3x_info->device_revision + 'A');
 		buf += printed;
 		buf_size -= printed;
 
-		if(buf_size <= 0)
+		if (buf_size <= 0)
 			return ERROR_BUF_TOO_SMALL;
 	}
 
@@ -722,7 +721,7 @@ static int sim3x_flash_info(struct flash_bank *bank, char *buf, int buf_size)
 	buf += printed;
 	buf_size -= printed;
 
-	if(buf_size <= 0)
+	if (buf_size <= 0)
 		return ERROR_BUF_TOO_SMALL;
 
 #else
@@ -730,7 +729,7 @@ static int sim3x_flash_info(struct flash_bank *bank, char *buf, int buf_size)
 	buf += printed;
 	buf_size -= printed;
 
-	if(buf_size <= 0)
+	if (buf_size <= 0)
 		return ERROR_BUF_TOO_SMALL;
 #endif
 
