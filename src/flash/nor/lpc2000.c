@@ -5,6 +5,9 @@
  *   LPC1700 support Copyright (C) 2009 by Audrius Urmanavicius            *
  *   didele.deze@gmail.com                                                 *
  *                                                                         *
+ *   LPC1100 variant and auto-probing support Copyright (C) 2014           *
+ *   by Cosmin Gorgovan cosmin [at] linux-geek [dot] org                   *
+ *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
  *   the Free Software Foundation; either version 2 of the License, or     *
@@ -67,12 +70,44 @@
  * - 810 | 1 | 2 (tested with LPC810/LPC812)
  */
 
+#define LPC11U12_201_1 0x095C802B
+#define LPC11U12_201_2 0x295C802B
+#define LPC11U13_201_1 0x097A802B
+#define LPC11U13_201_2 0x297A802B
+#define LPC11U14_201_1 0x0998802B
+#define LPC11U14_201_2 0x2998802B
+#define LPC11U23_301   0x2972402B
+#define LPC11U24_301   0x2988402B
+#define LPC11U24_401   0x2980002B
+#define LPC11U34_311   0x0003D440
+#define LPC11U34_421   0x0001CC40
+#define LPC11U35_401   0x0001BC40
+#define LPC11U35_501   0x0000BC40
+#define LPC11U36_401   0x00019C40
+#define LPC11U37_401   0x00017C40
+#define LPC11U37H_401  0x00007C44
+#define LPC11U37_501   0x00007C40
+
+#define LPC1311        0x2C42502B
+#define LPC1311_1      0x1816902B
+#define LPC1313        0x2C40102B
+#define LPC1313_1      0x1830102B
+#define LPC1315        0x3A010523
+#define LPC1316        0x1A018524
+#define LPC1317        0x1A020525
+#define LPC1342        0x3D01402B
+#define LPC1343        0x3D00002B
+#define LPC1345        0x28010541
+#define LPC1346        0x08018542
+#define LPC1347        0x08020543
+
 typedef enum {
 	lpc2000_v1,
 	lpc2000_v2,
 	lpc1700,
 	lpc4300,
 	lpc800,
+	lpc1100,
 } lpc2000_variant;
 
 struct lpc2000_flash_bank {
@@ -88,6 +123,7 @@ struct lpc2000_flash_bank {
 	uint32_t iap_max_stack;
 	uint32_t cmd51_src_offset;
 	uint32_t lpc4300_bank;
+	bool probed;
 };
 
 enum lpc2000_status_codes {
@@ -329,6 +365,25 @@ static int lpc2000_build_sector_list(struct flash_bank *bank)
 			bank->sectors[i].is_protected = 1;
 		}
 
+	} else if (lpc2000_info->variant == lpc1100) {
+		if ((bank->size % (4 * 1024)) != 0) {
+			LOG_ERROR("BUG: unknown bank->size encountered,\nLPC1100 flash size must be a multiple of 4096");
+			exit(-1);
+		}
+		lpc2000_info->cmd51_max_buffer = 1024;
+		bank->num_sectors = bank->size / 4096;
+
+		bank->sectors = malloc(sizeof(struct flash_sector) * bank->num_sectors);
+
+		for (int i = 0; i < bank->num_sectors; i++) {
+			bank->sectors[i].offset = offset;
+			/* all sectors are 4kB-sized */
+			bank->sectors[i].size = 4 * 1024;
+			offset += bank->sectors[i].size;
+			bank->sectors[i].is_erased = -1;
+			bank->sectors[i].is_protected = 1;
+		}
+
 	} else {
 		LOG_ERROR("BUG: unknown lpc2000_info->variant encountered");
 		exit(-1);
@@ -360,6 +415,7 @@ static int lpc2000_iap_working_area_init(struct flash_bank *bank, struct working
 	/* write IAP code to working area */
 	switch (lpc2000_info->variant) {
 		case lpc800:
+		case lpc1100:
 		case lpc1700:
 		case lpc4300:
 			target_buffer_set_u32(target, jump_gate, ARMV4_5_T_BX(12));
@@ -397,6 +453,7 @@ static int lpc2000_iap_call(struct flash_bank *bank, struct working_area *iap_wo
 
 	switch (lpc2000_info->variant) {
 		case lpc800:
+		case lpc1100:
 		case lpc1700:
 			armv7m_info.common_magic = ARMV7M_COMMON_MAGIC;
 			armv7m_info.core_mode = ARM_MODE_THREAD;
@@ -448,6 +505,7 @@ static int lpc2000_iap_call(struct flash_bank *bank, struct working_area *iap_wo
 
 	switch (lpc2000_info->variant) {
 		case lpc800:
+		case lpc1100:
 		case lpc1700:
 		case lpc4300:
 			/* IAP stack */
@@ -562,6 +620,7 @@ FLASH_BANK_COMMAND_HANDLER(lpc2000_flash_bank_command)
 		return ERROR_COMMAND_SYNTAX_ERROR;
 
 	struct lpc2000_flash_bank *lpc2000_info = calloc(1, sizeof(*lpc2000_info));
+	lpc2000_info->probed = false;
 
 	bank->driver_priv = lpc2000_info;
 
@@ -601,6 +660,13 @@ FLASH_BANK_COMMAND_HANDLER(lpc2000_flash_bank_command)
 		lpc2000_info->cmd51_can_8192b = 0;
 		lpc2000_info->checksum_vector = 7;
 		lpc2000_info->iap_max_stack = 148;
+	} else if (strcmp(CMD_ARGV[6], "lpc1100") == 0) {
+		lpc2000_info->variant = lpc1100;
+		lpc2000_info->cmd51_dst_boundary = 256;
+		lpc2000_info->cmd51_can_256b = 1;
+		lpc2000_info->cmd51_can_8192b = 0;
+		lpc2000_info->checksum_vector = 7;
+		lpc2000_info->iap_max_stack = 128;
 	} else {
 		LOG_ERROR("unknown LPC2000 variant: %s", CMD_ARGV[6]);
 		free(lpc2000_info);
@@ -612,7 +678,6 @@ FLASH_BANK_COMMAND_HANDLER(lpc2000_flash_bank_command)
 
 	COMMAND_PARSE_NUMBER(u32, CMD_ARGV[7], lpc2000_info->cclk);
 	lpc2000_info->calc_checksum = 0;
-	lpc2000_build_sector_list(bank);
 
 	uint32_t temp_base = 0;
 	COMMAND_PARSE_NUMBER(u32, CMD_ARGV[1], temp_base);
@@ -890,9 +955,119 @@ static int lpc2000_write(struct flash_bank *bank, const uint8_t *buffer, uint32_
 	return retval;
 }
 
+static int get_lpc2000_part_id(struct flash_bank *bank, uint32_t *part_id)
+{
+	if (bank->target->state != TARGET_HALTED) {
+		LOG_ERROR("Target not halted");
+		return ERROR_TARGET_NOT_HALTED;
+	}
+
+	uint32_t param_table[5] = {0};
+	uint32_t result_table[4];
+	struct working_area *iap_working_area;
+
+	int retval = lpc2000_iap_working_area_init(bank, &iap_working_area);
+
+	if (retval != ERROR_OK)
+		return retval;
+
+	int status_code = lpc2000_iap_call(bank, iap_working_area, 54, param_table, result_table);
+
+	if (status_code == LPC2000_CMD_SUCCESS)
+		*part_id = result_table[0];
+
+	return status_code;
+}
+
+static int lpc2000_auto_probe_flash(struct flash_bank *bank)
+{
+	uint32_t part_id;
+	int retval;
+
+	if (bank->target->state != TARGET_HALTED) {
+		LOG_ERROR("Target not halted");
+		return ERROR_TARGET_NOT_HALTED;
+	}
+
+	retval = get_lpc2000_part_id(bank, &part_id);
+	if (retval != LPC2000_CMD_SUCCESS) {
+		LOG_ERROR("Could not get part ID");
+		return retval;
+	}
+
+	switch (part_id) {
+		case LPC1311:
+		case LPC1311_1:
+			bank->size = 8 * 1024;
+			break;
+
+		case LPC11U12_201_1:
+		case LPC11U12_201_2:
+		case LPC1342:
+			bank->size = 16 * 1024;
+			break;
+
+		case LPC11U13_201_1:
+		case LPC11U13_201_2:
+		case LPC11U23_301:
+			bank->size = 24 * 1024;
+			break;
+
+		case LPC11U14_201_1:
+		case LPC11U14_201_2:
+		case LPC11U24_301:
+		case LPC11U24_401:
+		case LPC1313:
+		case LPC1313_1:
+		case LPC1315:
+		case LPC1343:
+		case LPC1345:
+			bank->size = 32 * 1024;
+			break;
+
+		case LPC11U34_311:
+			bank->size = 40 * 1024;
+			break;
+
+		case LPC11U34_421:
+		case LPC1316:
+		case LPC1346:
+			bank->size = 48 * 1024;
+			break;
+
+		case LPC11U35_401:
+		case LPC11U35_501:
+		case LPC1317:
+		case LPC1347:
+			bank->size = 64 * 1024;
+			break;
+
+		case LPC11U36_401:
+			bank->size = 96 * 1024;
+			break;
+
+		case LPC11U37_401:
+		case LPC11U37H_401:
+		case LPC11U37_501:
+			bank->size = 128 * 1024;
+			break;
+	}
+
+	return ERROR_OK;
+}
+
 static int lpc2000_probe(struct flash_bank *bank)
 {
-	/* we can't probe on an lpc2000 if this is an lpc2xxx, it has the configured flash */
+	struct lpc2000_flash_bank *lpc2000_info = bank->driver_priv;
+
+	if (!lpc2000_info->probed) {
+		if (bank->size == 0)
+			lpc2000_auto_probe_flash(bank);
+
+		lpc2000_build_sector_list(bank);
+		lpc2000_info->probed = true;
+	}
+
 	return ERROR_OK;
 }
 
@@ -937,23 +1112,15 @@ COMMAND_HANDLER(lpc2000_handle_part_id_command)
 		return ERROR_TARGET_NOT_HALTED;
 	}
 
-	uint32_t param_table[5] = {0};
-	uint32_t result_table[4];
-	struct working_area *iap_working_area;
-
-	retval = lpc2000_iap_working_area_init(bank, &iap_working_area);
-
-	if (retval != ERROR_OK)
-		return retval;
-
-	int status_code = lpc2000_iap_call(bank, iap_working_area, 54, param_table, result_table);
+	uint32_t part_id;
+	int status_code = get_lpc2000_part_id(bank, &part_id);
 	if (status_code != 0x0) {
 		if (status_code == ERROR_FLASH_OPERATION_FAILED) {
 			command_print(CMD_CTX, "no sufficient working area specified, can't access LPC2000 IAP interface");
 		} else
 			command_print(CMD_CTX, "lpc2000 IAP returned status code %i", status_code);
 	} else
-		command_print(CMD_CTX, "lpc2000 part id: 0x%8.8" PRIx32, result_table[0]);
+		command_print(CMD_CTX, "lpc2000 part id: 0x%8.8" PRIx32, part_id);
 
 	return retval;
 }
