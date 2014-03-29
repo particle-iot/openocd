@@ -45,7 +45,7 @@
 #define LOCK_WORD_ADDRESS (0x0003FFFC)
 
 /* SI32_FLASHCTRL_0 */
-#define FLASHCTRL0_CONFIG ( (struct sim3x_register_all_set_clr *)0x4002E000 )
+#define FLASHCTRL0_CONFIG ((struct sim3x_register_all_set_clr *)0x4002E000)
 #define FLASHCTRL0_CONFIG_ERASEEN_MASK (0x00040000)
 #define FLASHCTRL0_CONFIG_BUSYF_MASK (0x00100000)
 
@@ -61,23 +61,23 @@
 #define FLASH_BUSY_TIMEOUT (100)
 
 /* SI32_RSTSRC_0 */
-#define RSTSRC0_RESETEN ( (struct sim3x_register_all_set_clr *)0x4002D060 )
+#define RSTSRC0_RESETEN ((struct sim3x_register_all_set_clr *)0x4002D060)
 #define RSTSRC0_RESETEN_VMONREN_MASK  (0x00000004)
 #define RSTSRC0_RESETEN_SWREN_MASK (0x00000040)
 
 /* SI32_VMON_0 */
-#define VMON0_CONTROL ( (struct sim3x_register_all_set_clr *)0x4002F000 )
+#define VMON0_CONTROL ((struct sim3x_register_all_set_clr *)0x4002F000)
 #define VMON0_CONTROL_VMONEN_MASK (0x80000000)
 
 /* SI32_CLKCTRL_0 */
-#define CLKCTRL0_APBCLKG0 ( (struct sim3x_register_all_set_clr *)0x4002D020 )
+#define CLKCTRL0_APBCLKG0 ((struct sim3x_register_all_set_clr *)0x4002D020)
 #define CLKCTRL0_APBCLKG0_FLCTRLCEN_MASK (0x40000000)
 
 /* SI32_WDTIMER_0 */
-#define WDTIMER0_CONTROL ( (struct sim3x_register_all_set_clr *)0x40030000 )
+#define WDTIMER0_CONTROL ((struct sim3x_register_all_set_clr *)0x40030000)
 #define WDTIMER0_CONTROL_DBGMD_MASK (0x00000002)
 
-#define WDTIMER0_STATUS ( (sim3x_register_all_set_clr *)0x40030010 )
+#define WDTIMER0_STATUS ((sim3x_register_all_set_clr *)0x40030010)
 #define WDTIMER0_STATUS_KEYSTS_MASK (0x00000001)
 #define WDTIMER0_STATUS_PRIVSTS_MASK (0x00000002)
 
@@ -109,7 +109,8 @@ struct sim3x_info {
 	char device_package[4];
 };
 
-static int sim3x_flash_lock_check(struct flash_bank *bank) {
+static int sim3x_flash_lock_check(struct flash_bank *bank)
+{
 	int ret;
 	uint32_t lock_word;
 
@@ -130,7 +131,8 @@ static int sim3x_flash_lock_check(struct flash_bank *bank) {
 	return ERROR_OK;
 }
 
-static int sim3x_read_info(struct flash_bank *bank) {
+static int sim3x_read_info(struct flash_bank *bank)
+{
 	int ret;
 	uint32_t cpuid = 0;
 	struct sim3x_info * sim3x_info;
@@ -235,7 +237,8 @@ static int sim3x_read_info(struct flash_bank *bank) {
 }
 
 /* flash bank sim3x 0 0 0 0 <target#> */
-FLASH_BANK_COMMAND_HANDLER(sim3x_flash_bank_command) {
+FLASH_BANK_COMMAND_HANDLER(sim3x_flash_bank_command)
+{
 	struct sim3x_info * sim3x_info;
 
 	if (CMD_ARGC < 6)
@@ -248,7 +251,8 @@ FLASH_BANK_COMMAND_HANDLER(sim3x_flash_bank_command) {
 	return ERROR_OK;
 }
 
-static int sim3x_erase_page(struct flash_bank *bank, uint32_t addr) {
+static int sim3x_erase_page(struct flash_bank *bank, uint32_t addr)
+{
 	int ret, i;
 	uint32_t temp;
 	struct target * target;
@@ -302,7 +306,8 @@ static int sim3x_erase_page(struct flash_bank *bank, uint32_t addr) {
 	return ERROR_FAIL;
 }
 
-static int sim3x_flash_erase(struct flash_bank *bank, int first, int last) {
+static int sim3x_flash_erase(struct flash_bank *bank, int first, int last)
+{
 	int ret, i;
 
 	if (bank->target->state != TARGET_HALTED) {
@@ -451,7 +456,8 @@ static int sim3x_write_block(struct flash_bank *bank, const uint8_t *buf,
 	return ret;
 }
 
-static int sim3x_flash_write(struct flash_bank *bank, const uint8_t * buffer, uint32_t offset, uint32_t count) {
+static int sim3x_flash_write(struct flash_bank *bank, const uint8_t * buffer, uint32_t offset, uint32_t count)
+{
 	int ret;
 	struct target * target;
 	uint8_t *new_buffer = NULL;
@@ -494,7 +500,8 @@ static int sim3x_flash_write(struct flash_bank *bank, const uint8_t * buffer, ui
 	return ret;
 }
 
-static int sim3x_flash_protect(struct flash_bank *bank, int set, int first, int last) {
+static int sim3x_flash_protect(struct flash_bank *bank, int set, int first, int last)
+{
 	int ret;
 	uint32_t lock_word_number;
 	struct sim3x_info * sim3x_info;
@@ -522,7 +529,8 @@ static int sim3x_flash_protect(struct flash_bank *bank, int set, int first, int 
 	return ERROR_OK;
 }
 
-static int sim3x_set_debug_mode(struct flash_bank *bank) {
+static int sim3x_set_debug_mode(struct flash_bank *bank)
+{
 	int ret;
 	struct target * target;
 
@@ -573,7 +581,8 @@ static int sim3x_set_debug_mode(struct flash_bank *bank) {
 	return ERROR_OK;
 }
 
-static int sim3x_device_probe(struct flash_bank *bank) {
+static int sim3x_device_probe(struct flash_bank *bank)
+{
 	int ret, i, num_pages;
 	struct sim3x_info * sim3x_info;
 
@@ -640,18 +649,21 @@ static int sim3x_device_probe(struct flash_bank *bank) {
 	return ERROR_OK;
 }
 
-static int sim3x_probe(struct flash_bank *bank) {
+static int sim3x_probe(struct flash_bank *bank)
+{
 	return sim3x_device_probe(bank);
 }
 
-static int sim3x_auto_probe(struct flash_bank *bank) {
+static int sim3x_auto_probe(struct flash_bank *bank)
+{
 	if (((struct sim3x_info *) bank->driver_priv)->probed)
 		return ERROR_OK;
 
 	return sim3x_device_probe(bank);
 }
 
-static int sim3x_flash_protect_check(struct flash_bank *bank) {
+static int sim3x_flash_protect_check(struct flash_bank *bank)
+{
 	int ret, i;
 	struct sim3x_info * sim3x_info;
 
@@ -672,7 +684,8 @@ static int sim3x_flash_protect_check(struct flash_bank *bank) {
 	return ERROR_OK;
 }
 
-static int sim3x_flash_info(struct flash_bank *bank, char *buf, int buf_size) {
+static int sim3x_flash_info(struct flash_bank *bank, char *buf, int buf_size)
+{
 	int ret;
 	int printed = 0;
 #ifdef DEVICE_AUTO_DETECTION
