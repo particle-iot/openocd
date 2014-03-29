@@ -73,6 +73,7 @@ typedef enum {
 	lpc1700,
 	lpc4300,
 	lpc800,
+	lpc1100,
 } lpc2000_variant;
 
 struct lpc2000_flash_bank {
@@ -329,6 +330,25 @@ static int lpc2000_build_sector_list(struct flash_bank *bank)
 			bank->sectors[i].is_protected = 1;
 		}
 
+	} else if (lpc2000_info->variant == lpc1100) {
+		if ((bank->size % (4 * 1024)) != 0) {
+			LOG_ERROR("BUG: unknown bank->size encountered,\nLPC1100 flash size must be a multiple of 4096");
+			exit(-1);
+		}
+		lpc2000_info->cmd51_max_buffer = 512; /* smallest MCU in the series, LPC1110, has 1 kB of SRAM */
+		bank->num_sectors = bank->size / 4096;
+
+		bank->sectors = malloc(sizeof(struct flash_sector) * bank->num_sectors);
+
+		for (int i = 0; i < bank->num_sectors; i++) {
+			bank->sectors[i].offset = offset;
+			/* all sectors are 4kB-sized */
+			bank->sectors[i].size = 4 * 1024;
+			offset += bank->sectors[i].size;
+			bank->sectors[i].is_erased = -1;
+			bank->sectors[i].is_protected = 1;
+		}
+
 	} else {
 		LOG_ERROR("BUG: unknown lpc2000_info->variant encountered");
 		exit(-1);
@@ -360,6 +380,7 @@ static int lpc2000_iap_working_area_init(struct flash_bank *bank, struct working
 	/* write IAP code to working area */
 	switch (lpc2000_info->variant) {
 		case lpc800:
+		case lpc1100:
 		case lpc1700:
 		case lpc4300:
 			target_buffer_set_u32(target, jump_gate, ARMV4_5_T_BX(12));
@@ -397,6 +418,7 @@ static int lpc2000_iap_call(struct flash_bank *bank, struct working_area *iap_wo
 
 	switch (lpc2000_info->variant) {
 		case lpc800:
+		case lpc1100:
 		case lpc1700:
 			armv7m_info.common_magic = ARMV7M_COMMON_MAGIC;
 			armv7m_info.core_mode = ARM_MODE_THREAD;
@@ -448,6 +470,7 @@ static int lpc2000_iap_call(struct flash_bank *bank, struct working_area *iap_wo
 
 	switch (lpc2000_info->variant) {
 		case lpc800:
+		case lpc1100:
 		case lpc1700:
 		case lpc4300:
 			/* IAP stack */
@@ -601,6 +624,13 @@ FLASH_BANK_COMMAND_HANDLER(lpc2000_flash_bank_command)
 		lpc2000_info->cmd51_can_8192b = 0;
 		lpc2000_info->checksum_vector = 7;
 		lpc2000_info->iap_max_stack = 148;
+	} else if (strcmp(CMD_ARGV[6], "lpc1100") == 0) {
+		lpc2000_info->variant = lpc1100;
+		lpc2000_info->cmd51_dst_boundary = 256;
+		lpc2000_info->cmd51_can_256b = 1;
+		lpc2000_info->cmd51_can_8192b = 0;
+		lpc2000_info->checksum_vector = 7;
+		lpc2000_info->iap_max_stack = 128;
 	} else {
 		LOG_ERROR("unknown LPC2000 variant: %s", CMD_ARGV[6]);
 		free(lpc2000_info);
@@ -893,6 +923,7 @@ static int lpc2000_write(struct flash_bank *bank, const uint8_t *buffer, uint32_
 static int lpc2000_probe(struct flash_bank *bank)
 {
 	/* we can't probe on an lpc2000 if this is an lpc2xxx, it has the configured flash */
+
 	return ERROR_OK;
 }
 
