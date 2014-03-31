@@ -59,7 +59,7 @@ enum arm_mode {
 	ARM_MODE_IRQ = 18,
 	ARM_MODE_SVC = 19,
 	ARM_MODE_ABT = 23,
-	ARM_MODE_MON = 26,
+	ARM_MODE_MON = 22,
 	ARM_MODE_UND = 27,
 	ARM_MODE_SYS = 31,
 
