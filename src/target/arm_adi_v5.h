@@ -189,6 +189,12 @@ struct adiv5_dap {
 
 	/* true if packed transfers are supported by the MEM-AP */
 	bool packed_transfers;
+
+	/* The TI TMS470 and TMS570 series processors use a BE-32 memory ordering
+	 * despite lack of support in the ARMv7 architecture. Memory access through
+	 * the AHB-AP has strange byte ordering these processors, and we need to
+	 * swizzle appropriately. */
+	bool ti_be_32_quirks;
 };
 
 /**
