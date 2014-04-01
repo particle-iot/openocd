@@ -2036,9 +2036,9 @@ static int cortex_a8_read_apb_ab_memory(struct target *target,
 	 * This data is read in aligned to 32 bit boundary.
 	 */
 	retval = mem_ap_sel_read_buf_noincr(swjdp, armv7a->debug_ap, u8buf_ptr, 4, total_u32,
-									armv7a->debug_base + CPUDBG_DTRTX);
+			armv7a->debug_base + CPUDBG_DTRTX);
 	if (retval != ERROR_OK)
-			goto error_unset_dtr_r;
+		goto error_unset_dtr_r;
 
 	/* set DTR access mode back to non blocking b00  */
 	dscr = (dscr & ~DSCR_EXT_DCC_MASK) | DSCR_EXT_DCC_NON_BLOCKING;
