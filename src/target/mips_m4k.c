@@ -46,8 +46,10 @@ static int mips_m4k_internal_restore(struct target *target, int current,
 		uint32_t address, int handle_breakpoints,
 		int debug_execution);
 static int mips_m4k_halt(struct target *target);
-static int mips_m4k_bulk_write_memory(struct target *target, uint32_t address,
-		uint32_t count, const uint8_t *buffer);
+static int mips_m4k_bulk_xfer_memory(struct target *target, uint32_t address,
+				      uint32_t count, const uint8_t *buffer,
+				      int write_t);
+
 
 static int mips_m4k_examine_debug_reason(struct target *target)
 {
@@ -950,6 +952,13 @@ static int mips_m4k_read_memory(struct target *target, uint32_t address,
 		return ERROR_TARGET_NOT_HALTED;
 	}
 
+	if (size == 4 && count > MIPS32_FASTDATA_HANDLER_SIZE/4) {
+		int retval = mips_m4k_bulk_xfer_memory(target, address, count, buffer, 0);
+		if (retval == ERROR_OK)
+			return ERROR_OK;
+		LOG_WARNING("Falling back to non-bulk read");
+	}
+
 	/* sanitize arguments */
 	if (((size != 4) && (size != 2) && (size != 1)) || (count == 0) || !(buffer))
 		return ERROR_COMMAND_SYNTAX_ERROR;
@@ -1010,7 +1019,7 @@ static int mips_m4k_write_memory(struct target *target, uint32_t address,
 	}
 
 	if (size == 4 && count > 32) {
-		int retval = mips_m4k_bulk_write_memory(target, address, count, buffer);
+		int retval = mips_m4k_bulk_xfer_memory(target, address, count, buffer, 1);
 		if (retval == ERROR_OK)
 			return ERROR_OK;
 		LOG_WARNING("Falling back to non-bulk write");
@@ -1126,15 +1135,15 @@ static int mips_m4k_examine(struct target *target)
 	return ERROR_OK;
 }
 
-static int mips_m4k_bulk_write_memory(struct target *target, uint32_t address,
-		uint32_t count, const uint8_t *buffer)
+static int mips_m4k_bulk_xfer_memory(struct target *target, uint32_t address,
+				     uint32_t count, const uint8_t *buffer, int write_t)
 {
 	struct mips32_common *mips32 = target_to_mips32(target);
 	struct mips_ejtag *ejtag_info = &mips32->ejtag_info;
 	int retval;
-	int write_t = 1;
 
-	LOG_DEBUG("address: 0x%8.8" PRIx32 ", count: 0x%8.8" PRIx32 "", address, count);
+	LOG_DEBUG("%s address: 0x%8.8" PRIx32 ", count: 0x%8.8" PRIx32 "",
+		  write_t ? "write" : "read", address, count);
 
 	/* check alignment */
 	if (address & 0x3u)
@@ -1157,22 +1166,52 @@ static int mips_m4k_bulk_write_memory(struct target *target, uint32_t address,
 		ejtag_info->fast_access_save = -1;
 	}
 
-	/* mips32_pracc_fastdata_xfer requires uint32_t in host endianness, */
-	/* but byte array represents target endianness                      */
+	/* mips32_pracc_fastdata_xfer requires buffer in host endianness, */
+	/* but byte array represents target endianness                    */
 	uint32_t *t = NULL;
+	uint32_t *buf_p;
+	int remaining = count;
+	uint32_t fast_read_address = address;
 	t = malloc(count * sizeof(uint32_t));
 	if (t == NULL) {
 		LOG_ERROR("Out of memory");
 		return ERROR_FAIL;
 	}
+	buf_p = t;
+	/* write */
+	if (write_t)
+		target_buffer_get_u32_array(target, buffer, count, t);
 
-	target_buffer_get_u32_array(target, buffer, count, t);
+	/* first read of MIPS32_FASTDATA_HANDLER_SIZE bytes if address within
+	   woking area with slow speed */
+	if (!write_t && ejtag_info->fast_access_save == -1) {
+		uint32_t working_area_addr = mips32->fast_data_area->address;
+		int read_cnt = MIPS32_FASTDATA_HANDLER_SIZE/4;
+		if (address >=  working_area_addr &&
+		   address <  working_area_addr + read_cnt) {
+			LOG_DEBUG("slow data %s address: 0x%8.8" PRIx32 ", count: 0x%8.8" PRIx32 "",
+				  write_t ? "write" : "read", address, read_cnt);
 
-	retval = mips32_pracc_fastdata_xfer(ejtag_info, mips32->fast_data_area, write_t, address,
-			count, t);
+			retval = mips32_pracc_read_mem(ejtag_info, address, sizeof(uint32_t),
+						       read_cnt, t);
+			if (retval != ERROR_OK) {
+				LOG_ERROR("Could not copy working area on read");
+				return retval;
+			}
+			buf_p = t + read_cnt;
+			remaining = count - read_cnt;
+			fast_read_address += MIPS32_FASTDATA_HANDLER_SIZE;
+		}
+	}
 
-	if (t != NULL)
-		free(t);
+	retval = mips32_pracc_fastdata_xfer(ejtag_info, mips32->fast_data_area,
+					    write_t, fast_read_address, remaining, buf_p);
+
+	/* read */
+	if (!write_t)
+		target_buffer_set_u32_array(target, (uint8_t *)buffer, count, t);
+
+	free(t);
 
 	if (retval != ERROR_OK)
 		LOG_ERROR("Fastdata access Failed");
