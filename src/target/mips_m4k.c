@@ -48,6 +48,8 @@ static int mips_m4k_internal_restore(struct target *target, int current,
 static int mips_m4k_halt(struct target *target);
 static int mips_m4k_bulk_write_memory(struct target *target, uint32_t address,
 		uint32_t count, const uint8_t *buffer);
+static int mips_m4k_bulk_read_memory(struct target *target, uint32_t address,
+		uint32_t count, uint8_t *buffer);
 
 static int mips_m4k_examine_debug_reason(struct target *target)
 {
@@ -957,6 +959,13 @@ static int mips_m4k_read_memory(struct target *target, uint32_t address,
 	if (((size == 4) && (address & 0x3u)) || ((size == 2) && (address & 0x1u)))
 		return ERROR_TARGET_UNALIGNED_ACCESS;
 
+	if (size == 4 && count > MIPS32_FASTDATA_HANDLER_SIZE/4) {
+		int retval = mips_m4k_bulk_read_memory(target, address, count, buffer);
+		if (retval == ERROR_OK)
+			return ERROR_OK;
+		LOG_WARNING("Falling back to non-bulk read");
+	}
+
 	/* since we don't know if buffer is aligned, we allocate new mem that is always aligned */
 	void *t = NULL;
 
@@ -1009,19 +1018,19 @@ static int mips_m4k_write_memory(struct target *target, uint32_t address,
 		return ERROR_TARGET_NOT_HALTED;
 	}
 
-	if (size == 4 && count > 32) {
-		int retval = mips_m4k_bulk_write_memory(target, address, count, buffer);
-		if (retval == ERROR_OK)
-			return ERROR_OK;
-		LOG_WARNING("Falling back to non-bulk write");
-	}
-
 	/* sanitize arguments */
 	if (((size != 4) && (size != 2) && (size != 1)) || (count == 0) || !(buffer))
 		return ERROR_COMMAND_SYNTAX_ERROR;
 
 	if (((size == 4) && (address & 0x3u)) || ((size == 2) && (address & 0x1u)))
 		return ERROR_TARGET_UNALIGNED_ACCESS;
+
+	if (size == 4 && count > MIPS32_FASTDATA_HANDLER_SIZE/4) {
+		int retval = mips_m4k_bulk_write_memory(target, address, count, buffer);
+		if (retval == ERROR_OK)
+			return ERROR_OK;
+		LOG_WARNING("Falling back to non-bulk write");
+	}
 
 	/** correct endianess if we have word or hword access */
 	void *t = NULL;
@@ -1126,13 +1135,129 @@ static int mips_m4k_examine(struct target *target)
 	return ERROR_OK;
 }
 
+static int mips_m4k_bulk_read_memory(struct target *target, uint32_t address,
+									 uint32_t count, uint8_t *buffer)
+{
+	struct mips32_common *mips32 = target_to_mips32(target);
+	struct mips_ejtag *ejtag_info = &mips32->ejtag_info;
+	int retval;
+	uint32_t *t = NULL;
+	uint32_t *bufp;
+	uint32_t fast_read_address = address;
+
+	LOG_DEBUG("read address: 0x%8.8" PRIx32 ", count: 0x%8.8" PRIx32 "", address, count);
+
+	/* check alignment */
+	if (address & 0x3u)
+		return ERROR_TARGET_UNALIGNED_ACCESS;
+
+	if (mips32->fast_data_area == NULL) {
+		/* Get memory for block write handler
+		* we preserve this area between calls and gain a speed increase
+		 * of about 3kb/sec when writing flash
+		 * this will be released/nulled by the system when the target is resumed or reset */
+		retval = target_alloc_working_area(target,
+				MIPS32_FASTDATA_HANDLER_SIZE,
+				&mips32->fast_data_area);
+		if (retval != ERROR_OK) {
+			LOG_ERROR("No working area available");
+			return retval;
+		}
+
+		/* reset fastadata state so the algo get reloaded */
+		ejtag_info->fast_access_save = -1;
+	}
+
+	/* mips32_pracc_fastdata_xfer requires buffer in host endianness, */
+	/* but byte array represents target endianness                    */
+
+	t = malloc(count * sizeof(uint32_t));
+	if (t == NULL) {
+		LOG_ERROR("Out of memory");
+		return ERROR_FAIL;
+	}
+	bufp = t;
+
+	/*
+	 * We get here if the reads are more than the MIPS32_FASTDATA_HANDLER_SIZE/4
+	 * and if working area has been set, otherwise fastdata transfer do not work
+	 * Also the 'work_area_backup 1' is expected to be set in the target to be
+	 * able to restore the working area back to its original state.
+	 * However we need to check for the working area overlap with actaul reads,
+	 * return original data in the read buffer if overlap is detected.
+	 */
+	uint32_t wa_size = MIPS32_FASTDATA_HANDLER_SIZE;
+	uint32_t overlap_offset, overlap_size = 0;
+	uint32_t wa_offset = 0;
+	uint32_t wa_start = mips32->fast_data_area->address;
+	uint32_t wa_end = wa_start + wa_size;
+	uint32_t tmem_start = address;
+	uint32_t tmem_end = address + count;
+
+	if (target->backup_working_area) {
+		/* check if the start address is within the wa */
+		if (tmem_start >  wa_start && tmem_start <  wa_end) {
+			/*
+			 * 1) Read memory region is within the wa, should not happen read
+			 *    too small and we will not get here
+			 * 2) Read memory region overlaps and starts in wa
+			 */
+			if (tmem_end <=  wa_end)
+				overlap_size = count;
+			else
+				overlap_size = wa_end - tmem_start;
+
+			/* offset within the target buffer */
+			overlap_offset = tmem_start - wa_start;
+			/* offset within the working area */
+			wa_offset = overlap_offset;
+		} else if (tmem_start <=  wa_start && tmem_end >  wa_start) {
+			/* 3) Read memory region overlaps starts before wa and ends beyound wa region
+			 * 4) Read memory region partly overlaps starts before wa ends within the wa
+			 * 5) Read memory region completely overlaps and is same as wa, however
+			 *    its a special case with size==4 count==MIPS32_FASTDATA_HANDLER_SIZE/4
+			 *    we wil always fallback to slow reads should not get here.
+			 */
+			overlap_size = MIN(wa_size, (tmem_end - wa_start));
+			/* offset in the target buffer */
+			overlap_offset = wa_start - tmem_start;
+			/* offset within the working area */
+			wa_offset = 0;
+		}
+	} else {
+		LOG_INFO("reading working area@%" PRIx32", without backup area set", wa_start);
+		LOG_INFO("to restore area size %d" PRIu32", bytes set 'work_area_backup 1'", wa_size);
+	}
+
+	/* overlap_size == count should not happen */
+	if (overlap_size != count)
+		retval = mips32_pracc_fastdata_xfer(ejtag_info, mips32->fast_data_area,
+						0, fast_read_address, count, t);
+
+	/* memcpy the original data to the overlap region from backup */
+	if (overlap_size) {
+		struct working_area *c = target->working_areas;
+		if (c->backup != NULL) {
+			bufp = t + overlap_offset;
+			memcpy(bufp,  c->backup + wa_offset, overlap_size);
+		}
+	}
+
+	target_buffer_set_u32_array(target, buffer, count, t);
+	free(t);
+
+	if (retval != ERROR_OK)
+		LOG_ERROR("Fastdata access Failed");
+
+	return retval;
+}
+
 static int mips_m4k_bulk_write_memory(struct target *target, uint32_t address,
 		uint32_t count, const uint8_t *buffer)
 {
 	struct mips32_common *mips32 = target_to_mips32(target);
 	struct mips_ejtag *ejtag_info = &mips32->ejtag_info;
 	int retval;
-	int write_t = 1;
 
 	LOG_DEBUG("address: 0x%8.8" PRIx32 ", count: 0x%8.8" PRIx32 "", address, count);
 
@@ -1168,7 +1293,7 @@ static int mips_m4k_bulk_write_memory(struct target *target, uint32_t address,
 
 	target_buffer_get_u32_array(target, buffer, count, t);
 
-	retval = mips32_pracc_fastdata_xfer(ejtag_info, mips32->fast_data_area, write_t, address,
+	retval = mips32_pracc_fastdata_xfer(ejtag_info, mips32->fast_data_area, 1, address,
 			count, t);
 
 	if (t != NULL)
