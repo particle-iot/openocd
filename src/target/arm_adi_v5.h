@@ -392,6 +392,32 @@ static inline int dap_dp_read_atomic_u32(struct adiv5_dap *dap, unsigned reg,
 	return dap_run(dap);
 }
 
+static inline int dap_dp_poll_register(struct adiv5_dap *dap, unsigned reg,
+				       uint32_t mask, uint32_t value, int timeout)
+{
+	int ret;
+	uint32_t regval;
+	LOG_DEBUG("DAP: poll %x, mask 0x08%" PRIx32 ", value 0x%08" PRIx32,
+		  reg, mask, value);
+	do {
+		ret = dap_dp_read_atomic_u32(dap, DP_CTRL_STAT, &regval);
+		if (ret != ERROR_OK)
+			return ret;
+
+		if ((regval & mask) == value)
+			break;
+
+		alive_sleep(10);
+	} while (--timeout);
+
+	if (!timeout) {
+		LOG_DEBUG("DAP: poll %x timeout", reg);
+		return ERROR_FAIL;
+	} else {
+		return ERROR_OK;
+	}
+}
+
 static inline int dap_ap_abort_atomic(struct adiv5_dap *dap, uint8_t *ack)
 {
 	int ret;
