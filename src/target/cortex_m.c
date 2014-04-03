@@ -1069,6 +1069,27 @@ static int cortex_m_assert_reset(struct target *target)
 				"handler to reset any peripherals or configure hardware srst support.");
 		}
 
+		uint32_t ctrlstat;
+		int timeout = 100;
+		/*
+		  SAM4L needs to execute security initalization
+		  startup sequence before AP access would be enabled.
+		  During the intialization CDBGPWRUPACK is pulled low and we
+		  need to wait for it to be set to 1 again.
+		*/
+		do {
+			retval = dap_dp_read_atomic_u32(swjdp, DP_CTRL_STAT, &ctrlstat);
+			if (retval != ERROR_OK) {
+				LOG_ERROR("Failed to read CTRL/STAT register");
+				return retval;
+			}
+		} while (!(ctrlstat & CDBGPWRUPACK) && --timeout);
+
+		if (!timeout) {
+			LOG_ERROR("Timed out waitnig for CDBGPWRUPACK");
+			return ERROR_FAIL;
+		}
+
 		{
 			/* I do not know why this is necessary, but it
 			 * fixes strange effects (step/resume cause NMI
@@ -1080,6 +1101,7 @@ static int cortex_m_assert_reset(struct target *target)
 				return retval;
 		}
 	}
+
 
 	target->state = TARGET_RESET;
 	jtag_add_sleep(50000);
