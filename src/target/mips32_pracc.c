@@ -962,7 +962,8 @@ int mips32_pracc_fastdata_xfer(struct mips_ejtag *ejtag_info, struct working_are
 		ejtag_info->fast_access_save = write_t;
 	}
 
-	LOG_DEBUG("%s using 0x%.8" TARGET_PRIxADDR " for write handler", __func__, source->address);
+	LOG_DEBUG("%s using 0x%.8" TARGET_PRIxADDR " for %s handler", __func__, source->address,
+		  write_t ? "write" : "read");
 
 	uint32_t jmp_code[] = {
 		MIPS32_LUI(isa, 15, UPPER16(source->address)),			/* load addr of jump in $15 */
