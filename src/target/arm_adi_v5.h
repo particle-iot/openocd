@@ -380,6 +380,31 @@ static inline int dap_run(struct adiv5_dap *dap)
 	return dap->ops->run(dap);
 }
 
+static inline int dap_dp_read_atomic_u32(struct adiv5_dap *dap, unsigned reg,
+					 uint32_t *value)
+{
+	int retval;
+
+	retval = dap_queue_dp_read(dap, reg, value);
+	if (retval != ERROR_OK)
+		return retval;
+
+	return dap_run(dap);
+}
+
+static inline int dap_ap_abort_atomic(struct adiv5_dap *dap, uint8_t *ack)
+{
+	int ret;
+	assert(dap->ops != NULL);
+
+	ret = dap->ops->queue_ap_abort(dap, ack);
+	if (ret != ERROR_OK)
+		return ret;
+
+	return dap_run(dap);
+}
+
+
 /** Accessor for currently selected DAP-AP number (0..255) */
 static inline uint8_t dap_ap_get_select(struct adiv5_dap *swjdp)
 {
