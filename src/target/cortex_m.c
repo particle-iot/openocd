@@ -1069,17 +1069,46 @@ static int cortex_m_assert_reset(struct target *target)
 				"handler to reset any peripherals or configure hardware srst support.");
 		}
 
-		{
-			/* I do not know why this is necessary, but it
-			 * fixes strange effects (step/resume cause NMI
-			 * after reset) on LM3S6918 -- Michael Schwingen
-			 */
-			uint32_t tmp;
-			retval = mem_ap_read_atomic_u32(swjdp, NVIC_AIRCR, &tmp);
-			if (retval != ERROR_OK)
+		uint32_t ctrlstat;
+		int timeout = 100;
+		/*
+		  SAM4L needs to execute security initalization
+		  startup sequence before AP access would be enabled.
+		  During the intialization CDBGPWRUPACK is pulled low and we
+		  need to wait for it to be set to 1 again.
+		*/
+		do {
+			retval = dap_dp_read_atomic_u32(swjdp, DP_CTRL_STAT, &ctrlstat);
+			if (retval != ERROR_OK) {
+				LOG_ERROR("Failed to read CTRL/STAT register");
 				return retval;
+			}
+		} while (!(ctrlstat & CDBGPWRUPACK) && --timeout);
+
+		if (!timeout) {
+			LOG_ERROR("Timed out waitnig for CDBGPWRUPACK");
+			return ERROR_FAIL;
+		}
+
+		/*
+		  Some debug dongles do more than asked for(e.g. EDBG
+		  from Atmel) behind the scene and issuing an AP write
+		  for AIRCR may result in more than just APACC SWD
+		  transaction, which in turn can possibly set sticky
+		  error bit in CTRL/STAT register of the DP, so if
+		  that happend we need to clear it by issuing AP
+		  ABORT.
+		 */
+		uint8_t ack;
+		if (ctrlstat & SSTICKYERR) {
+			retval = dap_ap_abort_atomic(swjdp, &ack);
+			if (retval != ERROR_OK) {
+				LOG_ERROR("Failed to queue AP ABORT");
+				return retval;
+			}
 		}
 	}
+
 
 	target->state = TARGET_RESET;
 	jtag_add_sleep(50000);
