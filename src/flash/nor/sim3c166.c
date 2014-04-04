@@ -82,15 +82,13 @@
 #define KEY1			0x45670123
 #define KEY2			0xCDEF89AB
 
-struct sim3c166_options
-{
+struct sim3c166_options {
 	uint16_t RDP;
 	uint16_t user_options;
 	uint16_t protection[3];
 };
 
-struct sim3c166_flash_bank
-{
+struct sim3c166_flash_bank {
 	struct sim3c166_options option_bytes;
 	struct working_area *write_algorithm;
 	int ppage_size;
@@ -103,8 +101,7 @@ FLASH_BANK_COMMAND_HANDLER(sim3c166_flash_bank_command)
 {
 	struct sim3c166_flash_bank *sim3c166_info;
 
-	if (CMD_ARGC < 6)
-	{
+	if (CMD_ARGC < 6) {
 		LOG_WARNING("incomplete flash_bank sim3c166 configuration");
 		return ERROR_FLASH_BANK_INVALID;
 	}
@@ -126,47 +123,47 @@ static inline int sim3c166_get_flash_status(struct flash_bank *bank, uint32_t *s
 
 static int sim3c166_wait_status_busy(struct flash_bank *bank, int timeout)
 {
-  //	struct target *target = bank->target;
+	/* struct target *target = bank->target; */
 	uint32_t status;
 	int retval = ERROR_OK;
 
 	/* wait for busy to clear */
-	for (;;)
-	{
+	for (;;) {
 		retval = sim3c166_get_flash_status(bank, &status);
 		if (retval != ERROR_OK)
 			return retval;
 		LOG_DEBUG("status: 0x%" PRIx32 "", status);
 		if ((status & 0x00100000) == 0)
 			break;
-		if (timeout-- <= 0)
-		{
+		if (timeout-- <= 0) 	{
 			LOG_ERROR("timed out waiting for flash");
 			return ERROR_FAIL;
 		}
 		alive_sleep(1);
 	}
 
-/* 	if (status & FLASH_WRPRTERR) */
-/* 	{ */
-/* 		LOG_ERROR("sim3c166 device protected"); */
-/* 		retval = ERROR_FAIL; */
-/* 	} */
+	/*
+	if (status & FLASH_WRPRTERR) {
+ 		LOG_ERROR("sim3c166 device protected");
+ 		retval = ERROR_FAIL;
+ 	}
 
-/* 	if (status & FLASH_PGERR) */
-/* 	{ */
-/* 		LOG_ERROR("sim3c166 device programming failed"); */
-/* 		retval = ERROR_FAIL; */
-/* 	} */
+ 	if (status & FLASH_PGERR) {
+ 		LOG_ERROR("sim3c166 device programming failed");
+ 		retval = ERROR_FAIL;
+ 	}
+	*/
 
 	/* Clear but report errors */
-/* 	if (status & (FLASH_WRPRTERR | FLASH_PGERR)) */
-/* 	{ */
+	/*
+	if (status & (FLASH_WRPRTERR | FLASH_PGERR)) {
+	*/
 		/* If this operation fails, we ignore it and report the original
-		 * retval
-		 */
-/* 		target_write_u32(target, SIM3C166_FLASH_SR, FLASH_WRPRTERR | FLASH_PGERR); */
-/* 	} */
+		   retval */
+	/*
+ 		target_write_u32(target, SIM3C166_FLASH_SR, FLASH_WRPRTERR | FLASH_PGERR);
+ 	}
+	*/
 	return retval;
 }
 
@@ -332,8 +329,7 @@ static int sim3c166_protect_check(struct flash_bank *bank)
 	int num_bits;
 	int set;
 
-	if (target->state != TARGET_HALTED)
-	{
+	if (target->state != TARGET_HALTED) {
 		LOG_ERROR("Target not halted");
 		return ERROR_TARGET_NOT_HALTED;
 	}
@@ -346,8 +342,7 @@ static int sim3c166_protect_check(struct flash_bank *bank)
 	/* each protection bit is for 4 * 2K pages */
 	num_bits = (bank->num_sectors / sim3c166_info->ppage_size);
 
-	for (i = 0; i < num_bits; i++)
-	{
+	for (i = 0; i < num_bits; i++) {
 		set = 1;
 		if (protection & (1 << i))
 			set = 0;
@@ -364,8 +359,7 @@ static int sim3c166_erase(struct flash_bank *bank, int first, int last)
 	struct target *target = bank->target;
 	int i;
 
-	if (bank->target->state != TARGET_HALTED)
-	{
+	if (bank->target->state != TARGET_HALTED) {
 		LOG_ERROR("Target not halted");
 		return ERROR_TARGET_NOT_HALTED;
 	}
@@ -381,16 +375,15 @@ static int sim3c166_erase(struct flash_bank *bank, int first, int last)
 	if (retval != ERROR_OK)
 		return retval;
 
-	for (i = first; i <= last; i++)
-	{
+	for (i = first; i <= last; i++) {
 		retval = target_write_u32(target, 0x4002e0a0, bank->base + bank->sectors[i].offset);
 		if (retval != ERROR_OK)
 			return retval;
-		retval = target_write_u32(target, 0x4002e0b0,0x00001234);
+		retval = target_write_u32(target, 0x4002e0b0, 0x00001234);
 		if (retval != ERROR_OK)
 			return retval;
 
-		//		alive_sleep(20);
+		/*		alive_sleep(20); */
 		retval = sim3c166_wait_status_busy(bank, 100);
 		if (retval != ERROR_OK)
 			return retval;
@@ -398,7 +391,7 @@ static int sim3c166_erase(struct flash_bank *bank, int first, int last)
 		bank->sectors[i].is_erased = 1;
 	}
 
-	//	retval = target_write_u32(target, SIM3C166_FLASH_CR, FLASH_LOCK);
+	/*	retval = target_write_u32(target, SIM3C166_FLASH_CR, FLASH_LOCK); */
 	if (retval != ERROR_OK)
 		return retval;
 
@@ -416,20 +409,17 @@ static int sim3c166_protect(struct flash_bank *bank, int set, int first, int las
 
 	sim3c166_info = bank->driver_priv;
 
-	if (target->state != TARGET_HALTED)
-	{
+	if (target->state != TARGET_HALTED) {
 		LOG_ERROR("Target not halted");
 		return ERROR_TARGET_NOT_HALTED;
 	}
 
-	if ((first % sim3c166_info->ppage_size) != 0)
-	{
+	if ((first % sim3c166_info->ppage_size) != 0) {
 		LOG_WARNING("aligned start protect sector to a %d sector boundary",
 				sim3c166_info->ppage_size);
 		first = first - (first % sim3c166_info->ppage_size);
 	}
-	if (((last + 1) % sim3c166_info->ppage_size) != 0)
-	{
+	if (((last + 1) % sim3c166_info->ppage_size) != 0) {
 		LOG_WARNING("aligned end protect sector to a %d sector boundary",
 				sim3c166_info->ppage_size);
 		last++;
@@ -446,8 +436,7 @@ static int sim3c166_protect(struct flash_bank *bank, int set, int first, int las
 	prot_reg[1] = (uint16_t)(protection >> 8);
 	prot_reg[2] = (uint16_t)(protection >> 16);
 
-	for (i = first; i <= last; i++)
-	{
+	for (i = first; i <= last; i++) {
 		reg = (i / sim3c166_info->ppage_size) / 8;
 		bit = (i / sim3c166_info->ppage_size) - (reg * 8);
 
@@ -458,7 +447,8 @@ static int sim3c166_protect(struct flash_bank *bank, int set, int first, int las
 			prot_reg[reg] |= (1 << bit);
 	}
 
-	if ((status = sim3c166_erase_options(bank)) != ERROR_OK)
+	status = sim3c166_erase_options(bank);
+	if (status != ERROR_OK)
 		return status;
 
 	sim3c166_info->option_bytes.protection[0] = prot_reg[0];
@@ -480,14 +470,12 @@ static int sim3c166_write(struct flash_bank *bank, uint8_t *buffer,
 	uint32_t bytes_written = 0;
 	int retval;
 
-	if (bank->target->state != TARGET_HALTED)
-	{
+	if (bank->target->state != TARGET_HALTED) {
 		LOG_ERROR("Target not halted");
 		return ERROR_TARGET_NOT_HALTED;
 	}
 
-	if (offset & 0x1)
-	{
+	if (offset & 0x1) {
 		LOG_WARNING("offset 0x%" PRIx32 " breaks required 2-byte alignment", offset);
 		return ERROR_FLASH_DST_BREAKS_ALIGNMENT;
 	}
@@ -506,43 +494,42 @@ static int sim3c166_write(struct flash_bank *bank, uint8_t *buffer,
 	if (retval != ERROR_OK)
 		return retval;
 
-	while (words_remaining > 0)
-	{
-	  uint8_t value[PAGE_SIZE];
-	  //uint16_t value;
-	  memcpy(&value, buffer + bytes_written, PAGE_SIZE);
-		//retval = target_write_u16(target, 0x4002e0b0, value);
-	  retval = target_write_memory(target, 0x4002e0b0, 2, (PAGE_SIZE / 2), value);
-	  //retval = target_write_buffer(target, 0x4002e0b0, PAGE_SIZE, value);
-	  //		return retval;
-		if (retval != ERROR_OK)
-		  return retval;
+	while (words_remaining > 0) {
+		uint8_t value[PAGE_SIZE];
+		/* uint16_t value; */
+		memcpy(&value, buffer + bytes_written, PAGE_SIZE);
+		/* retval = target_write_u16(target, 0x4002e0b0, value); */
+		retval = target_write_memory(target, 0x4002e0b0, 2, (PAGE_SIZE / 2), value);
+		/*retval = target_write_buffer(target, 0x4002e0b0, PAGE_SIZE, value);
+		  return retval; */
+		if (retval != ERROR_OK) {
+			return retval;
+		}
 
-/* 		alive_sleep(20); */
+		/*		alive_sleep(20); */
 
-/* 		retval = sim3c166_wait_status_busy(bank, 5); */
-/* 		if (retval != ERROR_OK) */
-/* 			return retval; */
+		/*		retval = sim3c166_wait_status_busy(bank, 5); */
+		/*		if (retval != ERROR_OK) */
+		/*		return retval; */
 
 		bytes_written += PAGE_SIZE;
 		words_remaining -= PAGE_SIZE/2;
 		address += PAGE_SIZE;
 	}
 
-	if (bytes_remaining)
-	{
+	if (bytes_remaining) {
 		uint16_t value = 0xffff;
 		memcpy(&value, buffer + bytes_written, bytes_remaining);
 
 		retval = target_write_u16(target, 0x4002e0b0, value);
-		if (retval != ERROR_OK)
-		  return retval;
+		if (retval != ERROR_OK) {
+			return retval;
+		}
+		/*		alive_sleep(20); */
 
-		//		alive_sleep(20);
-
-/* 		retval = sim3c166_wait_status_busy(bank, 5); */
-/* 		if (retval != ERROR_OK) */
-/* 			return retval; */
+		/*		retval = sim3c166_wait_status_busy(bank, 5); */
+		/*		if (retval != ERROR_OK) */
+		/*		return retval; */
 	}
 
 	return retval;
@@ -570,8 +557,7 @@ static int sim3c166_probe(struct flash_bank *bank)
 
 	LOG_INFO("flash size = %dkbytes", num_pages*page_size/1024);
 
-	if (bank->sectors)
-	{
+	if (bank->sectors) {
 		free(bank->sectors);
 		bank->sectors = NULL;
 	}
@@ -581,8 +567,7 @@ static int sim3c166_probe(struct flash_bank *bank)
 	bank->num_sectors = num_pages;
 	bank->sectors = malloc(sizeof(struct flash_sector) * num_pages);
 
-	for (i = 0; i < num_pages; i++)
-	{
+	for (i = 0; i < num_pages; i++) {
 		bank->sectors[i].offset = i * page_size;
 		bank->sectors[i].size = page_size;
 		bank->sectors[i].is_erased = -1;
@@ -632,14 +617,12 @@ COMMAND_HANDLER(sim3c166_handle_lock_command)
 
 	target = bank->target;
 
-	if (target->state != TARGET_HALTED)
-	{
+	if (target->state != TARGET_HALTED) {
 		LOG_ERROR("Target not halted");
 		return ERROR_TARGET_NOT_HALTED;
 	}
 
-	if (sim3c166_erase_options(bank) != ERROR_OK)
-	{
+	if (sim3c166_erase_options(bank) != ERROR_OK) {
 		command_print(CMD_CTX, "sim3c166 failed to erase options");
 		return ERROR_OK;
 	}
@@ -647,8 +630,7 @@ COMMAND_HANDLER(sim3c166_handle_lock_command)
 	/* set readout protection */
 	sim3c166_info->option_bytes.RDP = 0;
 
-	if (sim3c166_write_options(bank) != ERROR_OK)
-	{
+	if (sim3c166_write_options(bank) != ERROR_OK) {
 		command_print(CMD_CTX, "sim3c166 failed to lock device");
 		return ERROR_OK;
 	}
@@ -662,8 +644,7 @@ COMMAND_HANDLER(sim3c166_handle_unlock_command)
 {
 	struct target *target = NULL;
 
-	if (CMD_ARGC < 1)
-	{
+	if (CMD_ARGC < 1) {
 		command_print(CMD_CTX, "sim3c166 unlock <bank>");
 		return ERROR_OK;
 	}
@@ -675,20 +656,17 @@ COMMAND_HANDLER(sim3c166_handle_unlock_command)
 
 	target = bank->target;
 
-	if (target->state != TARGET_HALTED)
-	{
+	if (target->state != TARGET_HALTED) {
 		LOG_ERROR("Target not halted");
 		return ERROR_TARGET_NOT_HALTED;
 	}
 
-	if (sim3c166_erase_options(bank) != ERROR_OK)
-	{
+	if (sim3c166_erase_options(bank) != ERROR_OK) {
 		command_print(CMD_CTX, "sim3c166 failed to unlock device");
 		return ERROR_OK;
 	}
 
-	if (sim3c166_write_options(bank) != ERROR_OK)
-	{
+	if (sim3c166_write_options(bank) != ERROR_OK) {
 		command_print(CMD_CTX, "sim3c166 failed to lock device");
 		return ERROR_OK;
 	}
