@@ -135,7 +135,7 @@ static int sim3c166_wait_status_busy(struct flash_bank *bank, int timeout)
 		LOG_DEBUG("status: 0x%" PRIx32 "", status);
 		if ((status & 0x00100000) == 0)
 			break;
-		if (timeout-- <= 0) 	{
+		if (timeout-- <= 0) {
 			LOG_ERROR("timed out waiting for flash");
 			return ERROR_FAIL;
 		}
@@ -144,14 +144,14 @@ static int sim3c166_wait_status_busy(struct flash_bank *bank, int timeout)
 
 	/*
 	if (status & FLASH_WRPRTERR) {
- 		LOG_ERROR("sim3c166 device protected");
- 		retval = ERROR_FAIL;
- 	}
+		LOG_ERROR("sim3c166 device protected");
+		retval = ERROR_FAIL;
+	}
 
- 	if (status & FLASH_PGERR) {
- 		LOG_ERROR("sim3c166 device programming failed");
- 		retval = ERROR_FAIL;
- 	}
+	if (status & FLASH_PGERR) {
+		LOG_ERROR("sim3c166 device programming failed");
+		retval = ERROR_FAIL;
+	}
 	*/
 
 	/* Clear but report errors */
@@ -161,8 +161,8 @@ static int sim3c166_wait_status_busy(struct flash_bank *bank, int timeout)
 		/* If this operation fails, we ignore it and report the original
 		   retval */
 	/*
- 		target_write_u32(target, SIM3C166_FLASH_SR, FLASH_WRPRTERR | FLASH_PGERR);
- 	}
+		target_write_u32(target, SIM3C166_FLASH_SR, FLASH_WRPRTERR | FLASH_PGERR);
+	}
 	*/
 	return retval;
 }
