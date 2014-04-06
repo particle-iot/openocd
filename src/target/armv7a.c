@@ -545,6 +545,10 @@ static int armv7a_read_mpidr(struct target *target)
 			&mpidr);
 	if (retval != ERROR_OK)
 		goto done;
+
+	if (armv7a->is_armv7r)
+		goto done;
+
 	if (mpidr & 1<<31) {
 		armv7a->multi_processor_system = (mpidr >> 30) & 1;
 		armv7a->cluster_id = (mpidr >> 8) & 0xf;
