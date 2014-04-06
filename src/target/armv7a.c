@@ -545,6 +545,16 @@ static int armv7a_read_mpidr(struct target *target)
 			&mpidr);
 	if (retval != ERROR_OK)
 		goto done;
+
+	/* ARMv7R uses a different format for MPIDR.
+	 * When configured uniprocessor (most R cores) it reads as 0.
+	 * This will need to be implemented for multiprocessor ARMv7R cores. */
+	if (armv7a->is_armv7r) {
+		if (mpidr)
+			LOG_ERROR("mpdir nonzero in armv7r target");
+		goto done;
+	}
+
 	if (mpidr & 1<<31) {
 		armv7a->multi_processor_system = (mpidr >> 30) & 1;
 		armv7a->cluster_id = (mpidr >> 8) & 0xf;
