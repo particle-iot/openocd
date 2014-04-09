@@ -952,7 +952,7 @@ COMMAND_HANDLER(ublast_handle_pin_command)
 
 		if (strlen(pin_value) > 1)
 			val = '?';
-		switch (tolower(val)) {
+		switch (tolower((int)val)) {
 		case '0':
 			*steer = FIXED_0;
 			break;
