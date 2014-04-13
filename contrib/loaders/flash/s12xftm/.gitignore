@@ -1,0 +1,4 @@
+*.lss
+*.bin
+*.elf
+!Makefile

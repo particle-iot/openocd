@@ -31,7 +31,7 @@
 #include <target/hcs12.h>
 #include <target/algorithm.h>
 #include <target/register.h>
-l
+
 #include "s12xftm.h"
 
 enum {
