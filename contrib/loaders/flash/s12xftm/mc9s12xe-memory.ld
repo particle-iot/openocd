@@ -1,0 +1,4 @@
+MEMORY
+{
+	RAM  (rx)  : ORIGIN = 0x02000, LENGTH = 0x2000
+}
