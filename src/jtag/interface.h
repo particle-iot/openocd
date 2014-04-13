@@ -29,6 +29,7 @@
 
 #include <jtag/jtag.h>
 
+
 /* @file
  * The "Cable Helper API" is what the cable drivers can use to help
  * implement their "Cable API".  So a Cable Helper API is a set of
@@ -36,6 +37,8 @@
  * Cable API.  A "Cable API" is what higher level code used to talk to a
  * cable.
  */
+
+struct bdm_driver;
 
 
 /** implementation of wrapper function tap_set_state() */
@@ -209,7 +212,10 @@ struct jtag_interface {
 	/** transports supported in C code (NULL terminated vector) */
 	const char **transports;
 
-	const struct swd_driver *swd;
+	union {
+		const struct swd_driver *swd;
+		const struct bdm_driver *bdm;
+	} driver;
 
 	/**
 	 * Execute queued commands.

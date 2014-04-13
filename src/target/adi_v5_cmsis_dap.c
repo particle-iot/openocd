@@ -60,7 +60,7 @@ static int (cmsis_dap_queue_ap_abort)(struct adiv5_dap *dap, uint8_t *ack)
 
 	/* FIXME: implement this properly cmsis-dap has DAP_WriteABORT()
 	 * for now just hack @ everything */
-	return jtag_interface->swd->write_reg(
+	return jtag_interface->driver.swd->write_reg(
 			(CMSIS_CMD_DP | CMSIS_CMD_WRITE | CMSIS_CMD_A32(DP_ABORT)), 0x1e);
 }
 
@@ -68,7 +68,7 @@ static int cmsis_dap_queue_dp_read(struct adiv5_dap *dap, unsigned reg, uint32_t
 {
 	LOG_DEBUG("CMSIS-ADI: cmsis_dap_queue_dp_read %d", reg);
 
-	int retval = jtag_interface->swd->read_reg(
+	int retval = jtag_interface->driver.swd->read_reg(
 			(CMSIS_CMD_DP | CMSIS_CMD_READ | CMSIS_CMD_A32(reg)), data);
 
 	if (retval != ERROR_OK) {
@@ -104,7 +104,7 @@ static int (cmsis_dap_queue_dp_write)(struct adiv5_dap *dap, unsigned reg, uint3
 		data &= ~CORUNDETECT;
 	}
 
-	int retval = jtag_interface->swd->write_reg(
+	int retval = jtag_interface->driver.swd->write_reg(
 			(CMSIS_CMD_DP | CMSIS_CMD_WRITE | CMSIS_CMD_A32(reg)), data);
 
 	if (retval != ERROR_OK) {
@@ -138,7 +138,7 @@ static int (cmsis_dap_queue_ap_read)(struct adiv5_dap *dap, unsigned reg, uint32
 	if (retval != ERROR_OK)
 		return retval;
 
-	retval = jtag_interface->swd->read_reg(
+	retval = jtag_interface->driver.swd->read_reg(
 			(CMSIS_CMD_AP | CMSIS_CMD_READ | CMSIS_CMD_A32(reg)), data);
 
 	if (retval != ERROR_OK) {
@@ -163,7 +163,7 @@ static int (cmsis_dap_queue_ap_write)(struct adiv5_dap *dap, unsigned reg, uint3
 	if (retval != ERROR_OK)
 		return retval;
 
-	retval = jtag_interface->swd->write_reg(
+	retval = jtag_interface->driver.swd->write_reg(
 			(CMSIS_CMD_AP | CMSIS_CMD_WRITE | CMSIS_CMD_A32(reg)), data);
 
 	if (retval != ERROR_OK) {
@@ -180,7 +180,7 @@ static int (cmsis_dap_queue_ap_read_block)(struct adiv5_dap *dap, unsigned reg,
 {
 	LOG_DEBUG("CMSIS-ADI: cmsis_dap_queue_ap_read_block 0x%08" PRIx32, blocksize);
 
-	int retval = jtag_interface->swd->read_block(
+	int retval = jtag_interface->driver.swd->read_block(
 			(CMSIS_CMD_AP | CMSIS_CMD_READ | CMSIS_CMD_A32(AP_REG_DRW)),
 			blocksize, buffer);
 
@@ -255,7 +255,7 @@ static int cmsis_dap_select(struct command_context *ctx)
 	 * with hardware default TRN (1), it can be changed later
 	 * we use a bogus 'swd' driver to implement cmsis-dap as it is quite similar */
 
-	const struct swd_driver *swd = jtag_interface->swd;
+	const struct swd_driver *swd = jtag_interface->driver.swd;
 	if (!swd || !swd->read_reg || !swd->write_reg || !swd->init) {
 		LOG_ERROR("no SWD driver?");
 		return ERROR_FAIL;
@@ -294,7 +294,7 @@ static int cmsis_dap_init(struct command_context *ctx)
 	/* Note, debugport_init() does setup too */
 
 #if 0
-	const struct swd_driver *swd = jtag_interface->swd;
+	const struct swd_driver *swd = jtag_interface->driver.swd;
 	if (!swd || !swd->read_reg || !swd->write_reg || !swd->init) {
 		LOG_ERROR("no SWD driver?");
 		return ERROR_FAIL;
