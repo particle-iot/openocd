@@ -62,7 +62,7 @@ static int swd_queue_dp_read(struct adiv5_dap *dap, unsigned reg,
 		uint32_t *data)
 {
 	/* REVISIT status return vs ack ... */
-	const struct swd_driver *swd = jtag_interface->swd;
+	const struct swd_driver *swd = jtag_interface->driver.swd;
 	assert(swd);
 
 	return swd->read_reg(swd_cmd(true,  false, reg), data);
@@ -83,7 +83,7 @@ static int (swd_queue_dp_write)(struct adiv5_dap *dap, unsigned reg,
 		uint32_t data)
 {
 	/* REVISIT status return vs ack ... */
-	const struct swd_driver *swd = jtag_interface->swd;
+	const struct swd_driver *swd = jtag_interface->driver.swd;
 	assert(swd);
 
 	return swd->write_reg(swd_cmd(false,  false, reg), data);
@@ -95,7 +95,7 @@ static int (swd_queue_ap_read)(struct adiv5_dap *dap, unsigned reg,
 {
 	/* REVISIT  APSEL ... */
 	/* REVISIT status return ... */
-	const struct swd_driver *swd = jtag_interface->swd;
+	const struct swd_driver *swd = jtag_interface->driver.swd;
 	assert(swd);
 
 	return swd->read_reg(swd_cmd(true,  true, reg), data);
@@ -106,7 +106,7 @@ static int (swd_queue_ap_write)(struct adiv5_dap *dap, unsigned reg,
 {
 	/* REVISIT  APSEL ... */
 	/* REVISIT status return ... */
-	const struct swd_driver *swd = jtag_interface->swd;
+	const struct swd_driver *swd = jtag_interface->driver.swd;
 	assert(swd);
 
 	return swd->write_reg(swd_cmd(false,  true, reg), data);
@@ -300,7 +300,7 @@ static int swd_select(struct command_context *ctx)
 	if (retval != ERROR_OK)
 		return retval;
 
-	const struct swd_driver *swd = jtag_interface->swd;
+	const struct swd_driver *swd = jtag_interface->driver.swd;
 
 	 /* be sure driver is in SWD mode; start
 	  * with hardware default TRN (1), it can be changed later

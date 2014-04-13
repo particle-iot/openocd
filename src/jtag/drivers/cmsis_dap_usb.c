@@ -1120,7 +1120,7 @@ const char *cmsis_dap_transport[] = {"cmsis-dap", NULL};
 struct jtag_interface cmsis_dap_interface = {
 	.name = "cmsis-dap",
 	.commands = cmsis_dap_command_handlers,
-	.swd = &cmsis_dap_swd_driver,
+	.driver.swd = &cmsis_dap_swd_driver,
 	.transports = cmsis_dap_transport,
 
 	.execute_queue = cmsis_dap_execute_queue,
