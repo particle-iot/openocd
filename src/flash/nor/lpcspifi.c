@@ -66,6 +66,7 @@ struct lpcspifi_target {
 static const struct lpcspifi_target target_devices[] = {
 	/* name,          tap_idcode, spifi_base, ssp_base,   io_base,    ioconfig_base */
 	{ "LPC43xx/18xx", 0x4ba00477, 0x14000000, 0x40083000, 0x400F4000, 0x40086000 },
+	{ "LPC43xx/18xx", 0x2ba01477, 0x14000000, 0x40083000, 0x400F4000, 0x40086000 },
 	{ NULL,           0,          0,          0,          0,          0 }
 };
 
