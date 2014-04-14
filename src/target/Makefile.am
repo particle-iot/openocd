@@ -36,6 +36,7 @@ libtarget_la_SOURCES = \
 	$(MIPS32_SRC) \
 	$(NDS32_SRC) \
 	$(INTEL_IA32_SRC) \
+	$(HCS12_SRC) \
 	avrt.c \
 	dsp563xx.c \
 	dsp563xx_once.c \
@@ -129,6 +130,10 @@ INTEL_IA32_SRC = \
 	quark_x10xx.c \
 	lakemont.c \
 	x86_32_common.c
+
+HCS12_SRC = \
+	bdm.c \
+	hcs12.c
 
 noinst_HEADERS = \
 	algorithm.h \
