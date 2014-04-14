@@ -58,6 +58,8 @@ static void jtag_add_scan_check(struct jtag_tap *active,
 		tap_state_t state),
 		int in_num_fields, struct scan_field *in_fields, tap_state_t state);
 
+bool transport_is_bdm(void);
+
 /**
  * The jtag_error variable is set when an error occurs while executing
  * the queue.  Application code may set this using jtag_set_error(),
@@ -166,6 +168,9 @@ bool is_jtag_poll_safe(void)
 	 * It is also implicitly disabled while TRST is active and
 	 * while SRST is gating the JTAG clock.
 	 */
+	if (transport_is_bdm())
+		return jtag_poll;
+
 	if (!jtag_poll || jtag_trst != 0)
 		return false;
 	return jtag_srst == 0 || (jtag_reset_config & RESET_SRST_NO_GATING);
@@ -602,6 +607,37 @@ void jtag_add_clocks(int num_cycles)
 	if (num_cycles > 0) {
 		jtag_checks();
 		jtag_set_error(interface_jtag_add_clocks(num_cycles));
+	}
+}
+
+void bdm_add_reset(int req_srst)
+{
+	/* Maybe change SRST signal state */
+	if (jtag_srst != req_srst) {
+		int retval;
+
+		retval = interface_jtag_add_reset(0, req_srst);
+		if (retval != ERROR_OK)
+			jtag_set_error(retval);
+		else
+			retval = jtag_execute_queue();
+
+		if (retval != ERROR_OK) {
+			LOG_ERROR("TRST/SRST error");
+			return;
+		}
+
+		/* SRST resets everything hooked up to that signal */
+		jtag_srst = req_srst;
+		if (jtag_srst) {
+			LOG_DEBUG("SRST line asserted");
+			if (adapter_nsrst_assert_width)
+				jtag_add_sleep(adapter_nsrst_assert_width * 1000);
+		} else {
+			LOG_DEBUG("SRST line released");
+			if (adapter_nsrst_delay)
+				jtag_add_sleep(adapter_nsrst_delay * 1000);
+		}
 	}
 }
 
@@ -1497,6 +1533,20 @@ int adapter_quit(void)
 	return ERROR_OK;
 }
 
+int bdm_init_reset(struct command_context *cmd_ctx)
+{
+	int ret = adapter_init(cmd_ctx);
+	if (ret != ERROR_OK)
+		return ret;
+
+	LOG_DEBUG("Initializing with hard reset");
+
+	bdm_add_reset(1);
+	bdm_add_reset(0);
+	ret = jtag_execute_queue();
+	return ret;
+}
+
 int swd_init_reset(struct command_context *cmd_ctx)
 {
 	int retval = adapter_init(cmd_ctx);
@@ -1822,6 +1872,8 @@ void adapter_assert_reset(void)
 			jtag_add_reset(0, 1);
 	} else if (transport_is_swd())
 		swd_add_reset(1);
+	else if (transport_is_bdm())
+		bdm_add_reset(1);
 	else if (transport_is_cmsis_dap())
 		swd_add_reset(1);  /* FIXME */
 	else if (get_current_transport() != NULL)
@@ -1837,6 +1889,8 @@ void adapter_deassert_reset(void)
 		jtag_add_reset(0, 0);
 	else if (transport_is_swd())
 		swd_add_reset(0);
+	else if (transport_is_bdm())
+		bdm_add_reset(0);
 	else if (transport_is_cmsis_dap())
 		swd_add_reset(0);  /* FIXME */
 	else if (get_current_transport() != NULL)
