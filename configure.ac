@@ -201,6 +201,7 @@ m4_define([USB1_ADAPTERS],
 m4_define([USB_ADAPTERS],
 	[[[jlink], [Segger J-Link JTAG Programmer], [JLINK]],
 	[[osbdm], [OSBDM (JTAG only) Programmer], [OSBDM]],
+	[[usbdm], [USBDM Programmer], [USBDM]],
 	[[opendous], [eStick/opendous JTAG Programmer], [OPENDOUS]],
 	[[aice], [Andes JTAG Programmer], [AICE]]])
 
@@ -457,6 +458,10 @@ case "${host_cpu}" in
     ;;
 esac
 
+AC_ARG_ENABLE([usbdm],
+  AS_HELP_STRING([--enable-usbdm], [Enable building support for USBDM based BDM dongles]),
+  [build_usbdm=$enableval], [build_usbdm=no])
+
 AC_ARG_ENABLE([gw16012],
   AS_HELP_STRING([--enable-gw16012], [Enable building support for the Gateworks GW16012 JTAG Programmer]),
   [build_gw16012=$enableval], [build_gw16012=no])
@@ -660,6 +665,12 @@ if test $build_bcm2835gpio = yes; then
   AC_DEFINE([BUILD_BCM2835GPIO], [1], [1 if you want bcm2835gpio.])
 else
   AC_DEFINE([BUILD_BCM2835GPIO], [0], [0 if you don't want bcm2835gpio.])
+fi
+
+if test $build_usbdm = yes; then
+  AC_DEFINE([BUILD_USBDM], [1], [1 if you want usbdm.])
+else
+  AC_DEFINE([BUILD_USBDM], [0], [0 if you don't want usbdm.])
 fi
 
 if test x$parport_use_ppdev = xyes; then
@@ -1168,6 +1179,7 @@ AM_CONDITIONAL([ZY1000_MASTER], [test $build_zy1000_master = yes])
 AM_CONDITIONAL([IOUTIL], [test $build_ioutil = yes])
 AM_CONDITIONAL([AT91RM9200], [test $build_at91rm9200 = yes])
 AM_CONDITIONAL([BCM2835GPIO], [test $build_bcm2835gpio = yes])
+AM_CONDITIONAL([USBDM], [test $build_usbdm = yes])
 AM_CONDITIONAL([BITBANG], [test $build_bitbang = yes])
 AM_CONDITIONAL([FT2232_LIBFTDI], [test $build_ft2232_libftdi = yes])
 AM_CONDITIONAL([FT2232_DRIVER], [test $build_ft2232_ftd2xx = yes -o $build_ft2232_libftdi = yes])
