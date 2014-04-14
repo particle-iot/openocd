@@ -201,6 +201,7 @@ m4_define([USB1_ADAPTERS],
 m4_define([USB_ADAPTERS],
 	[[[jlink], [Segger J-Link JTAG Programmer], [JLINK]],
 	[[osbdm], [OSBDM (JTAG only) Programmer], [OSBDM]],
+	[[usbdm], [USBDM Programmer], [USBDM]],
 	[[opendous], [eStick/opendous JTAG Programmer], [OPENDOUS]],
 	[[aice], [Andes JTAG Programmer], [AICE]]])
 

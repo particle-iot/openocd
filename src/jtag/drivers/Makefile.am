@@ -131,6 +131,12 @@ if CMSIS_DAP
 DRIVERFILES += cmsis_dap_usb.c
 endif
 
+if USBDM
+DRIVERFILES += usbdm/interface.c
+DRIVERFILES += usbdm/io.c
+endif
+
+
 noinst_HEADERS = \
 	bitbang.h \
 	bitq.h \
