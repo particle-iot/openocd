@@ -55,7 +55,6 @@ struct cortex_a8_brp {
 
 struct cortex_a8_common {
 	int common_magic;
-	struct arm_jtag jtag_info;
 
 	/* Context information */
 	uint32_t cpudbg_dscr;

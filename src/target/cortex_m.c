@@ -1820,7 +1820,7 @@ int cortex_m_examine(struct target *target)
 
 		if (i == 4 || i == 3) {
 			/* Cortex-M3/M4 has 4096 bytes autoincrement range */
-			armv7m->dap.tar_autoincr_block = (1 << 12);
+			armv7m->arm.dap->tar_autoincr_block = (1 << 12);
 		}
 
 		/* NOTE: FPB and DWT are both optional. */
@@ -1942,31 +1942,15 @@ static int cortex_m_handle_target_request(void *priv)
 }
 
 static int cortex_m_init_arch_info(struct target *target,
-	struct cortex_m_common *cortex_m, struct jtag_tap *tap)
+	struct cortex_m_common *cortex_m)
 {
-	int retval;
 	struct armv7m_common *armv7m = &cortex_m->armv7m;
 
 	armv7m_init_arch_info(target, armv7m);
 
-	/* prepare JTAG information for the new target */
-	cortex_m->jtag_info.tap = tap;
-	cortex_m->jtag_info.scann_size = 4;
-
 	/* default reset mode is to use srst if fitted
 	 * if not it will use CORTEX_M3_RESET_VECTRESET */
 	cortex_m->soft_reset_config = CORTEX_M_RESET_VECTRESET;
-
-	armv7m->arm.dap = &armv7m->dap;
-
-	/* Leave (only) generic DAP stuff for debugport_init(); */
-	armv7m->dap.jtag_info = &cortex_m->jtag_info;
-	armv7m->dap.memaccess_tck = 8;
-
-	/* Cortex-M3/M4 has 4096 bytes autoincrement range
-	 * but set a safe default to 1024 to support Cortex-M0
-	 * this will be changed in cortex_m3_examine if a M3/M4 is detected */
-	armv7m->dap.tar_autoincr_block = (1 << 10);
 
 	/* register arch-specific functions */
 	armv7m->examine_debug_reason = cortex_m_examine_debug_reason;
@@ -1980,11 +1964,22 @@ static int cortex_m_init_arch_info(struct target *target,
 
 	target_register_timer_callback(cortex_m_handle_target_request, 1, 1, target);
 
-	retval = arm_jtag_setup_connection(&cortex_m->jtag_info);
-	if (retval != ERROR_OK)
-		return retval;
-
 	return ERROR_OK;
+}
+
+void cortex_m_connect_dap(struct target *target, struct adiv5_dap *dap)
+{
+	struct armv7m_common *armv7m = target_to_armv7m(target);
+
+	/* Leave (only) generic DAP stuff for debugport_init(); */
+	dap->memaccess_tck = 8;
+
+	/* Cortex-M3/M4 has 4096 bytes autoincrement range
+	 * but set a safe default to 1024 to support Cortex-M0
+	 * this will be changed in cortex_m3_examine if a M3/M4 is detected */
+	dap->tar_autoincr_block = (1 << 10);
+
+	armv7m->arm.dap = dap;
 }
 
 static int cortex_m_target_create(struct target *target, Jim_Interp *interp)
@@ -1992,7 +1987,7 @@ static int cortex_m_target_create(struct target *target, Jim_Interp *interp)
 	struct cortex_m_common *cortex_m = calloc(1, sizeof(struct cortex_m_common));
 
 	cortex_m->common_magic = CORTEX_M_COMMON_MAGIC;
-	cortex_m_init_arch_info(target, cortex_m, target->tap);
+	cortex_m_init_arch_info(target, cortex_m);
 
 	return ERROR_OK;
 }
@@ -2180,6 +2175,43 @@ COMMAND_HANDLER(handle_cortex_m_reset_config_command)
 	return ERROR_OK;
 }
 
+COMMAND_HANDLER(handle_cortex_m_connect_command)
+{
+	struct target *target = get_current_target(CMD_CTX);
+	struct cortex_m_common *cortex_m = target_to_cm(target);
+	int retval;
+	char *reset_config;
+
+	retval = cortex_m_verify_pointer(CMD_CTX, cortex_m);
+	if (retval != ERROR_OK)
+		return retval;
+
+	if (CMD_ARGC > 0) {
+		if (strcmp(*CMD_ARGV, "sysresetreq") == 0)
+			cortex_m->soft_reset_config = CORTEX_M_RESET_SYSRESETREQ;
+		else if (strcmp(*CMD_ARGV, "vectreset") == 0)
+			cortex_m->soft_reset_config = CORTEX_M_RESET_VECTRESET;
+	}
+
+	switch (cortex_m->soft_reset_config) {
+		case CORTEX_M_RESET_SYSRESETREQ:
+			reset_config = "sysresetreq";
+			break;
+
+		case CORTEX_M_RESET_VECTRESET:
+			reset_config = "vectreset";
+			break;
+
+		default:
+			reset_config = "unknown";
+			break;
+	}
+
+	command_print(CMD_CTX, "cortex_m reset_config %s", reset_config);
+
+	return ERROR_OK;
+}
+
 static const struct command_registration cortex_m_exec_command_handlers[] = {
 	{
 		.name = "maskisr",
@@ -2201,6 +2233,13 @@ static const struct command_registration cortex_m_exec_command_handlers[] = {
 		.mode = COMMAND_ANY,
 		.help = "configure software reset handling",
 		.usage = "['srst'|'sysresetreq'|'vectreset']",
+	},
+	{
+		.name = "connect",
+		.handler = handle_cortex_m_connect_command,
+		.mode = COMMAND_ANY,
+		.help = "connect target to a debug access port",
+		.usage = "dap",
 	},
 	COMMAND_REGISTRATION_DONE
 };

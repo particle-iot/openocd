@@ -2496,33 +2496,12 @@ static int cortex_a8_init_target(struct command_context *cmd_ctx,
 }
 
 static int cortex_a8_init_arch_info(struct target *target,
-	struct cortex_a8_common *cortex_a8, struct jtag_tap *tap)
+	struct cortex_a8_common *cortex_a8)
 {
 	struct armv7a_common *armv7a = &cortex_a8->armv7a_common;
-	struct adiv5_dap *dap = &armv7a->dap;
-
-	armv7a->arm.dap = dap;
 
 	/* Setup struct cortex_a8_common */
 	cortex_a8->common_magic = CORTEX_A8_COMMON_MAGIC;
-	/*  tap has no dap initialized */
-	if (!tap->dap) {
-		armv7a->arm.dap = dap;
-		/* Setup struct cortex_a8_common */
-
-		/* prepare JTAG information for the new target */
-		cortex_a8->jtag_info.tap = tap;
-		cortex_a8->jtag_info.scann_size = 4;
-
-		/* Leave (only) generic DAP stuff for debugport_init() */
-		dap->jtag_info = &cortex_a8->jtag_info;
-
-		/* Number of bits for tar autoincrement, impl. dep. at least 10 */
-		dap->tar_autoincr_block = (1 << 10);
-		dap->memaccess_tck = 80;
-		tap->dap = dap;
-	} else
-		armv7a->arm.dap = tap->dap;
 
 	cortex_a8->fast_reg_read = 0;
 
@@ -2545,13 +2524,23 @@ static int cortex_a8_init_arch_info(struct target *target,
 	return ERROR_OK;
 }
 
+void cortex_a8_connect_dap(struct target *target, struct adiv5_dap *dap)
+{
+	struct armv7a_common *armv7a = target_to_armv7a(target);
+
+	dap->memaccess_tck = 8;
+	dap->tar_autoincr_block = (1 << 10);
+
+	armv7a->arm.dap = dap;
+}
+
 static int cortex_a8_target_create(struct target *target, Jim_Interp *interp)
 {
 	struct cortex_a8_common *cortex_a8 = calloc(1, sizeof(struct cortex_a8_common));
 
 	cortex_a8->armv7a_common.is_armv7r = false;
 
-	return cortex_a8_init_arch_info(target, cortex_a8, target->tap);
+	return cortex_a8_init_arch_info(target, cortex_a8);
 }
 
 static int cortex_r4_target_create(struct target *target, Jim_Interp *interp)
@@ -2560,7 +2549,7 @@ static int cortex_r4_target_create(struct target *target, Jim_Interp *interp)
 
 	cortex_a8->armv7a_common.is_armv7r = true;
 
-	return cortex_a8_init_arch_info(target, cortex_a8, target->tap);
+	return cortex_a8_init_arch_info(target, cortex_a8);
 }
 
 

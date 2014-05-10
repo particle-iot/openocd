@@ -646,13 +646,6 @@ int ahbap_debugport_init(struct adiv5_dap *dap)
 
 	LOG_DEBUG(" ");
 
-	/* JTAG-DP or SWJ-DP, in JTAG mode
-	 * ... for SWD mode this is patched as part
-	 * of link switchover
-	 */
-	if (!dap->ops)
-		dap->ops = &jtag_dp_ops;
-
 	/* Default MEM-AP setup.
 	 *
 	 * REVISIT AP #0 may be an inappropriate default for this.
