@@ -173,12 +173,6 @@ static inline bool is_armv7m(struct armv7m_common *armv7m)
 	return armv7m->common_magic == ARMV7M_COMMON_MAGIC;
 }
 
-struct armv7m_algorithm {
-	int common_magic;
-
-	enum arm_mode core_mode;
-};
-
 struct reg_cache *armv7m_build_reg_cache(struct target *target);
 enum armv7m_mode armv7m_number_to_mode(int number);
 int armv7m_mode_to_number(enum armv7m_mode mode);
