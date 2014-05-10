@@ -808,6 +808,28 @@ done:
 	return retval;
 }
 
+void *target_allocate_algorithm_scratchpad(struct target *target,
+					   size_t size)
+{
+	if (target->algorithm_scratchpad) {
+		LOG_WARNING("scratchpad area was not previously deallocated");
+		free(target->algorithm_scratchpad);
+	}
+
+	target->algorithm_scratchpad = calloc(1, size);
+
+	return target->algorithm_scratchpad;
+}
+void target_free_algorithm_scratchpad(struct target *target)
+{
+	free(target->algorithm_scratchpad);
+	target->algorithm_scratchpad = NULL;
+}
+void *target_get_algorithm_scratchpad(struct target *target)
+{
+	return target->algorithm_scratchpad;
+}
+
 /**
  * Waits for an algorithm started with target_start_algorithm() to complete.
  *
@@ -1164,6 +1186,8 @@ static int target_init_one(struct command_context *cmd_ctx,
 		struct target *target)
 {
 	target_reset_examined(target);
+
+	target->algorithm_scratchpad = NULL;
 
 	struct target_type *type = target->type;
 	if (type->examine == NULL)
