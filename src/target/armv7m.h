@@ -177,8 +177,6 @@ struct armv7m_algorithm {
 	int common_magic;
 
 	enum arm_mode core_mode;
-
-	uint32_t context[ARMV7M_LAST_REG]; /* ARMV7M_NUM_REGS */
 };
 
 struct reg_cache *armv7m_build_reg_cache(struct target *target);
