@@ -1599,9 +1599,8 @@ static int cfi_spansion_write_block(struct flash_bank *bank, const uint8_t *buff
 	struct cfi_spansion_pri_ext *pri_ext = cfi_info->pri_ext;
 	struct target *target = bank->target;
 	struct reg_param reg_params[10];
-	void *arm_algo;
-	struct arm_algorithm armv4_5_algo;
-	struct armv7m_algorithm armv7m_algo;
+	struct arm_algorithm arm_algo;
+
 	struct working_area *write_algorithm;
 	struct working_area *source;
 	uint32_t buffer_size = 32768;
@@ -1800,15 +1799,14 @@ static int cfi_spansion_write_block(struct flash_bank *bank, const uint8_t *buff
 		return cfi_spansion_write_block_mips(bank, buffer, address, count);
 
 	if (is_armv7m(target_to_armv7m(target))) {	/* armv7m target */
-		armv7m_algo.common_magic = ARMV7M_COMMON_MAGIC;
-		armv7m_algo.core_mode = ARM_MODE_THREAD;
-		arm_algo = &armv7m_algo;
+		arm_algo.common_magic = ARMV7M_COMMON_MAGIC;
+		arm_algo.core_mode = ARM_MODE_THREAD;
+
 	} else if (is_arm(target_to_arm(target))) {
 		/* All other ARM CPUs have 32 bit instructions */
-		armv4_5_algo.common_magic = ARM_COMMON_MAGIC;
-		armv4_5_algo.core_mode = ARM_MODE_SVC;
-		armv4_5_algo.core_state = ARM_STATE_ARM;
-		arm_algo = &armv4_5_algo;
+		arm_algo.common_magic = ARM_COMMON_MAGIC;
+		arm_algo.core_mode = ARM_MODE_SVC;
+		arm_algo.core_state = ARM_STATE_ARM;
 	} else {
 		LOG_ERROR("Unknown architecture");
 		return ERROR_FAIL;
@@ -1940,7 +1938,7 @@ static int cfi_spansion_write_block(struct flash_bank *bank, const uint8_t *buff
 		retval = target_run_algorithm(target, 0, NULL, 10, reg_params,
 				write_algorithm->address,
 				write_algorithm->address + ((target_code_size) - 4),
-				10000, arm_algo);
+				10000, &arm_algo);
 		if (retval != ERROR_OK)
 			break;
 

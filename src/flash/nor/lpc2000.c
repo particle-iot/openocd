@@ -594,8 +594,7 @@ static int lpc2000_iap_call(struct flash_bank *bank, struct working_area *iap_wo
 	struct lpc2000_flash_bank *lpc2000_info = bank->driver_priv;
 	struct target *target = bank->target;
 
-	struct arm_algorithm arm_algo;	/* for LPC2000 */
-	struct armv7m_algorithm armv7m_info;	/* for LPC1700 */
+	struct arm_algorithm arm_info;	/* for LPC1700 */
 	uint32_t iap_entry_point = 0;	/* to make compiler happier */
 
 	switch (lpc2000_info->variant) {
@@ -603,20 +602,20 @@ static int lpc2000_iap_call(struct flash_bank *bank, struct working_area *iap_wo
 		case lpc1100:
 		case lpc1700:
 		case lpc_auto:
-			armv7m_info.common_magic = ARMV7M_COMMON_MAGIC;
-			armv7m_info.core_mode = ARM_MODE_THREAD;
+			arm_info.common_magic = ARMV7M_COMMON_MAGIC;
+			arm_info.core_mode = ARM_MODE_THREAD;
 			iap_entry_point = 0x1fff1ff1;
 			break;
 		case lpc2000_v1:
 		case lpc2000_v2:
-			arm_algo.common_magic = ARM_COMMON_MAGIC;
-			arm_algo.core_mode = ARM_MODE_SVC;
-			arm_algo.core_state = ARM_STATE_ARM;
+			arm_info.common_magic = ARM_COMMON_MAGIC;
+			arm_info.core_mode = ARM_MODE_SVC;
+			arm_info.core_state = ARM_STATE_ARM;
 			iap_entry_point = 0x7ffffff1;
 			break;
 		case lpc4300:
-			armv7m_info.common_magic = ARMV7M_COMMON_MAGIC;
-			armv7m_info.core_mode = ARM_MODE_THREAD;
+			arm_info.common_magic = ARMV7M_COMMON_MAGIC;
+			arm_info.core_mode = ARM_MODE_THREAD;
 			/* read out IAP entry point from ROM driver table at 0x10400100 */
 			target_read_u32(target, 0x10400100, &iap_entry_point);
 			break;
@@ -668,7 +667,7 @@ static int lpc2000_iap_call(struct flash_bank *bank, struct working_area *iap_wo
 			/* bit0 of LR = 1 to return in Thumb mode */
 
 			target_run_algorithm(target, 2, mem_params, 5, reg_params, iap_working_area->address, 0, 10000,
-					&armv7m_info);
+					&arm_info);
 			break;
 		case lpc2000_v1:
 		case lpc2000_v2:
@@ -682,7 +681,7 @@ static int lpc2000_iap_call(struct flash_bank *bank, struct working_area *iap_wo
 			buf_set_u32(reg_params[4].value, 0, 32, iap_working_area->address + 0x04);
 
 			target_run_algorithm(target, 2, mem_params, 5, reg_params, iap_working_area->address,
-					iap_working_area->address + 0x4, 10000, &arm_algo);
+					iap_working_area->address + 0x4, 10000, &arm_info);
 			break;
 		default:
 			LOG_ERROR("BUG: unknown lpc2000->variant encountered");

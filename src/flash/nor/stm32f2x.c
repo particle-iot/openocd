@@ -490,7 +490,7 @@ static int stm32x_write_block(struct flash_bank *bank, const uint8_t *buffer,
 	struct working_area *source;
 	uint32_t address = bank->base + offset;
 	struct reg_param reg_params[5];
-	struct armv7m_algorithm armv7m_info;
+	struct arm_algorithm arm_info;
 	int retval = ERROR_OK;
 
 	/* see contrib/loaders/flash/stm32f2x.S for src */
@@ -558,8 +558,8 @@ static int stm32x_write_block(struct flash_bank *bank, const uint8_t *buffer,
 		}
 	};
 
-	armv7m_info.common_magic = ARMV7M_COMMON_MAGIC;
-	armv7m_info.core_mode = ARM_MODE_THREAD;
+	arm_info.common_magic = ARMV7M_COMMON_MAGIC;
+	arm_info.core_mode = ARM_MODE_THREAD;
 
 	init_reg_param(&reg_params[0], "r0", 32, PARAM_IN_OUT);		/* buffer start, status (out) */
 	init_reg_param(&reg_params[1], "r1", 32, PARAM_OUT);		/* buffer end */
@@ -578,7 +578,7 @@ static int stm32x_write_block(struct flash_bank *bank, const uint8_t *buffer,
 			5, reg_params,
 			source->address, source->size,
 			write_algorithm->address, 0,
-			&armv7m_info);
+			&arm_info);
 
 	if (retval == ERROR_FLASH_OPERATION_FAILED) {
 		LOG_ERROR("error executing stm32x flash write algorithm");
