@@ -560,7 +560,7 @@ static int kinetis_write_block(struct flash_bank *bank, const uint8_t *buffer,
 	struct working_area *source;
 	uint32_t address = bank->base + offset;
 	struct reg_param reg_params[3];
-	struct armv7m_algorithm armv7m_info;
+	struct arm_algorithm arm_info;
 	int retval = ERROR_OK;
 
 	/* Params:
@@ -610,8 +610,8 @@ static int kinetis_write_block(struct flash_bank *bank, const uint8_t *buffer,
 		}
 	}
 
-	armv7m_info.common_magic = ARMV7M_COMMON_MAGIC;
-	armv7m_info.core_mode = ARM_MODE_THREAD;
+	arm_info.common_magic = ARMV7M_COMMON_MAGIC;
+	arm_info.core_mode = ARM_MODE_THREAD;
 
 	init_reg_param(&reg_params[0], "r0", 32, PARAM_OUT); /* *pLW (*buffer) */
 	init_reg_param(&reg_params[1], "r1", 32, PARAM_OUT); /* faddr */
@@ -631,7 +631,7 @@ static int kinetis_write_block(struct flash_bank *bank, const uint8_t *buffer,
 		buf_set_u32(reg_params[2].value, 0, 32, thisrun_count);
 
 		retval = target_run_algorithm(target, 0, NULL, 3, reg_params,
-				write_algorithm->address, 0, 100000, &armv7m_info);
+				write_algorithm->address, 0, 100000, &arm_info);
 		if (retval != ERROR_OK) {
 			LOG_ERROR("Error executing kinetis Flash programming algorithm");
 			retval = ERROR_FLASH_OPERATION_FAILED;

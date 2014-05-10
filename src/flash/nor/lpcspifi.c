@@ -153,7 +153,7 @@ static int lpcspifi_set_hw_mode(struct flash_bank *bank)
 	struct target *target = bank->target;
 	struct lpcspifi_flash_bank *lpcspifi_info = bank->driver_priv;
 	uint32_t ssp_base = lpcspifi_info->ssp_base;
-	struct armv7m_algorithm armv7m_info;
+	struct arm_algorithm arm_info;
 	struct working_area *spifi_init_algorithm;
 	struct reg_param reg_params[2];
 	int retval = ERROR_OK;
@@ -185,8 +185,8 @@ static int lpcspifi_set_hw_mode(struct flash_bank *bank)
 		0xa0, 0x47, 0x00, 0xf0, 0x00, 0xb8, 0x00, 0xbe
 	};
 
-	armv7m_info.common_magic = ARMV7M_COMMON_MAGIC;
-	armv7m_info.core_mode = ARM_MODE_THREAD;
+	arm_info.common_magic = ARMV7M_COMMON_MAGIC;
+	arm_info.core_mode = ARM_MODE_THREAD;
 
 
 	LOG_DEBUG("Allocating working area for SPIFI init algorithm");
@@ -236,7 +236,7 @@ static int lpcspifi_set_hw_mode(struct flash_bank *bank)
 	retval = target_run_algorithm(target, 0 , NULL, 2, reg_params,
 		spifi_init_algorithm->address,
 		spifi_init_algorithm->address + sizeof(spifi_init_code) - 2,
-		1000, &armv7m_info);
+		1000, &arm_info);
 
 	if (retval != ERROR_OK)
 		LOG_ERROR("Error executing SPIFI init algorithm");
@@ -433,7 +433,7 @@ static int lpcspifi_erase(struct flash_bank *bank, int first, int last)
 	struct target *target = bank->target;
 	struct lpcspifi_flash_bank *lpcspifi_info = bank->driver_priv;
 	struct reg_param reg_params[4];
-	struct armv7m_algorithm armv7m_info;
+	struct arm_algorithm arm_info;
 	struct working_area *erase_algorithm;
 	int retval = ERROR_OK;
 	int sector;
@@ -528,8 +528,8 @@ static int lpcspifi_erase(struct flash_bank *bank, int first, int last)
 		0x70, 0x47, 0x00, 0x20, 0x00, 0xbe, 0xff, 0xff
 	};
 
-	armv7m_info.common_magic = ARMV7M_COMMON_MAGIC;
-	armv7m_info.core_mode = ARM_MODE_THREAD;
+	arm_info.common_magic = ARMV7M_COMMON_MAGIC;
+	arm_info.core_mode = ARM_MODE_THREAD;
 
 
 	/* Get memory for spifi initialization algorithm */
@@ -564,7 +564,7 @@ static int lpcspifi_erase(struct flash_bank *bank, int first, int last)
 	retval = target_run_algorithm(target, 0 , NULL, 4, reg_params,
 		erase_algorithm->address,
 		erase_algorithm->address + sizeof(lpcspifi_flash_erase_code) - 4,
-		3000*(last - first + 1), &armv7m_info);
+		3000*(last - first + 1), &arm_info);
 
 	if (retval != ERROR_OK)
 		LOG_ERROR("Error executing flash erase algorithm");
@@ -599,7 +599,7 @@ static int lpcspifi_write(struct flash_bank *bank, const uint8_t *buffer,
 	uint32_t page_size, fifo_size;
 	struct working_area *fifo;
 	struct reg_param reg_params[5];
-	struct armv7m_algorithm armv7m_info;
+	struct arm_algorithm arm_info;
 	struct working_area *write_algorithm;
 	int sector;
 	int retval = ERROR_OK;
@@ -735,8 +735,8 @@ static int lpcspifi_write(struct flash_bank *bank, const uint8_t *buffer,
 		return ERROR_TARGET_RESOURCE_NOT_AVAILABLE;
 	};
 
-	armv7m_info.common_magic = ARMV7M_COMMON_MAGIC;
-	armv7m_info.core_mode = ARM_MODE_THREAD;
+	arm_info.common_magic = ARMV7M_COMMON_MAGIC;
+	arm_info.core_mode = ARM_MODE_THREAD;
 
 	init_reg_param(&reg_params[0], "r0", 32, PARAM_IN_OUT);		/* buffer start, status (out) */
 	init_reg_param(&reg_params[1], "r1", 32, PARAM_OUT);		/* buffer end */
@@ -755,7 +755,7 @@ static int lpcspifi_write(struct flash_bank *bank, const uint8_t *buffer,
 			5, reg_params,
 			fifo->address, fifo->size,
 			write_algorithm->address, 0,
-			&armv7m_info
+			&arm_info
 	);
 
 	if (retval != ERROR_OK)

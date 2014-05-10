@@ -303,7 +303,7 @@ int armv7m_start_algorithm(struct target *target,
 {
 	struct armv7m_algorithm_scratchpad *scratchpad;
 	struct armv7m_common *armv7m = target_to_armv7m(target);
-	struct armv7m_algorithm *armv7m_algorithm_info = arch_info;
+	struct arm_algorithm *algorithm_info = arch_info;
 	enum arm_mode core_mode = armv7m->arm.core_mode;
 	int retval = ERROR_OK;
 
@@ -317,12 +317,12 @@ int armv7m_start_algorithm(struct target *target,
 	/* NOTE: armv7m_run_algorithm requires that each algorithm uses a software breakpoint
 	 * at the exit point */
 
-	if (armv7m_algorithm_info->common_magic != ARMV7M_COMMON_MAGIC) {
+	if (algorithm_info->common_magic != ARMV7M_COMMON_MAGIC) {
 		LOG_ERROR("current target isn't an ARMV7M target");
 		return ERROR_TARGET_INVALID;
 	}
 
-	scratchpad->common_magic = armv7m_algorithm_info->common_magic;
+	scratchpad->common_magic = algorithm_info->common_magic;
 
 	if (target->state != TARGET_HALTED) {
 		LOG_WARNING("target not halted");
@@ -365,20 +365,20 @@ int armv7m_start_algorithm(struct target *target,
 		armv7m_set_core_reg(reg, reg_params[i].value);
 	}
 
-	if (armv7m_algorithm_info->core_mode != ARM_MODE_ANY &&
-			armv7m_algorithm_info->core_mode != core_mode) {
-
+	if (algorithm_info->core_mode != ARM_MODE_ANY &&
+	    algorithm_info->core_mode != core_mode) {
 		/* we cannot set ARM_MODE_HANDLER, so use ARM_MODE_THREAD instead */
-		if (armv7m_algorithm_info->core_mode == ARM_MODE_HANDLER) {
-			armv7m_algorithm_info->core_mode = ARM_MODE_THREAD;
+		if (algorithm_info->core_mode == ARM_MODE_HANDLER) {
+			algorithm_info->core_mode = ARM_MODE_THREAD;
 			LOG_INFO("ARM_MODE_HANDLER not currently supported, using ARM_MODE_THREAD instead");
 		}
 
-		LOG_DEBUG("setting core_mode: 0x%2.2x", armv7m_algorithm_info->core_mode);
-		buf_set_u32(armv7m->arm.core_cache->reg_list[ARMV7M_CONTROL].value,
-			0, 1, armv7m_algorithm_info->core_mode);
-		armv7m->arm.core_cache->reg_list[ARMV7M_CONTROL].dirty = 1;
-		armv7m->arm.core_cache->reg_list[ARMV7M_CONTROL].valid = 1;
+		LOG_DEBUG("setting core_mode: 0x%2.2x", algorithm_info->core_mode);
+
+		struct reg *control = &armv7m->arm.core_cache->reg_list[ARMV7M_CONTROL];
+		buf_set_u32(control->value, 0, 1, algorithm_info->core_mode);
+		control->dirty = 1;
+		control->valid = 1;
 	}
 
 	/* save previous core mode */
@@ -625,7 +625,7 @@ int armv7m_checksum_memory(struct target *target,
 	uint32_t address, uint32_t count, uint32_t *checksum)
 {
 	struct working_area *crc_algorithm;
-	struct armv7m_algorithm armv7m_info;
+	struct arm_algorithm arm_info;
 	struct reg_param reg_params[2];
 	int retval;
 
@@ -674,8 +674,8 @@ int armv7m_checksum_memory(struct target *target,
 	if (retval != ERROR_OK)
 		goto cleanup;
 
-	armv7m_info.common_magic = ARMV7M_COMMON_MAGIC;
-	armv7m_info.core_mode = ARM_MODE_THREAD;
+	arm_info.common_magic = ARMV7M_COMMON_MAGIC;
+	arm_info.core_mode = ARM_MODE_THREAD;
 
 	init_reg_param(&reg_params[0], "r0", 32, PARAM_IN_OUT);
 	init_reg_param(&reg_params[1], "r1", 32, PARAM_OUT);
@@ -687,7 +687,7 @@ int armv7m_checksum_memory(struct target *target,
 
 	retval = target_run_algorithm(target, 0, NULL, 2, reg_params, crc_algorithm->address,
 			crc_algorithm->address + (sizeof(cortex_m_crc_code) - 6),
-			timeout, &armv7m_info);
+			timeout, &arm_info);
 
 	if (retval == ERROR_OK)
 		*checksum = buf_get_u32(reg_params[0].value, 0, 32);
@@ -709,7 +709,7 @@ int armv7m_blank_check_memory(struct target *target,
 {
 	struct working_area *erase_check_algorithm;
 	struct reg_param reg_params[3];
-	struct armv7m_algorithm armv7m_info;
+	struct arm_algorithm arm_info;
 	int retval;
 
 	/* see contrib/loaders/erase_check/armv7m_erase_check.s for src */
@@ -734,8 +734,8 @@ int armv7m_blank_check_memory(struct target *target,
 	if (retval != ERROR_OK)
 		return retval;
 
-	armv7m_info.common_magic = ARMV7M_COMMON_MAGIC;
-	armv7m_info.core_mode = ARM_MODE_THREAD;
+	arm_info.common_magic = ARMV7M_COMMON_MAGIC;
+	arm_info.core_mode = ARM_MODE_THREAD;
 
 	init_reg_param(&reg_params[0], "r0", 32, PARAM_OUT);
 	buf_set_u32(reg_params[0].value, 0, 32, address);
@@ -754,7 +754,7 @@ int armv7m_blank_check_memory(struct target *target,
 			erase_check_algorithm->address,
 			erase_check_algorithm->address + (sizeof(erase_check_code) - 2),
 			10000,
-			&armv7m_info);
+			&arm_info);
 
 	if (retval == ERROR_OK)
 		*blank = buf_get_u32(reg_params[2].value, 0, 32);
