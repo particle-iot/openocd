@@ -50,6 +50,11 @@
 #define JTAG_ACK_OK_FAULT	0x2
 #define JTAG_ACK_WAIT		0x1
 
+struct adiv5_jtag_dap {
+	struct adiv5_dap dap;
+	struct jtag_tap *tap;
+};
+
 static int jtag_ap_q_abort(struct adiv5_dap *dap, uint8_t *ack);
 
 /***************************************************************************
@@ -81,14 +86,22 @@ static int adi_jtag_dp_scan(struct adiv5_dap *dap,
 		uint8_t instr, uint8_t reg_addr, uint8_t RnW,
 		uint8_t *outvalue, uint8_t *invalue, uint8_t *ack)
 {
-	struct arm_jtag *jtag_info = dap->jtag_info;
+	struct adiv5_jtag_dap *jtag_dap = container_of(dap, struct adiv5_jtag_dap, dap);
 	struct scan_field fields[2];
 	uint8_t out_addr_buf;
-	int retval;
 
-	retval = arm_jtag_set_instr(jtag_info, instr, NULL, TAP_IDLE);
-	if (retval != ERROR_OK)
-		return retval;
+	if (buf_get_u32(jtag_dap->tap->cur_instr, 0, jtag_dap->tap->ir_length) != instr) {
+		struct scan_field field;
+		field.num_bits = jtag_dap->tap->ir_length;
+
+		uint8_t t[DIV_ROUND_UP(field.num_bits, 8)];
+		buf_set_u32(t, 0, field.num_bits, instr);
+
+		field.out_value = t;
+		field.in_value = NULL;
+
+		jtag_add_ir_scan(jtag_dap->tap, &field, TAP_IDLE);
+	}
 
 	/* Scan out a read or write operation using some DP or AP register.
 	 * For APACC access with any sticky error flag set, this is discarded.
@@ -107,7 +120,7 @@ static int adi_jtag_dp_scan(struct adiv5_dap *dap,
 	fields[1].out_value = outvalue;
 	fields[1].in_value = invalue;
 
-	jtag_add_dr_scan(jtag_info->tap, 2, fields, TAP_IDLE);
+	jtag_add_dr_scan(jtag_dap->tap, 2, fields, TAP_IDLE);
 
 	/* Add specified number of tck clocks after starting memory bus
 	 * access, giving the hardware time to complete the access.
@@ -467,4 +480,21 @@ int dap_to_jtag(struct target *target)
 	/* REVISIT set up the DAP's ops vector for JTAG mode. */
 
 	return retval;
+}
+
+void adiv5_jtag_dap_create(struct adiv5_jtag_dap *jtag_dap, struct jtag_tap *tap)
+{
+	/* TODO: Maybe create the super class, i.e. adiv5_dap_create(&swd_dap->dap); */
+	jtag_dap->dap.ops = &jtag_dp_ops;
+	jtag_dap->tap = tap;
+}
+
+struct adiv5_dap *adiv5_jtag_dap_new(struct jtag_tap *tap)
+{
+	struct adiv5_jtag_dap *jtag_dap = calloc(1, sizeof(*jtag_dap));
+	if (jtag_dap == NULL)
+		return NULL;
+
+	adiv5_jtag_dap_create(jtag_dap, tap);
+	return &jtag_dap->dap;
 }
