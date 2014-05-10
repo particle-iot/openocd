@@ -464,7 +464,7 @@ static int em357_write_block(struct flash_bank *bank, const uint8_t *buffer,
 	struct working_area *source;
 	uint32_t address = bank->base + offset;
 	struct reg_param reg_params[4];
-	struct armv7m_algorithm armv7m_info;
+	struct arm_algorithm arm_info;
 	int retval = ERROR_OK;
 
 	/* see contib/loaders/flash/stm32x.s for src, the same is used here except for
@@ -523,8 +523,8 @@ static int em357_write_block(struct flash_bank *bank, const uint8_t *buffer,
 		}
 	}
 
-	armv7m_info.common_magic = ARMV7M_COMMON_MAGIC;
-	armv7m_info.core_mode = ARM_MODE_THREAD;
+	arm_info.common_magic = ARMV7M_COMMON_MAGIC;
+	arm_info.core_mode = ARM_MODE_THREAD;
 
 	init_reg_param(&reg_params[0], "r0", 32, PARAM_OUT);
 	init_reg_param(&reg_params[1], "r1", 32, PARAM_OUT);
@@ -545,7 +545,7 @@ static int em357_write_block(struct flash_bank *bank, const uint8_t *buffer,
 		buf_set_u32(reg_params[3].value, 0, 32, 0);
 
 		retval = target_run_algorithm(target, 0, NULL, 4, reg_params,
-				write_algorithm->address, 0, 10000, &armv7m_info);
+				write_algorithm->address, 0, 10000, &arm_info);
 		if (retval != ERROR_OK) {
 			LOG_ERROR("error executing em357 flash write algorithm");
 			break;
