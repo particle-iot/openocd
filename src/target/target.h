@@ -641,6 +641,38 @@ int target_write_u32(struct target *target, uint32_t address, uint32_t value);
 int target_write_u16(struct target *target, uint32_t address, uint16_t value);
 int target_write_u8(struct target *target, uint32_t address, uint8_t value);
 
+/**
+ * Copies code to a working area.  This will allocate room for the code plus the
+ * additional amount requested if the working area pointer is null.
+ *
+ * @param target Pointer to the target to copy code to
+ * @param code Pointer to the code area to be copied
+ * @param code_size Size of the code being copied
+ * @param additional Size of the additional area to be allocated in addition to
+ *                   code
+ * @param area Pointer to a pointer to a working area to copy code to
+ * @return Success or failure of the operation
+ */
+int target_code_u8_to_working_area(struct target *target,
+				   const uint8_t *code, unsigned code_size,
+				   unsigned additional, struct working_area **area);
+
+/**
+ * Copies code to a working area.  This will allocate room for the code plus the
+ * additional amount requested if the working area pointer is null.
+ *
+ * @param target Pointer to the target to copy code to
+ * @param code Pointer to the code area to be copied
+ * @param code_size Size of the code being copied
+ * @param additional Size of the additional area to be allocated in addition to
+ *                   code
+ * @param area Pointer to a pointer to a working area to copy code to
+ * @return Success or failure of the operation
+ */
+int target_code_u32_to_working_area(struct target *target,
+				    const uint32_t *code, unsigned code_size,
+				    unsigned additional, struct working_area **area);
+
 /* Issues USER() statements with target state information */
 int target_arch_state(struct target *target);
 
