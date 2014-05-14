@@ -1398,9 +1398,9 @@ static int cortex_a_set_breakpoint(struct target *target,
 	} else if (breakpoint->type == BKPT_SOFT) {
 		uint8_t code[4];
 		if (breakpoint->length == 2)
-			buf_set_u32(code, 0, 32, ARMV5_T_BKPT(0x11));
+			target_buffer_set_u32(target, code, ARMV5_T_BKPT(0x11));
 		else
-			buf_set_u32(code, 0, 32, ARMV5_BKPT(0x11));
+			target_buffer_set_u32(target, code, ARMV5_BKPT(0x11));
 		retval = target_read_memory(target,
 				breakpoint->address & 0xFFFFFFFE,
 				breakpoint->length, 1,
