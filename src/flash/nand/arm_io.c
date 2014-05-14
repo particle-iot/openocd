@@ -31,49 +31,6 @@
 #include <target/armv7m.h>
 #include <target/algorithm.h>
 
-/**
- * Copies code to a working area.  This will allocate room for the code plus the
- * additional amount requested if the working area pointer is null.
- *
- * @param target Pointer to the target to copy code to
- * @param code Pointer to the code area to be copied
- * @param code_size Size of the code being copied
- * @param additional Size of the additional area to be allocated in addition to
- *                   code
- * @param area Pointer to a pointer to a working area to copy code to
- * @return Success or failure of the operation
- */
-static int arm_code_to_working_area(struct target *target,
-	const uint32_t *code, unsigned code_size,
-	unsigned additional, struct working_area **area)
-{
-	uint8_t code_buf[code_size];
-	int retval;
-	unsigned size = code_size + additional;
-
-	/* REVISIT this assumes size doesn't ever change.
-	 * That's usually correct; but there are boards with
-	 * both large and small page chips, where it won't be...
-	 */
-
-	/* make sure we have a working area */
-	if (NULL == *area) {
-		retval = target_alloc_working_area(target, size, area);
-		if (retval != ERROR_OK) {
-			LOG_DEBUG("%s: no %d byte buffer", __func__, (int) size);
-			return ERROR_NAND_NO_BUFFER;
-		}
-	}
-
-	/* buffer code in target endianness */
-	target_buffer_set_u32_array(target, code_buf, code_size / 4, code);
-
-	/* copy code to work area */
-	retval = target_write_memory(target, (*area)->address,
-			4, code_size / 4, code_buf);
-
-	return retval;
-}
 
 /**
  * ARM-specific bulk write from buffer to address of 8-bit wide NAND.
@@ -151,8 +108,9 @@ int arm_nandwrite(struct arm_nand_data *nand, uint8_t *data, int size)
 	}
 
 	if (nand->op != ARM_NAND_WRITE || !nand->copy_area) {
-		retval = arm_code_to_working_area(target, target_code_src, target_code_size,
-				nand->chunk_size, &nand->copy_area);
+		retval = target_code_u32_to_working_area(target, target_code_src, target_code_size,
+							 nand->chunk_size, &nand->copy_area);
+
 		if (retval != ERROR_OK)
 			return retval;
 	}
@@ -262,8 +220,8 @@ int arm_nandread(struct arm_nand_data *nand, uint8_t *data, uint32_t size)
 
 	/* create the copy area if not yet available */
 	if (nand->op != ARM_NAND_READ || !nand->copy_area) {
-		retval = arm_code_to_working_area(target, target_code_src, target_code_size,
-				nand->chunk_size, &nand->copy_area);
+		retval = target_code_u32_to_working_area(target, target_code_src, target_code_size,
+							 nand->chunk_size, &nand->copy_area);
 		if (retval != ERROR_OK)
 			return retval;
 	}

@@ -2226,6 +2226,45 @@ int target_write_u8(struct target *target, uint32_t address, uint8_t value)
 	return retval;
 }
 
+int target_code_u8_to_working_area(struct target *target,
+				   const uint8_t *code, unsigned code_size,
+				   unsigned additional, struct working_area **area)
+{
+	assert(area != NULL);
+	assert(code != NULL);
+
+	int ret;
+	unsigned size = code_size + additional;
+
+	/* REVISIT this assumes size doesn't ever change.
+	 * That's usually correct; but there are boards with
+	 * both large and small page chips, where it won't be...
+	 */
+
+	/* make sure we have a working area */
+	if (*area == NULL) {
+		ret = target_alloc_working_area(target, size, area);
+		if (ret != ERROR_OK) {
+			LOG_DEBUG("no %d byte buffer", (int) size);
+			return ret;
+		}
+	}
+
+	/* copy code to work area */
+	return target_write_memory(target, (*area)->address, 1, code_size, code);
+}
+
+int target_code_u32_to_working_area(struct target *target,
+				    const uint32_t *code, unsigned code_size,
+				    unsigned additional, struct working_area **area)
+{
+	uint8_t code_buf[code_size];
+	/* buffer code in target endianness */
+	target_buffer_set_u32_array(target, code_buf, code_size / 4, code);
+
+	return target_code_u8_to_working_area(target, code_buf, code_size, additional, area);
+}
+
 static int find_target(struct command_context *cmd_ctx, const char *name)
 {
 	struct target *target = get_target(name);
