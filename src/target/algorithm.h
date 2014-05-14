@@ -46,7 +46,7 @@ void init_mem_param(struct mem_param *param,
 void destroy_mem_param(struct mem_param *param);
 
 void init_reg_param(struct reg_param *param,
-		char *reg_name, uint32_t size, enum param_direction dir);
+		    const char *reg_name, uint32_t size, enum param_direction dir);
 void destroy_reg_param(struct reg_param *param);
 
 #endif /* ALGORITHM_H */
