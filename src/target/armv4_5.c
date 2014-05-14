@@ -37,6 +37,16 @@
 #include "algorithm.h"
 #include "register.h"
 
+struct armv4_5_algorithm_scratchpad {
+	enum arm_state core_state;
+
+	uint32_t context[17];
+	uint32_t cpsr;
+
+	struct arm_algorithm arm_algorithm_info;
+};
+
+
 /* offsets into armv4_5 core register cache */
 enum {
 /*	ARMV4_5_CPSR = 31, */
@@ -1166,186 +1176,230 @@ int arm_get_gdb_reg_list(struct target *target,
 	}
 }
 
-/* wait for execution to complete and check exit point */
-static int armv4_5_run_algorithm_completion(struct target *target,
-	uint32_t exit_point,
-	int timeout_ms,
-	void *arch_info)
+static void armv4_5_restore_cpsr_from_scratchpad(struct arm *arm,
+						 const struct armv4_5_algorithm_scratchpad *scratchpad)
 {
-	int retval;
-	struct arm *arm = target_to_arm(target);
-
-	retval = target_wait_state(target, TARGET_HALTED, timeout_ms);
-	if (retval != ERROR_OK)
-		return retval;
-	if (target->state != TARGET_HALTED) {
-		retval = target_halt(target);
-		if (retval != ERROR_OK)
-			return retval;
-		retval = target_wait_state(target, TARGET_HALTED, 500);
-		if (retval != ERROR_OK)
-			return retval;
-		return ERROR_TARGET_TIMEOUT;
-	}
-
-	/* fast exit: ARMv5+ code can use BKPT */
-	if (exit_point && buf_get_u32(arm->pc->value, 0, 32) != exit_point) {
-		LOG_WARNING(
-			"target reentered debug state, but not at the desired exit point: 0x%4.4" PRIx32 "",
-			buf_get_u32(arm->pc->value, 0, 32));
-		return ERROR_TARGET_TIMEOUT;
-	}
-
-	return ERROR_OK;
+	arm_set_cpsr(arm, scratchpad->cpsr);
+	arm->cpsr->dirty = 1;
+	arm->cpsr->valid = 1;
 }
 
-int armv4_5_run_algorithm_inner(struct target *target,
-	int num_mem_params, struct mem_param *mem_params,
-	int num_reg_params, struct reg_param *reg_params,
-	uint32_t entry_point, uint32_t exit_point,
-	int timeout_ms, void *arch_info,
-	int (*run_it)(struct target *target, uint32_t exit_point,
-	int timeout_ms, void *arch_info))
+static void armv4_5_restore_registers_from_scratchpad(struct arm *arm,
+						      const struct armv4_5_algorithm_scratchpad *scratchpad)
+{
+	/* restore everything we saved before (17 or 18 registers) */
+	for (unsigned int i = 0; i < ARRAY_SIZE(scratchpad->context); i++) {
+		uint32_t regvalue;
+		struct reg *r = &ARMV4_5_CORE_REG_MODE(arm->core_cache,
+						       scratchpad->arm_algorithm_info.core_mode,
+						       i);
+		regvalue = buf_get_u32(r->value, 0, 32);
+		if (regvalue != scratchpad->context[i]) {
+			LOG_DEBUG("restoring register %s with value 0x%8.8" PRIx32 "",
+				  r->name, scratchpad->context[i]);
+			buf_set_u32(r->value, 0, 32, scratchpad->context[i]);
+			r->valid = 1;
+			r->dirty = 1;
+		}
+	}
+}
+
+int armv4_5_start_algorithm(struct target *target,
+			    int num_mem_params, struct mem_param *mem_params,
+			    int num_reg_params, struct reg_param *reg_params,
+			    uint32_t entry_point, uint32_t exit_point,
+			    void *arch_info)
 {
 	struct arm *arm = target_to_arm(target);
 	struct arm_algorithm *arm_algorithm_info = arch_info;
-	enum arm_state core_state = arm->core_state;
-	uint32_t context[17];
-	uint32_t cpsr;
-	int exit_breakpoint_size = 0;
-	int i;
-	int retval = ERROR_OK;
+
+	int ret = ERROR_OK;
+
+	assert(arm_algorithm_info->core_state == ARM_STATE_ARM ||
+	       arm_algorithm_info->core_state == ARM_STATE_THUMB);
+
+	assert(arm_algorithm_info->bp_type == BKPT_HARD ||
+	       arm_algorithm_info->bp_type == BKPT_SOFT);
+
+	struct armv4_5_algorithm_scratchpad *scratchpad;
+
+	scratchpad = target_allocate_algorithm_scratchpad(target,
+							  sizeof(struct armv4_5_algorithm_scratchpad));
+
+	if (!scratchpad) {
+		LOG_ERROR("can't allocate a scratchpad area to run the algorithm");
+		return ERROR_FAIL;
+	}
+
+	scratchpad->core_state = arm->core_state;
+	scratchpad->arm_algorithm_info = *arm_algorithm_info;
 
 	LOG_DEBUG("Running algorithm");
 
 	if (arm_algorithm_info->common_magic != ARM_COMMON_MAGIC) {
 		LOG_ERROR("current target isn't an ARMV4/5 target");
-		return ERROR_TARGET_INVALID;
+		ret = ERROR_TARGET_INVALID;
+		goto free_scratchpad;
 	}
 
 	if (target->state != TARGET_HALTED) {
 		LOG_WARNING("target not halted");
-		return ERROR_TARGET_NOT_HALTED;
+		ret = ERROR_TARGET_NOT_HALTED;
+		goto free_scratchpad;
 	}
 
 	if (!is_arm_mode(arm->core_mode)) {
 		LOG_ERROR("not a valid arm core mode - communication failure?");
-		return ERROR_FAIL;
+		ret = ERROR_FAIL;
+		goto free_scratchpad;
 	}
 
 	/* armv5 and later can terminate with BKPT instruction; less overhead */
 	if (!exit_point && arm->is_armv4) {
 		LOG_ERROR("ARMv4 target needs HW breakpoint location");
-		return ERROR_FAIL;
+		ret = ERROR_FAIL;
+		goto free_scratchpad;
 	}
 
 	/* save r0..pc, cpsr-or-spsr, and then cpsr-for-sure;
 	 * they'll be restored later.
 	 */
-	for (i = 0; i <= 16; i++) {
+	for (unsigned int i = 0; i < ARRAY_SIZE(scratchpad->context); i++) {
 		struct reg *r;
 
 		r = &ARMV4_5_CORE_REG_MODE(arm->core_cache,
-				arm_algorithm_info->core_mode, i);
+					   arm_algorithm_info->core_mode, i);
 		if (!r->valid)
 			arm->read_core_reg(target, r, i,
-				arm_algorithm_info->core_mode);
-		context[i] = buf_get_u32(r->value, 0, 32);
+					   arm_algorithm_info->core_mode);
+		scratchpad->context[i] = buf_get_u32(r->value, 0, 32);
 	}
-	cpsr = buf_get_u32(arm->cpsr->value, 0, 32);
+	scratchpad->cpsr = buf_get_u32(arm->cpsr->value, 0, 32);
 
-	for (i = 0; i < num_mem_params; i++) {
-		retval = target_write_buffer(target, mem_params[i].address, mem_params[i].size,
-				mem_params[i].value);
-		if (retval != ERROR_OK)
-			return retval;
+	for (int i = 0; i < num_mem_params; i++) {
+		ret = target_write_buffer(target, mem_params[i].address, mem_params[i].size,
+					     mem_params[i].value);
+		if (ret != ERROR_OK) {
+			/* We don't need to restore memory here since
+			 * that would be handled by work area API */
+			goto free_scratchpad;
+		}
 	}
 
-	for (i = 0; i < num_reg_params; i++) {
+	for (int i = 0; i < num_reg_params; i++) {
+		if (reg_params[i].direction == PARAM_IN)
+			continue;
+
 		struct reg *reg = register_get_by_name(arm->core_cache, reg_params[i].reg_name, 0);
 		if (!reg) {
 			LOG_ERROR("BUG: register '%s' not found", reg_params[i].reg_name);
-			return ERROR_COMMAND_SYNTAX_ERROR;
+			ret = ERROR_COMMAND_SYNTAX_ERROR;
+			goto restore_registers;
 		}
 
 		if (reg->size != reg_params[i].size) {
 			LOG_ERROR("BUG: register '%s' size doesn't match reg_params[i].size",
-				reg_params[i].reg_name);
-			return ERROR_COMMAND_SYNTAX_ERROR;
+				  reg_params[i].reg_name);
+			ret = ERROR_COMMAND_SYNTAX_ERROR;
+			goto restore_registers;
 		}
 
-		retval = armv4_5_set_core_reg(reg, reg_params[i].value);
-		if (retval != ERROR_OK)
-			return retval;
+		ret = armv4_5_set_core_reg(reg, reg_params[i].value);
+		if (ret != ERROR_OK)
+			goto restore_registers;
 	}
 
 	arm->core_state = arm_algorithm_info->core_state;
-	if (arm->core_state == ARM_STATE_ARM)
-		exit_breakpoint_size = 4;
-	else if (arm->core_state == ARM_STATE_THUMB)
-		exit_breakpoint_size = 2;
-	else {
-		LOG_ERROR("BUG: can't execute algorithms when not in ARM or Thumb state");
-		return ERROR_COMMAND_SYNTAX_ERROR;
-	}
 
 	if (arm_algorithm_info->core_mode != ARM_MODE_ANY) {
 		LOG_DEBUG("setting core_mode: 0x%2.2x",
-			arm_algorithm_info->core_mode);
+			  arm_algorithm_info->core_mode);
 		buf_set_u32(arm->cpsr->value, 0, 5,
-			arm_algorithm_info->core_mode);
+			    arm_algorithm_info->core_mode);
 		arm->cpsr->dirty = 1;
 		arm->cpsr->valid = 1;
 	}
 
 	/* terminate using a hardware or (ARMv5+) software breakpoint */
 	if (exit_point) {
-		retval = breakpoint_add(target, exit_point,
-				exit_breakpoint_size, BKPT_HARD);
-		if (retval != ERROR_OK) {
+		ret = breakpoint_add(target, exit_point,
+					(arm->core_state == ARM_STATE_ARM) ? 4 : 2,
+					arm_algorithm_info->bp_type);
+		if (ret != ERROR_OK) {
 			LOG_ERROR("can't add HW breakpoint to terminate algorithm");
-			return ERROR_TARGET_FAILURE;
+			ret = ERROR_TARGET_FAILURE;
+			goto restore_cpsr_and_state;
 		}
 	}
 
-	retval = target_resume(target, 0, entry_point, 1, 1);
-	if (retval != ERROR_OK)
-		return retval;
-	retval = run_it(target, exit_point, timeout_ms, arch_info);
+	ret = target_resume(target, 0, entry_point, 1, 1);
+	if (ret == ERROR_OK)
+		return ret;
 
 	if (exit_point)
 		breakpoint_remove(target, exit_point);
 
-	if (retval != ERROR_OK)
-		return retval;
+restore_cpsr_and_state:
+	arm->core_state = scratchpad->core_state;
+	armv4_5_restore_cpsr_from_scratchpad(arm, scratchpad);
 
-	for (i = 0; i < num_mem_params; i++) {
+restore_registers:
+	armv4_5_restore_registers_from_scratchpad(arm, scratchpad);
+
+free_scratchpad:
+	target_free_algorithm_scratchpad(target);
+	return ret;
+}
+
+
+
+static int armv4_5_algorithm_epilogue(struct target *target,
+				      int num_mem_params, struct mem_param *mem_params,
+				      int num_reg_params, struct reg_param *reg_params,
+				      uint32_t exit_point)
+{
+
+	int ret;
+	const struct armv4_5_algorithm_scratchpad *scratchpad;
+	struct arm *arm;
+
+	ret = ERROR_OK;
+
+	arm = target_to_arm(target);
+	scratchpad = target_get_algorithm_scratchpad(target);
+
+	if (!scratchpad) {
+		LOG_ERROR("scratchpad area was not previously allocated");
+		return ERROR_FAIL;
+	}
+
+	if (exit_point)
+		breakpoint_remove(target, exit_point);
+
+	for (int i = 0; i < num_mem_params; i++) {
 		if (mem_params[i].direction != PARAM_OUT) {
-			int retvaltemp = target_read_buffer(target, mem_params[i].address,
-					mem_params[i].size,
-					mem_params[i].value);
-			if (retvaltemp != ERROR_OK)
-				retval = retvaltemp;
+			ret = target_read_buffer(target,
+						 mem_params[i].address,
+						 mem_params[i].size,
+						 mem_params[i].value);
 		}
 	}
 
-	for (i = 0; i < num_reg_params; i++) {
+	for (int i = 0; i < num_reg_params; i++) {
 		if (reg_params[i].direction != PARAM_OUT) {
-
 			struct reg *reg = register_get_by_name(arm->core_cache,
-					reg_params[i].reg_name,
-					0);
+							       reg_params[i].reg_name,
+							       0);
 			if (!reg) {
 				LOG_ERROR("BUG: register '%s' not found", reg_params[i].reg_name);
-				retval = ERROR_COMMAND_SYNTAX_ERROR;
+				ret = ERROR_COMMAND_SYNTAX_ERROR;
 				continue;
 			}
 
 			if (reg->size != reg_params[i].size) {
-				LOG_ERROR(
-					"BUG: register '%s' size doesn't match reg_params[i].size",
-					reg_params[i].reg_name);
-				retval = ERROR_COMMAND_SYNTAX_ERROR;
+				LOG_ERROR("BUG: register '%s' size doesn't match reg_params[i].size",
+					  reg_params[i].reg_name);
+				ret = ERROR_COMMAND_SYNTAX_ERROR;
 				continue;
 			}
 
@@ -1353,52 +1407,113 @@ int armv4_5_run_algorithm_inner(struct target *target,
 		}
 	}
 
-	/* restore everything we saved before (17 or 18 registers) */
-	for (i = 0; i <= 16; i++) {
-		uint32_t regvalue;
-		regvalue = buf_get_u32(ARMV4_5_CORE_REG_MODE(arm->core_cache,
-				arm_algorithm_info->core_mode, i).value, 0, 32);
-		if (regvalue != context[i]) {
-			LOG_DEBUG("restoring register %s with value 0x%8.8" PRIx32 "",
-				ARMV4_5_CORE_REG_MODE(arm->core_cache,
-				arm_algorithm_info->core_mode, i).name, context[i]);
-			buf_set_u32(ARMV4_5_CORE_REG_MODE(arm->core_cache,
-				arm_algorithm_info->core_mode, i).value, 0, 32, context[i]);
-			ARMV4_5_CORE_REG_MODE(arm->core_cache, arm_algorithm_info->core_mode,
-				i).valid = 1;
-			ARMV4_5_CORE_REG_MODE(arm->core_cache, arm_algorithm_info->core_mode,
-				i).dirty = 1;
+	armv4_5_restore_registers_from_scratchpad(arm, scratchpad);
+	armv4_5_restore_cpsr_from_scratchpad(arm, scratchpad);
+	arm->core_state = scratchpad->core_state;
+
+	target_free_algorithm_scratchpad(target);
+
+	return ret;
+}
+
+int armv4_5_wait_algorithm(struct target *target,
+			   int num_mem_params, struct mem_param *mem_params,
+			   int num_reg_params, struct reg_param *reg_params,
+			   uint32_t exit_point, int timeout_ms,
+			   void *arch_info)
+{
+	int ret, err;
+	struct arm *arm = target_to_arm(target);
+
+	ret = target_wait_state(target, TARGET_HALTED, timeout_ms);
+
+	if (ret != ERROR_OK ||
+	    target->state != TARGET_HALTED) {
+		ret = target_halt(target);
+		if (ret != ERROR_OK)
+			goto free_scratchpad;
+
+		ret = target_wait_state(target, TARGET_HALTED, 500);
+		if (ret != ERROR_OK)
+			goto free_scratchpad;
+
+		ret = ERROR_TARGET_TIMEOUT;
+	} else {
+		/* fast exit: ARMv5+ code can use BKPT */
+		if (exit_point && buf_get_u32(arm->pc->value, 0, 32) != exit_point) {
+			LOG_WARNING(
+				"target reentered debug state, but not at the desired exit point: 0x%4.4" PRIx32 "",
+				buf_get_u32(arm->pc->value, 0, 32));
+			ret = ERROR_TARGET_TIMEOUT;
 		}
 	}
 
-	arm_set_cpsr(arm, cpsr);
-	arm->cpsr->dirty = 1;
+	err = armv4_5_algorithm_epilogue(target,
+					 num_mem_params, mem_params,
+					 num_reg_params, reg_params,
+					 exit_point);
+	return ret ?: err;
 
-	arm->core_state = core_state;
-
-	return retval;
+free_scratchpad:
+	target_free_algorithm_scratchpad(target);
+	return ret;
 }
 
-int armv4_5_run_algorithm(struct target *target,
-	int num_mem_params,
-	struct mem_param *mem_params,
-	int num_reg_params,
-	struct reg_param *reg_params,
-	uint32_t entry_point,
-	uint32_t exit_point,
-	int timeout_ms,
-	void *arch_info)
+int armv4_5_run_algorithm_inner(struct target *target,
+				int num_mem_params, struct mem_param *mem_params,
+				int num_reg_params, struct reg_param *reg_params,
+				uint32_t entry_point, uint32_t exit_point,
+				int timeout_ms, void *arch_info,
+				int (*run_it)(struct target *target, uint32_t exit_point,
+					      int timeout_ms, void *arch_info))
 {
-	return armv4_5_run_algorithm_inner(target,
-			num_mem_params,
-			mem_params,
-			num_reg_params,
-			reg_params,
-			entry_point,
-			exit_point,
-			timeout_ms,
-			arch_info,
-			armv4_5_run_algorithm_completion);
+	int ret, err;
+
+	ret = armv4_5_start_algorithm(target,
+					 num_mem_params, mem_params,
+					 num_reg_params, reg_params,
+					 entry_point, exit_point,
+					 arch_info);
+
+	if (ret != ERROR_OK)
+		return ret;
+
+	ret = run_it(target, exit_point, timeout_ms, arch_info);
+
+	err = armv4_5_algorithm_epilogue(target,
+					 num_mem_params, mem_params,
+					 num_reg_params, reg_params,
+					 exit_point);
+
+	return ret ?: err;
+}
+
+
+int armv4_5_run_algorithm(struct target *target,
+			  int num_mem_params,
+			  struct mem_param *mem_params,
+			  int num_reg_params,
+			  struct reg_param *reg_params,
+			  uint32_t entry_point,
+			  uint32_t exit_point,
+			  int timeout_ms,
+			  void *arch_info)
+{
+	int ret;
+
+	ret = armv4_5_start_algorithm(target,
+					 num_mem_params, mem_params,
+					 num_reg_params, reg_params,
+					 entry_point, exit_point,
+					 arch_info);
+
+	if (ret == ERROR_OK)
+		ret = armv4_5_wait_algorithm(target,
+						num_mem_params, mem_params,
+						num_reg_params, reg_params,
+						exit_point, timeout_ms,
+						arch_info);
+	return ret;
 }
 
 /**
