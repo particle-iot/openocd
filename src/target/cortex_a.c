@@ -2757,7 +2757,9 @@ struct target_type cortexa_target = {
 	.checksum_memory = arm_checksum_memory,
 	.blank_check_memory = arm_blank_check_memory,
 
+	.start_algorithm = armv4_5_start_algorithm,
 	.run_algorithm = armv4_5_run_algorithm,
+	.wait_algorithm = armv4_5_wait_algorithm,
 
 	.add_breakpoint = cortex_a_add_breakpoint,
 	.add_context_breakpoint = cortex_a_add_context_breakpoint,
@@ -2834,7 +2836,9 @@ struct target_type cortexr4_target = {
 	.checksum_memory = arm_checksum_memory,
 	.blank_check_memory = arm_blank_check_memory,
 
+	.start_algorithm = armv4_5_start_algorithm,
 	.run_algorithm = armv4_5_run_algorithm,
+	.wait_algorithm = armv4_5_wait_algorithm,
 
 	.add_breakpoint = cortex_a_add_breakpoint,
 	.add_context_breakpoint = cortex_a_add_context_breakpoint,
