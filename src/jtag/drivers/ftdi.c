@@ -121,7 +121,7 @@ static struct swd_cmd_queue_entry {
 static size_t swd_cmd_queue_length;
 static size_t swd_cmd_queue_alloced;
 static int queued_retval;
-static int swd_freq;
+static int freq;
 
 static uint16_t output;
 static uint16_t direction;
@@ -642,7 +642,8 @@ static int ftdi_initialize(void)
 
 	mpsse_loopback_config(mpsse_ctx, false);
 
-	swd_freq = mpsse_set_frequency(mpsse_ctx, swd_freq);
+	/* Set a low default */
+	freq = mpsse_set_frequency(mpsse_ctx, 1000);
 
 	if (swd_mode)
 		ftdi_swd_switch_seq(NULL, JTAG_TO_SWD);
@@ -891,7 +892,6 @@ static int ftdi_swd_init(void)
 {
 	LOG_INFO("FTDI SWD mode enabled");
 	swd_mode = true;
-	swd_freq = 1000; /* low default */
 
 	swd_cmd_queue_alloced = 10;
 	swd_cmd_queue = malloc(swd_cmd_queue_alloced * sizeof(*swd_cmd_queue));
@@ -1046,9 +1046,9 @@ static void ftdi_swd_write_reg(struct adiv5_dap *dap, uint8_t cmd, uint32_t valu
 static int_least32_t ftdi_swd_frequency(struct adiv5_dap *dap, int_least32_t hz)
 {
 	if (hz > 0)
-		swd_freq = mpsse_set_frequency(mpsse_ctx, hz);
+		freq = mpsse_set_frequency(mpsse_ctx, hz);
 
-	return swd_freq;
+	return freq;
 }
 
 static int ftdi_swd_switch_seq(struct adiv5_dap *dap, enum swd_special_seq seq)
