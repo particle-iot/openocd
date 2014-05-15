@@ -59,9 +59,15 @@
 extern struct jtag_interface *jtag_interface;
 static bool do_sync;
 
+struct adiv5_swd_dap {
+	struct adiv5_dap dap;
+	const struct swd_driver *swd;
+};
+
 static void swd_finish_read(struct adiv5_dap *dap)
 {
-	const struct swd_driver *swd = jtag_interface->swd;
+	struct adiv5_swd_dap *swd_dap = container_of(dap, struct adiv5_swd_dap, dap);
+	const struct swd_driver *swd = swd_dap->swd;
 	if (dap->last_read != NULL) {
 		swd->read_reg(dap, swd_cmd(true, false, DP_RDBUFF), dap->last_read);
 		dap->last_read = NULL;
@@ -73,7 +79,8 @@ static int swd_queue_dp_write(struct adiv5_dap *dap, unsigned reg,
 
 static void swd_clear_sticky_errors(struct adiv5_dap *dap)
 {
-	const struct swd_driver *swd = jtag_interface->swd;
+	struct adiv5_swd_dap *swd_dap = container_of(dap, struct adiv5_swd_dap, dap);
+	const struct swd_driver *swd = swd_dap->swd;
 	assert(swd);
 
 	swd->write_reg(dap, swd_cmd(false,  false, DP_ABORT),
@@ -82,7 +89,8 @@ static void swd_clear_sticky_errors(struct adiv5_dap *dap)
 
 static int swd_run_inner(struct adiv5_dap *dap)
 {
-	const struct swd_driver *swd = jtag_interface->swd;
+	struct adiv5_swd_dap *swd_dap = container_of(dap, struct adiv5_swd_dap, dap);
+	const struct swd_driver *swd = swd_dap->swd;
 
 	int retval = swd->run(dap);
 
@@ -101,7 +109,8 @@ static inline int check_sync(struct adiv5_dap *dap)
 
 static int swd_queue_ap_abort(struct adiv5_dap *dap, uint8_t *ack)
 {
-	const struct swd_driver *swd = jtag_interface->swd;
+	struct adiv5_swd_dap *swd_dap = container_of(dap, struct adiv5_swd_dap, dap);
+	const struct swd_driver *swd = swd_dap->swd;
 	assert(swd);
 
 	swd->write_reg(dap, swd_cmd(false,  false, DP_ABORT),
@@ -129,7 +138,8 @@ static void swd_queue_dp_bankselect(struct adiv5_dap *dap, unsigned reg)
 static int swd_queue_dp_read(struct adiv5_dap *dap, unsigned reg,
 		uint32_t *data)
 {
-	const struct swd_driver *swd = jtag_interface->swd;
+	struct adiv5_swd_dap *swd_dap = container_of(dap, struct adiv5_swd_dap, dap);
+	const struct swd_driver *swd = swd_dap->swd;
 	assert(swd);
 
 	swd_queue_dp_bankselect(dap, reg);
@@ -142,7 +152,8 @@ static int swd_queue_dp_read(struct adiv5_dap *dap, unsigned reg,
 static int swd_queue_dp_write(struct adiv5_dap *dap, unsigned reg,
 		uint32_t data)
 {
-	const struct swd_driver *swd = jtag_interface->swd;
+	struct adiv5_swd_dap *swd_dap = container_of(dap, struct adiv5_swd_dap, dap);
+	const struct swd_driver *swd = swd_dap->swd;
 	assert(swd);
 
 	swd_finish_read(dap);
@@ -169,7 +180,8 @@ static void swd_queue_ap_bankselect(struct adiv5_dap *dap, unsigned reg)
 static int swd_queue_ap_read(struct adiv5_dap *dap, unsigned reg,
 		uint32_t *data)
 {
-	const struct swd_driver *swd = jtag_interface->swd;
+	struct adiv5_swd_dap *swd_dap = container_of(dap, struct adiv5_swd_dap, dap);
+	const struct swd_driver *swd = swd_dap->swd;
 	assert(swd);
 
 	swd_queue_ap_bankselect(dap, reg);
@@ -182,7 +194,8 @@ static int swd_queue_ap_read(struct adiv5_dap *dap, unsigned reg,
 static int swd_queue_ap_write(struct adiv5_dap *dap, unsigned reg,
 		uint32_t data)
 {
-	const struct swd_driver *swd = jtag_interface->swd;
+	struct adiv5_swd_dap *swd_dap = container_of(dap, struct adiv5_swd_dap, dap);
+	const struct swd_driver *swd = swd_dap->swd;
 	assert(swd);
 
 	swd_finish_read(dap);
@@ -250,7 +263,6 @@ static const uint8_t jtag2swd_bitseq[] = {
  */
 int dap_to_swd(struct target *target)
 {
-	struct arm *arm = target_to_arm(target);
 	int retval;
 
 	LOG_DEBUG("Enter SWD mode");
@@ -263,9 +275,6 @@ int dap_to_swd(struct target *target)
 			jtag2swd_bitseq, TAP_INVALID);
 	if (retval == ERROR_OK)
 		retval = jtag_execute_queue();
-
-	/* set up the DAP's ops vector for SWD mode. */
-	arm->dap->ops = &swd_dap_ops;
 
 	return retval;
 }
@@ -386,6 +395,8 @@ static int swd_select(struct command_context *ctx)
 		return retval;
 	}
 
+	global_dap = adiv5_swd_dap_new(swd);
+
 	/* force DAP into SWD mode (not JTAG) */
 	/*retval = dap_to_swd(target);*/
 
@@ -405,10 +416,6 @@ static int swd_init(struct command_context *ctx)
 	struct adiv5_dap *dap = arm->dap;
 	uint32_t idcode;
 	int status;
-
-	/* Force the DAP's ops vector for SWD mode.
-	 * messy - is there a better way? */
-	arm->dap->ops = &swd_dap_ops;
 
 	/* FIXME validate transport config ... is the
 	 * configured DAP present (check IDCODE)?
@@ -450,4 +457,21 @@ static void swd_constructor(void)
 bool transport_is_swd(void)
 {
 	return get_current_transport() == &swd_transport;
+}
+
+void adiv5_swd_dap_create(struct adiv5_swd_dap *swd_dap, const struct swd_driver *swd)
+{
+	/* TODO: Maybe create the super class, i.e. adiv5_dap_create(&swd_dap->dap); */
+	swd_dap->dap.ops = &swd_dap_ops;
+	swd_dap->swd = swd;
+}
+
+struct adiv5_dap *adiv5_swd_dap_new(const struct swd_driver *swd)
+{
+	struct adiv5_swd_dap *swd_dap = calloc(1, sizeof(*swd_dap));
+	if (swd_dap == NULL)
+		return NULL;
+
+	adiv5_swd_dap_create(swd_dap, swd);
+	return &swd_dap->dap;
 }

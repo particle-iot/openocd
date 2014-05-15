@@ -77,6 +77,8 @@
 #include "arm_adi_v5.h"
 #include <helper/time_support.h>
 
+struct adiv5_dap *global_dap;
+
 /* ARM ADI Specification requires at least 10 bits used for TAR autoincrement  */
 
 /*
@@ -645,13 +647,6 @@ int ahbap_debugport_init(struct adiv5_dap *dap)
 	int retval;
 
 	LOG_DEBUG(" ");
-
-	/* JTAG-DP or SWJ-DP, in JTAG mode
-	 * ... for SWD mode this is patched as part
-	 * of link switchover
-	 */
-	if (!dap->ops)
-		dap->ops = &jtag_dp_ops;
 
 	/* Default MEM-AP setup.
 	 *

@@ -140,7 +140,6 @@
 struct adiv5_dap {
 	const struct dap_ops *ops;
 
-	struct arm_jtag *jtag_info;
 	/* Control config */
 	uint32_t dp_ctrl_stat;
 
@@ -200,18 +199,22 @@ struct adiv5_dap {
 	uint32_t	memaccess_tck;
 
 	/* Size of TAR autoincrement block, ARM ADI Specification requires at least 10 bits */
+	/* FIXME: This is not a feature of the DAP, it's specific to the MEM-AP used. */
 	uint32_t tar_autoincr_block;
 
 	/* true if packed transfers are supported by the MEM-AP */
+	/* FIXME: This is not a feature of the DAP, it's specific to the MEM-AP used. */
 	bool packed_transfers;
 
 	/* true if unaligned memory access is not supported by the MEM-AP */
+	/* FIXME: This is not a feature of the DAP, it's specific to the MEM-AP used. */
 	bool unaligned_access_bad;
 
 	/* The TI TMS470 and TMS570 series processors use a BE-32 memory ordering
 	 * despite lack of support in the ARMv7 architecture. Memory access through
 	 * the AHB-AP has strange byte ordering these processors, and we need to
 	 * swizzle appropriately. */
+	/* FIXME: This is not a feature of the DAP, it's specific to the MEM-AP used. */
 	bool ti_be_32_quirks;
 };
 
@@ -438,6 +441,12 @@ int dap_to_swd(struct target *target);
 
 /* Put debug link into JTAG mode */
 int dap_to_jtag(struct target *target);
+
+extern struct adiv5_dap *global_dap;
+
+struct swd_driver;
+struct adiv5_dap *adiv5_jtag_dap_new(struct jtag_tap *tap);
+struct adiv5_dap *adiv5_swd_dap_new(const struct swd_driver *swd);
 
 extern const struct command_registration dap_command_handlers[];
 
