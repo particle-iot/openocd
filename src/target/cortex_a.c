@@ -940,21 +940,10 @@ static int cortex_a_internal_restore(struct target *target, int current,
 	/* Make sure that the Armv7 gdb thumb fixups does not
 	 * kill the return address
 	 */
-	switch (arm->core_state) {
-		case ARM_STATE_ARM:
-			resume_pc &= 0xFFFFFFFC;
-			break;
-		case ARM_STATE_THUMB:
-		case ARM_STATE_THUMB_EE:
-			/* When the return address is loaded into PC
-			 * bit 0 must be 1 to stay in Thumb state
-			 */
-			resume_pc |= 0x1;
-			break;
-		case ARM_STATE_JAZELLE:
-			LOG_ERROR("How do I resume into Jazelle state??");
-			return ERROR_FAIL;
-	}
+
+	retval = arm_fixup_execution_address(arm->core_state, &resume_pc);
+	if (retval != ERROR_OK)
+		return retval;
 	LOG_DEBUG("resume pc = 0x%08" PRIx32, resume_pc);
 	buf_set_u32(arm->pc->value, 0, 32, resume_pc);
 	arm->pc->dirty = 1;
