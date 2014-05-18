@@ -1,5 +1,7 @@
 include $(top_srcdir)/common.mk
 
+AM_CPPFLAGS += -I$(top_srcdir)/contrib/loaders/flash/f0xx/compiled
+
 noinst_LTLIBRARIES = libocdflashnor.la
 libocdflashnor_la_SOURCES = \
 	core.c \
@@ -43,7 +45,8 @@ NOR_DRIVERS = \
 	kinetis.c \
 	mini51.c \
 	nuc1x.c \
-	nrf51.c
+	nrf51.c \
+	f0xx.c
 
 noinst_HEADERS = \
 	core.h \
