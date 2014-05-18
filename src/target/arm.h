@@ -31,6 +31,7 @@
 #include "target.h"
 #include "breakpoints.h"
 
+#include "log.h"
 
 /**
  * @file
@@ -218,6 +219,34 @@ int arm_get_gdb_reg_list(struct target *target,
 		enum target_register_class reg_class);
 
 int arm_init_arch_info(struct target *target, struct arm *arm);
+
+/**
+ * Make sure that last two bits of the code address correspond to the CPU stat
+ *
+ * @param core_state state of the ARM core(ARM, THUMB, etc.)
+ * @param address location of the code
+ */
+static inline int arm_fixup_execution_address(enum arm_state core_state,
+					      uint32_t *address)
+{
+	switch (core_state) {
+	case ARM_STATE_ARM:
+		*address &= 0xFFFFFFFC;
+		break;
+	case ARM_STATE_THUMB:
+	case ARM_STATE_THUMB_EE:
+		/*
+		 * Bit 0 must be 1 to stay in Thumb state
+		 */
+		*address |= 0x1;
+		break;
+	case ARM_STATE_JAZELLE:
+		LOG_ERROR("How do I resume into Jazelle state??");
+		return ERROR_FAIL;
+	}
+
+	return ERROR_OK;
+}
 
 /* REVISIT rename this once it's usable by ARMv7-M */
 int armv4_5_run_algorithm(struct target *target,
