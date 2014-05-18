@@ -1,0 +1,11 @@
+This directory containts the source code of the helper binary used by
+f0xx OpenOCD driver for TMSxxx series of MCUs(TMS570, TMS470, etc.).
+
+In order to compile that file you'd need to install TI's proprietary
+flashing library, which can be found at:
+
+http://www.ti.com/tool/f021flashapi
+
+To build it issue:
+
+make FAPI_PATH=<path to where you installed TI's FAPI library>
