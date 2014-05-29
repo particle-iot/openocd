@@ -219,7 +219,7 @@ static int osbdm_swap(struct osbdm *osbdm, void *tms, void *tdi,
 	}
 
 	if (length <= 0) {
-		LOG_ERROR("BUG: bit sequence equal or less to 0");
+		LOG_ERROR("BUG: bit sequence equal or less than 0");
 		return ERROR_FAIL;
 	}
 
@@ -271,7 +271,7 @@ static int osbdm_swap(struct osbdm *osbdm, void *tms, void *tdi,
 	/*	Extra check
 	 */
 	if (((osbdm->buffer[2] << 8) | osbdm->buffer[3]) != 2 * swap_count) {
-		LOG_ERROR("OSBDM communnication error: not proper answer to swap command");
+		LOG_ERROR("OSBDM communnication error: invalid swap command answer");
 		return ERROR_FAIL;
 	}
 
@@ -678,7 +678,7 @@ static int osbdm_init(void)
 		return ERROR_FAIL;
 	} else {
 		/* Device successfully opened */
-		LOG_INFO("OSBDM has opened");
+		LOG_DEBUG("OSBDM init");
 	}
 
 	/* Perform initialize command */
