@@ -31,6 +31,7 @@
 #include "server.h"
 #include <target/target.h>
 #include <target/target_request.h>
+#include <target/openrisc/jsp_server.h>
 #include "openocd.h"
 #include "tcl_server.h"
 #include "telnet_server.h"
@@ -380,8 +381,8 @@ int server_loop(struct command_context *command_context)
 			tv.tv_usec = 0;
 			retval = socket_select(fd_max + 1, &read_fds, NULL, NULL, &tv);
 		} else {
-			/* Every 100ms */
-			tv.tv_usec = 100000;
+			/* Every 1ms */
+			tv.tv_usec = 1000;
 			/* Only while we're sleeping we'll let others run */
 			openocd_sleep_prelude();
 			kept_alive();
@@ -606,6 +607,10 @@ int server_register_commands(struct command_context *cmd_ctx)
 		return retval;
 
 	retval = tcl_register_commands(cmd_ctx);
+	if (ERROR_OK != retval)
+		return retval;
+
+	retval = jsp_register_commands(cmd_ctx);
 	if (ERROR_OK != retval)
 		return retval;
 
