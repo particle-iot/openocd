@@ -46,6 +46,7 @@
 #include <helper/time_support.h>
 #include <jtag/jtag.h>
 #include <flash/nor/core.h>
+#include <helper/show_progress.h>
 
 #include "target.h"
 #include "target_type.h"
@@ -3007,6 +3008,8 @@ COMMAND_HANDLER(handle_load_image_command)
 			break;
 		}
 
+		init_progression_bar(image.sections[i].size);
+
 		retval = image_read_section(&image, i, 0x0, image.sections[i].size, buffer, &buf_cnt);
 		if (retval != ERROR_OK) {
 			free(buffer);
@@ -3030,12 +3033,27 @@ COMMAND_HANDLER(handle_load_image_command)
 			if (image.sections[i].base_address + buf_cnt > max_address)
 				length -= (image.sections[i].base_address + buf_cnt)-max_address;
 
-			retval = target_write_buffer(target,
-					image.sections[i].base_address + offset, length, buffer + offset);
-			if (retval != ERROR_OK) {
-				free(buffer);
-				break;
+
+			uint32_t chunk_len = length;
+			uint32_t chunk_offset = 0;
+
+			while (chunk_len > 0) {
+				uint32_t this_run_size = (chunk_len > 4096) ? 4096 : chunk_len;
+				retval = target_write_buffer(target,
+						image.sections[i].base_address + offset + chunk_offset,
+						this_run_size,
+						buffer + offset + chunk_offset);
+				if (retval != ERROR_OK) {
+					free(buffer);
+					break;
+				}
+				chunk_len -= this_run_size;
+				chunk_offset += this_run_size;
+				show_progress(this_run_size);
 			}
+
+			stop_progression_bar();
+
 			image_size += length;
 			command_print(CMD_CTX, "%u bytes written at address 0x%8.8" PRIx32 "",
 					(unsigned int)length,
@@ -3085,6 +3103,8 @@ COMMAND_HANDLER(handle_dump_image_command)
 
 	duration_start(&bench);
 
+	init_progression_bar(size);
+
 	while (size > 0) {
 		size_t size_written;
 		uint32_t this_run_size = (size > buf_size) ? buf_size : size;
@@ -3098,7 +3118,11 @@ COMMAND_HANDLER(handle_dump_image_command)
 
 		size -= this_run_size;
 		address += this_run_size;
+
+		show_progress(this_run_size);
 	}
+
+	stop_progression_bar();
 
 	free(buffer);
 
