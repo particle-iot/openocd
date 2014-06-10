@@ -1809,7 +1809,13 @@ static int target_profiling_default(struct target *target, uint32_t *samples,
 
 	uint32_t sample_count = 0;
 	/* hopefully it is safe to cache! We want to stop/restart as quickly as possible. */
-	struct reg *reg = register_get_by_name(target->reg_cache, "pc", 1);
+	struct reg *reg;
+
+	//swap pc name for or1k
+	if( !strcmp(target_name(target), "or1200.cpu" ) || !strcmp(target_name(target), "or1k"))
+	  reg = register_get_by_name(target->reg_cache, "npc", 1);
+	else 
+	  reg = register_get_by_name(target->reg_cache, "pc", 1);
 
 	int retval = ERROR_OK;
 	for (;;) {
@@ -3501,14 +3507,19 @@ static void writeData(FILE *f, const void *data, size_t len)
 		LOG_ERROR("failed to write %zu bytes: %s", len, strerror(errno));
 }
 
-static void writeLong(FILE *f, int l)
+static void writeLong(FILE *f, int l, bool be)
 {
 	int i;
-	for (i = 0; i < 4; i++) {
-		char c = (l >> (i*8))&0xff;
-		writeData(f, &c, 1);
-	}
-
+	if( be == true )
+	  for (i = 3; i >= 0; i--) {
+	    char c = (l >> (i*8))&0xff;
+	    writeData(f, &c, 1);
+	  }
+	else 
+	  for (i = 0; i < 4; i++) {
+	    char c = (l >> (i*8))&0xff;
+	    writeData(f, &c, 1);
+	  }
 }
 
 static void writeString(FILE *f, char *s)
@@ -3520,17 +3531,17 @@ typedef unsigned char UNIT[2];  /* unit of profiling */
 
 /* Dump a gmon.out histogram file. */
 static void write_gmon(uint32_t *samples, uint32_t sampleNum, const char *filename,
-		bool with_range, uint32_t start_address, uint32_t end_address)
+		       bool with_range, uint32_t start_address, uint32_t end_address, bool be)
 {
 	uint32_t i;
 	FILE *f = fopen(filename, "w");
 	if (f == NULL)
 		return;
 	writeString(f, "gmon");
-	writeLong(f, 0x00000001); /* Version */
-	writeLong(f, 0); /* padding */
-	writeLong(f, 0); /* padding */
-	writeLong(f, 0); /* padding */
+	writeLong(f, 0x00000001, be); /* Version */
+	writeLong(f, 0, be); /* padding */
+	writeLong(f, 0, be); /* padding */
+	writeLong(f, 0, be); /* padding */
 
 	uint8_t zero = 0;  /* GMON_TAG_TIME_HIST */
 	writeData(f, &zero, 1);
@@ -3585,10 +3596,10 @@ static void write_gmon(uint32_t *samples, uint32_t sampleNum, const char *filena
 	}
 
 	/* append binary memory gmon.out &profile_hist_hdr ((char*)&profile_hist_hdr + sizeof(struct gmon_hist_hdr)) */
-	writeLong(f, min);			/* low_pc */
-	writeLong(f, max);			/* high_pc */
-	writeLong(f, numBuckets);	/* # of buckets */
-	writeLong(f, 100);			/* KLUDGE! We lie, ca. 100Hz best case. */
+	writeLong(f, min, be);			/* low_pc */
+	writeLong(f, max, be);			/* high_pc */
+	writeLong(f, numBuckets, be);	/* # of buckets */
+	writeLong(f, 100, be);		/* KLUDGE! We lie, ca. 100Hz best case. */
 	writeString(f, "seconds");
 	for (i = 0; i < (15-strlen("seconds")); i++)
 		writeData(f, &zero, 1);
@@ -3679,8 +3690,12 @@ COMMAND_HANDLER(handle_profile_command)
 		COMMAND_PARSE_NUMBER(u32, CMD_ARGV[3], end_address);
 	}
 
+	bool be;
+	if( !strcmp(target_name(target), "or1200.cpu" ) || !strcmp(target_name(target), "or1k"))
+	  be = true;
+
 	write_gmon(samples, num_of_samples, CMD_ARGV[1],
-			with_range, start_address, end_address);
+		   with_range, start_address, end_address, be);
 	command_print(CMD_CTX, "Wrote %s", CMD_ARGV[1]);
 
 	free(samples);
