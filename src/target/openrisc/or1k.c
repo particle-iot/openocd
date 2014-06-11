@@ -85,6 +85,7 @@ struct or1k_core_reg_init or1k_init_reg_list[] = {
 	{"r31"      , GROUP0 + 1055, "org.gnu.gdb.or1k.group0", NULL},
 	{"ppc"      , GROUP0 + 18,   "org.gnu.gdb.or1k.group0", NULL},
 	{"npc"      , GROUP0 + 16,   "org.gnu.gdb.or1k.group0", NULL},
+	{"pc"       , GROUP0 + 16,   "org.gnu.gdb.or1k.group0", NULL},
 	{"sr"       , GROUP0 + 17,   "org.gnu.gdb.or1k.group0", NULL},
 	{"vr"       , GROUP0 + 0,    "org.gnu.gdb.or1k.group0", "system"},
 	{"upr"      , GROUP0 + 1,    "org.gnu.gdb.or1k.group0", "system"},
