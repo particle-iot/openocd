@@ -201,6 +201,9 @@ static int cmsis_dap_usb_open(void)
 	if (NULL != cur_dev) {
 		target_vid = cur_dev->vendor_id;
 		target_pid = cur_dev->product_id;
+	} else {
+		LOG_ERROR("unable to find CMSIS-DAP device");
+		return ERROR_FAIL;
 	}
 
 	hid_free_enumeration(devs);
