@@ -39,6 +39,7 @@ NOR_DRIVERS = \
 	tms470.c \
 	virtual.c \
 	fm3.c \
+	fm4.c \
 	dsp5680xx_flash.c \
 	kinetis.c \
 	mini51.c \
