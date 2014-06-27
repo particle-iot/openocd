@@ -23,6 +23,8 @@
 #endif
 
 #include "imp.h"
+#include <target/algorithm.h>
+#include <target/armv7m.h>
 
 enum {
 	NRF51_FLASH_BASE = 0x00000000,
@@ -600,55 +602,138 @@ static int nrf51_erase_page(struct nrf51_info *chip, struct flash_sector *sector
 	return res;
 }
 
-static int nrf51_ll_flash_write(struct nrf51_info *chip, uint32_t offset, const uint8_t *buffer, uint32_t buffer_size)
+static const uint16_t nrf51_flash_write_code[] = {
+	/* See contrib/loaders/flash/cortex-m0.S */
+/* <wait_fifo>: */
+	0x680d,		/* ldr	r5,	[r1,	#0] */
+	0x2d00,		/* cmp	r5,	#0 */
+	0xd00b,		/* beq.n	1e <exit> */
+	0x684c,		/* ldr	r4,	[r1,	#4] */
+	0x42ac,		/* cmp	r4,	r5 */
+	0xd0f9,		/* beq.n	0 <wait_fifo> */
+	0xcc20,		/* ldmia	r4!,	{r5} */
+	0xc320,		/* stmia	r3!,	{r5} */
+	0x4294,		/* cmp	r4,	r2 */
+	0xd301,		/* bcc.n	18 <no_wrap> */
+	0x460c,		/* mov	r4,	r1 */
+	0x3408,		/* adds	r4,	#8 */
+/* <no_wrap>: */
+	0x604c,		/* str	r4, [r1,	#4] */
+	0x3804,		/* subs	r0, #4 */
+	0xd1f0,		/* bne.n	0 <wait_fifo> */
+/* <exit>: */
+	0xbe00,		/* bkpt	0x0000 */
+};
+
+
+/* Start a low level flash write for the specified region */
+static int nrf51_ll_flash_write(struct nrf51_info *chip, uint32_t offset, const uint8_t *buffer, uint32_t bytes)
 {
-	int res;
-	assert(buffer_size % 4 == 0);
+	struct target *target = chip->target;
+	uint32_t buffer_size = 8192;
+	struct working_area *write_algorithm;
+	struct working_area *source;
+	uint32_t address = NRF51_FLASH_BASE + offset;
+	struct reg_param reg_params[4];
+	struct armv7m_algorithm armv7m_info;
+	int retval = ERROR_OK;
 
-	for (; buffer_size > 0; buffer_size -= 4) {
-		res = target_write_memory(chip->target, offset, 4, 1, buffer);
-		if (res != ERROR_OK)
-			return res;
+	assert(bytes % 4 == 0);
 
-		res = nrf51_wait_for_nvmc(chip);
-		if (res != ERROR_OK)
-			return res;
-
-		offset += 4;
-		buffer += 4;
+	/* allocate working area with flash programming code */
+	if (target_alloc_working_area(target, sizeof(nrf51_flash_write_code),
+			&write_algorithm) != ERROR_OK) {
+		LOG_WARNING("no working area available, can't do block memory writes");
+		return ERROR_TARGET_RESOURCE_NOT_AVAILABLE;
 	}
 
-	return ERROR_OK;
+	retval = target_write_buffer(target, write_algorithm->address,
+				sizeof(nrf51_flash_write_code),
+				(const uint8_t *)nrf51_flash_write_code);
+	if (retval != ERROR_OK)
+		return retval;
+
+	/* memory buffer */
+	while (target_alloc_working_area(target, buffer_size, &source) != ERROR_OK) {
+		buffer_size /= 2;
+		buffer_size &= ~3UL; /* Make sure it's 4 byte aligned */
+		if (buffer_size <= 256) {
+			/* free working area, write algorithm already allocated */
+			target_free_working_area(target, write_algorithm);
+
+			LOG_WARNING("No large enough working area available, can't do block memory writes");
+			return ERROR_TARGET_RESOURCE_NOT_AVAILABLE;
+		}
+	}
+
+	armv7m_info.common_magic = ARMV7M_COMMON_MAGIC;
+	armv7m_info.core_mode = ARM_MODE_THREAD;
+
+	init_reg_param(&reg_params[0], "r0", 32, PARAM_IN_OUT);	/* byte count */
+	init_reg_param(&reg_params[1], "r1", 32, PARAM_OUT);	/* buffer start */
+	init_reg_param(&reg_params[2], "r2", 32, PARAM_OUT);	/* buffer end */
+	init_reg_param(&reg_params[3], "r3", 32, PARAM_IN_OUT);	/* target address */
+
+	buf_set_u32(reg_params[0].value, 0, 32, bytes);
+	buf_set_u32(reg_params[1].value, 0, 32, source->address);
+	buf_set_u32(reg_params[2].value, 0, 32, source->address + source->size);
+	buf_set_u32(reg_params[3].value, 0, 32, address);
+
+	retval = target_run_flash_async_algorithm(target, buffer, bytes/4, 4,
+			0, NULL,
+			4, reg_params,
+			source->address, source->size,
+			write_algorithm->address, 0,
+			&armv7m_info);
+
+	target_free_working_area(target, source);
+	target_free_working_area(target, write_algorithm);
+
+	destroy_reg_param(&reg_params[0]);
+	destroy_reg_param(&reg_params[1]);
+	destroy_reg_param(&reg_params[2]);
+	destroy_reg_param(&reg_params[3]);
+
+	return retval;
 }
 
-static int nrf51_write_page(struct flash_bank *bank, uint32_t offset, const uint8_t *buffer)
+/* Check and erase flash sectors in specified range then start a low level page write.
+   start/end must be sector aligned.
+*/
+static int nrf51_write_pages(struct flash_bank *bank, uint32_t start, uint32_t end, const uint8_t *buffer)
 {
-	assert(offset % 4 == 0);
 	int res = ERROR_FAIL;
 	struct nrf51_info *chip = bank->driver_priv;
-	struct flash_sector *sector = nrf51_find_sector_by_address(bank, offset);
+	struct flash_sector *sector;
+	uint32_t offset;
 
-	if (!sector)
-		return ERROR_FLASH_SECTOR_INVALID;
+	assert(start % chip->code_page_size == 0);
+	assert(end % chip->code_page_size == 0);
 
-	if (sector->is_protected)
-		goto error;
+	/* Erase all sectors */
+	for (offset = start; offset < end; offset += chip->code_page_size) {
+		sector = nrf51_find_sector_by_address(bank, offset);
+		if (!sector)
+			return ERROR_FLASH_SECTOR_INVALID;
 
-	if (!sector->is_erased) {
-		res = nrf51_erase_page(chip, sector);
-		if (res != ERROR_OK) {
-			LOG_ERROR("Failed to erase sector @ 0x%08"PRIx32, sector->offset);
+		if (sector->is_protected)
 			goto error;
+
+		if (!sector->is_erased) {
+			res = nrf51_erase_page(chip, sector);
+			if (res != ERROR_OK) {
+				LOG_ERROR("Failed to erase sector @ 0x%08"PRIx32, sector->offset);
+				goto error;
+			}
 		}
+		sector->is_erased = 0;
 	}
 
 	res = nrf51_nvmc_write_enable(chip);
 	if (res != ERROR_OK)
 		goto error;
 
-	sector->is_erased = 0;
-
-	res = nrf51_ll_flash_write(chip, offset, buffer, chip->code_page_size);
+	res = nrf51_ll_flash_write(chip, start, buffer, (end - start));
 	if (res != ERROR_OK)
 		goto set_read_only;
 
@@ -657,7 +742,7 @@ static int nrf51_write_page(struct flash_bank *bank, uint32_t offset, const uint
 set_read_only:
 	nrf51_nvmc_read_only(chip);
 error:
-	LOG_ERROR("Failed to write sector @ 0x%08"PRIx32, sector->offset);
+	LOG_ERROR("Failed to write to nrf51 flash");
 	return res;
 }
 
@@ -712,11 +797,7 @@ static int nrf51_code_flash_write(struct flash_bank *bank,
 		       start_extra.buffer,
 		       chip->code_page_size - start_extra.length);
 
-		res = nrf51_write_page(bank,
-				       region.start - start_extra.length,
-				       page);
-		if (res != ERROR_OK)
-			return res;
+		region.start -= start_extra.length;
 	}
 
 	if (end_extra.length) {
@@ -733,25 +814,11 @@ static int nrf51_code_flash_write(struct flash_bank *bank,
 
 		memcpy(page, end_extra.buffer, end_extra.length);
 
-		res = nrf51_write_page(bank,
-				       region.end - end_extra.length,
-				       page);
-		if (res != ERROR_OK)
-			return res;
+		region.end += end_extra.length;
 	}
 
 
-	region.start += start_extra.length;
-	region.end   -= end_extra.length;
-
-	for (uint32_t address = region.start; address < region.end;
-	     address += chip->code_page_size) {
-		res = nrf51_write_page(bank, address, &buffer[address - region.start]);
-
-		if (res != ERROR_OK)
-			return res;
-
-	}
+	nrf51_write_pages(bank, region.start, region.end, buffer);
 
 	return ERROR_OK;
 }
