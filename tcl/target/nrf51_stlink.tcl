@@ -68,3 +68,11 @@ $_TARGETNAME configure -work-area-phys 0x20000000 -work-area-size $_WORKAREASIZE
 
 flash bank $_CHIPNAME.flash nrf51 0x00000000 0 1 1 $_TARGETNAME
 flash bank $_CHIPNAME.uicr nrf51 0x10001000 0 1 1 $_TARGETNAME
+
+proc enable_all_ram {} {
+	# nRF51822 Product Anomaly Notice (PAN) #16 explains that not all RAM banks
+	# are reliably enabled after reset on some revisions (contrary to spec.) So after
+	# resetting we enable all banks via the RAMON register
+	mww 0x40000524 0xF
+}
+$_TARGETNAME configure -event reset-end {  enable_all_ram }
