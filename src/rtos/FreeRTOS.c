@@ -331,6 +331,7 @@ static int FreeRTOS_update_threads(struct rtos *rtos)
 						sizeof(running_str));
 				strcpy(rtos->thread_details[tasks_found].extra_info_str,
 					running_str);
+				rtos->current_threadid = rtos->current_thread;
 			} else
 				rtos->thread_details[tasks_found].extra_info_str = NULL;
 
