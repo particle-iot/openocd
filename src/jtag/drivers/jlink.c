@@ -1471,7 +1471,7 @@ static int jlink_tap_execute(void)
 static struct jlink *jlink_usb_open()
 {
 	struct jtag_libusb_device_handle *devh;
-	if (jtag_libusb_open(vids, pids, &devh) != ERROR_OK)
+	if (jtag_libusb_open(vids, pids, NULL, &devh) != ERROR_OK)
 		return NULL;
 
 	/* BE ***VERY CAREFUL*** ABOUT MAKING CHANGES IN THIS
@@ -1495,7 +1495,7 @@ static struct jlink *jlink_usb_open()
 	/* reopen jlink after usb_reset
 	 * on win32 this may take a second or two to re-enumerate */
 	int retval;
-	while ((retval = jtag_libusb_open(vids, pids, &devh)) != ERROR_OK) {
+	while ((retval = jtag_libusb_open(vids, pids, NULL, &devh)) != ERROR_OK) {
 		usleep(1000);
 		timeout--;
 		if (!timeout)
