@@ -942,11 +942,27 @@ static int stlink_usb_reset(void *handle)
 
 	LOG_DEBUG("RESET: 0x%08X", h->databuf[0]);
 
-	/* the following is not a error under swd (using hardware srst), so return success */
-	if (h->databuf[0] == STLINK_SWD_AP_WAIT || h->databuf[0] == STLINK_SWD_DP_WAIT)
-		return ERROR_OK;
+	/* the following is not a error under swd (using hardware srst) */
+	if (h->databuf[0] == STLINK_SWD_AP_WAIT
+		|| h->databuf[0] == STLINK_SWD_DP_WAIT
+		|| h->databuf[0] == STLINK_DEBUG_ERR_OK) {
 
-	return h->databuf[0] == STLINK_DEBUG_ERR_OK ? ERROR_OK : ERROR_FAIL;
+		/* Try to restart tracing, if it's used */
+		if (h->jtag_api == STLINK_JTAG_API_V2 && h->trace.source_hz) {
+
+			if (h->trace.enabled)
+				stlink_usb_trace_disable(handle);
+
+			if (!h->trace.enabled) {
+				if (stlink_usb_trace_enable(handle) == ERROR_OK)
+					LOG_DEBUG("Tracing: restarted");
+				else
+					LOG_ERROR("Tracing: restart failed");
+			}
+		}
+		return ERROR_OK;
+	} else
+		return ERROR_FAIL;
 }
 
 static int stlink_usb_assert_srst(void *handle, int srst)
