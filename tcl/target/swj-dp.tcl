@@ -18,6 +18,10 @@
 # split out "chip" and "tag" so we can someday handle
 # them more uniformly irlen too...)
 
+if { [info exists TRANSPORT] } {
+ transport select $TRANSPORT
+}
+
 if [catch {transport select}] {
  echo "Info : session transport was not selected, defaulting to JTAG"
  transport select jtag
