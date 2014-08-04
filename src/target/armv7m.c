@@ -44,13 +44,6 @@
 #define _DEBUG_INSTRUCTION_EXECUTION_
 #endif
 
-struct armv7m_algorithm_scratchpad {
-	int common_magic;
-	enum arm_mode core_mode;
-	uint32_t context[ARMV7M_LAST_REG]; /* ARMV7M_NUM_REGS */
-};
-
-
 static char *armv7m_exception_strings[] = {
 	"", "Reset", "NMI", "HardFault",
 	"MemManage", "BusFault", "UsageFault", "RESERVED",
@@ -301,18 +294,11 @@ int armv7m_start_algorithm(struct target *target,
 	uint32_t entry_point, uint32_t exit_point,
 	void *arch_info)
 {
-	struct armv7m_algorithm_scratchpad *scratchpad;
 	struct armv7m_common *armv7m = target_to_armv7m(target);
+	struct armv7m_algorithm_scratchpad *scratchpad = &armv7m->scratchpad;
 	struct armv7m_algorithm *armv7m_algorithm_info = arch_info;
 	enum arm_mode core_mode = armv7m->arm.core_mode;
 	int retval = ERROR_OK;
-
-	scratchpad = target_allocate_algorithm_scratchpad(target,
-							  sizeof(struct armv7m_algorithm_scratchpad));
-	if (!scratchpad) {
-		LOG_ERROR("can't allocate a scratchpad area to run the algorithm");
-		return ERROR_FAIL;
-	}
 
 	/* NOTE: armv7m_run_algorithm requires that each algorithm uses a software breakpoint
 	 * at the exit point */
@@ -322,8 +308,6 @@ int armv7m_start_algorithm(struct target *target,
 		return ERROR_TARGET_INVALID;
 	}
 
-	scratchpad->common_magic = armv7m_algorithm_info->common_magic;
-
 	if (target->state != TARGET_HALTED) {
 		LOG_WARNING("target not halted");
 		return ERROR_TARGET_NOT_HALTED;
@@ -331,7 +315,7 @@ int armv7m_start_algorithm(struct target *target,
 
 	/* refresh core register cache
 	 * Not needed if core register cache is always consistent with target process state */
-	for (unsigned i = 0; i < ARRAY_SIZE(scratchpad->context); i++) {
+	for (unsigned i = 0; i < ARMV7M_NUM_REGS; i++) {
 		struct reg *r = &armv7m->arm.core_cache->reg_list[i];
 		scratchpad->context[i] = buf_get_u32(r->value, 0, 32);
 	}
@@ -396,39 +380,25 @@ int armv7m_wait_algorithm(struct target *target,
 	uint32_t exit_point, int timeout_ms,
 	void *arch_info)
 {
-	const struct armv7m_algorithm_scratchpad *scratchpad;
 	struct armv7m_common *armv7m = target_to_armv7m(target);
+	const struct armv7m_algorithm_scratchpad *scratchpad = &armv7m->scratchpad;
 
 	int retval = ERROR_OK;
 	uint32_t pc;
 
-	scratchpad = target_get_algorithm_scratchpad(target);
-
-	if (!scratchpad) {
-		LOG_ERROR("scratchpad area was not previously allocated");
-		return ERROR_FAIL;
-	}
-
 	/* NOTE: armv7m_run_algorithm requires that each algorithm uses a software breakpoint
 	 * at the exit point */
-
-	if (scratchpad->common_magic != ARMV7M_COMMON_MAGIC) {
-		LOG_ERROR("current target isn't an ARMV7M target");
-		retval = ERROR_TARGET_INVALID;
-		goto free_scratchpad;
-	}
 
 	retval = target_wait_state(target, TARGET_HALTED, timeout_ms);
 	/* If the target fails to halt due to the breakpoint, force a halt */
 	if (retval != ERROR_OK || target->state != TARGET_HALTED) {
 		retval = target_halt(target);
 		if (retval != ERROR_OK)
-			goto free_scratchpad;
+			return retval;
 		retval = target_wait_state(target, TARGET_HALTED, 500);
 		if (retval != ERROR_OK)
-			goto free_scratchpad;
-		retval = ERROR_TARGET_TIMEOUT;
-		goto free_scratchpad;
+			return retval;
+		return ERROR_TARGET_TIMEOUT;
 	}
 
 	armv7m->load_core_reg_u32(target, 15, &pc);
@@ -436,8 +406,7 @@ int armv7m_wait_algorithm(struct target *target,
 		LOG_DEBUG("failed algorithm halted at 0x%" PRIx32 ", expected 0x%" PRIx32,
 			pc,
 			exit_point);
-		retval = ERROR_TARGET_TIMEOUT;
-		goto free_scratchpad;
+		return ERROR_TARGET_TIMEOUT;
 	}
 
 	/* Read memory values to mem_params[] */
@@ -447,7 +416,7 @@ int armv7m_wait_algorithm(struct target *target,
 					mem_params[i].size,
 					mem_params[i].value);
 			if (retval != ERROR_OK)
-				goto free_scratchpad;
+				return retval;
 		}
 	}
 
@@ -460,16 +429,14 @@ int armv7m_wait_algorithm(struct target *target,
 
 			if (!reg) {
 				LOG_ERROR("BUG: register '%s' not found", reg_params[i].reg_name);
-				retval = ERROR_COMMAND_SYNTAX_ERROR;
-				goto free_scratchpad;
+				return ERROR_COMMAND_SYNTAX_ERROR;
 			}
 
 			if (reg->size != reg_params[i].size) {
 				LOG_ERROR(
 					"BUG: register '%s' size doesn't match reg_params[i].size",
 					reg_params[i].reg_name);
-				retval = ERROR_COMMAND_SYNTAX_ERROR;
-				goto free_scratchpad;
+				return ERROR_COMMAND_SYNTAX_ERROR;
 			}
 
 			buf_set_u32(reg_params[i].value, 0, 32, buf_get_u32(reg->value, 0, 32));
@@ -503,8 +470,6 @@ int armv7m_wait_algorithm(struct target *target,
 
 	armv7m->arm.core_mode = scratchpad->core_mode;
 
-free_scratchpad:
-	target_free_algorithm_scratchpad(target);
 	return retval;
 }
 

@@ -139,6 +139,11 @@ enum {
 
 #define ARMV7M_COMMON_MAGIC 0x2A452A45
 
+struct armv7m_algorithm_scratchpad {
+	enum arm_mode core_mode;
+	uint32_t context[ARMV7M_LAST_REG]; /* ARMV7M_NUM_REGS */
+};
+
 struct armv7m_common {
 	struct arm	arm;
 
@@ -148,6 +153,9 @@ struct armv7m_common {
 
 	int fp_feature;
 	uint32_t demcr;
+
+	/* Holds saved context during algorithm execution */
+	struct armv7m_algorithm_scratchpad scratchpad;
 
 	/* stlink is a high level adapter, does not support all functions */
 	bool stlink;

@@ -196,8 +196,6 @@ struct target {
 
 	/* file-I/O information for host to do syscall */
 	struct gdb_fileio_info *fileio_info;
-
-	void *algorithm_scratchpad;
 };
 
 struct target_list {
@@ -470,27 +468,6 @@ int target_wait_algorithm(struct target *target,
 		int num_reg_params, struct reg_param *reg_params,
 		uint32_t exit_point, int timeout_ms,
 		void *arch_info);
-
-
-/**
- * Allocate a chunk of memory that algorithm can use as a scratchpad
- * and save information needed to return @a target to its original
- * state after execution is finished
- *
- * Function returns pointer to a memory allocated on success and NULL
- * pointer on failure
- */
-void *target_allocate_algorithm_scratchpad(struct target *target, size_t size);
-
-/**
- * Free the memory allocated for algorithm scratchpad
- */
-void target_free_algorithm_scratchpad(struct target *target);
-
-/**
- * Get previously allocated scratchpad area
- */
-void *target_get_algorithm_scratchpad(struct target *target);
 
 /**
  * This routine is a wrapper for asynchronous algorithms.
