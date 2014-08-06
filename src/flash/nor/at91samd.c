@@ -27,6 +27,7 @@
 #define SAMD_NUM_SECTORS	16
 
 #define SAMD_FLASH			((uint32_t)0x00000000)	/* physical Flash memory */
+#define SAMD_PAC1			0x41000000	/* Peripheral Access Control 1 */
 #define SAMD_DSU			0x41002000	/* Device Service Unit */
 #define SAMD_NVMCTRL		0x41004000	/* Non-volatile memory controller */
 
@@ -652,6 +653,23 @@ COMMAND_HANDLER(samd_handle_info_command)
 	return ERROR_OK;
 }
 
+COMMAND_HANDLER(samd_handle_chip_erase_command)
+{
+	struct target *target = get_current_target(CMD_CTX);
+
+	if (target) {
+		/* Enable access to the DSU by disabling the write protect bit */
+		target_write_u32(target, SAMD_PAC1, (1<<1));
+		/* Tell the DSU to perform a full chip erase.  It takes about 240ms to
+		 * perform the erase. */
+		target_write_u8(target, SAMD_DSU, (1<<4));
+
+		command_print(CMD_CTX, "chip erased");
+	}
+
+	return ERROR_OK;
+}
+
 static const struct command_registration at91samd_exec_command_handlers[] = {
 	{
 		.name = "info",
@@ -659,6 +677,13 @@ static const struct command_registration at91samd_exec_command_handlers[] = {
 		.mode = COMMAND_EXEC,
 		.help = "Print information about the current at91samd chip"
 			"and its flash configuration.",
+	},
+	{
+		.name = "chip-erase",
+		.handler = samd_handle_chip_erase_command,
+		.mode = COMMAND_EXEC,
+		.help = "Erase the entire Flash by using the Chip"
+			"Erase feature in the Device Service Unit (DSU).",
 	},
 	COMMAND_REGISTRATION_DONE
 };
