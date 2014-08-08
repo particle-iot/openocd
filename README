@@ -211,7 +211,7 @@ You'll also need:
 
 - make
 - libtool
-- pkg-config >= 0.23 (or compatible)
+- pkg-config >= 0.22 (or compatible)
 
 Additionally, for building from git:
 
