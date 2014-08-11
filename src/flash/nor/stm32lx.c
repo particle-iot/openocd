@@ -556,7 +556,7 @@ static int stm32lx_probe(struct flash_bank *bank)
 	case 0x437:
 		/* Dual bank, high density */
 		max_flash_size_in_kb = 512;
-		first_bank_size_in_kb = 192;
+		first_bank_size_in_kb = 256;
 		stm32lx_info->has_dual_banks = true;
 		break;
 	default:
