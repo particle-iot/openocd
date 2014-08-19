@@ -553,6 +553,9 @@ static int jim_newtap_cmd(Jim_GetOptInfo *goi)
 	LOG_DEBUG("Creating New Tap, Chip: %s, Tap: %s, Dotted: %s, %d params",
 		pTap->chip, pTap->tapname, pTap->dotted_name, goi->argc);
 
+	/* default is enabled-after-reset */
+	pTap->enabled = !pTap->disabled_after_reset;
+
 	if (!transport_is_jtag()) {
 		/* SWD or CMSIS-DAP (which is currently SWD-only) doesn't
 		   require any JTAG tap parameters */
@@ -606,9 +609,6 @@ static int jim_newtap_cmd(Jim_GetOptInfo *goi)
 			    break;
 		}	/* switch (n->value) */
 	}	/* while (goi->argc) */
-
-	/* default is enabled-after-reset */
-	pTap->enabled = !pTap->disabled_after_reset;
 
 	/* Did all the required option bits get cleared? */
 	if (pTap->ir_length != 0) {
