@@ -935,8 +935,12 @@ static int ftdi_swd_init(void)
 static void ftdi_swd_swdio_en(bool enable)
 {
 	struct signal *oe = find_signal_by_name("SWDIO_OE");
+	if (enable)
+		mpsse_set_data_bits_low_byte(mpsse_ctx, output & 0xff, direction & 0xff);
 	if (oe)
 		ftdi_set_signal(oe, enable ? '1' : '0');
+	if (!enable)
+		mpsse_set_data_bits_low_byte(mpsse_ctx, output & 0xff, direction & 0xfb);
 }
 
 /**
