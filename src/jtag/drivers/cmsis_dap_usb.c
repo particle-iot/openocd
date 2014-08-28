@@ -61,6 +61,7 @@
 static uint16_t cmsis_dap_vid[MAX_USB_IDS + 1] = { 0 };
 static uint16_t cmsis_dap_pid[MAX_USB_IDS + 1] = { 0 };
 static bool swd_mode;
+static wchar_t *cmsis_dap_serial;
 
 #define PACKET_SIZE       (64 + 1)	/* 64 bytes plus report id */
 #define USB_TIMEOUT       1000
@@ -174,6 +175,11 @@ static int cmsis_dap_usb_open(void)
 	devs = hid_enumerate(0x0, 0x0);
 	cur_dev = devs;
 	while (NULL != cur_dev) {
+		/* filter by serial number if specified */
+		if (cmsis_dap_serial && wcscmp(cmsis_dap_serial, cur_dev->serial_number)) {
+			cur_dev = cur_dev->next;
+			continue;
+		}
 		if (0 == cmsis_dap_vid[0]) {
 			if (NULL == cur_dev->product_string) {
 				LOG_DEBUG("Cannot read product string of device 0x%x:0x%x",
@@ -270,6 +276,11 @@ static void cmsis_dap_usb_close(struct cmsis_dap *dap)
 	if (cmsis_dap_handle) {
 		free(cmsis_dap_handle);
 		cmsis_dap_handle = NULL;
+	}
+
+	if (cmsis_dap_serial) {
+		free(cmsis_dap_serial);
+		cmsis_dap_serial = NULL;
 	}
 
 	return;
@@ -1000,6 +1011,25 @@ COMMAND_HANDLER(cmsis_dap_handle_vid_pid_command)
 	return ERROR_OK;
 }
 
+COMMAND_HANDLER(cmsis_dap_handle_serial_command)
+{
+	wchar_t buf[256];
+	size_t size;
+
+	if (CMD_ARGC != 1)
+		return ERROR_COMMAND_SYNTAX_ERROR;
+
+	size = mbstowcs(buf, CMD_ARGV[0], sizeof(buf));
+	if (size == (size_t)(-1))
+		return ERROR_COMMAND_SYNTAX_ERROR;
+
+	cmsis_dap_serial = wcsdup(buf);
+	if (cmsis_dap_serial == NULL)
+		return ERROR_COMMAND_SYNTAX_ERROR;
+
+	return ERROR_OK;
+}
+
 static const struct command_registration cmsis_dap_subcommand_handlers[] = {
 	{
 		.name = "info",
@@ -1018,6 +1048,13 @@ static const struct command_registration cmsis_dap_command_handlers[] = {
 		.help = "perform CMSIS-DAP management",
 		.usage = "<cmd>",
 		.chain = cmsis_dap_subcommand_handlers,
+	},
+	{
+		.name = "cmsis_dap_serial",
+		.handler = &cmsis_dap_handle_serial_command,
+		.mode = COMMAND_CONFIG,
+		.help = "set the serial number",
+		.usage = "serial_string",
 	},
 	{
 		.name = "cmsis_dap_vid_pid",
