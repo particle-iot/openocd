@@ -186,6 +186,9 @@ struct cortex_m_common {
 
 	enum cortex_m_soft_reset_config soft_reset_config;
 
+	int psoc4_reset_quirk;
+	int psoc4_reset_delay;
+
 	enum cortex_m_isrmasking_mode isrmasking_mode;
 
 	struct armv7m_common armv7m;
