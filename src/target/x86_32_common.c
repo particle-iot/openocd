@@ -6,6 +6,7 @@
  * Ivan De Cesaris (ivan.de.cesaris@intel.com)
  * Julien Carreno (julien.carreno@intel.com)
  * Jeffrey Maxwell (jeffrey.r.maxwell@intel.com)
+ * Jessica Gomez (jessica.gomez.hernandez@intel.com)
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -769,7 +770,7 @@ int x86_32_common_write_io(struct target *t, uint32_t addr,
 		LOG_ERROR("%s invalid params buf=%p, addr=0x%08" PRIx32, __func__, buf, addr);
 		return retval;
 	}
-	/* no do the write */
+	/* now do the write */
 	retval = x86_32->write_hw_reg(t, EDX, addr, 0);
 	if (retval != ERROR_OK) {
 		LOG_ERROR("%s error on EDX write", __func__);
@@ -1215,6 +1216,7 @@ static int set_watchpoint(struct target *t, struct watchpoint *wp)
 			break;
 		default:
 			LOG_ERROR("%s only 'access' or 'write' watchpoints are supported", __func__);
+			return ERROR_TARGET_RESOURCE_NOT_AVAILABLE;
 			break;
 	}
 	wp->set = wp_num + 1;
@@ -1255,6 +1257,36 @@ static int unset_watchpoint(struct target *t, struct watchpoint *wp)
 			wp->unique_id, wp->address, wp->length, wp_num);
 
 	return ERROR_OK;
+}
+
+/* after reset breakpoints and watchpoints in memory are not valid anymore and
+ * debug registers are cleared.
+ * we can't afford to remove sw breakpoints using the default methods as the
+ * memory doesn't have the same layout yet and an access might crash the target,
+ * so we just clear the openocd breakpoints structures.
+ */
+void x86_32_common_reset_breakpoints_watchpoints(struct target *t)
+{
+	struct x86_32_common *x86_32 = target_to_x86_32(t);
+	struct x86_32_dbg_reg *debug_reg_list = x86_32->hw_break_list;
+	struct breakpoint *next_b;
+	struct watchpoint *next_w;
+
+	while (t->breakpoints) {
+		next_b = t->breakpoints->next;
+		free(t->breakpoints->orig_instr);
+		free(t->breakpoints);
+		t->breakpoints = next_b;
+	}
+	while (t->watchpoints) {
+		next_w = t->watchpoints->next;
+		free(t->watchpoints);
+		t->watchpoints = next_w;
+	}
+	for (int i = 0; i < x86_32->num_hw_bpoints; i++) {
+		debug_reg_list[i].used = 0;
+		debug_reg_list[i].bp_value = 0;
+	}
 }
 
 static int read_hw_reg_to_cache(struct target *t, int num)

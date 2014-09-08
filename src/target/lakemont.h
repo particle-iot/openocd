@@ -6,6 +6,7 @@
  * Ivan De Cesaris (ivan.de.cesaris@intel.com)
  * Julien Carreno (julien.carreno@intel.com)
  * Jeffrey Maxwell (jeffrey.r.maxwell@intel.com)
+ * Jessica Gomez (jessica.gomez.hernandez@intel.com)
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -91,6 +92,7 @@ struct scan_blk {
 
 int lakemont_init_target(struct command_context *cmd_ctx, struct target *t);
 int lakemont_init_arch_info(struct target *t, struct x86_32_common *x86_32);
+int lakemont_update_after_probemode_entry(struct target *t);
 int lakemont_poll(struct target *t);
 int lakemont_arch_state(struct target *t);
 int lakemont_halt(struct target *t);

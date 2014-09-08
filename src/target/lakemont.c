@@ -6,6 +6,7 @@
  * Ivan De Cesaris (ivan.de.cesaris@intel.com)
  * Julien Carreno (julien.carreno@intel.com)
  * Jeffrey Maxwell (jeffrey.r.maxwell@intel.com)
+ * Jessica Gomez (jessica.gomez.hernandez@intel.com)
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -510,8 +511,7 @@ static int halt_prep(struct target *t)
 	LOG_DEBUG("EFLAGS = 0x%08" PRIx32 ", VM86 = %d, IF = %d", eflags,
 			eflags & EFLAGS_VM86 ? 1 : 0,
 			eflags & EFLAGS_IF ? 1 : 0);
-	if (eflags & EFLAGS_VM86
-		|| eflags & EFLAGS_IF) {
+	if ((eflags & EFLAGS_VM86) || (eflags & EFLAGS_IF)) {
 		x86_32->pm_regs[I(EFLAGS)] = eflags & ~(EFLAGS_VM86 | EFLAGS_IF);
 		if (write_hw_reg(t, EFLAGS, x86_32->pm_regs[I(EFLAGS)], 0) != ERROR_OK)
 			return ERROR_FAIL;
@@ -562,6 +562,13 @@ static int do_halt(struct target *t)
 	t->state = TARGET_DEBUG_RUNNING;
 	if (enter_probemode(t) != ERROR_OK)
 		return ERROR_FAIL;
+
+	return lakemont_update_after_probemode_entry(t);
+}
+
+/* we need to expose the update to be able to complete the reset at SoC level */
+int lakemont_update_after_probemode_entry(struct target *t)
+{
 	if (save_context(t) != ERROR_OK)
 		return ERROR_FAIL;
 	if (halt_prep(t) != ERROR_OK)
@@ -1098,7 +1105,6 @@ int lakemont_step(struct target *t, int current,
 	return retval;
 }
 
-/* TODO - implement resetbreak fully through CLTAP registers */
 int lakemont_reset_assert(struct target *t)
 {
 	LOG_DEBUG("-");

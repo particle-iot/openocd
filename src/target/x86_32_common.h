@@ -6,6 +6,7 @@
  * Ivan De Cesaris (ivan.de.cesaris@intel.com)
  * Julien Carreno (julien.carreno@intel.com)
  * Jeffrey Maxwell (jeffrey.r.maxwell@intel.com)
+ * Jessica Gomez (jessica.gomez.hernandez@intel.com)
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of version 2 of the GNU General Public License as
@@ -320,5 +321,6 @@ int x86_32_common_add_breakpoint(struct target *t, struct breakpoint *bp);
 int x86_32_common_remove_breakpoint(struct target *t, struct breakpoint *bp);
 int x86_32_common_add_watchpoint(struct target *t, struct watchpoint *wp);
 int x86_32_common_remove_watchpoint(struct target *t, struct watchpoint *wp);
+void x86_32_common_reset_breakpoints_watchpoints(struct target *t);
 
 #endif /* X86_32_COMMON_H */
