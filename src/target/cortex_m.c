@@ -42,6 +42,8 @@
 #include "arm_semihosting.h"
 #include <helper/time_support.h>
 
+#include <jtag/swd.h>
+
 /* NOTE:  most of this should work fine for the Cortex-M1 and
  * Cortex-M0 cores too, although they're ARMv6-M not ARMv7-M.
  * Some differences:  M0/M1 doesn't have FBP remapping or the
@@ -960,6 +962,68 @@ static int cortex_m_step(struct target *target, int current,
 	return ERROR_OK;
 }
 
+/*
+ * Cypress PSoC 4 strange reset handling
+ * XRES (nSRST) disables SWD - do reconnect after srst
+ * VC_CORERESET breaks SWD connection so it can't be used for reset halt
+ * TEST_MODE is used instead, CPU loops in system ROM after reset
+ * TEST_MODE flag should be set in 400usec time frame cca 1msec after reset
+ */
+#define PSOC4_TEST_MODE 0x40030014
+
+#define PSOC4_TEST_MODE_SRST_SWD_RESTART 1
+#define PSOC4_TEST_MODE_SYSRESETREQ 2
+#define PSOC4_TEST_MODE_SWD_RESTART_ALWAYS 4
+
+extern struct jtag_interface *jtag_interface;
+
+static int cortex_m_psoc4_reset_test_mode(struct target *target, bool swd_restart)
+{
+	struct cortex_m_common *cortex_m = target_to_cm(target);
+	struct adiv5_dap *swjdp = cortex_m->armv7m.arm.dap;
+	int retval;
+
+	jtag_add_sleep(cortex_m->psoc4_reset_delay);
+
+	if (swd_restart) {
+
+		uint32_t idcode;
+
+		const struct swd_driver *swd = jtag_interface->swd;
+		assert(swd);
+		swd->switch_seq(swjdp, LINE_RESET);
+
+		dap_queue_dp_read(swjdp, DP_IDCODE, &idcode);
+
+		if (target->reset_halt) {
+			/* SWD re-init must be fastest as possible to set PSoC 4
+			   TEST_MODE in time.
+			   Do not check anything and buffer everything to do in one dap_run
+			   (actually called at the end of mem_ap_write_atomic_u32)
+			 */
+			swjdp->dp_ctrl_stat = CDBGRSTREQ | CDBGPWRUPREQ | CSYSPWRUPREQ;
+			dap_queue_dp_write(swjdp, DP_CTRL_STAT, swjdp->dp_ctrl_stat);
+
+			swjdp->dp_bank_value = 0;
+			dap_queue_dp_write(swjdp, DP_SELECT, swjdp->dp_bank_value);
+
+			retval = mem_ap_write_atomic_u32(swjdp, PSOC4_TEST_MODE, 0x80000000);
+
+			LOG_DEBUG("PSoC 4 SWD fast acquire IDCODE 0x%08x", idcode);
+
+		} else {
+			retval = ahbap_debugport_init(swjdp);
+		}
+
+	} else {
+
+		retval = mem_ap_write_atomic_u32(swjdp, PSOC4_TEST_MODE, 0x80000000);
+		LOG_DEBUG("PSoC 4 TEST_MODE set");
+	}
+	return retval;
+}
+
+
 static int cortex_m_assert_reset(struct target *target)
 {
 	struct cortex_m_common *cortex_m = target_to_cm(target);
@@ -1015,7 +1079,10 @@ static int cortex_m_assert_reset(struct target *target)
 	if (retval != ERROR_OK)
 		return retval;
 
-	if (!target->reset_halt) {
+	if (!target->reset_halt
+			|| cortex_m->psoc4_reset_quirk
+				/* Reset vector catch do not work on PSoC 4 */
+		 ) {
 		/* Set/Clear C_MASKINTS in a separate operation */
 		if (cortex_m->dcb_dhcsr & C_MASKINTS) {
 			retval = mem_ap_write_atomic_u32(swjdp, DCB_DHCSR,
@@ -1057,6 +1124,14 @@ static int cortex_m_assert_reset(struct target *target)
 				? AIRCR_SYSRESETREQ : AIRCR_VECTRESET));
 		if (retval != ERROR_OK)
 			return retval;
+
+		if ((cortex_m->psoc4_reset_quirk & PSOC4_TEST_MODE_SYSRESETREQ)
+				&& target->reset_halt) {
+			retval = cortex_m_psoc4_reset_test_mode(target,
+				cortex_m->psoc4_reset_quirk & PSOC4_TEST_MODE_SWD_RESTART_ALWAYS);
+			if (retval != ERROR_OK)
+				return retval;
+		}
 
 		LOG_DEBUG("Using Cortex-M %s", (reset_config == CORTEX_M_RESET_SYSRESETREQ)
 			? "SYSRESETREQ" : "VECTRESET");
@@ -1112,6 +1187,17 @@ static int cortex_m_deassert_reset(struct target *target)
 
 	/* deassert reset lines */
 	adapter_deassert_reset();
+
+	struct cortex_m_common *cortex_m = target_to_cm(target);
+	enum reset_types jtag_reset_config = jtag_get_reset_config();
+	if ((cortex_m->psoc4_reset_quirk & PSOC4_TEST_MODE_SRST_SWD_RESTART)
+			&& (jtag_reset_config & RESET_HAS_SRST)) {
+		/* PSoC 4 needs SWD line reset and DP init after SRST deassert */
+		int retval;
+		retval = cortex_m_psoc4_reset_test_mode(target, true);
+		if (retval != ERROR_OK)
+			return retval;
+	}
 
 	return ERROR_OK;
 }
@@ -2190,6 +2276,52 @@ COMMAND_HANDLER(handle_cortex_m_reset_config_command)
 	return ERROR_OK;
 }
 
+COMMAND_HANDLER(handle_psoc4_reset_quirk_command)
+{
+	struct target *target = get_current_target(CMD_CTX);
+	struct cortex_m_common *cortex_m = target_to_cm(target);
+
+	uint32_t flags = cortex_m->psoc4_reset_quirk;
+
+	switch (CMD_ARGC) {
+	case 0:
+		break;
+	case 1:
+		COMMAND_PARSE_NUMBER(u32, CMD_ARGV[0], flags);
+		break;
+	default:
+		return ERROR_COMMAND_SYNTAX_ERROR;
+	}
+	cortex_m->psoc4_reset_quirk = flags;
+	command_print(CMD_CTX, "Cypress PSoC 4 reset to test mode flags %d",
+		flags);
+
+	return 0;
+}
+
+COMMAND_HANDLER(handle_psoc4_reset_delay_command)
+{
+	struct target *target = get_current_target(CMD_CTX);
+	struct cortex_m_common *cortex_m = target_to_cm(target);
+
+	int delay = cortex_m->psoc4_reset_delay;
+
+	switch (CMD_ARGC) {
+	case 0:
+		break;
+	case 1:
+		COMMAND_PARSE_NUMBER(int, CMD_ARGV[0], delay);
+		break;
+	default:
+		return ERROR_COMMAND_SYNTAX_ERROR;
+	}
+	cortex_m->psoc4_reset_delay = delay;
+	command_print(CMD_CTX, "Cypress PSoC 4 delay from reset deassert to SWD activate %d usec",
+		delay);
+
+	return 0;
+}
+
 static const struct command_registration cortex_m_exec_command_handlers[] = {
 	{
 		.name = "maskisr",
@@ -2211,6 +2343,19 @@ static const struct command_registration cortex_m_exec_command_handlers[] = {
 		.mode = COMMAND_ANY,
 		.help = "configure software reset handling",
 		.usage = "['srst'|'sysresetreq'|'vectreset']",
+	},
+	{
+		.name = "psoc4_reset_quirk",
+		.handler = handle_psoc4_reset_quirk_command,
+		.mode = COMMAND_ANY,
+		.help = "reset to test mode for PSoC 4",
+		.usage = "[0|1|3]",
+	},
+	{
+		.name = "psoc4_reset_delay",
+		.handler = handle_psoc4_reset_delay_command,
+		.mode = COMMAND_ANY,
+		.help = "SWD inactive after reset delay for PSoC 4 [usec]",
 	},
 	COMMAND_REGISTRATION_DONE
 };
