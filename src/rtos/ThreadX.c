@@ -100,7 +100,7 @@ enum ThreadX_symbol_values {
 	ThreadX_VAL_tx_thread_created_count = 2,
 };
 
-static char *ThreadX_symbol_list[] = {
+static const char *ThreadX_symbol_list[] = {
 	"_tx_thread_current_ptr",
 	"_tx_thread_created_ptr",
 	"_tx_thread_created_count",

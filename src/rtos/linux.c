@@ -320,7 +320,7 @@ static int linux_os_detect(struct target *target)
 static int linux_os_smp_init(struct target *target);
 static int linux_os_clean(struct target *target);
 #define INIT_TASK 0
-static char *linux_symbol_list[] = {
+static const char *linux_symbol_list[] = {
 	"init_task",
 	NULL
 };

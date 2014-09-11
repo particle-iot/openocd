@@ -33,7 +33,7 @@ struct reg;
  * Table should be terminated by an element with NULL in symbol_name
  */
 typedef struct symbol_table_elem_struct {
-	char *symbol_name;
+	const char *symbol_name;
 	symbol_address_t address;
 
 } symbol_table_elem_t;

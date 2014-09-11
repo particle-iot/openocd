@@ -40,7 +40,7 @@ struct eCos_thread_state {
 	char *desc;
 };
 
-struct eCos_thread_state eCos_thread_states[] = {
+static const struct eCos_thread_state eCos_thread_states[] = {
 	{ 0, "Ready" },
 	{ 1, "Sleeping" },
 	{ 2, "Countsleep" },
@@ -62,7 +62,7 @@ struct eCos_params {
 	const struct rtos_register_stacking *stacking_info;
 };
 
-const struct eCos_params eCos_params_list[] = {
+static const struct eCos_params eCos_params_list[] = {
 	{
 	"cortex_m",			/* target_name */
 	4,						/* pointer_width; */
@@ -82,7 +82,7 @@ enum eCos_symbol_values {
 	eCos_VAL_current_thread_ptr = 1
 };
 
-static char *eCos_symbol_list[] = {
+static const char *eCos_symbol_list[] = {
 	"Cyg_Thread::thread_list",
 	"Cyg_Scheduler_Base::current_thread",
 	NULL
