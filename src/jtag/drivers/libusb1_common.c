@@ -122,8 +122,14 @@ int jtag_libusb_set_configuration(jtag_libusb_device_handle *devh,
 	int retCode = -99;
 
 	struct libusb_config_descriptor *config = NULL;
+	int current_config;
 
 	libusb_get_config_descriptor(udev, configuration, &config);
+
+	if (!libusb_get_configuration(devh, &current_config) &&
+	    current_config == config->bConfigurationValue)
+		return 0;
+
 	retCode = libusb_set_configuration(devh, config->bConfigurationValue);
 
 	libusb_free_config_descriptor(config);
