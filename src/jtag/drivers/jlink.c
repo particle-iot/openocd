@@ -194,7 +194,8 @@ static const char * const jlink_cap_str[] = {
 #define JLINK_HW_TYPE_FLASHER			2
 #define JLINK_HW_TYPE_JLINK_PRO			3
 #define JLINK_HW_TYPE_JLINK_LITE_ADI	5
-#define JLINK_HW_TYPE_MAX				6
+#define JLINK_HW_TYPE_LPCLINK2			18
+#define JLINK_HW_TYPE_MAX				19
 
 static const char * const jlink_hw_type_str[] = {
 	"J-Link",
@@ -203,6 +204,19 @@ static const char * const jlink_hw_type_str[] = {
 	"J-Link Pro",
 	"Unknown",
 	"J-Link Lite-ADI",
+	"Unknown",
+	"Unknown",
+	"Unknown",
+	"Unknown",
+	"Unknown",
+	"Unknown",
+	"Unknown",
+	"Unknown",
+	"Unknown",
+	"Unknown",
+	"Unknown",
+	"Unknown",
+	"J-Link on LPC-Link2"
 };
 
 #define JLINK_TIF_JTAG		0
