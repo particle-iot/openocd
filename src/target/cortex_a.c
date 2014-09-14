@@ -1952,8 +1952,8 @@ static int cortex_a_read_apb_ab_memory(struct target *target,
 	int end_byte   = (address + total_bytes) & 0x3;
 	struct reg *reg;
 	uint32_t dscr;
+	uint32_t tmp;
 	uint8_t *tmp_buff = NULL;
-	uint8_t buf[8];
 	uint8_t *u8buf_ptr;
 
 	LOG_DEBUG("Reading APB-AP memory address 0x%" PRIx32 " size %"  PRIu32 " count%"  PRIu32,
@@ -2004,13 +2004,12 @@ static int cortex_a_read_apb_ab_memory(struct target *target,
 	 * and the DTR mode setting to fast mode
 	 * in one combined write (since they are adjacent registers)
 	 */
-	u8buf_ptr = buf;
-	target_buffer_set_u32(target, u8buf_ptr, ARMV4_5_LDC(0, 1, 0, 1, 14, 5, 0, 4));
 	dscr = (dscr & ~DSCR_EXT_DCC_MASK) | DSCR_EXT_DCC_FAST_MODE;
-	target_buffer_set_u32(target, u8buf_ptr + 4, dscr);
-	/*  group the 2 access CPUDBG_ITR 0x84 and CPUDBG_DSCR 0x88 */
-	retval += mem_ap_sel_write_buf(swjdp, armv7a->debug_ap, u8buf_ptr, 4, 2,
-			armv7a->debug_base + CPUDBG_ITR);
+	retval += mem_ap_sel_write_atomic_u32(swjdp,armv7a->debug_ap,armv7a->debug_base + CPUDBG_DSCR,dscr);
+	retval += mem_ap_sel_write_atomic_u32(swjdp,armv7a->debug_ap,armv7a->debug_base + CPUDBG_ITR,ARMV4_5_LDC(0, 1, 0, 1, 14, 5, 0, 4));
+	/* dummy read DTRTX for triggerring IRT command filled in */
+	retval = mem_ap_sel_read_atomic_u32(swjdp, armv7a->debug_ap,
+			armv7a->debug_base + CPUDBG_DTRTX, &tmp);
 	if (retval != ERROR_OK)
 		goto error_unset_dtr_r;
 
