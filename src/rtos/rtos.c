@@ -464,7 +464,7 @@ int rtos_generic_stack_read(struct target *target,
 		/* Align new stack pointer to x byte boundary */
 		new_stack_ptr =
 			(new_stack_ptr & (~((int64_t) stacking->stack_alignment - 1))) +
-			((stacking->stack_growth_direction == -1) ? stacking->stack_alignment : 0);
+			((stacking->stack_growth_direction == 1) ? stacking->stack_alignment : 0);
 	}
 	for (i = 0; i < stacking->num_output_registers; i++) {
 		int j;
