@@ -2005,8 +2005,9 @@ static int cortex_a_read_apb_ab_memory(struct target *target,
 	 * in one combined write (since they are adjacent registers)
 	 */
 	dscr = (dscr & ~DSCR_EXT_DCC_MASK) | DSCR_EXT_DCC_FAST_MODE;
-	retval += mem_ap_sel_write_atomic_u32(swjdp,armv7a->debug_ap,armv7a->debug_base + CPUDBG_DSCR,dscr);
-	retval += mem_ap_sel_write_atomic_u32(swjdp,armv7a->debug_ap,armv7a->debug_base + CPUDBG_ITR,ARMV4_5_LDC(0, 1, 0, 1, 14, 5, 0, 4));
+	retval += mem_ap_sel_write_atomic_u32(swjdp, armv7a->debug_ap, armv7a->debug_base + CPUDBG_DSCR, dscr);
+	retval += mem_ap_sel_write_atomic_u32(swjdp, armv7a->debug_ap,
+			armv7a->debug_base + CPUDBG_ITR, ARMV4_5_LDC(0, 1, 0, 1, 14, 5, 0, 4));
 	/* dummy read DTRTX for triggerring IRT command filled in */
 	retval = mem_ap_sel_read_atomic_u32(swjdp, armv7a->debug_ap,
 			armv7a->debug_base + CPUDBG_DTRTX, &tmp);
