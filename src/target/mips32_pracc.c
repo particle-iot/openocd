@@ -998,8 +998,7 @@ int mips32_pracc_read_regs(struct mips_ejtag *ejtag_info, uint32_t *regs)
 	pracc_add(&ctx, 0, MIPS32_B(NEG16(ctx.code_count + 1)));	/* jump to start */
 	pracc_add(&ctx, 0, MIPS32_MTC0(1, 31, 0));			        /* move COP0 DeSave to $1, restore reg1 */
 
-//  if (ejtag_info->mode == 0)
-		ctx.store_count++;	/* Needed by legacy code, due to offset from reg0 */
+	ctx.store_count++;
 
 	ctx.retval = mips32_pracc_exec(ejtag_info, &ctx, regs);
 
