@@ -89,22 +89,26 @@ static int wait_for_pracc_rw(struct mips_ejtag *ejtag_info, uint32_t *ctrl)
 {
 	uint32_t ejtag_ctrl;
 	long long then = timeval_ms();
+    int timeout;
+    int retval;
 
 	/* wait for the PrAcc to become "1" */
 	mips_ejtag_set_instr(ejtag_info, EJTAG_INST_CONTROL);
 
 	while (1) {
 		ejtag_ctrl = ejtag_info->ejtag_ctrl;
-		int retval = mips_ejtag_drscan_32(ejtag_info, &ejtag_ctrl);
-		if (retval != ERROR_OK)
+		retval = mips_ejtag_drscan_32(ejtag_info, &ejtag_ctrl);
+		if (retval != ERROR_OK) {
+			LOG_ERROR("mips_ejtag_drscan_32 Failed");
 			return retval;
+		}
 
 		if (ejtag_ctrl & EJTAG_CTRL_PRACC)
 			break;
 
-		int timeout = timeval_ms() - then;
+		timeout = timeval_ms() - then;
 		if (timeout > 1000) {
-			LOG_DEBUG("DEBUGMODULE: No memory access in progress!");
+			LOG_ERROR("Timeout: No memory access in progress!");
 			return ERROR_JTAG_DEVICE_ERROR;
 		}
 	}
@@ -117,8 +121,10 @@ static int wait_for_pracc_rw(struct mips_ejtag *ejtag_info, uint32_t *ctrl)
 static int mips32_pracc_read_ctrl_addr(struct mips_ejtag *ejtag_info)
 {
 	int retval = wait_for_pracc_rw(ejtag_info, &ejtag_info->pa_ctrl);
-	if (retval != ERROR_OK)
+	if (retval != ERROR_OK) {
+		LOG_DEBUG("wait_for_pracc_rw failed");
 		return retval;
+	}
 
 	mips_ejtag_set_instr(ejtag_info, EJTAG_INST_ADDRESS);
 	ejtag_info->pa_addr = 0;
@@ -141,6 +147,7 @@ int mips32_pracc_clean_text_jump(struct mips_ejtag *ejtag_info)
 {
 	uint32_t jt_code = MIPS32_J((0x0FFFFFFF & MIPS32_PRACC_TEXT) >> 2);
 	int retval;
+	int log_msg = 0;
 
 	/* do 3 0/nops to clean pipeline before a jump to pracc text, NOP in delay slot */
 	for (int i = 0; i != 5; i++) {
@@ -163,16 +170,23 @@ int mips32_pracc_clean_text_jump(struct mips_ejtag *ejtag_info)
 	if (ejtag_info->mode != 0)	/* done, queued mode won't work with lexra cores */
 		return ERROR_OK;
 
-	retval = mips32_pracc_read_ctrl_addr(ejtag_info);
-	if (retval != ERROR_OK)
-		return retval;
-
-	if (ejtag_info->pa_addr != MIPS32_PRACC_TEXT) {			/* LEXRA/BMIPS ?, shift out another NOP */
-		mips_ejtag_set_instr(ejtag_info, EJTAG_INST_DATA);
-		mips_ejtag_drscan_32_out(ejtag_info, MIPS32_NOP);
-		retval = mips32_pracc_finish(ejtag_info);
+	for (int i = 0; i != 2; i++) {
+		retval = mips32_pracc_read_ctrl_addr(ejtag_info);
 		if (retval != ERROR_OK)
 			return retval;
+
+		if (ejtag_info->pa_addr != MIPS32_PRACC_TEXT) {			/* LEXRA/BMIPS ?, shift out another NOP */
+			if (log_msg == 0) {
+				LOG_DEBUG("testing LEXRA/BMIPS ?, shift out another NOP, max 2 fix");
+				log_msg = 1;
+			}
+			mips_ejtag_set_instr(ejtag_info, EJTAG_INST_DATA);
+			mips_ejtag_drscan_32_out(ejtag_info, MIPS32_NOP);
+			retval = mips32_pracc_finish(ejtag_info);
+			if (retval != ERROR_OK)
+				return retval;
+		} else
+			break;
 	}
 
 	return ERROR_OK;
@@ -194,8 +208,10 @@ int mips32_pracc_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_info *ct
 		if (restart) {
 			if (restart_count < 3) {					/* max 3 restarts allowed */
 				retval = mips32_pracc_clean_text_jump(ejtag_info);
-				if (retval != ERROR_OK)
+				if (retval != ERROR_OK) {
+					LOG_DEBUG("mips32_pracc_clean_text_jump failed");
 					return retval;
+				}
 			} else
 				return ERROR_JTAG_DEVICE_ERROR;
 			restart_count++;
@@ -205,8 +221,10 @@ int mips32_pracc_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_info *ct
 		}
 
 		retval = mips32_pracc_read_ctrl_addr(ejtag_info);		/* update current pa info: control and address */
-		if (retval != ERROR_OK)
+		if (retval != ERROR_OK) {
+			LOG_DEBUG("mips32_pracc_read_ctrl_addr failed");
 			return retval;
+		}
 
 		/* Check for read or write access */
 		if (ejtag_info->pa_ctrl & EJTAG_CTRL_PRNW) {						/* write/store access */
@@ -230,8 +248,10 @@ int mips32_pracc_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_info *ct
 			uint32_t data = 0;
 			mips_ejtag_set_instr(ejtag_info, EJTAG_INST_DATA);
 			retval = mips_ejtag_drscan_32(ejtag_info, &data);
-			if (retval != ERROR_OK)
+			if (retval != ERROR_OK) {
+				LOG_DEBUG("mips_ejtag_drscan_32 failed");
 				return retval;
+			}
 
 			/* store data at param out, address based offset */
 			param_out[(ejtag_info->pa_addr - MIPS32_PRACC_PARAM_OUT) / 4] = data;
@@ -308,11 +328,15 @@ int mips32_pracc_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_info *ct
 		}
 		/* finish processor access, let the processor eat! */
 		retval = mips32_pracc_finish(ejtag_info);
-		if (retval != ERROR_OK)
+		if (retval != ERROR_OK) {
+			LOG_DEBUG("mips32_pracc_finish failed");
 			return retval;
+		}
 
-		if (instr == MIPS32_DRET)	/* after leaving debug mode nothing to do */
+		if (instr == MIPS32_DRET) {	/* after leaving debug mode nothing to do */
+			LOG_DEBUG("MIPS32_DRET executed");
 			return ERROR_OK;
+		}
 
 		if (store_pending == 0 && pass) {	/* store access done, but after passing pracc text */
 			LOG_DEBUG("warning: store access pass pracc text");
@@ -1016,8 +1040,10 @@ int mips32_pracc_fastdata_xfer(struct mips_ejtag *ejtag_info, struct working_are
 	int retval, i;
 	uint32_t val, ejtag_ctrl, address;
 
-	if (source->size < MIPS32_FASTDATA_HANDLER_SIZE)
+    if (source->size < MIPS32_FASTDATA_HANDLER_SIZE) {
+		LOG_ERROR("source->size (%x) < MIPS32_FASTDATA_HANDLER_SIZE", source->size);
 		return ERROR_TARGET_RESOURCE_NOT_AVAILABLE;
+	}
 
 	if (write_t) {
 		handler_code[8] = MIPS32_LW(11, 0, 8);	/* load data from probe at fastdata area */
@@ -1041,8 +1067,10 @@ int mips32_pracc_fastdata_xfer(struct mips_ejtag *ejtag_info, struct working_are
 
 	for (i = 0; i < (int) ARRAY_SIZE(jmp_code); i++) {
 		retval = wait_for_pracc_rw(ejtag_info, &ejtag_ctrl);
-		if (retval != ERROR_OK)
+		if (retval != ERROR_OK) {
+			LOG_ERROR("Error: wait_for_pracc_rw: ejtag_ctrl: 0x%8.8x", ejtag_ctrl);
 			return retval;
+		}
 
 		mips_ejtag_set_instr(ejtag_info, EJTAG_INST_DATA);
 		mips_ejtag_drscan_32_out(ejtag_info, jmp_code[i]);
@@ -1055,18 +1083,24 @@ int mips32_pracc_fastdata_xfer(struct mips_ejtag *ejtag_info, struct working_are
 
 	/* wait PrAcc pending bit for FASTDATA write */
 	retval = wait_for_pracc_rw(ejtag_info, &ejtag_ctrl);
-	if (retval != ERROR_OK)
+	if (retval != ERROR_OK)	{
+		LOG_ERROR("wait_for_pracc_rw failed");
 		return retval;
+	}
 
 	/* next fetch to dmseg should be in FASTDATA_AREA, check */
 	address = 0;
 	mips_ejtag_set_instr(ejtag_info, EJTAG_INST_ADDRESS);
 	retval = mips_ejtag_drscan_32(ejtag_info, &address);
-	if (retval != ERROR_OK)
+	if (retval != ERROR_OK)	{
+		LOG_ERROR("mips_ejtag_drscan_32 failed");
 		return retval;
+	}
 
-	if (address != MIPS32_PRACC_FASTDATA_AREA)
+	if (address != MIPS32_PRACC_FASTDATA_AREA) {
+		LOG_ERROR("address != MIPS32_PRACC_FASTDATA_AREA - 0x%8.8x", address);
 		return ERROR_FAIL;
+	}
 
 	/* Send the load start address */
 	val = addr;
@@ -1074,8 +1108,10 @@ int mips32_pracc_fastdata_xfer(struct mips_ejtag *ejtag_info, struct working_are
 	mips_ejtag_fastdata_scan(ejtag_info, 1, &val);
 
 	retval = wait_for_pracc_rw(ejtag_info, &ejtag_ctrl);
-	if (retval != ERROR_OK)
+	if (retval != ERROR_OK)	{
+		LOG_ERROR("wait_for_pracc_rw failed");
 		return retval;
+	}
 
 	/* Send the load end address */
 	val = addr + (count - 1) * 4;
@@ -1089,25 +1125,32 @@ int mips32_pracc_fastdata_xfer(struct mips_ejtag *ejtag_info, struct working_are
 	for (i = 0; i < count; i++) {
 		jtag_add_clocks(num_clocks);
 		retval = mips_ejtag_fastdata_scan(ejtag_info, write_t, buf++);
-		if (retval != ERROR_OK)
+		if (retval != ERROR_OK) {
+			LOG_ERROR("mips_ejtag_fastdata_scan falied");
 			return retval;
-	}
+		}
+    }
+
 
 	retval = jtag_execute_queue();
 	if (retval != ERROR_OK) {
-		LOG_ERROR("fastdata load failed");
+		LOG_ERROR("call to \"jtag_execute_queue\" failed - fastdata load failed");
 		return retval;
 	}
 
 	retval = wait_for_pracc_rw(ejtag_info, &ejtag_ctrl);
-	if (retval != ERROR_OK)
+    if (retval != ERROR_OK) {
+		LOG_ERROR("call to \"wait_for_pracc_rw\" failed - fastdata load failed with 0x%8.8" PRIx32 "", retval);
 		return retval;
+    }
 
 	address = 0;
 	mips_ejtag_set_instr(ejtag_info, EJTAG_INST_ADDRESS);
 	retval = mips_ejtag_drscan_32(ejtag_info, &address);
-	if (retval != ERROR_OK)
+    if (retval != ERROR_OK) {
+		LOG_ERROR("mips_ejtag_drscan_32 failed - %x", retval);
 		return retval;
+    }
 
 	if (address != MIPS32_PRACC_TEXT)
 		LOG_ERROR("mini program did not return to start");

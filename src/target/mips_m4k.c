@@ -60,16 +60,19 @@ static int mips_m4k_examine_debug_reason(struct target *target)
 			&& (target->debug_reason != DBG_REASON_SINGLESTEP)) {
 		if (ejtag_info->debug_caps & EJTAG_DCR_IB) {
 			/* get info about inst breakpoint support */
-			retval = target_read_u32(target,
-				ejtag_info->ejtag_ibs_addr, &break_status);
-			if (retval != ERROR_OK)
+			retval = target_read_u32(target, ejtag_info->ejtag_ibs_addr, &break_status);
+			if (retval != ERROR_OK) {
+				LOG_DEBUG("target_read_u32 failed");
 				return retval;
+			}
 			if (break_status & 0x1f) {
 				/* we have halted on a  breakpoint */
 				retval = target_write_u32(target,
 					ejtag_info->ejtag_ibs_addr, 0);
-				if (retval != ERROR_OK)
+				if (retval != ERROR_OK) {
+					LOG_DEBUG("target_write_u32 failed");
 					return retval;
+				}
 				target->debug_reason = DBG_REASON_BREAKPOINT;
 			}
 		}
@@ -78,14 +81,18 @@ static int mips_m4k_examine_debug_reason(struct target *target)
 			/* get info about data breakpoint support */
 			retval = target_read_u32(target,
 				ejtag_info->ejtag_dbs_addr, &break_status);
-			if (retval != ERROR_OK)
+			if (retval != ERROR_OK) {
+				LOG_DEBUG("target_read_u32 failed");
 				return retval;
+			}
 			if (break_status & 0x1f) {
 				/* we have halted on a  breakpoint */
 				retval = target_write_u32(target,
 					ejtag_info->ejtag_dbs_addr, 0);
-				if (retval != ERROR_OK)
+				if (retval != ERROR_OK) {
+					LOG_DEBUG("target_write_u32 failed");
 					return retval;
+				}
 				target->debug_reason = DBG_REASON_WATCHPOINT;
 			}
 		}
@@ -99,16 +106,30 @@ static int mips_m4k_debug_entry(struct target *target)
 	struct mips32_common *mips32 = target_to_mips32(target);
 	struct mips_ejtag *ejtag_info = &mips32->ejtag_info;
 
-	mips32_save_context(target);
+	int retval = mips32_save_context(target);
+	if (retval != ERROR_OK) {
+		LOG_DEBUG("mips32_save_context failed");
+		return retval;
+	}
 
 	/* make sure stepping disabled, SSt bit in CP0 debug register cleared */
-	mips_ejtag_config_step(ejtag_info, 0);
+	retval = mips_ejtag_config_step(ejtag_info, 0);
+	if (retval != ERROR_OK) {
+		LOG_DEBUG("mips_ejtag_config_step failed");
+		return retval;
+	}
 
 	/* make sure break unit configured */
-	mips32_configure_break_unit(target);
+	retval = mips32_configure_break_unit(target);
+	if (retval != ERROR_OK) {
+		LOG_DEBUG("mips32_configure_break_unit failed");
+		return retval;
+	}
 
 	/* attempt to find halt reason */
-	mips_m4k_examine_debug_reason(target);
+	retval = mips_m4k_examine_debug_reason(target);
+	if (retval != ERROR_OK)
+		return retval;
 
 	/* default to mips32 isa, it will be changed below if required */
 	mips32->isa_mode = MIPS32_ISA_MIPS32;
@@ -194,8 +215,10 @@ static int mips_m4k_poll(struct target *target)
 	/* read ejtag control reg */
 	mips_ejtag_set_instr(ejtag_info, EJTAG_INST_CONTROL);
 	retval = mips_ejtag_drscan_32(ejtag_info, &ejtag_ctrl);
-	if (retval != ERROR_OK)
+	if (retval != ERROR_OK) {
+		LOG_DEBUG ("mips_ejtag_drscan_32 failed: ejtag_ctrl = 0x%8.8x", ejtag_ctrl);
 		return retval;
+	}
 
 	/* clear this bit before handling polling
 	 * as after reset registers will read zero */
@@ -206,8 +229,10 @@ static int mips_m4k_poll(struct target *target)
 
 		mips_ejtag_set_instr(ejtag_info, EJTAG_INST_CONTROL);
 		retval = mips_ejtag_drscan_32(ejtag_info, &ejtag_ctrl);
-		if (retval != ERROR_OK)
+		if (retval != ERROR_OK) {
+			LOG_DEBUG ("mips_ejtag_drscan_32 failed: ejtag_ctrl");
 			return retval;
+		}
 		LOG_DEBUG("Reset Detected");
 	}
 
@@ -226,28 +251,36 @@ static int mips_m4k_poll(struct target *target)
 			mips_ejtag_set_instr(ejtag_info, EJTAG_INST_NORMALBOOT);
 			target->state = TARGET_HALTED;
 			retval = mips_m4k_debug_entry(target);
-			if (retval != ERROR_OK)
+			if (retval != ERROR_OK) {
+				LOG_DEBUG ("mips_m4k_debug_entry failed");
 				return retval;
+			}
 
 			if (target->smp &&
 				((prev_target_state == TARGET_RUNNING)
 			     || (prev_target_state == TARGET_RESET))) {
 				retval = update_halt_gdb(target);
-				if (retval != ERROR_OK)
+				if (retval != ERROR_OK) {
+					LOG_DEBUG ("update_halt_gdb failed");
 					return retval;
+				}
 			}
 			target_call_event_callbacks(target, TARGET_EVENT_HALTED);
 		} else if (target->state == TARGET_DEBUG_RUNNING) {
 			target->state = TARGET_HALTED;
 
 			retval = mips_m4k_debug_entry(target);
-			if (retval != ERROR_OK)
+			if (retval != ERROR_OK) {
+				LOG_DEBUG ("mips_m4k_debug_entry failed");
 				return retval;
+			}
 
 			if (target->smp) {
 				retval = update_halt_gdb(target);
-				if (retval != ERROR_OK)
+				if (retval != ERROR_OK) {
+					LOG_DEBUG ("update_halt_gdb failed");
 					return retval;
+				}
 			}
 
 			target_call_event_callbacks(target, TARGET_EVENT_DEBUG_HALTED);
@@ -384,15 +417,31 @@ static int mips_m4k_single_step_core(struct target *target)
 	struct mips_ejtag *ejtag_info = &mips32->ejtag_info;
 
 	/* configure single step mode */
-	mips_ejtag_config_step(ejtag_info, 1);
+	int retval = mips_ejtag_config_step(ejtag_info, 1);
+	if (retval != ERROR_OK) {
+		LOG_DEBUG ("mips_ejtag_config_step failed");
+		return retval;
+	}
 
 	/* disable interrupts while stepping */
-	mips32_enable_interrupts(target, 0);
+	retval = mips32_enable_interrupts(target, 0);
+	if (retval != ERROR_OK) {
+		LOG_DEBUG ("mips32_enable_interrupts failed");
+		return retval;
+	}
 
 	/* exit debug mode */
-	mips_ejtag_exit_debug(ejtag_info);
+	retval = mips_ejtag_exit_debug(ejtag_info);
+	if (retval != ERROR_OK) {
+		LOG_DEBUG ("mips_ejtag_exit_debug failed");
+		return retval;
+	}
 
-	mips_m4k_debug_entry(target);
+	retval = mips_m4k_debug_entry(target);
+	if (retval != ERROR_OK) {
+		LOG_DEBUG ("mips_m4k_debug_entry failed");
+		return retval;
+	}
 
 	return ERROR_OK;
 }
@@ -569,7 +618,11 @@ static int mips_m4k_step(struct target *target, int current,
 	register_cache_invalidate(mips32->core_cache);
 
 	LOG_DEBUG("target stepped ");
-	mips_m4k_debug_entry(target);
+	int retval = mips_m4k_debug_entry(target);
+	if (retval != ERROR_OK) {
+		LOG_DEBUG ("mips_m4k_debug_entry failed");
+		return retval;
+	}
 
 	if (breakpoint)
 		mips_m4k_set_breakpoint(target, breakpoint);
@@ -640,15 +693,22 @@ static int mips_m4k_set_breakpoint(struct target *target,
 
 			retval = target_read_memory(target, breakpoint->address, breakpoint->length, 1,
 					breakpoint->orig_instr);
-			if (retval != ERROR_OK)
+			if (retval != ERROR_OK) {
+				LOG_DEBUG("target_read_memory failed");
 				return retval;
+			}
 			retval = target_write_u32(target, breakpoint->address, MIPS32_SDBBP);
-			if (retval != ERROR_OK)
+			if (retval != ERROR_OK) {
+				LOG_DEBUG("target_write_u32 failed");
 				return retval;
+			}
 
 			retval = target_read_u32(target, breakpoint->address, &verify);
-			if (retval != ERROR_OK)
+			if (retval != ERROR_OK) {
+				LOG_DEBUG("target_read_u32 failed");
 				return retval;
+			}
+
 			if (verify != MIPS32_SDBBP) {
 				LOG_ERROR("Unable to set 32bit breakpoint at address %08" PRIx32
 						" - check that memory is read/writable", breakpoint->address);
@@ -659,15 +719,22 @@ static int mips_m4k_set_breakpoint(struct target *target,
 
 			retval = target_read_memory(target, breakpoint->address, breakpoint->length, 1,
 					breakpoint->orig_instr);
-			if (retval != ERROR_OK)
+			if (retval != ERROR_OK) {
+				LOG_DEBUG("target_read_memory failed");
 				return retval;
+			}
 			retval = target_write_u16(target, breakpoint->address, MIPS16_SDBBP);
-			if (retval != ERROR_OK)
+			if (retval != ERROR_OK) {
+				LOG_DEBUG("target_write_u16 failed");
 				return retval;
+			}
 
 			retval = target_read_u16(target, breakpoint->address, &verify);
-			if (retval != ERROR_OK)
+			if (retval != ERROR_OK) {
+				LOG_DEBUG("target_read_u16 failed");
 				return retval;
+			}
+
 			if (verify != MIPS16_SDBBP) {
 				LOG_ERROR("Unable to set 16bit breakpoint at address %08" PRIx32
 						" - check that memory is read/writable", breakpoint->address);
@@ -719,8 +786,10 @@ static int mips_m4k_unset_breakpoint(struct target *target,
 			/* check that user program has not modified breakpoint instruction */
 			retval = target_read_memory(target, breakpoint->address, 4, 1,
 					(uint8_t *)&current_instr);
-			if (retval != ERROR_OK)
+			if (retval != ERROR_OK) {
+				LOG_DEBUG("target_read_memory failed");
 				return retval;
+			}
 
 			/**
 			 * target_read_memory() gets us data in _target_ endianess.
@@ -735,20 +804,32 @@ static int mips_m4k_unset_breakpoint(struct target *target,
 				if (retval != ERROR_OK)
 					return retval;
 			}
+			else {
+				LOG_WARNING("memory modified: no SDBBP instruction found");
+				LOG_WARNING("orignal instruction not written back to memory");
+			}
 		} else {
 			uint16_t current_instr;
 
 			/* check that user program has not modified breakpoint instruction */
 			retval = target_read_memory(target, breakpoint->address, 2, 1,
 					(uint8_t *)&current_instr);
-			if (retval != ERROR_OK)
+			if (retval != ERROR_OK) {
+				LOG_DEBUG("target_read_memory failed");
 				return retval;
+			}
 			current_instr = target_buffer_get_u16(target, (uint8_t *)&current_instr);
 			if (current_instr == MIPS16_SDBBP) {
 				retval = target_write_memory(target, breakpoint->address, 2, 1,
 						breakpoint->orig_instr);
-				if (retval != ERROR_OK)
+				if (retval != ERROR_OK) {
+					LOG_DEBUG("target_write_memory failed");
 					return retval;
+				}
+			}
+			else {
+				LOG_WARNING("memory modified: no SDBBP instruction found");
+				LOG_WARNING("orignal instruction not written back to memory");
 			}
 		}
 	}
@@ -1021,6 +1102,11 @@ static int mips_m4k_write_memory(struct target *target, uint32_t address,
 		int retval = mips_m4k_bulk_write_memory(target, address, count, buffer);
 		if (retval == ERROR_OK)
 			return ERROR_OK;
+		else
+			if ((retval == ERROR_TARGET_FAST_DOWNLOAD_FAILED) && 
+				(ejtag_info->scan_delay < MIPS32_SCAN_DELAY_LEGACY_MODE)) {
+				return retval;
+			}
 		LOG_WARNING("Falling back to non-bulk write");
 	}
 
@@ -1334,7 +1420,7 @@ COMMAND_HANDLER(mips_m4k_handle_scan_delay_command)
 			return ERROR_COMMAND_SYNTAX_ERROR;
 
 	command_print(CMD_CTX, "scan delay: %d nsec", ejtag_info->scan_delay);
-	if (ejtag_info->scan_delay >= 20000000) {
+	if (ejtag_info->scan_delay >= MIPS32_SCAN_DELAY_LEGACY_MODE) {
 		ejtag_info->mode = 0;
 		command_print(CMD_CTX, "running in legacy mode");
 	} else {
