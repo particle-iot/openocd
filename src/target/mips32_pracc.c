@@ -1156,7 +1156,7 @@ int mips32_pracc_fastdata_xfer(struct mips_ejtag *ejtag_info, struct working_are
     }
 
     /* If Accesses pending then attempt to cleanup any pending accesses */
-    if (address != MIPS32_PRACC_TEXT) {
+	if (address != MIPS32_PRACC_TEXT) {
 
 		LOG_ERROR("fastdata failed: checking for dangling fastdata accesses");
 		LOG_WARNING("increase \"scan_delay\" and retry \"load_image\" command");
@@ -1199,16 +1199,14 @@ int mips32_pracc_fastdata_xfer(struct mips_ejtag *ejtag_info, struct working_are
 			if ((pending == count) && (address == MIPS32_PRACC_TEXT)) {
 				LOG_ERROR("\"reached max outstanding dangling accesses\" 0x%8.8" PRIx32 "", retval);
 				return ERROR_TARGET_FAST_DOWNLOAD_FAILED;
-			}
-			else if (pending >= count) {
+			} else if (pending >= count) {
 					LOG_ERROR("\"reached excessed max outstanding dangling accesses\" %d", retval);
 					return ERROR_TARGET_FAST_DOWNLOAD_FAILED;
 				}
 
 			if (address != MIPS32_PRACC_TEXT) {
-			    if (pending == 1){
+			    if (pending == 1)
 					LOG_ERROR("found dangling fastdata accesses: starting clean-up");
-				}
 			}
 
 		} while (address != MIPS32_PRACC_TEXT);
@@ -1229,17 +1227,14 @@ int mips32_pracc_fastdata_xfer(struct mips_ejtag *ejtag_info, struct working_are
 			if ((address != MIPS32_PRACC_FASTDATA_AREA) && (address != MIPS32_PRACC_TEXT)) {
 				LOG_ERROR("unexpected dmseg access: 0x%8.8" PRIx32 "", address);
 				return ERROR_TARGET_FAST_DOWNLOAD_FAILED;
-			}
-			else {
+			} else
 				LOG_ERROR("cleared dangling fastdata accesses: found %d out-of %d pending", pending, count);
-			}
 		}
 
-		if (address != MIPS32_PRACC_TEXT) {
+		if (address != MIPS32_PRACC_TEXT)
 			LOG_ERROR("mini program did not return to start addr = 0x%8.8" PRIx32 "", address);
-		}
 
 		return ERROR_TARGET_FAST_DOWNLOAD_FAILED;
-    }
+	}
 	return retval;
 }
