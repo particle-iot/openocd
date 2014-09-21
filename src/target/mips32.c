@@ -676,7 +676,7 @@ int mips32_checksum_memory(struct target *target, uint32_t address,
 	init_reg_param(&reg_params[1], "a1", 32, PARAM_OUT);
 	buf_set_u32(reg_params[1].value, 0, 32, count);
 
-	int timeout = 20000 * (1 + (count / (1024 * 1024)));
+	int timeout = (20000 * (1 + (count / (1024 * 1024))) * 2);
 
 	int retval = target_run_algorithm(target, 0, NULL, 2, reg_params,
 			crc_algorithm->address, crc_algorithm->address + (sizeof(mips_crc_code) - 4), timeout,
