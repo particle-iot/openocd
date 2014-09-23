@@ -28,6 +28,7 @@ noinst_LTLIBRARIES += %D%/libtarget.la
 
 if TARGET64
 %C%_libtarget_la_SOURCES +=$(ARMV8_SRC)
+%C%_libtarget_la_SOURCES +=$(MIPS64_SRC)
 endif
 
 TARGET_CORE_SRC = \
@@ -109,6 +110,13 @@ MIPS32_SRC = \
 	%D%/mips_m4k.c \
 	%D%/mips32_pracc.c \
 	%D%/mips32_dmaacc.c \
+	%D%/mips_ejtag.c
+
+MIPS64_SRC = \
+	%D%/mips64.c \
+	%D%/mips32_pracc.c \
+	%D%/mips64_pracc.c \
+	%D%/trace.c \
 	%D%/mips_ejtag.c
 
 NDS32_SRC = \
