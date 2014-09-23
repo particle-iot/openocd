@@ -36,6 +36,7 @@ libtarget_la_SOURCES = \
 	$(MIPS32_SRC) \
 	$(NDS32_SRC) \
 	$(INTEL_IA32_SRC) \
+	$(MIPS64_SRC)\
 	avrt.c \
 	dsp563xx.c \
 	dsp563xx_once.c \
@@ -130,6 +131,14 @@ INTEL_IA32_SRC = \
 	lakemont.c \
 	x86_32_common.c
 
+MIPS64_SRC = \
+	mips64.c \
+	mips32_pracc.c \
+	mips64_pracc.c \
+	trace.c \
+	mips_ejtag.c
+
+
 noinst_HEADERS = \
 	algorithm.h \
 	arm.h \
@@ -199,7 +208,9 @@ noinst_HEADERS = \
 	nds32_v3m.h \
 	nds32_aice.h \
 	lakemont.h \
-	x86_32_common.h
+	x86_32_common.h \
+	mips64.h \
+	mips64_pracc.h
 
 ocddatadir = $(pkglibdir)
 nobase_dist_ocddata_DATA =
