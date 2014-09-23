@@ -94,6 +94,7 @@ extern struct target_type cortexa8_target;
 extern struct target_type cortexr4_target;
 extern struct target_type arm11_target;
 extern struct target_type mips_m4k_target;
+extern struct target_type mips_xlp3xx_target;
 extern struct target_type avr_target;
 extern struct target_type dsp563xx_target;
 extern struct target_type dsp5680xx_target;
@@ -134,6 +135,7 @@ static struct target_type *target_types[] = {
 	&nds32_v3m_target,
 	&or1k_target,
 	&quark_x10xx_target,
+	&mips_xlp3xx_target,
 	NULL,
 };
 
@@ -1878,10 +1880,14 @@ int target_write_buffer(struct target *target, uint64_t address, uint32_t size, 
 static int target_write_buffer_default(struct target *target, uint64_t address, uint32_t count, const uint8_t *buffer)
 {
 	uint32_t size;
+	uint32_t max_size = 4;
+
+	if (strcmp(target->type->name, "mips_xlp3xx") == 0)
+		max_size = 8;
 
 	/* Align up to maximum 4 bytes. The loop condition makes sure the next pass
 	 * will have something to do with the size we leave to it. */
-	for (size = 1; size < 4 && count >= size * 2 + (address & size); size *= 2) {
+	for (size = 1; size < max_size && count >= size * 2 + (address & size); size *= 2) {
 		if (address & size) {
 			int retval = target_write_memory(target, address, size, 1, buffer);
 			if (retval != ERROR_OK)
@@ -1939,10 +1945,14 @@ int target_read_buffer(struct target *target, uint64_t address, uint32_t size, u
 static int target_read_buffer_default(struct target *target, uint64_t address, uint32_t count, uint8_t *buffer)
 {
 	uint32_t size;
+	uint32_t max_size = 4;
+
+	if (strcmp(target->type->name, "mips_xlp3xx") == 0)
+		max_size = 8;
 
 	/* Align up to maximum 4 bytes. The loop condition makes sure the next pass
 	 * will have something to do with the size we leave to it. */
-	for (size = 1; size < 4 && count >= size * 2 + (address & size); size *= 2) {
+	for (size = 1; size < max_size && count >= size * 2 + (address & size); size *= 2) {
 		if (address & size) {
 			int retval = target_read_memory(target, address, size, 1, buffer);
 			if (retval != ERROR_OK)
@@ -3194,11 +3204,14 @@ static COMMAND_HELPER(handle_verify_image_command_internal, int verify)
 				free(buffer);
 				break;
 			}
-
-			retval = target_checksum_memory(target, image.sections[i].base_address, buf_cnt, &mem_checksum);
-			if (retval != ERROR_OK) {
-				free(buffer);
-				break;
+			if (strcmp(target->type->name, "mips_xlp3xx") == 0)
+				mem_checksum = 0;
+			else{
+				retval = target_checksum_memory(target, image.sections[i].base_address, buf_cnt, &mem_checksum);
+				if (retval != ERROR_OK) {
+					free(buffer);
+					break;
+				}
 			}
 
 			if (checksum != mem_checksum) {
@@ -3217,7 +3230,14 @@ static COMMAND_HELPER(handle_verify_image_command_internal, int verify)
 					size *= 4;
 					count /= 4;
 				}
+				if (strcmp(target->type->name, "mips_xlp3xx") == 0) {
+					if ((count % 2) == 0) {
+						size *= 2;
+						count /= 2;
+					}
+				}
 				retval = target_read_memory(target, image.sections[i].base_address, size, count, data);
+
 				if (retval == ERROR_OK) {
 					uint32_t t;
 					for (t = 0; t < buf_cnt; t++) {
