@@ -133,11 +133,11 @@ INTEL_IA32_SRC = \
 
 MIPS64_SRC = \
 	mips64.c \
+	mips_xlp3xx.c \
 	mips32_pracc.c \
 	mips64_pracc.c \
 	trace.c \
 	mips_ejtag.c
-
 
 noinst_HEADERS = \
 	algorithm.h \
@@ -210,6 +210,7 @@ noinst_HEADERS = \
 	lakemont.h \
 	x86_32_common.h \
 	mips64.h \
+	mips_xlp3xx.h \
 	mips64_pracc.h
 
 ocddatadir = $(pkglibdir)
