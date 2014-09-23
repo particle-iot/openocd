@@ -106,6 +106,7 @@
 
 /* Debug Control Register DCR */
 #define EJTAG_DCR				0xFF300000
+#define EJTAG64_DCR				0xFFFFFFFFFF300000ull
 #define EJTAG_DCR_ENM			(1 << 29)
 #define EJTAG_DCR_DB			(1 << 17)
 #define EJTAG_DCR_IB			(1 << 16)
@@ -128,13 +129,17 @@
 #define EJTAG_V20_DBAn_STEP		0x10
 
 #define EJTAG_V25_IBS			0xFF301000
+#define EJTAG64_V25_IBS			0xFFFFFFFFFF301000ull
 #define EJTAG_V25_IBA0			0xFF301100
+#define EJTAG64_V25_IBA0			0xFFFFFFFFFF301100ull
 #define EJTAG_V25_IBM_OFFS		0x8
 #define EJTAG_V25_IBASID_OFFS		0x10
 #define EJTAG_V25_IBC_OFFS		0x18
 #define EJTAG_V25_IBAn_STEP		0x100
 #define EJTAG_V25_DBS			0xFF302000
+#define EJTAG64_V25_DBS			0xFFFFFFFFFF302000ull
 #define EJTAG_V25_DBA0			0xFF302100
+#define EJTAG64_V25_DBA0			0xFFFFFFFFFF302100ull
 #define EJTAG_V25_DBM_OFFS		0x8
 #define EJTAG_V25_DBASID_OFFS		0x10
 #define EJTAG_V25_DBC_OFFS		0x18
@@ -184,6 +189,9 @@ struct mips_ejtag {
 	uint32_t ejtag_iba_step_size;
 	uint32_t ejtag_dba_step_size;	/* siez of step till next
 					 * *DBAn register. */
+
+	/* FIXME: hack for step after reset */
+	uint32_t after_reset;
 };
 
 void mips_ejtag_set_instr(struct mips_ejtag *ejtag_info,
@@ -193,6 +201,9 @@ int mips_ejtag_exit_debug(struct mips_ejtag *ejtag_info);
 int mips_ejtag_get_idcode(struct mips_ejtag *ejtag_info, uint32_t *idcode);
 void mips_ejtag_add_scan_96(struct mips_ejtag *ejtag_info,
 			    uint32_t ctrl, uint32_t data, uint8_t *in_scan_buf);
+void mips_ejtag_drscan_64_out(struct mips_ejtag *ejtag_info, uint64_t data);
+int mips_ejtag_drscan_64(struct mips_ejtag *ejtag_info, uint64_t *data);
+int mips_ejtag_drscan_36(struct mips_ejtag *ejtag_info, uint64_t *data);
 void mips_ejtag_drscan_32_out(struct mips_ejtag *ejtag_info, uint32_t data);
 int mips_ejtag_drscan_32(struct mips_ejtag *ejtag_info, uint32_t *data);
 void mips_ejtag_drscan_8_out(struct mips_ejtag *ejtag_info, uint8_t data);

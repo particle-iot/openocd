@@ -286,6 +286,9 @@ static inline void buf_bswap32(uint8_t *dst, const uint8_t *src, size_t len)
 #define PRId8 PRId32
 #define SCNx64 "llx"
 #define PRIx64 "llx"
+#define PRId64 "lld"
+#define PRIi64 "lli"
+#define PRIu64 "llu"
 
 typedef CYG_ADDRWORD intptr_t;
 typedef int64_t intmax_t;

@@ -6,6 +6,12 @@
  *                                                                         *
  *   Copyright (C) 2009 by David N. Claffey <dnclaffey@gmail.com>          *
  *                                                                         *
+ *   Copyright (C) 2010 by Konstantin Kostyukhin, Nikolay Shmyrev          *
+ *                                                                         *
+ *   Copyright (C) 2014 by Andrey Sidorov <anysidorov@gmail.com>           *
+ *   Copyright (C) 2014 by Aleksey Kuleshov <rndfax@yandex.ru>             *
+ *   Copyright (C) 2014 by Peter Mamonov <pmamonov@gmail.com>              *
+ *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
  *   the Free Software Foundation; either version 2 of the License, or     *
@@ -27,6 +33,7 @@
 #endif
 
 #include "mips32.h"
+#include "mips64.h"
 #include "mips_ejtag.h"
 #include "mips32_dmaacc.h"
 
@@ -123,6 +130,87 @@ void mips_ejtag_add_scan_96(struct mips_ejtag *ejtag_info, uint32_t ctrl, uint32
 	keep_alive();
 }
 
+int mips_ejtag_drscan_64(struct mips_ejtag *ejtag_info, uint64_t *data)
+{
+	struct jtag_tap *tap;
+	tap  = ejtag_info->tap;
+
+	if (tap == NULL)
+		return ERROR_FAIL;
+	struct scan_field field;
+	uint8_t t[8], r[8];
+	int retval;
+
+	field.num_bits = 64;
+	field.out_value = t;
+	buf_set_u64(t, 0, field.num_bits, *data);
+	field.in_value = r;
+
+	jtag_add_dr_scan(tap, 1, &field, TAP_IDLE);
+	retval = jtag_execute_queue();
+	if (retval != ERROR_OK) {
+		LOG_ERROR("register read failed");
+		return retval;
+	}
+
+	*data = buf_get_u64(field.in_value, 0, 64);
+
+	keep_alive();
+
+	return ERROR_OK;
+}
+
+int mips_ejtag_drscan_36(struct mips_ejtag *ejtag_info, uint64_t *data)
+{
+	struct jtag_tap *tap;
+	tap  = ejtag_info->tap;
+
+	if (tap == NULL)
+		return ERROR_FAIL;
+	struct scan_field field;
+	uint8_t t[8], r[8];
+	int retval;
+
+	field.num_bits = 36;
+	field.out_value = t;
+	buf_set_u64(t, 0, field.num_bits, *data);
+	field.in_value = r;
+
+	jtag_add_dr_scan(tap, 1, &field, TAP_IDLE);
+
+	retval = jtag_execute_queue();
+	if (retval != ERROR_OK)	{
+		LOG_ERROR("register read failed");
+		return retval;
+	}
+
+	*data = buf_get_u64(field.in_value, 0, 64);
+
+	*data |= 0xfffffff000000000;
+
+	keep_alive();
+
+	return ERROR_OK;
+}
+
+void mips_ejtag_drscan_64_out(struct mips_ejtag *ejtag_info, uint64_t data)
+{
+	uint8_t t[8];
+	struct jtag_tap *tap;
+	tap  = ejtag_info->tap;
+	assert(tap != NULL);
+
+	struct scan_field field;
+
+	field.num_bits = 64;
+	field.out_value = t;
+	buf_set_u64(t, 0, field.num_bits, data);
+
+	field.in_value = NULL;
+
+	jtag_add_dr_scan(tap, 1, &field, TAP_IDLE);
+}
+
 int mips_ejtag_drscan_32(struct mips_ejtag *ejtag_info, uint32_t *data)
 {
 	struct jtag_tap *tap;
@@ -217,6 +305,76 @@ void mips_ejtag_drscan_8_out(struct mips_ejtag *ejtag_info, uint8_t data)
 /* Set (to enable) or clear (to disable stepping) the SSt bit (bit 8) in Cp0 Debug reg (reg 23, sel 0) */
 int mips_ejtag_config_step(struct mips_ejtag *ejtag_info, int enable_step)
 {
+	/* MIPS64 */
+	if (ejtag_info->impcode & 1) {
+		uint32_t code_enable[] = {
+			MIPS64_MTC0(1, 31, 0),		    /* move $1 to COP0 DeSave */
+			MIPS64_MFC0(1, 23, 0),		    /* move COP0 Debug to $1 */
+			MIPS64_ORI(1, 1, 0x0100),		 /* set SSt bit in debug reg */
+			MIPS64_MTC0(1, 23, 0),		    /* move $1 to COP0 Debug */
+			MIPS64_MFC0(1, 31, 0),		    /* move COP0 DeSave to $1 */
+			MIPS64_SYNC,
+			MIPS64_NOP,
+			MIPS64_NOP,
+			MIPS64_NOP,
+			MIPS64_NOP,
+			MIPS64_NOP,
+			MIPS64_NOP,
+			MIPS64_NOP,
+			MIPS64_NOP,
+			MIPS64_B(NEG16(15)),
+			MIPS64_NOP,
+			MIPS64_NOP,
+			MIPS64_NOP,
+			MIPS64_NOP,
+			MIPS64_NOP,
+			MIPS64_NOP,
+			MIPS64_NOP,
+			MIPS64_NOP,
+		};
+
+		uint32_t code_disable[] = {
+			MIPS64_MTC0(15, 31, 0),                           /* move $15 to COP0 DeSave */
+			MIPS64_LUI(15, UPPER16(MIPS64_PRACC_STACK)),     /* $15 = MIPS64_PRACC_STACK */
+			MIPS64_ORI(15, 15, LOWER16(MIPS64_PRACC_STACK)),
+			MIPS64_SD(1, 0, 15),                              /* sw $1,($15) */
+			MIPS64_SD(2, 0, 15),                              /* sw $2,($15) */
+			MIPS64_MFC0(1, 23, 0),                            /* move COP0 Debug to $1 */
+			MIPS64_LUI(2, 0xFFFF),                           /* $2 = 0xfffffeff */
+			MIPS64_ORI(2, 2, 0xFEFF),
+			MIPS64_AND(1, 1, 2),
+			MIPS64_MTC0(1, 23, 0),                            /* move $1 to COP0 Debug */
+			MIPS64_LD(2, 0, 15),
+			MIPS64_LD(1, 0, 15),
+			MIPS64_NOP,
+			MIPS64_SYNC,
+			MIPS64_NOP,
+			MIPS64_NOP,
+			MIPS64_NOP,
+			MIPS64_NOP,
+			MIPS64_NOP,
+			MIPS64_NOP,
+			MIPS64_NOP,
+			MIPS64_NOP,
+			MIPS64_B(NEG16(23)),
+			MIPS64_MFC0(15, 31, 0),                           /* move COP0 DeSave to $15 */
+			MIPS64_NOP,
+			MIPS64_NOP,
+			MIPS64_NOP,
+			MIPS64_NOP,
+			MIPS64_NOP,
+			MIPS64_NOP,
+			MIPS64_NOP,
+			MIPS64_NOP,
+		};
+		uint32_t *code = enable_step ? code_enable : code_disable;
+		mips64_pracc_exec(ejtag_info,\
+			enable_step ? ARRAY_SIZE(code_enable) : ARRAY_SIZE(code_disable),\
+			code,\
+			0, NULL, 0, NULL, 1);
+		return ERROR_OK;
+	 }
+
 	struct pracc_queue_info ctx = {.max_code = 7};
 	pracc_queue_init(&ctx);
 	if (ctx.retval != ERROR_OK)
@@ -248,6 +406,43 @@ static int disable_dcr_mp(struct mips_ejtag *ejtag_info)
 {
 	uint32_t dcr;
 	int retval;
+	/* MIPS64 */
+	if (ejtag_info->impcode & 1) {
+		uint32_t code[] = {
+			MIPS64_MTC0(15, 31, 0),			   /* move $15 to COP0 DeSave */
+			MIPS64_LUI(15, UPPER16(MIPS64_PRACC_STACK)),     /* $15 = MIPS64_PRACC_STACK */
+			MIPS64_ORI(15, 15, LOWER16(MIPS64_PRACC_STACK)),
+			MIPS64_SD(1, 0, 15),			      /* sw $1,($15) */
+			MIPS64_SD(2, 0, 15),			      /* sw $2,($15) */
+			MIPS64_MFC0(1, 23, 0),			    /* move COP0 Debug to $1 */
+			MIPS64_LUI(2, 0xFFFF),			   /* $2 = 0xfffffeff */
+			MIPS64_ORI(2, 2, 0xFEFF),
+
+
+			MIPS64_AND(1, 1, 2),
+			MIPS64_MTC0(1, 23, 0),			    /* move $1 to COP0 Debug */
+			MIPS64_LD(2, 0, 15),
+			MIPS64_LD(1, 0, 15),
+			MIPS64_NOP,
+			MIPS64_SYNC,
+			MIPS64_NOP,
+			MIPS64_NOP,
+			MIPS64_B(NEG16(17)),
+			MIPS64_MFC0(15, 31, 0),			   /* move COP0 DeSave to $15 */
+			MIPS64_NOP,
+			MIPS64_NOP,
+			MIPS64_NOP,
+			MIPS64_NOP,
+			MIPS64_NOP,
+			MIPS64_NOP,
+			MIPS64_NOP,
+			MIPS64_NOP,
+		};
+
+		mips64_pracc_exec(ejtag_info, ARRAY_SIZE(code), code, \
+			0, NULL, 0, NULL, 1);
+		return ERROR_OK;
+	}
 
 	retval = mips32_dmaacc_read_mem(ejtag_info, EJTAG_DCR, 4, 1, &dcr);
 	if (retval != ERROR_OK)
@@ -277,7 +472,12 @@ int mips_ejtag_enter_debug(struct mips_ejtag *ejtag_info)
 	ejtag_ctrl = ejtag_info->ejtag_ctrl | EJTAG_CTRL_JTAGBRK;
 	mips_ejtag_drscan_32(ejtag_info, &ejtag_ctrl);
 
-	/* break bit will be cleared by hardware */
+	/* break bit will not be cleared by hardware */
+	ejtag_ctrl = ejtag_info->ejtag_ctrl & ~EJTAG_CTRL_JTAGBRK;
+	mips_ejtag_drscan_32(ejtag_info, &ejtag_ctrl);
+
+	jtag_add_sleep(1000);
+
 	ejtag_ctrl = ejtag_info->ejtag_ctrl;
 	mips_ejtag_drscan_32(ejtag_info, &ejtag_ctrl);
 	LOG_DEBUG("ejtag_ctrl: 0x%8.8" PRIx32 "", ejtag_ctrl);
@@ -294,6 +494,22 @@ int mips_ejtag_exit_debug(struct mips_ejtag *ejtag_info)
 {
 	uint32_t instr = MIPS32_DRET;
 	struct pracc_queue_info ctx = {.max_code = 1, .pracc_list = &instr, .code_count = 1, .store_count = 0};
+	if (ejtag_info->impcode & 1) {
+		/* MIPS64 */
+		uint32_t code[] = {
+			MIPS64_DRET,
+			MIPS64_NOP,
+			MIPS64_NOP,
+			MIPS64_NOP,
+			MIPS64_NOP,
+			MIPS64_NOP,
+			MIPS64_NOP,
+			MIPS64_NOP,
+		};
+		mips64_pracc_exec(ejtag_info, ARRAY_SIZE(code), code,
+			0, NULL, 0, NULL, 1);
+		return ERROR_OK;
+	}
 
 	/* execute our dret instruction */
 	ctx.retval = mips32_pracc_queue_exec(ejtag_info, &ctx, NULL);

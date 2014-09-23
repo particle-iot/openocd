@@ -123,7 +123,7 @@ static int image_ihex_buffer_complete_inner(struct image *image,
 {
 	struct image_ihex *ihex = image->type_private;
 	struct fileio *fileio = &ihex->fileio;
-	uint32_t full_address = 0x0;
+	uint64_t full_address = 0x0;
 	uint32_t cooked_bytes;
 	int i;
 
@@ -146,7 +146,7 @@ static int image_ihex_buffer_complete_inner(struct image *image,
 
 	while (fileio_fgets(fileio, 1023, lpszLine) == ERROR_OK) {
 		uint32_t count;
-		uint32_t address;
+		uint64_t address;
 		uint32_t record_type;
 		uint32_t checksum;
 		uint8_t cal_checksum = 0;
@@ -155,7 +155,7 @@ static int image_ihex_buffer_complete_inner(struct image *image,
 		if (lpszLine[0] == '#')
 			continue;
 
-		if (sscanf(&lpszLine[bytes_read], ":%2" SCNx32 "%4" SCNx32 "%2" SCNx32, &count,
+		if (sscanf(&lpszLine[bytes_read], ":%2" SCNx32 "%4" SCNx64 "%2" SCNx32, &count,
 			&address, &record_type) != 3)
 			return ERROR_IMAGE_FORMAT_ERROR;
 		bytes_read += 9;
@@ -281,9 +281,13 @@ static int image_ihex_buffer_complete_inner(struct image *image,
 				full_address = (full_address & 0xffff) | (upper_address << 16);
 			}
 		} else if (record_type == 5) {	/* Start Linear Address Record */
-			uint32_t start_address;
+			uint64_t start_address;
 
-			sscanf(&lpszLine[bytes_read], "%8" SCNx32, &start_address);
+			sscanf(&lpszLine[bytes_read], "%4" SCNx64, &start_address);
+			cal_checksum += (uint8_t)(start_address >> 56);
+			cal_checksum += (uint8_t)(start_address >> 48);
+			cal_checksum += (uint8_t)(start_address >> 40);
+			cal_checksum += (uint8_t)(start_address >> 32);
 			cal_checksum += (uint8_t)(start_address >> 24);
 			cal_checksum += (uint8_t)(start_address >> 16);
 			cal_checksum += (uint8_t)(start_address >> 8);
@@ -291,7 +295,7 @@ static int image_ihex_buffer_complete_inner(struct image *image,
 			bytes_read += 8;
 
 			image->start_address_set = 1;
-			image->start_address = be_to_h_u32((uint8_t *)&start_address);
+			image->start_address = be_to_h_u64((uint8_t *)&start_address);
 		} else {
 			LOG_ERROR("unhandled IHEX record type: %i", (int)record_type);
 			return ERROR_IMAGE_FORMAT_ERROR;
@@ -512,7 +516,7 @@ static int image_mot_buffer_complete_inner(struct image *image,
 {
 	struct image_mot *mot = image->type_private;
 	struct fileio *fileio = &mot->fileio;
-	uint32_t full_address = 0x0;
+	uint64_t full_address = 0x0;
 	uint32_t cooked_bytes;
 	int i;
 
@@ -535,7 +539,7 @@ static int image_mot_buffer_complete_inner(struct image *image,
 
 	while (fileio_fgets(fileio, 1023, lpszLine) == ERROR_OK) {
 		uint32_t count;
-		uint32_t address;
+		uint64_t address;
 		uint32_t record_type;
 		uint32_t checksum;
 		uint8_t cal_checksum = 0;
@@ -565,7 +569,7 @@ static int image_mot_buffer_complete_inner(struct image *image,
 			switch (record_type) {
 				case 1:
 					/* S1 - 16 bit address data record */
-					sscanf(&lpszLine[bytes_read], "%4" SCNx32, &address);
+					sscanf(&lpszLine[bytes_read], "%4" SCNx64, &address);
 					cal_checksum += (uint8_t)(address >> 8);
 					cal_checksum += (uint8_t)address;
 					bytes_read += 4;
@@ -574,7 +578,7 @@ static int image_mot_buffer_complete_inner(struct image *image,
 
 				case 2:
 					/* S2 - 24 bit address data record */
-					sscanf(&lpszLine[bytes_read], "%6" SCNx32, &address);
+					sscanf(&lpszLine[bytes_read], "%6" SCNx64, &address);
 					cal_checksum += (uint8_t)(address >> 16);
 					cal_checksum += (uint8_t)(address >> 8);
 					cal_checksum += (uint8_t)address;
@@ -584,7 +588,7 @@ static int image_mot_buffer_complete_inner(struct image *image,
 
 				case 3:
 					/* S3 - 32 bit address data record */
-					sscanf(&lpszLine[bytes_read], "%8" SCNx32, &address);
+					sscanf(&lpszLine[bytes_read], "%8" SCNx64, &address);
 					cal_checksum += (uint8_t)(address >> 24);
 					cal_checksum += (uint8_t)(address >> 16);
 					cal_checksum += (uint8_t)(address >> 8);
@@ -851,7 +855,7 @@ int image_read_section(struct image *image,
 		return image_elf_read_section(image, section, offset, size, buffer, size_read);
 	else if (image->type == IMAGE_MEMORY) {
 		struct image_memory *image_memory = image->type_private;
-		uint32_t address = image->sections[section].base_address + offset;
+		uint64_t address = image->sections[section].base_address + offset;
 
 		*size_read = 0;
 
@@ -902,7 +906,7 @@ int image_read_section(struct image *image,
 	return ERROR_OK;
 }
 
-int image_add_section(struct image *image, uint32_t base, uint32_t size, int flags, uint8_t const *data)
+int image_add_section(struct image *image, uint64_t base, uint32_t size, int flags, uint8_t const *data)
 {
 	struct imagesection *section;
 
