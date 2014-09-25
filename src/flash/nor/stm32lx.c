@@ -1241,18 +1241,18 @@ static int stm32lx_mass_erase(struct flash_bank *bank)
 	struct target *target = bank->target;
 	struct stm32lx_flash_bank *stm32lx_info = NULL;
 	uint32_t reg32;
-	
+
 	if (target->state != TARGET_HALTED) {
 	  LOG_ERROR("Target not halted");
 	  return ERROR_TARGET_NOT_HALTED;
 	}
-	
+
 	stm32lx_info = bank->driver_priv;
-	
+
 	retval = stm32lx_unlock_options_bytes(bank);
 	if (retval != ERROR_OK)
 	  return retval;
-	
+
 	/* mass erase flash memory , write 0x015500AA option byte address 0*/
 	/* pass the RDP privilege to 1 */
 	retval = target_write_u32(target, OPTION_BYTES_ADDRESS, OPTION_BYTE_0_PR1);
