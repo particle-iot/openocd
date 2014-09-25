@@ -36,15 +36,15 @@
 
 /* stm32lx flash register locations */
 
-#define FLASH_ACR		0x00
-#define FLASH_PECR		0x04
+#define FLASH_ACR	0x00
+#define FLASH_PECR	0x04
 #define FLASH_PDKEYR	0x08
 #define FLASH_PEKEYR	0x0C
 #define FLASH_PRGKEYR	0x10
 #define FLASH_OPTKEYR	0x14
-#define FLASH_SR		0x18
-#define FLASH_OBR		0x1C
-#define FLASH_WRPR		0x20
+#define FLASH_SR	0x18
+#define FLASH_OBR	0x1C
+#define FLASH_WRPR	0x20
 
 /* FLASH_ACR bites */
 #define FLASH_ACR__LATENCY		(1<<0)
@@ -92,11 +92,20 @@
 #define FLASH_SECTOR_SIZE 4096
 #define FLASH_BANK0_ADDRESS 0x08000000
 
+/* option bytes */
+#define OPTION_BYTES_ADDRESS 0x1FF80000
+
+#define OPTION_BYTE_0_PR1 0x015500AA
+#define OPTION_BYTE_0_PR0 0x01FF0011
+
+
 static int stm32lx_unlock_program_memory(struct flash_bank *bank);
 static int stm32lx_lock_program_memory(struct flash_bank *bank);
 static int stm32lx_enable_write_half_page(struct flash_bank *bank);
 static int stm32lx_erase_sector(struct flash_bank *bank, int sector);
 static int stm32lx_wait_until_bsy_clear(struct flash_bank *bank);
+static int stm32lx_mass_erase(struct flash_bank *bank);
+static int stm32lx_wait_status_busy(struct flash_bank *bank, int timeout);
 
 struct stm32lx_rev {
 	uint16_t rev;
@@ -143,83 +152,83 @@ static const struct stm32lx_rev stm32_436_revs[] = {
 
 static const struct stm32lx_part_info stm32lx_parts[] = {
 	{
-		.id					= 0x416,
-		.revs				= stm32_416_revs,
-		.num_revs			= ARRAY_SIZE(stm32_416_revs),
-		.device_str			= "STM32L1xx (Low/Medium Density)",
-		.page_size			= 256,
-		.pages_per_sector	= 16,
-		.max_flash_size_kb	= 128,
-		.has_dual_banks		= false,
-		.flash_base			= 0x40023C00,
-		.fsize_base			= 0x1FF8004C,
+	  .id					= 0x416,
+	  .revs				= stm32_416_revs,
+	  .num_revs			= ARRAY_SIZE(stm32_416_revs),
+	  .device_str			= "STM32L1xx (Low/Medium Density)",
+	  .page_size			= 256,
+	  .pages_per_sector	= 16,
+	  .max_flash_size_kb	= 128,
+	  .has_dual_banks		= false,
+	  .flash_base			= 0x40023C00,
+	  .fsize_base			= 0x1FF8004C,
 	},
 	{
-		.id					= 0x417,
-		.revs				= stm32_417_revs,
-		.num_revs			= ARRAY_SIZE(stm32_417_revs),
-		.device_str			= "STM32L0xx",
-		.page_size			= 128,
-		.pages_per_sector	= 32,
-		.max_flash_size_kb	= 64,
-		.has_dual_banks		= false,
-		.flash_base			= 0x40022000,
-		.fsize_base			= 0x1FF8007C,
+	  .id					= 0x417,
+	  .revs				= stm32_417_revs,
+	  .num_revs			= ARRAY_SIZE(stm32_417_revs),
+	  .device_str			= "STM32L0xx",
+	  .page_size			= 128,
+	  .pages_per_sector	= 32,
+	  .max_flash_size_kb	= 64,
+	  .has_dual_banks		= false,
+	  .flash_base			= 0x40022000,
+	  .fsize_base			= 0x1FF8007C,
 	},
 	{
-		.id					= 0x427,
-		.revs				= stm32_427_revs,
-		.num_revs			= ARRAY_SIZE(stm32_427_revs),
-		.device_str			= "STM32L1xx (Medium+ Density)",
-		.page_size			= 256,
-		.pages_per_sector	= 16,
-		.max_flash_size_kb	= 256,
-		.first_bank_size_kb	= 192,
-		.has_dual_banks		= true,
-		.flash_base			= 0x40023C00,
-		.fsize_base			= 0x1FF800CC,
+	  .id					= 0x427,
+	  .revs				= stm32_427_revs,
+	  .num_revs			= ARRAY_SIZE(stm32_427_revs),
+	  .device_str			= "STM32L1xx (Medium+ Density)",
+	  .page_size			= 256,
+	  .pages_per_sector	= 16,
+	  .max_flash_size_kb	= 256,
+	  .first_bank_size_kb	= 192,
+	  .has_dual_banks		= true,
+	  .flash_base			= 0x40023C00,
+	  .fsize_base			= 0x1FF800CC,
 	},
 	{
-		.id					= 0x436,
-		.revs				= stm32_436_revs,
-		.num_revs			= ARRAY_SIZE(stm32_436_revs),
-		.device_str			= "STM32L1xx (Medium+/High Density)",
-		.page_size			= 256,
-		.pages_per_sector	= 16,
-		.max_flash_size_kb	= 384,
-		.first_bank_size_kb	= 192,
-		.has_dual_banks		= true,
-		.flash_base			= 0x40023C00,
-		.fsize_base			= 0x1FF800CC,
+	  .id					= 0x436,
+	  .revs				= stm32_436_revs,
+	  .num_revs			= ARRAY_SIZE(stm32_436_revs),
+	  .device_str			= "STM32L1xx (Medium+/High Density)",
+	  .page_size			= 256,
+	  .pages_per_sector	= 16,
+	  .max_flash_size_kb	= 384,
+	  .first_bank_size_kb	= 192,
+	  .has_dual_banks		= true,
+	  .flash_base			= 0x40023C00,
+	  .fsize_base			= 0x1FF800CC,
 	},
 	{
-		.id					= 0x437,
-		.device_str			= "STM32L1xx (Medium+/High Density)",
-		.page_size			= 256,
-		.pages_per_sector	= 16,
-		.max_flash_size_kb	= 512,
-		.first_bank_size_kb	= 256,
-		.has_dual_banks		= true,
-		.flash_base			= 0x40023C00,
-		.fsize_base			= 0x1FF800CC,
+	  .id					= 0x437,
+	  .device_str			= "STM32L1xx (Medium+/High Density)",
+	  .page_size			= 256,
+	  .pages_per_sector	= 16,
+	  .max_flash_size_kb	= 512,
+	  .first_bank_size_kb	= 256,
+	  .has_dual_banks		= true,
+	  .flash_base			= 0x40023C00,
+	  .fsize_base			= 0x1FF800CC,
 	},
 };
 
 /* flash bank stm32lx <base> <size> 0 0 <target#>
- */
+	*/
 FLASH_BANK_COMMAND_HANDLER(stm32lx_flash_bank_command)
 {
 	struct stm32lx_flash_bank *stm32lx_info;
 	if (CMD_ARGC < 6)
-		return ERROR_COMMAND_SYNTAX_ERROR;
+	  return ERROR_COMMAND_SYNTAX_ERROR;
 
 	/* Create the bank structure */
-	stm32lx_info = calloc(1, sizeof(*stm32lx_info));
+	stm32lx_info = malloc(sizeof(struct stm32lx_flash_bank));
 
 	/* Check allocation */
 	if (stm32lx_info == NULL) {
-		LOG_ERROR("failed to allocate bank structure");
-		return ERROR_FAIL;
+	  LOG_ERROR("failed to allocate bank structure");
+	  return ERROR_FAIL;
 	}
 
 	bank->driver_priv = stm32lx_info;
@@ -231,6 +240,35 @@ FLASH_BANK_COMMAND_HANDLER(stm32lx_flash_bank_command)
 	bank->default_padded_value = 0x00;
 
 	return ERROR_OK;
+}
+
+
+COMMAND_HANDLER(stm32lx_handle_mass_erase_command)
+{
+	int i;
+
+	if (CMD_ARGC < 1) {
+	  command_print(CMD_CTX, "stm32lx mass_erase <bank>");
+	  return ERROR_COMMAND_SYNTAX_ERROR;
+	}
+
+	struct flash_bank *bank;
+	int retval = CALL_COMMAND_HANDLER(flash_command_get_bank, 0, &bank);
+	if (ERROR_OK != retval)
+	  return retval;
+
+	retval = stm32lx_mass_erase(bank);
+	if (retval == ERROR_OK) {
+	  /* set all sectors as erased */
+	  for (i = 0; i < bank->num_sectors; i++)
+	    bank->sectors[i].is_erased = 1;
+
+	  command_print(CMD_CTX, "stm32lx mass erase complete");
+	} else {
+	  command_print(CMD_CTX, "stm32lx mass erase failed");
+	}
+
+	return retval;
 }
 
 static int stm32lx_protect_check(struct flash_bank *bank)
@@ -246,15 +284,15 @@ static int stm32lx_protect_check(struct flash_bank *bank)
 	 * flash sector
 	 */
 	retval = target_read_u32(target, stm32lx_info->flash_base + FLASH_WRPR,
-			&wrpr);
+			   &wrpr);
 	if (retval != ERROR_OK)
-		return retval;
+	  return retval;
 
 	for (int i = 0; i < bank->num_sectors; i++) {
-		if (wrpr & (1 << i))
-			bank->sectors[i].is_protected = 1;
-		else
-			bank->sectors[i].is_protected = 0;
+	  if (wrpr & (1 << i))
+	    bank->sectors[i].is_protected = 1;
+	  else
+	    bank->sectors[i].is_protected = 0;
 	}
 	return ERROR_OK;
 }
@@ -269,31 +307,31 @@ static int stm32lx_erase(struct flash_bank *bank, int first, int last)
 	 */
 
 	if (bank->target->state != TARGET_HALTED) {
-		LOG_ERROR("Target not halted");
-		return ERROR_TARGET_NOT_HALTED;
+	  LOG_ERROR("Target not halted");
+	  return ERROR_TARGET_NOT_HALTED;
 	}
 
 	/*
 	 * Loop over the selected sectors and erase them
 	 */
 	for (int i = first; i <= last; i++) {
-		retval = stm32lx_erase_sector(bank, i);
-		if (retval != ERROR_OK)
-			return retval;
-		bank->sectors[i].is_erased = 1;
+	  retval = stm32lx_erase_sector(bank, i);
+	  if (retval != ERROR_OK)
+	    return retval;
+	  bank->sectors[i].is_erased = 1;
 	}
 	return ERROR_OK;
 }
 
 static int stm32lx_protect(struct flash_bank *bank, int set, int first,
-		int last)
+			   int last)
 {
 	LOG_WARNING("protection of the STM32L flash is not implemented");
 	return ERROR_OK;
 }
 
 static int stm32lx_write_half_pages(struct flash_bank *bank, const uint8_t *buffer,
-		uint32_t offset, uint32_t count)
+				    uint32_t offset, uint32_t count)
 {
 	struct target *target = bank->target;
 	struct stm32lx_flash_bank *stm32lx_info = bank->driver_priv;
@@ -312,60 +350,60 @@ static int stm32lx_write_half_pages(struct flash_bank *bank, const uint8_t *buff
 	/* see contib/loaders/flash/stm32lx.S for src */
 
 	static const uint8_t stm32lx_flash_write_code[] = {
-		/* write_word: */
-		0x00, 0x23,             /* movs r3, #0 */
-		0x04, 0xe0,             /* b test_done */
+	  /* write_word: */
+	  0x00, 0x23,             /* movs r3, #0 */
+	  0x04, 0xe0,             /* b test_done */
 
-		/* write_word: */
-		0x51, 0xf8, 0x04, 0xcb, /* ldr ip, [r1], #4 */
-		0x40, 0xf8, 0x04, 0xcb, /* str ip, [r0], #4 */
-		0x01, 0x33,             /* adds r3, #1 */
+	  /* write_word: */
+	  0x51, 0xf8, 0x04, 0xcb, /* ldr ip, [r1], #4 */
+	  0x40, 0xf8, 0x04, 0xcb, /* str ip, [r0], #4 */
+	  0x01, 0x33,             /* adds r3, #1 */
 
-		/* test_done: */
-		0x93, 0x42,             /* cmp r3, r2 */
-		0xf8, 0xd3,             /* bcc write_word */
-		0x00, 0xbe,             /* bkpt 0 */
+	  /* test_done: */
+	  0x93, 0x42,             /* cmp r3, r2 */
+	  0xf8, 0xd3,             /* bcc write_word */
+	  0x00, 0xbe,             /* bkpt 0 */
 
 	};
 
 	/* Make sure we're performing a half-page aligned write. */
 	if (count % hp_nb) {
-		LOG_ERROR("The byte count must be %" PRIu32 "B-aligned but count is %" PRIi32 "B)", hp_nb, count);
-		return ERROR_FAIL;
+	  LOG_ERROR("The byte count must be %" PRIu32 "B-aligned but count is %" PRIi32 "B)", hp_nb, count);
+	  return ERROR_FAIL;
 	}
 
 	/* flash write code */
 	if (target_alloc_working_area(target, sizeof(stm32lx_flash_write_code),
-			&write_algorithm) != ERROR_OK) {
-		LOG_DEBUG("no working area for block memory writes");
-		return ERROR_TARGET_RESOURCE_NOT_AVAILABLE;
+				&write_algorithm) != ERROR_OK) {
+	  LOG_DEBUG("no working area for block memory writes");
+	  return ERROR_TARGET_RESOURCE_NOT_AVAILABLE;
 	};
 
 	/* Write the flashing code */
 	retval = target_write_buffer(target,
-			write_algorithm->address,
-			sizeof(stm32lx_flash_write_code),
-			stm32lx_flash_write_code);
+			       write_algorithm->address,
+			       sizeof(stm32lx_flash_write_code),
+			       stm32lx_flash_write_code);
 	if (retval != ERROR_OK) {
-		target_free_working_area(target, write_algorithm);
-		return retval;
+	  target_free_working_area(target, write_algorithm);
+	  return retval;
 	}
 
 	/* Allocate half pages memory */
 	while (target_alloc_working_area_try(target, buffer_size, &source) != ERROR_OK) {
-		if (buffer_size > 1024)
-			buffer_size -= 1024;
-		else
-			buffer_size /= 2;
+	  if (buffer_size > 1024)
+	    buffer_size -= 1024;
+	  else
+	    buffer_size /= 2;
 
-		if (buffer_size <= stm32lx_info->part_info->page_size) {
-			/* we already allocated the writing code, but failed to get a
-			 * buffer, free the algorithm */
-			target_free_working_area(target, write_algorithm);
+	  if (buffer_size <= stm32lx_info->part_info->page_size) {
+	    /* we already allocated the writing code, but failed to get a
+	     * buffer, free the algorithm */
+	    target_free_working_area(target, write_algorithm);
 
-			LOG_WARNING("no large enough working area available, can't do block memory writes");
-			return ERROR_TARGET_RESOURCE_NOT_AVAILABLE;
-		}
+	    LOG_WARNING("no large enough working area available, can't do block memory writes");
+	    return ERROR_TARGET_RESOURCE_NOT_AVAILABLE;
+	  }
 	}
 
 	armv7m_info.common_magic = ARMV7M_COMMON_MAGIC;
@@ -377,21 +415,21 @@ static int stm32lx_write_half_pages(struct flash_bank *bank, const uint8_t *buff
 	/* Enable half-page write */
 	retval = stm32lx_enable_write_half_page(bank);
 	if (retval != ERROR_OK) {
-		target_free_working_area(target, source);
-		target_free_working_area(target, write_algorithm);
+	  target_free_working_area(target, source);
+	  target_free_working_area(target, write_algorithm);
 
-		destroy_reg_param(&reg_params[0]);
-		destroy_reg_param(&reg_params[1]);
-		destroy_reg_param(&reg_params[2]);
-		return retval;
+	  destroy_reg_param(&reg_params[0]);
+	  destroy_reg_param(&reg_params[1]);
+	  destroy_reg_param(&reg_params[2]);
+	  return retval;
 	}
 
 	struct armv7m_common *armv7m = target_to_armv7m(target);
 	if (armv7m == NULL) {
 
-		/* something is very wrong if armv7m is NULL */
-		LOG_ERROR("unable to get armv7m target");
-		return retval;
+	  /* something is very wrong if armv7m is NULL */
+	  LOG_ERROR("unable to get armv7m target");
+	  return retval;
 	}
 
 	/* save any DEMCR flags and configure target to catch any Hard Faults */
@@ -400,41 +438,41 @@ static int stm32lx_write_half_pages(struct flash_bank *bank, const uint8_t *buff
 
 	/* Loop while there are bytes to write */
 	while (count > 0) {
-		uint32_t this_count;
-		this_count = (count > buffer_size) ? buffer_size : count;
+	  uint32_t this_count;
+	  this_count = (count > buffer_size) ? buffer_size : count;
 
-		/* Write the next half pages */
-		retval = target_write_buffer(target, source->address, this_count, buffer);
-		if (retval != ERROR_OK)
-			break;
+	  /* Write the next half pages */
+	  retval = target_write_buffer(target, source->address, this_count, buffer);
+	  if (retval != ERROR_OK)
+	    break;
 
-		/* 4: Store useful information in the registers */
-		/* the destination address of the copy (R0) */
-		buf_set_u32(reg_params[0].value, 0, 32, address);
-		/* The source address of the copy (R1) */
-		buf_set_u32(reg_params[1].value, 0, 32, source->address);
-		/* The length of the copy (R2) */
-		buf_set_u32(reg_params[2].value, 0, 32, this_count / 4);
+	  /* 4: Store useful information in the registers */
+	  /* the destination address of the copy (R0) */
+	  buf_set_u32(reg_params[0].value, 0, 32, address);
+	  /* The source address of the copy (R1) */
+	  buf_set_u32(reg_params[1].value, 0, 32, source->address);
+	  /* The length of the copy (R2) */
+	  buf_set_u32(reg_params[2].value, 0, 32, this_count / 4);
 
-		/* 5: Execute the bunch of code */
-		retval = target_run_algorithm(target, 0, NULL, sizeof(reg_params)
-				/ sizeof(*reg_params), reg_params,
-				write_algorithm->address, 0, 10000, &armv7m_info);
-		if (retval != ERROR_OK)
-			break;
+	  /* 5: Execute the bunch of code */
+	  retval = target_run_algorithm(target, 0, NULL, sizeof(reg_params)
+				  / sizeof(*reg_params), reg_params,
+				  write_algorithm->address, 0, 10000, &armv7m_info);
+	  if (retval != ERROR_OK)
+	    break;
 
-		/* check for Hard Fault */
-		if (armv7m->exception_number == 3)
-			break;
+	  /* check for Hard Fault */
+	  if (armv7m->exception_number == 3)
+	    break;
 
-		/* 6: Wait while busy */
-		retval = stm32lx_wait_until_bsy_clear(bank);
-		if (retval != ERROR_OK)
-			break;
+	  /* 6: Wait while busy */
+	  retval = stm32lx_wait_until_bsy_clear(bank);
+	  if (retval != ERROR_OK)
+	    break;
 
-		buffer += this_count;
-		address += this_count;
-		count -= this_count;
+	  buffer += this_count;
+	  address += this_count;
+	  count -= this_count;
 	}
 
 	/* restore previous flags */
@@ -442,39 +480,39 @@ static int stm32lx_write_half_pages(struct flash_bank *bank, const uint8_t *buff
 
 	if (armv7m->exception_number == 3) {
 
-		/* the stm32l15x devices seem to have an issue when blank.
-		 * if a ram loader is executed on a blank device it will
-		 * Hard Fault, this issue does not happen for a already programmed device.
-		 * A related issue is described in the stm32l151xx errata (Doc ID 17721 Rev 6 - 2.1.3).
-		 * The workaround of handling the Hard Fault exception does work, but makes the
-		 * loader more complicated, as a compromise we manually write the pages, programming time
-		 * is reduced by 50% using this slower method.
-		 */
+	  /* the stm32l15x devices seem to have an issue when blank.
+	   * if a ram loader is executed on a blank device it will
+	   * Hard Fault, this issue does not happen for a already programmed device.
+	   * A related issue is described in the stm32l151xx errata (Doc ID 17721 Rev 6 - 2.1.3).
+	   * The workaround of handling the Hard Fault exception does work, but makes the
+	   * loader more complicated, as a compromise we manually write the pages, programming time
+	   * is reduced by 50% using this slower method.
+	   */
 
-		LOG_WARNING("couldn't use loader, falling back to page memory writes");
+	  LOG_WARNING("couldn't use loader, falling back to page memory writes");
 
-		while (count > 0) {
-			uint32_t this_count;
-			this_count = (count > hp_nb) ? hp_nb : count;
+	  while (count > 0) {
+	    uint32_t this_count;
+	    this_count = (count > hp_nb) ? hp_nb : count;
 
-			/* Write the next half pages */
-			retval = target_write_buffer(target, address, this_count, buffer);
-			if (retval != ERROR_OK)
-				break;
+	    /* Write the next half pages */
+	    retval = target_write_buffer(target, address, this_count, buffer);
+	    if (retval != ERROR_OK)
+	break;
 
-			/* Wait while busy */
-			retval = stm32lx_wait_until_bsy_clear(bank);
-			if (retval != ERROR_OK)
-				break;
+	    /* Wait while busy */
+	    retval = stm32lx_wait_until_bsy_clear(bank);
+	    if (retval != ERROR_OK)
+	break;
 
-			buffer += this_count;
-			address += this_count;
-			count -= this_count;
-		}
+	    buffer += this_count;
+	    address += this_count;
+	    count -= this_count;
+	  }
 	}
 
 	if (retval == ERROR_OK)
-		retval = stm32lx_lock_program_memory(bank);
+	  retval = stm32lx_lock_program_memory(bank);
 
 	target_free_working_area(target, source);
 	target_free_working_area(target, write_algorithm);
@@ -487,7 +525,7 @@ static int stm32lx_write_half_pages(struct flash_bank *bank, const uint8_t *buff
 }
 
 static int stm32lx_write(struct flash_bank *bank, const uint8_t *buffer,
-		uint32_t offset, uint32_t count)
+			 uint32_t offset, uint32_t count)
 {
 	struct target *target = bank->target;
 	struct stm32lx_flash_bank *stm32lx_info = bank->driver_priv;
@@ -500,43 +538,43 @@ static int stm32lx_write(struct flash_bank *bank, const uint8_t *buffer,
 	int retval, retval2;
 
 	if (bank->target->state != TARGET_HALTED) {
-		LOG_ERROR("Target not halted");
-		return ERROR_TARGET_NOT_HALTED;
+	  LOG_ERROR("Target not halted");
+	  return ERROR_TARGET_NOT_HALTED;
 	}
 
 	if (offset & 0x3) {
-		LOG_ERROR("offset 0x%" PRIx32 " breaks required 4-byte alignment", offset);
-		return ERROR_FLASH_DST_BREAKS_ALIGNMENT;
+	  LOG_ERROR("offset 0x%" PRIx32 " breaks required 4-byte alignment", offset);
+	  return ERROR_FLASH_DST_BREAKS_ALIGNMENT;
 	}
 
 	retval = stm32lx_unlock_program_memory(bank);
 	if (retval != ERROR_OK)
-		return retval;
+	  return retval;
 
 	/* first we need to write any unaligned head bytes upto
 	 * the next 128 byte page */
 
 	if (offset % hp_nb)
-		bytes_remaining = MIN(count, hp_nb - (offset % hp_nb));
+	  bytes_remaining = MIN(count, hp_nb - (offset % hp_nb));
 
 	while (bytes_remaining > 0) {
-		uint8_t value[4] = {0xff, 0xff, 0xff, 0xff};
+	  uint8_t value[4] = {0xff, 0xff, 0xff, 0xff};
 
-		/* copy remaining bytes into the write buffer */
-		uint32_t bytes_to_write = MIN(4, bytes_remaining);
-		memcpy(value, buffer + bytes_written, bytes_to_write);
+	  /* copy remaining bytes into the write buffer */
+	  uint32_t bytes_to_write = MIN(4, bytes_remaining);
+	  memcpy(value, buffer + bytes_written, bytes_to_write);
 
-		retval = target_write_buffer(target, address, 4, value);
-		if (retval != ERROR_OK)
-			goto reset_pg_and_lock;
+	  retval = target_write_buffer(target, address, 4, value);
+	  if (retval != ERROR_OK)
+	    goto reset_pg_and_lock;
 
-		bytes_written += bytes_to_write;
-		bytes_remaining -= bytes_to_write;
-		address += 4;
+	  bytes_written += bytes_to_write;
+	  bytes_remaining -= bytes_to_write;
+	  address += 4;
 
-		retval = stm32lx_wait_until_bsy_clear(bank);
-		if (retval != ERROR_OK)
-			goto reset_pg_and_lock;
+	  retval = stm32lx_wait_until_bsy_clear(bank);
+	  if (retval != ERROR_OK)
+	    goto reset_pg_and_lock;
 	}
 
 	offset += bytes_written;
@@ -549,15 +587,15 @@ static int stm32lx_write(struct flash_bank *bank, const uint8_t *buffer,
 	halfpages_number = count / hp_nb;
 
 	if (halfpages_number) {
-		retval = stm32lx_write_half_pages(bank, buffer + bytes_written, offset, hp_nb * halfpages_number);
-		if (retval == ERROR_TARGET_RESOURCE_NOT_AVAILABLE) {
-			/* attempt slow memory writes */
-			LOG_WARNING("couldn't use block writes, falling back to single memory accesses");
-			halfpages_number = 0;
-		} else {
-			if (retval != ERROR_OK)
-				return ERROR_FAIL;
-		}
+	  retval = stm32lx_write_half_pages(bank, buffer + bytes_written, offset, hp_nb * halfpages_number);
+	  if (retval == ERROR_TARGET_RESOURCE_NOT_AVAILABLE) {
+	    /* attempt slow memory writes */
+	    LOG_WARNING("couldn't use block writes, falling back to single memory accesses");
+	    halfpages_number = 0;
+	  } else {
+	    if (retval != ERROR_OK)
+	return ERROR_FAIL;
+	  }
 	}
 
 	/* write any remaining bytes */
@@ -568,32 +606,32 @@ static int stm32lx_write(struct flash_bank *bank, const uint8_t *buffer,
 
 	retval = stm32lx_unlock_program_memory(bank);
 	if (retval != ERROR_OK)
-		return retval;
+	  return retval;
 
 	while (bytes_remaining > 0) {
-		uint8_t value[4] = {0xff, 0xff, 0xff, 0xff};
+	  uint8_t value[4] = {0xff, 0xff, 0xff, 0xff};
 
-		/* copy remaining bytes into the write buffer */
-		uint32_t bytes_to_write = MIN(4, bytes_remaining);
-		memcpy(value, buffer + bytes_written, bytes_to_write);
+	  /* copy remaining bytes into the write buffer */
+	  uint32_t bytes_to_write = MIN(4, bytes_remaining);
+	  memcpy(value, buffer + bytes_written, bytes_to_write);
 
-		retval = target_write_buffer(target, address, 4, value);
-		if (retval != ERROR_OK)
-			goto reset_pg_and_lock;
+	  retval = target_write_buffer(target, address, 4, value);
+	  if (retval != ERROR_OK)
+	    goto reset_pg_and_lock;
 
-		bytes_written += bytes_to_write;
-		bytes_remaining -= bytes_to_write;
-		address += 4;
+	  bytes_written += bytes_to_write;
+	  bytes_remaining -= bytes_to_write;
+	  address += 4;
 
-		retval = stm32lx_wait_until_bsy_clear(bank);
-		if (retval != ERROR_OK)
-			goto reset_pg_and_lock;
+	  retval = stm32lx_wait_until_bsy_clear(bank);
+	  if (retval != ERROR_OK)
+	    goto reset_pg_and_lock;
 	}
 
-reset_pg_and_lock:
+	reset_pg_and_lock:
 	retval2 = stm32lx_lock_program_memory(bank);
 	if (retval == ERROR_OK)
-		retval = retval2;
+	  retval = retval2;
 
 	return retval;
 }
@@ -603,12 +641,12 @@ static int stm32lx_read_id_code(struct target *target, uint32_t *id)
 	/* read stm32 device id register */
 	int retval = target_read_u32(target, DBGMCU_IDCODE, id);
 	if (retval != ERROR_OK)
-		return retval;
+	  return retval;
 
 	/* STM32L0 parts will have 0 there, try reading the L0's location for
 	 * DBG_IDCODE in case this is an L0 part. */
 	if (*id == 0)
-		retval = target_read_u32(target, DBGMCU_IDCODE_L0, id);
+	  retval = target_read_u32(target, DBGMCU_IDCODE_L0, id);
 
 	return retval;
 }
@@ -624,94 +662,93 @@ static int stm32lx_probe(struct flash_bank *bank)
 	uint32_t second_bank_base;
 
 	stm32lx_info->probed = 0;
-	stm32lx_info->part_info = NULL;
 
 	int retval = stm32lx_read_id_code(bank->target, &device_id);
 	if (retval != ERROR_OK)
-		return retval;
+	  return retval;
 
 	stm32lx_info->idcode = device_id;
 
 	LOG_DEBUG("device id = 0x%08" PRIx32 "", device_id);
 
 	for (unsigned int n = 0; n < ARRAY_SIZE(stm32lx_parts); n++) {
-		if ((device_id & 0xfff) == stm32lx_parts[n].id)
-			stm32lx_info->part_info = &stm32lx_parts[n];
+	  if ((device_id & 0xfff) == stm32lx_parts[n].id)
+	    stm32lx_info->part_info = &stm32lx_parts[n];
 	}
 
 	if (!stm32lx_info->part_info) {
-		LOG_WARNING("Cannot identify target as a STM32L family.");
-		return ERROR_FAIL;
+	  LOG_WARNING("Cannot identify target as a STM32L family.");
+	  return ERROR_FAIL;
 	}
 
 	stm32lx_info->flash_base = stm32lx_info->part_info->flash_base;
 
 	/* Get the flash size from target. */
 	retval = target_read_u16(target, stm32lx_info->part_info->fsize_base,
-			&flash_size_in_kb);
+			   &flash_size_in_kb);
 
 	/* 0x436 devices report their flash size as a 0 or 1 code indicating 384K
 	 * or 256K, respectively.  Please see RM0038 r8 or newer and refer to
 	 * section 30.1.1. */
 	if (retval == ERROR_OK && (device_id & 0xfff) == 0x436) {
-		if (flash_size_in_kb == 0)
-			flash_size_in_kb = 384;
-		else if (flash_size_in_kb == 1)
-			flash_size_in_kb = 256;
+	  if (flash_size_in_kb == 0)
+	    flash_size_in_kb = 384;
+	  else if (flash_size_in_kb == 1)
+	    flash_size_in_kb = 256;
 	}
 
 	/* Failed reading flash size or flash size invalid (early silicon),
 	 * default to max target family */
 	if (retval != ERROR_OK || flash_size_in_kb == 0xffff || flash_size_in_kb == 0) {
-		LOG_WARNING("STM32L flash size failed, probe inaccurate - assuming %dk flash",
-			stm32lx_info->part_info->max_flash_size_kb);
-		flash_size_in_kb = stm32lx_info->part_info->max_flash_size_kb;
+	  LOG_WARNING("STM32L flash size failed, probe inaccurate - assuming %dk flash",
+		stm32lx_info->part_info->max_flash_size_kb);
+	  flash_size_in_kb = stm32lx_info->part_info->max_flash_size_kb;
 	} else if (flash_size_in_kb > stm32lx_info->part_info->max_flash_size_kb) {
-		LOG_WARNING("STM32L probed flash size assumed incorrect since FLASH_SIZE=%dk > %dk, - assuming %dk flash",
-			flash_size_in_kb, stm32lx_info->part_info->max_flash_size_kb,
-			stm32lx_info->part_info->max_flash_size_kb);
-		flash_size_in_kb = stm32lx_info->part_info->max_flash_size_kb;
+	  LOG_WARNING("STM32L probed flash size assumed incorrect since FLASH_SIZE=%dk > %dk, - assuming %dk flash",
+		flash_size_in_kb, stm32lx_info->part_info->max_flash_size_kb,
+		stm32lx_info->part_info->max_flash_size_kb);
+	  flash_size_in_kb = stm32lx_info->part_info->max_flash_size_kb;
 	}
 
 	if (stm32lx_info->part_info->has_dual_banks) {
-		/* Use the configured base address to determine if this is the first or second flash bank.
-		 * Verify that the base address is reasonably correct and determine the flash bank size
-		 */
-		second_bank_base = base_address +
-			stm32lx_info->part_info->first_bank_size_kb * 1024;
-		if (bank->base == second_bank_base) {
-			/* This is the second bank  */
-			base_address = second_bank_base;
-			flash_size_in_kb = flash_size_in_kb -
-				stm32lx_info->part_info->first_bank_size_kb;
-		} else if (bank->base == 0 || bank->base == base_address) {
-			/* This is the first bank */
-			flash_size_in_kb = stm32lx_info->part_info->first_bank_size_kb;
-		} else {
-			LOG_WARNING("STM32L flash bank base address config is incorrect."
-				    " 0x%" PRIx32 " but should rather be 0x%" PRIx32 " or 0x%" PRIx32,
-						bank->base, base_address, second_bank_base);
-			return ERROR_FAIL;
-		}
-		LOG_INFO("STM32L flash has dual banks. Bank (%d) size is %dkb, base address is 0x%" PRIx32,
-				bank->bank_number, flash_size_in_kb, base_address);
+	  /* Use the configured base address to determine if this is the first or second flash bank.
+	   * Verify that the base address is reasonably correct and determine the flash bank size
+	   */
+	  second_bank_base = base_address +
+	    stm32lx_info->part_info->first_bank_size_kb * 1024;
+	  if (bank->base == second_bank_base) {
+	    /* This is the second bank  */
+	    base_address = second_bank_base;
+	    flash_size_in_kb = flash_size_in_kb -
+	stm32lx_info->part_info->first_bank_size_kb;
+	  } else if (bank->base == 0 || bank->base == base_address) {
+	    /* This is the first bank */
+	    flash_size_in_kb = stm32lx_info->part_info->first_bank_size_kb;
+	  } else {
+	    LOG_WARNING("STM32L flash bank base address config is incorrect."
+		  " 0x%" PRIx32 " but should rather be 0x%" PRIx32 " or 0x%" PRIx32,
+		  bank->base, base_address, second_bank_base);
+	    return ERROR_FAIL;
+	  }
+	  LOG_INFO("STM32L flash has dual banks. Bank (%d) size is %dkb, base address is 0x%" PRIx32,
+	    bank->bank_number, flash_size_in_kb, base_address);
 	} else {
-		LOG_INFO("STM32L flash size is %dkb, base address is 0x%" PRIx32, flash_size_in_kb, base_address);
+	  LOG_INFO("STM32L flash size is %dkb, base address is 0x%" PRIx32, flash_size_in_kb, base_address);
 	}
 
 	/* if the user sets the size manually then ignore the probed value
 	 * this allows us to work around devices that have a invalid flash size register value */
 	if (stm32lx_info->user_bank_size) {
-		flash_size_in_kb = stm32lx_info->user_bank_size / 1024;
-		LOG_INFO("ignoring flash probed value, using configured bank size: %dkbytes", flash_size_in_kb);
+	  flash_size_in_kb = stm32lx_info->user_bank_size / 1024;
+	  LOG_INFO("ignoring flash probed value, using configured bank size: %dkbytes", flash_size_in_kb);
 	}
 
 	/* calculate numbers of sectors (4kB per sector) */
 	int num_sectors = (flash_size_in_kb * 1024) / FLASH_SECTOR_SIZE;
 
 	if (bank->sectors) {
-		free(bank->sectors);
-		bank->sectors = NULL;
+	  free(bank->sectors);
+	  bank->sectors = NULL;
 	}
 
 	bank->size = flash_size_in_kb * 1024;
@@ -719,15 +756,15 @@ static int stm32lx_probe(struct flash_bank *bank)
 	bank->num_sectors = num_sectors;
 	bank->sectors = malloc(sizeof(struct flash_sector) * num_sectors);
 	if (bank->sectors == NULL) {
-		LOG_ERROR("failed to allocate bank sectors");
-		return ERROR_FAIL;
+	  LOG_ERROR("failed to allocate bank sectors");
+	  return ERROR_FAIL;
 	}
 
 	for (i = 0; i < num_sectors; i++) {
-		bank->sectors[i].offset = i * FLASH_SECTOR_SIZE;
-		bank->sectors[i].size = FLASH_SECTOR_SIZE;
-		bank->sectors[i].is_erased = -1;
-		bank->sectors[i].is_protected = 1;
+	  bank->sectors[i].offset = i * FLASH_SECTOR_SIZE;
+	  bank->sectors[i].size = FLASH_SECTOR_SIZE;
+	  bank->sectors[i].is_erased = -1;
+	  bank->sectors[i].is_protected = 1;
 	}
 
 	stm32lx_info->probed = 1;
@@ -740,7 +777,7 @@ static int stm32lx_auto_probe(struct flash_bank *bank)
 	struct stm32lx_flash_bank *stm32lx_info = bank->driver_priv;
 
 	if (stm32lx_info->probed)
-		return ERROR_OK;
+	  return ERROR_OK;
 
 	return stm32lx_probe(bank);
 }
@@ -754,41 +791,41 @@ static int stm32lx_erase_check(struct flash_bank *bank)
 	int retval = ERROR_OK;
 
 	if (bank->target->state != TARGET_HALTED) {
-		LOG_ERROR("Target not halted");
-		return ERROR_TARGET_NOT_HALTED;
+	  LOG_ERROR("Target not halted");
+	  return ERROR_TARGET_NOT_HALTED;
 	}
 
 	uint8_t *buffer = malloc(buffer_size);
 	if (buffer == NULL) {
-		LOG_ERROR("failed to allocate read buffer");
-		return ERROR_FAIL;
+	  LOG_ERROR("failed to allocate read buffer");
+	  return ERROR_FAIL;
 	}
 
 	for (i = 0; i < bank->num_sectors; i++) {
-		uint32_t j;
-		bank->sectors[i].is_erased = 1;
+	  uint32_t j;
+	  bank->sectors[i].is_erased = 1;
 
-		/* Loop chunk by chunk over the sector */
-		for (j = 0; j < bank->sectors[i].size; j += buffer_size) {
-			uint32_t chunk;
-			chunk = buffer_size;
-			if (chunk > (j - bank->sectors[i].size))
-				chunk = (j - bank->sectors[i].size);
+	  /* Loop chunk by chunk over the sector */
+	  for (j = 0; j < bank->sectors[i].size; j += buffer_size) {
+	    uint32_t chunk;
+	    chunk = buffer_size;
+	    if (chunk > (j - bank->sectors[i].size))
+	chunk = (j - bank->sectors[i].size);
 
-			retval = target_read_memory(target, bank->base
-					+ bank->sectors[i].offset + j, 4, chunk / 4, buffer);
-			if (retval != ERROR_OK)
-				break;
+	    retval = target_read_memory(target, bank->base
+				  + bank->sectors[i].offset + j, 4, chunk / 4, buffer);
+	    if (retval != ERROR_OK)
+	break;
 
-			for (nBytes = 0; nBytes < chunk; nBytes++) {
-				if (buffer[nBytes] != 0x00) {
-					bank->sectors[i].is_erased = 0;
-					break;
-				}
-			}
-		}
-		if (retval != ERROR_OK)
-			break;
+	    for (nBytes = 0; nBytes < chunk; nBytes++) {
+	if (buffer[nBytes] != 0x00) {
+	 bank->sectors[i].is_erased = 0;
+	 break;
+	}
+	    }
+	  }
+	  if (retval != ERROR_OK)
+	    break;
 	}
 	free(buffer);
 
@@ -801,71 +838,78 @@ static int stm32lx_get_info(struct flash_bank *bank, char *buf, int buf_size)
 	struct stm32lx_flash_bank *stm32lx_info = bank->driver_priv;
 
 	if (!stm32lx_info->probed) {
-		int retval = stm32lx_probe(bank);
-		if (retval != ERROR_OK) {
-			snprintf(buf, buf_size,
-				"Unable to find bank information.");
-			return retval;
-		}
+	  int retval = stm32lx_probe(bank);
+	  if (retval != ERROR_OK) {
+	    snprintf(buf, buf_size,
+	      "Unable to find bank information.");
+	    return retval;
+	  }
 	}
 
 
 	const struct stm32lx_part_info *info = stm32lx_info->part_info;
 
 	if (info) {
-		const char *rev_str = NULL;
-		uint16_t rev_id = stm32lx_info->idcode >> 16;
+	  const char *rev_str = NULL;
+	  uint16_t rev_id = stm32lx_info->idcode >> 16;
 
-		for (unsigned int i = 0; i < info->num_revs; i++)
-			if (rev_id == info->revs[i].rev)
-				rev_str = info->revs[i].str;
+	  for (unsigned int i = 0; i < info->num_revs; i++)
+	    if (rev_id == info->revs[i].rev)
+	rev_str = info->revs[i].str;
 
-		if (rev_str != NULL) {
-			snprintf(buf, buf_size,
-				"%s - Rev: %s",
-				stm32lx_info->part_info->device_str, rev_str);
-		} else {
-			snprintf(buf, buf_size,
-				"%s - Rev: unknown (0x%04x)",
-				stm32lx_info->part_info->device_str, rev_id);
-		}
+	  if (rev_str != NULL) {
+	    snprintf(buf, buf_size,
+	      "%s - Rev: %s",
+	      stm32lx_info->part_info->device_str, rev_str);
+	  } else {
+	    snprintf(buf, buf_size,
+	      "%s - Rev: unknown (0x%04x)",
+	      stm32lx_info->part_info->device_str, rev_id);
+	  }
 
-		return ERROR_OK;
+	  return ERROR_OK;
 	} else {
-		snprintf(buf, buf_size, "Cannot identify target as a STM32Lx");
+	  snprintf(buf, buf_size, "Cannot identify target as a STM32Lx");
 
-		return ERROR_FAIL;
+	  return ERROR_FAIL;
 	}
 }
 
 static const struct command_registration stm32lx_exec_command_handlers[] = {
+	{
+	  .name = "mass_erase",
+	  .handler = stm32lx_handle_mass_erase_command,
+	  .mode = COMMAND_EXEC,
+	  .usage = "bank_id",
+	  .help = "Erase entire flash device. Erase also the EEPROM",
+	},
 	COMMAND_REGISTRATION_DONE
 };
 
 static const struct command_registration stm32lx_command_handlers[] = {
 	{
-		.name = "stm32lx",
-		.mode = COMMAND_ANY,
-		.help = "stm32lx flash command group",
-		.usage = "",
-		.chain = stm32lx_exec_command_handlers,
+	  .name = "stm32lx",
+	  .mode = COMMAND_ANY,
+	  .help = "stm32lx flash command group",
+	  .usage = "",
+	  .chain = stm32lx_exec_command_handlers,
 	},
 	COMMAND_REGISTRATION_DONE
 };
 
 struct flash_driver stm32lx_flash = {
-		.name = "stm32lx",
-		.commands = stm32lx_command_handlers,
-		.flash_bank_command = stm32lx_flash_bank_command,
-		.erase = stm32lx_erase,
-		.protect = stm32lx_protect,
-		.write = stm32lx_write,
-		.read = default_flash_read,
-		.probe = stm32lx_probe,
-		.auto_probe = stm32lx_auto_probe,
-		.erase_check = stm32lx_erase_check,
-		.protect_check = stm32lx_protect_check,
-		.info = stm32lx_get_info,
+	.name = "stm32lx",
+	.commands = stm32lx_command_handlers,
+	.flash_bank_command = stm32lx_flash_bank_command,
+	.erase = stm32lx_erase,
+	.protect = stm32lx_protect,
+	.write = stm32lx_write,
+	.read = default_flash_read,
+	.probe = stm32lx_probe,
+	.auto_probe = stm32lx_auto_probe,
+	.erase_check = stm32lx_erase_check,
+	.protect_check = stm32lx_protect_check,
+	.info = stm32lx_get_info,
 };
 
 /* Static methods implementation */
@@ -883,53 +927,53 @@ static int stm32lx_unlock_program_memory(struct flash_bank *bank)
 
 	/* check flash is not already unlocked */
 	retval = target_read_u32(target, stm32lx_info->flash_base + FLASH_PECR,
-			&reg32);
+			   &reg32);
 	if (retval != ERROR_OK)
-		return retval;
+	  return retval;
 
 	if ((reg32 & FLASH_PECR__PRGLOCK) == 0)
-		return ERROR_OK;
+	  return ERROR_OK;
 
 	/* To unlock the PECR write the 2 PEKEY to the PEKEYR register */
 	retval = target_write_u32(target, stm32lx_info->flash_base + FLASH_PEKEYR,
-			PEKEY1);
+			    PEKEY1);
 	if (retval != ERROR_OK)
-		return retval;
+	  return retval;
 
 	retval = target_write_u32(target, stm32lx_info->flash_base + FLASH_PEKEYR,
-			PEKEY2);
+			    PEKEY2);
 	if (retval != ERROR_OK)
-		return retval;
+	  return retval;
 
 	/* Make sure it worked */
 	retval = target_read_u32(target, stm32lx_info->flash_base + FLASH_PECR,
-			&reg32);
+			   &reg32);
 	if (retval != ERROR_OK)
-		return retval;
+	  return retval;
 
 	if (reg32 & FLASH_PECR__PELOCK) {
-		LOG_ERROR("PELOCK is not cleared :(");
-		return ERROR_FLASH_OPERATION_FAILED;
+	  LOG_ERROR("PELOCK is not cleared :(");
+	  return ERROR_FLASH_OPERATION_FAILED;
 	}
 
 	retval = target_write_u32(target, stm32lx_info->flash_base + FLASH_PRGKEYR,
-			PRGKEY1);
+			    PRGKEY1);
 	if (retval != ERROR_OK)
-		return retval;
+	  return retval;
 	retval = target_write_u32(target, stm32lx_info->flash_base + FLASH_PRGKEYR,
-			PRGKEY2);
+			    PRGKEY2);
 	if (retval != ERROR_OK)
-		return retval;
+	  return retval;
 
 	/* Make sure it worked */
 	retval = target_read_u32(target, stm32lx_info->flash_base + FLASH_PECR,
-			&reg32);
+			   &reg32);
 	if (retval != ERROR_OK)
-		return retval;
+	  return retval;
 
 	if (reg32 & FLASH_PECR__PRGLOCK) {
-		LOG_ERROR("PRGLOCK is not cleared :(");
-		return ERROR_FLASH_OPERATION_FAILED;
+	  LOG_ERROR("PRGLOCK is not cleared :(");
+	  return ERROR_FLASH_OPERATION_FAILED;
 	}
 
 	return ERROR_OK;
@@ -947,27 +991,27 @@ static int stm32lx_enable_write_half_page(struct flash_bank *bank)
 	 */
 	retval = stm32lx_unlock_program_memory(bank);
 	if (retval != ERROR_OK)
-		return retval;
+	  return retval;
 
 	retval = target_read_u32(target, stm32lx_info->flash_base + FLASH_PECR,
-			&reg32);
+			   &reg32);
 	if (retval != ERROR_OK)
-		return retval;
+	  return retval;
 
 	reg32 |= FLASH_PECR__FPRG;
 	retval = target_write_u32(target, stm32lx_info->flash_base + FLASH_PECR,
-			reg32);
+			    reg32);
 	if (retval != ERROR_OK)
-		return retval;
+	  return retval;
 
 	retval = target_read_u32(target, stm32lx_info->flash_base + FLASH_PECR,
-			&reg32);
+			   &reg32);
 	if (retval != ERROR_OK)
-		return retval;
+	  return retval;
 
 	reg32 |= FLASH_PECR__PROG;
 	retval = target_write_u32(target, stm32lx_info->flash_base + FLASH_PECR,
-			reg32);
+			    reg32);
 
 	return retval;
 }
@@ -982,26 +1026,26 @@ static int stm32lx_lock_program_memory(struct flash_bank *bank)
 	/* To lock the program memory, simply set the lock bit and lock PECR */
 
 	retval = target_read_u32(target, stm32lx_info->flash_base + FLASH_PECR,
-			&reg32);
+			   &reg32);
 	if (retval != ERROR_OK)
-		return retval;
+	  return retval;
 
 	reg32 |= FLASH_PECR__PRGLOCK;
 	retval = target_write_u32(target, stm32lx_info->flash_base + FLASH_PECR,
-			reg32);
+			    reg32);
 	if (retval != ERROR_OK)
-		return retval;
+	  return retval;
 
 	retval = target_read_u32(target, stm32lx_info->flash_base + FLASH_PECR,
-			&reg32);
+			   &reg32);
 	if (retval != ERROR_OK)
-		return retval;
+	  return retval;
 
 	reg32 |= FLASH_PECR__PELOCK;
 	retval = target_write_u32(target, stm32lx_info->flash_base + FLASH_PECR,
-			reg32);
+			    reg32);
 	if (retval != ERROR_OK)
-		return retval;
+	  return retval;
 
 	return ERROR_OK;
 }
@@ -1021,37 +1065,46 @@ static int stm32lx_erase_sector(struct flash_bank *bank, int sector)
 
 	retval = stm32lx_unlock_program_memory(bank);
 	if (retval != ERROR_OK)
-		return retval;
+	  return retval;
 
 	for (int page = 0; page < (int)stm32lx_info->part_info->pages_per_sector;
-			page++) {
-		reg32 = FLASH_PECR__PROG | FLASH_PECR__ERASE;
-		retval = target_write_u32(target,
-				stm32lx_info->flash_base + FLASH_PECR, reg32);
-		if (retval != ERROR_OK)
-			return retval;
+	     page++) {
+	  reg32 = FLASH_PECR__PROG | FLASH_PECR__ERASE;
+	  retval = target_write_u32(target,
+			      stm32lx_info->flash_base + FLASH_PECR, reg32);
+	  if (retval != ERROR_OK)
+	    return retval;
 
-		retval = stm32lx_wait_until_bsy_clear(bank);
-		if (retval != ERROR_OK)
-			return retval;
+	  retval = stm32lx_wait_until_bsy_clear(bank);
+	  if (retval != ERROR_OK)
+	    return retval;
 
-		uint32_t addr = bank->base + bank->sectors[sector].offset + (page
-				* stm32lx_info->part_info->page_size);
-		retval = target_write_u32(target, addr, 0x0);
-		if (retval != ERROR_OK)
-			return retval;
+	  uint32_t addr = bank->base + bank->sectors[sector].offset + (page
+								 * stm32lx_info->part_info->page_size);
+	  retval = target_write_u32(target, addr, 0x0);
+	  if (retval != ERROR_OK)
+	    return retval;
 
-		retval = stm32lx_wait_until_bsy_clear(bank);
-		if (retval != ERROR_OK)
-			return retval;
+	  retval = stm32lx_wait_until_bsy_clear(bank);
+	  if (retval != ERROR_OK)
+	    return retval;
 	}
 
 	retval = stm32lx_lock_program_memory(bank);
 	if (retval != ERROR_OK)
-		return retval;
+	  return retval;
 
 	return ERROR_OK;
 }
+
+static inline int stm32lx_get_flash_status(struct flash_bank *bank, uint32_t *status)
+{
+	struct target *target = bank->target;
+	struct stm32lx_flash_bank *stm32lx_info = bank->driver_priv;
+
+	return target_read_u32(target, stm32lx_info->flash_base + FLASH_SR, status);
+}
+
 
 static int stm32lx_wait_until_bsy_clear(struct flash_bank *bank)
 {
@@ -1063,29 +1116,163 @@ static int stm32lx_wait_until_bsy_clear(struct flash_bank *bank)
 
 	/* wait for busy to clear */
 	for (;;) {
-		retval = target_read_u32(target, stm32lx_info->flash_base + FLASH_SR,
-				&status);
-		if (retval != ERROR_OK)
-			return retval;
+	  retval = target_read_u32(target, stm32lx_info->flash_base + FLASH_SR,
+			     &status);
+	  if (retval != ERROR_OK)
+	    return retval;
 
-		if ((status & FLASH_SR__BSY) == 0)
-			break;
-		if (timeout-- <= 0) {
-			LOG_ERROR("timed out waiting for flash");
-			return ERROR_FAIL;
-		}
-		alive_sleep(1);
+	  if ((status & FLASH_SR__BSY) == 0)
+	    break;
+	  if (timeout-- <= 0) {
+	    LOG_ERROR("timed out waiting for flash");
+	    return ERROR_FAIL;
+	  }
+	  alive_sleep(1);
 	}
 
 	if (status & FLASH_SR__WRPERR) {
-		LOG_ERROR("access denied / write protected");
-		retval = ERROR_FAIL;
+	  LOG_ERROR("access denied / write protected");
+	  retval = ERROR_FAIL;
 	}
 
 	if (status & FLASH_SR__PGAERR) {
-		LOG_ERROR("invalid program address");
-		retval = ERROR_FAIL;
+	  LOG_ERROR("invalid program address");
+	  retval = ERROR_FAIL;
 	}
 
 	return retval;
+}
+
+/* Static methods for mass erase stuff implementation */
+static int stm32lx_unlock_options_bytes(struct flash_bank *bank)
+{
+	struct target *target = bank->target;
+	struct stm32lx_flash_bank *stm32lx_info = bank->driver_priv;
+	int retval;
+	uint32_t reg32;
+
+	/*
+	 * Unlocking the options bytes is done by unlocking the PECR,
+	 * then by writing the 2 FLASH_PEKEYR to the FLASH_OPTKEYR register
+	 */
+
+	/* check flash is not already unlocked */
+	retval = target_read_u32(target, stm32lx_info->flash_base + FLASH_PECR,
+				&reg32);
+	if (retval != ERROR_OK)
+	  return retval;
+
+	if ((reg32 & FLASH_PECR__OPTLOCK) == 0)
+	  return ERROR_OK;
+
+	if ((reg32 & FLASH_PECR__PELOCK) != 0) {
+
+	  retval = target_write_u32(target, stm32lx_info->flash_base + FLASH_PEKEYR,
+			      PEKEY1);
+	  if (retval != ERROR_OK)
+	    return retval;
+
+	  retval = target_write_u32(target, stm32lx_info->flash_base + FLASH_PEKEYR,
+			      PEKEY2);
+	  if (retval != ERROR_OK)
+	    return retval;
+	}
+
+	/* To unlock the PECR write the 2 OPTKEY to the FLASH_OPTKEYR register */
+	retval = target_write_u32(target, stm32lx_info->flash_base + FLASH_OPTKEYR,
+			    OPTKEY1);
+	if (retval != ERROR_OK)
+	  return retval;
+
+	retval = target_write_u32(target, stm32lx_info->flash_base + FLASH_OPTKEYR,
+			    OPTKEY2);
+	if (retval != ERROR_OK)
+	  return retval;
+
+	return ERROR_OK;
+}
+
+
+static int stm32lx_wait_status_busy(struct flash_bank *bank, int timeout)
+{
+	struct target *target = bank->target;
+	uint32_t status;
+
+	int retval = ERROR_OK;
+	struct stm32lx_flash_bank *stm32lx_info = bank->driver_priv;
+
+	/* wait for busy to clear */
+	for (;;) {
+
+	  retval = stm32lx_get_flash_status(bank, &status);
+	  if (retval != ERROR_OK)
+	    return retval;
+
+	  LOG_DEBUG("status: 0x%" PRIx32 "", status);
+	  if ((status & FLASH_SR__BSY) == 0)
+	    break;
+
+	  if (timeout-- <= 0) {
+	    LOG_ERROR("timed out waiting for flash");
+	    return ERROR_FAIL;
+	  }
+	  alive_sleep(1);
+	}
+
+	if (status & FLASH_SR__WRPERR) {
+	  LOG_ERROR("stm32lx device protected");
+	  retval = ERROR_FAIL;
+	}
+
+	/* Clear but report errors */
+	if (status & FLASH_SR__OPTVERR) {
+	  /* If this operation fails, we ignore it and report the original
+	   * retval
+	   */
+	  target_write_u32(target, stm32lx_info->flash_base + FLASH_SR, status & FLASH_SR__OPTVERR);
+	}
+	return retval;
+}
+
+
+static int stm32lx_mass_erase(struct flash_bank *bank)
+{
+	int retval;
+	struct target *target = bank->target;
+	struct stm32lx_flash_bank *stm32lx_info = NULL;
+	uint32_t reg32;
+	
+	if (target->state != TARGET_HALTED) {
+	  LOG_ERROR("Target not halted");
+	  return ERROR_TARGET_NOT_HALTED;
+	}
+	
+	stm32lx_info = bank->driver_priv;
+	
+	retval = stm32lx_unlock_options_bytes(bank);
+	if (retval != ERROR_OK)
+	  return retval;
+	
+	/* mass erase flash memory , write 0x015500AA option byte address 0*/
+	/* pass the RDP privilege to 1 */
+	retval = target_write_u32(target, OPTION_BYTES_ADDRESS, OPTION_BYTE_0_PR1);
+
+	/* restore the RDP privilege to 0 */
+	retval = target_write_u32(target, OPTION_BYTES_ADDRESS, 0x01FF0011);
+
+	/* the mass erase occur when the privilege go back to 0 */
+	retval = stm32lx_wait_status_busy(bank, 30000);
+	if (retval != ERROR_OK)
+	  return retval;
+
+	retval = target_read_u32(target, stm32lx_info->flash_base + FLASH_PECR,
+			   &reg32);
+	if (retval != ERROR_OK)
+	  return retval;
+
+	retval = target_write_u32(target, stm32lx_info->flash_base + FLASH_PECR, reg32 | FLASH_PECR__OPTLOCK);
+	if (retval != ERROR_OK)
+	  return retval;
+
+	return ERROR_OK;
 }
