@@ -61,6 +61,7 @@
 static uint16_t cmsis_dap_vid[MAX_USB_IDS + 1] = { 0 };
 static uint16_t cmsis_dap_pid[MAX_USB_IDS + 1] = { 0 };
 static bool swd_mode;
+static wchar_t *serial;
 
 #define PACKET_SIZE       (64 + 1)	/* 64 bytes plus report id */
 #define USB_TIMEOUT       1000
@@ -201,7 +202,12 @@ static int cmsis_dap_usb_open(void)
 
 		if (found) {
 			/* we have found an adapter, so exit further checks */
-			break;
+			/* check serial number matches if given */
+			if (serial != NULL) {
+				if (wcscmp(serial, cur_dev->serial_number) == 0)
+					break;
+			} else
+				break;
 		}
 
 		cur_dev = cur_dev->next;
@@ -1006,6 +1012,27 @@ COMMAND_HANDLER(cmsis_dap_handle_vid_pid_command)
 	return ERROR_OK;
 }
 
+COMMAND_HANDLER(cmsis_dap_handle_serial_command)
+{
+	if (CMD_ARGC == 1) {
+		size_t len = mbstowcs(NULL, CMD_ARGV[0], 0);
+		serial = calloc(len + 1, sizeof(wchar_t));
+		if (serial == NULL) {
+			LOG_ERROR("unable to allocate memory");
+			return ERROR_OK;
+		}
+		if (mbstowcs(serial, CMD_ARGV[0], len + 1) == (size_t)-1) {
+			free(serial);
+			serial = NULL;
+			LOG_ERROR("unable to convert serial");
+		}
+	} else {
+		LOG_ERROR("expected exactly one argument to cmsis_dap_serial <serial-number>");
+	}
+
+	return ERROR_OK;
+}
+
 static const struct command_registration cmsis_dap_subcommand_handlers[] = {
 	{
 		.name = "info",
@@ -1031,6 +1058,13 @@ static const struct command_registration cmsis_dap_command_handlers[] = {
 		.mode = COMMAND_CONFIG,
 		.help = "the vendor ID and product ID of the CMSIS-DAP device",
 		.usage = "(vid pid)* ",
+	},
+	{
+		.name = "cmsis_dap_serial",
+		.handler = &cmsis_dap_handle_serial_command,
+		.mode = COMMAND_CONFIG,
+		.help = "set the serial number of the adapter",
+		.usage = "serial_string",
 	},
 	COMMAND_REGISTRATION_DONE
 };
