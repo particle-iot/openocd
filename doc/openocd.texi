@@ -156,9 +156,10 @@ USB-based, parallel port-based, and other standalone boxes that run
 OpenOCD internally. @xref{Debug Adapter Hardware}.
 
 @b{GDB Debug:} It allows ARM7 (ARM7TDMI and ARM720t), ARM9 (ARM920T,
-ARM922T, ARM926EJ--S, ARM966E--S), XScale (PXA25x, IXP42x), Cortex-M3
-(Stellaris LM3, ST STM32 and Energy Micro EFM32) and Intel Quark (x10xx)
-based cores to be debugged via the GDB protocol.
+ARM922T, ARM926EJ--S, ARM966E--S), XScale (PXA25x, IXP42x), Cortex-M
+(Stellaris LM3, ST STM32 and Energy Micro EFM32), Cortex-A (i.MX5, i.MX6,
+OMAP3, OMAP4), MIPS (PIC32) and Intel Quark (x10xx) based cores to be
+debugged via the GDB protocol.
 
 @b{Flash Programming:} Flash writing is supported for external
 CFI-compatible NOR flashes (Intel and AMD/Spansion command set) and several
@@ -2902,7 +2903,7 @@ This is a write-once setting.
 Segger J-Link family of USB adapters. It currently supports JTAG and SWD transports.
 
 @quotation Compatibility Note
-Segger released many firmware versions for the many harware versions they
+Segger released many firmware versions for the many hardware versions they
 produced. OpenOCD was extensively tested and intended to run on all of them,
 but some combinations were reported as incompatible. As a general
 recommendation, it is advisable to use the latest firmware version
