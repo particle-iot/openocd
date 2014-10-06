@@ -78,6 +78,12 @@ struct hl_layout_api_s {
 	/** */
 	int (*custom_command) (void *handle, const char *command);
 	/** */
+	int (*speed)(void *handle, int speed);
+	/** */
+	int (*khz)(int khz, int *jtag_speed);
+	/** */
+	int (*speed_div)(int speed, int *khz);
+	/** */
 	enum target_state (*state) (void *fd);
 };
 
