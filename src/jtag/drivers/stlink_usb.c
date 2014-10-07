@@ -204,6 +204,7 @@ struct stlink_usb_handle_s {
 #define STLINK_DEBUG_APIV2_START_TRACE_RX  0x40
 #define STLINK_DEBUG_APIV2_STOP_TRACE_RX   0x41
 #define STLINK_DEBUG_APIV2_GET_TRACE_NB    0x42
+#define STLINK_DEBUG_APIV2_SWD_SET_FREQ    0x43
 
 #define STLINK_DEBUG_APIV2_DRIVE_NRST_LOW   0x00
 #define STLINK_DEBUG_APIV2_DRIVE_NRST_HIGH  0x01
@@ -225,6 +226,24 @@ enum stlink_mode {
 
 #define REQUEST_SENSE        0x03
 #define REQUEST_SENSE_LENGTH 18
+
+static const struct {
+	int speed;
+	int speed_divisor;
+} stlink_khz_to_speed_map[] = {
+	{4000, 0},
+	{1800, 1}, /* default */
+	{1200, 2},
+	{950,  3},
+	{480,  7},
+	{240, 15},
+	{125, 31},
+	{100, 40},
+	{50,  79},
+	{25, 158},
+	{15, 265},
+	{5,  798}
+};
 
 static void stlink_usb_init_buffer(void *handle, uint8_t direction, uint32_t size);
 
@@ -530,6 +549,31 @@ static int stlink_usb_check_voltage(void *handle, float *target_voltage)
 		*target_voltage = 2 * ((float)adc_results[1]) * (float)(1.2 / adc_results[0]);
 
 	LOG_INFO("Target voltage: %f", (double)*target_voltage);
+
+	return ERROR_OK;
+}
+
+static int stlink_usb_set_swdclk(void *handle, uint16_t clk_freq)
+{
+	struct stlink_usb_handle_s *h = handle;
+
+	assert(handle != NULL);
+
+	/* only supported by stlink/v2 and for firmware >= 22 */
+	if (h->version.stlink == 1 || h->version.jtag < 22)
+		return ERROR_COMMAND_NOTFOUND;
+
+	stlink_usb_init_buffer(handle, h->rx_ep, 2);
+
+	h->cmdbuf[h->cmdidx++] = STLINK_DEBUG_COMMAND;
+	h->cmdbuf[h->cmdidx++] = STLINK_DEBUG_APIV2_SWD_SET_FREQ;
+	h_u16_to_le(h->cmdbuf+h->cmdidx, (uint16_t)stlink_khz_to_speed_map[clk_freq].speed_divisor);
+	h->cmdidx += 2;
+
+	int result = stlink_cmd_allow_retry(handle, h->databuf, 2);
+
+	if (result != ERROR_OK)
+		return result;
 
 	return ERROR_OK;
 }
@@ -1739,6 +1783,13 @@ static int stlink_usb_open(struct hl_interface_param_s *param, void **fd)
 		goto error_open;
 	}
 
+	err = stlink_usb_set_swdclk(h, param->initial_interface_speed);
+
+	if (err != ERROR_OK && err != ERROR_COMMAND_NOTFOUND) {
+		LOG_ERROR("set clock speed failed");
+		goto error_open;
+	}
+
 	/* get cpuid, so we can determine the max page size
 	 * start with a safe default */
 	h->max_mem_packet = (1 << 10);
@@ -1764,6 +1815,52 @@ error_open:
 	stlink_usb_close(h);
 
 	return ERROR_FAIL;
+}
+
+static int stlink_speed(void *handle, int speed)
+{
+	struct stlink_usb_handle_s *h = handle;
+	assert(handle != NULL);
+
+	int result = stlink_usb_set_swdclk(h, speed);
+	if (result != ERROR_OK && result != ERROR_COMMAND_NOTFOUND)
+		return ERROR_FAIL;
+	return ERROR_OK;
+}
+
+/* convert adapter frequency to human readable kHz value */
+static int stlink_speed_div(int speed, int *khz)
+{
+	*khz = stlink_khz_to_speed_map[speed].speed;
+	return ERROR_OK;
+}
+
+/* convert human readable kHz value to adapter frequency */
+static int stlink_khz(int khz, int *jtag_speed)
+{
+	unsigned i;
+	int speed_diff = 10000;
+
+	for (i = 0; i < ARRAY_SIZE(stlink_khz_to_speed_map); i++) {
+		if (khz == stlink_khz_to_speed_map[i].speed) {
+			*jtag_speed = i;
+			break;
+		} else {
+			int current_diff = khz - stlink_khz_to_speed_map[i].speed;
+			/* get abs value for comparison */
+			current_diff = (current_diff > 0) ? current_diff : -current_diff;
+			if (current_diff < speed_diff) {
+				speed_diff = current_diff;
+				*jtag_speed = i;
+			}
+		}
+	}
+
+	if (i == ARRAY_SIZE(stlink_khz_to_speed_map))
+		LOG_INFO("Using closest speed match: requested %d kHz, actual %d kHz", \
+				khz, stlink_khz_to_speed_map[*jtag_speed].speed);
+
+	return ERROR_OK;
 }
 
 /** */
@@ -1800,4 +1897,8 @@ struct hl_layout_api_s stlink_usb_layout_api = {
 	.write_debug_reg = stlink_usb_write_debug_reg,
 	/** */
 	.override_target = stlink_usb_override_target,
+
+	.speed = stlink_speed,
+	.khz = stlink_khz,
+	.speed_div = stlink_speed_div,
 };
