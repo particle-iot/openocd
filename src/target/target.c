@@ -280,6 +280,17 @@ const char *target_state_name(struct target *t)
 	return cp;
 }
 
+const char *target_event_name(enum target_event event)
+{
+	const char *cp;
+	cp = Jim_Nvp_value2name_simple(nvp_target_event, event)->name;
+	if (!cp) {
+		LOG_ERROR("Invalid target event: %d", (int)(event));
+		cp = "(*BUG*unknown*BUG*)";
+	}
+	return cp;
+}
+
 /* determine the number of the new target */
 static int new_target_number(void)
 {
