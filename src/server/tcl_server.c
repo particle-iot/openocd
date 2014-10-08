@@ -23,6 +23,7 @@
 #endif
 
 #include "tcl_server.h"
+#include <target/target.h>
 
 #define TCL_SERVER_VERSION		"TCL Server 0.1"
 #define TCL_MAX_LINE			(4096)
@@ -32,15 +33,45 @@ struct tcl_connection {
 	int tc_lineoffset;
 	char tc_line[TCL_MAX_LINE];
 	int tc_outerror;/* flag an output error */
+	enum target_state tc_laststate;
 };
 
 static char *tcl_port;
+static bool tcl_events;
 
 /* handlers */
 static int tcl_new_connection(struct connection *connection);
 static int tcl_input(struct connection *connection);
 static int tcl_output(struct connection *connection, const void *buf, ssize_t len);
 static int tcl_closed(struct connection *connection);
+
+static int tcl_target_callback_event_handler(struct target *target,
+		enum target_event event, void *priv)
+{
+	struct connection *connection = priv;
+	struct tcl_connection *tclc;
+	char buf[256];
+
+	tclc = connection->priv;
+
+	if (tcl_events) {
+		sprintf(buf, "#EVENT %s\r\n\x1a", target_event_name(event));
+		buf[sizeof(buf)-1] = 0;
+		tcl_output(connection, buf, strlen(buf));
+
+		struct target *target = get_current_target(connection->cmd_ctx);
+		if (target != NULL) {
+			if (tclc->tc_laststate != target->state) {
+				tclc->tc_laststate = target->state;
+				sprintf(buf, "#STATE %s\r\n\x1a", target_state_name(target));
+				buf[sizeof(buf)-1] = 0;
+				tcl_output(connection, buf, strlen(buf));
+			}
+		}
+	}
+
+	return ERROR_OK;
+}
 
 /* write data out to a socket.
  *
@@ -77,6 +108,13 @@ static int tcl_new_connection(struct connection *connection)
 
 	memset(tclc, 0, sizeof(struct tcl_connection));
 	connection->priv = tclc;
+
+	struct target *target = get_current_target(connection->cmd_ctx);
+	if (target != NULL)
+		tclc->tc_laststate = target->state;
+
+	target_register_event_callback(tcl_target_callback_event_handler, connection);
+
 	return ERROR_OK;
 }
 
@@ -152,6 +190,9 @@ static int tcl_closed(struct connection *connection)
 		free(connection->priv);
 		connection->priv = NULL;
 	}
+
+	target_unregister_event_callback(tcl_target_callback_event_handler, connection);
+
 	return ERROR_OK;
 }
 
@@ -172,6 +213,11 @@ COMMAND_HANDLER(handle_tcl_port_command)
 	return CALL_COMMAND_HANDLER(server_pipe_command, &tcl_port);
 }
 
+COMMAND_HANDLER(handle_tcl_events_command)
+{
+	return CALL_COMMAND_HANDLER(handle_command_parse_bool, &tcl_events, "TCL Server Event subscription");
+}
+
 static const struct command_registration tcl_command_handlers[] = {
 	{
 		.name = "tcl_port",
@@ -182,11 +228,19 @@ static const struct command_registration tcl_command_handlers[] = {
 			"Read help on 'gdb_port'.",
 		.usage = "[port_num]",
 	},
+	{
+		.name = "tcl_events",
+		.handler = handle_tcl_events_command,
+		.mode = COMMAND_ANY,
+		.help = "Enable or disable tcl server event output",
+		.usage = "[on/off]",
+	},
 	COMMAND_REGISTRATION_DONE
 };
 
 int tcl_register_commands(struct command_context *cmd_ctx)
 {
 	tcl_port = strdup("6666");
+	tcl_events = 0;
 	return register_commands(cmd_ctx, NULL, tcl_command_handlers);
 }

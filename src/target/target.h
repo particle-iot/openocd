@@ -565,6 +565,9 @@ int target_gdb_fileio_end(struct target *target, int retcode, int fileio_errno, 
 /** Return the *name* of this targets current state */
 const char *target_state_name(struct target *target);
 
+/** Return the *name* of a target event enumeration value */
+const char *target_event_name(enum target_event event);
+
 /* DANGER!!!!!
  *
  * if "area" passed in to target_alloc_working_area() points to a memory
