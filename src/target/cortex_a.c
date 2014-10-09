@@ -2112,8 +2112,8 @@ static int cortex_a_read_phys_memory(struct target *target,
 
 	if (count && buffer) {
 
-		if (armv7a->memory_ap_available && (apsel == armv7a->memory_ap)) {
 
+		if (armv7a->memory_ap_available && (apsel == armv7a->memory_ap)) {
 			/* read memory through AHB-AP */
 			retval = mem_ap_sel_read_buf(swjdp, armv7a->memory_ap, buffer, size, count, address);
 		} else {
@@ -2150,6 +2150,26 @@ static int cortex_a_read_memory(struct target *target, uint32_t address,
 		retval = cortex_a_mmu(target, &mmu_enabled);
 		if (retval != ERROR_OK)
 			return retval;
+	}
+
+	if (armv7a->armv7a_mmu.armv7a_cache.d_u_cache_enabled) {
+		if (armv7a->armv7a_mmu.armv7a_cache.flush_vaddress_data_cache) {
+			/* Clean every line of cache that may contain the information we
+			 * need. We may have to clean up to 1 + (size*count/lineLength)
+			 * lines.
+			 */
+			uint32_t lineLength = armv7a->armv7a_mmu.armv7a_cache.d_u_size.linelen;
+			uint32_t maxAddress = (address + (size * count)) & ~(lineLength-1);
+			uint32_t currentAddress = address & ~(lineLength-1);
+
+			do {
+				LOG_DEBUG("Cleaning cache at virtual address v:0x%" PRIx32,
+					currentAddress);
+				armv7a->armv7a_mmu.armv7a_cache.flush_vaddress_data_cache(target, currentAddress);
+
+				currentAddress += lineLength;
+			} while (currentAddress <= maxAddress);
+		}
 	}
 
 	if (armv7a->memory_ap_available && (apsel == armv7a->memory_ap)) {
