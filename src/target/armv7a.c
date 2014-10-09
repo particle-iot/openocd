@@ -465,6 +465,61 @@ static int  armv7a_flush_all_data(struct target *target)
 	return retval;
 }
 
+static int _armv7a_flush_vaddress_data(struct target *target, uint32_t address)
+{
+	struct armv7a_common *armv7a = target_to_armv7a(target);
+	struct arm_dpm *dpm = armv7a->arm.dpm;
+	int retval;
+	/*  check that cache data is on at target halt */
+	if (!armv7a->armv7a_mmu.armv7a_cache.d_u_cache_enabled) {
+		LOG_INFO("flushed not performed :cache not on at target halt");
+		return ERROR_OK;
+	}
+	retval = dpm->prepare(dpm);
+
+	if (retval == ERROR_OK) {
+		/* Clean chache by virtual address */
+		retval = dpm->instr_write_data_r0(dpm, ARMV4_5_MCR(15, 0, 0, 7, 10, 1),
+				address);
+	}
+
+	if (retval != ERROR_OK) {
+		LOG_ERROR("flushed failed");
+		dpm->finish(dpm);
+	}
+
+	return retval;
+}
+
+static int  armv7a_flush_vaddress_data(struct target *target, uint32_t address)
+{
+	int retval = ERROR_FAIL;
+	/*  check that armv7a_cache is correctly identify */
+	struct armv7a_common *armv7a = target_to_armv7a(target);
+	if (armv7a->armv7a_mmu.armv7a_cache.ctype == -1) {
+		LOG_ERROR("trying to flush un-identified cache");
+		return retval;
+	}
+
+	if (target->smp) {
+		/*  look if all the other target have been flushed in order to flush level
+		 *  2 */
+		struct target_list *head;
+		struct target *curr;
+		head = target->head;
+		while (head != (struct target_list *)NULL) {
+			curr = head->target;
+			if (curr->state == TARGET_HALTED) {
+				LOG_INFO("Wait flushing data l1 on core %" PRId32, curr->coreid);
+				retval = _armv7a_flush_vaddress_data(curr, address);
+			}
+			head = head->next;
+		}
+	} else
+		retval = _armv7a_flush_vaddress_data(target, address);
+	return retval;
+}
+
 /* L2 is not specific to armv7a  a specific file is needed */
 static int armv7a_l2x_flush_all_data(struct target *target)
 {
@@ -779,6 +834,8 @@ int armv7a_identify_cache(struct target *target)
 			armv7a_handle_inner_cache_info_command;
 		armv7a->armv7a_mmu.armv7a_cache.flush_all_data_cache =
 			armv7a_flush_all_data;
+			armv7a->armv7a_mmu.armv7a_cache.flush_vaddress_data_cache =
+			armv7a_flush_vaddress_data;
 	}
 	armv7a->armv7a_mmu.armv7a_cache.ctype = 0;
 
