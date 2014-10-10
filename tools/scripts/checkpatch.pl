@@ -43,7 +43,7 @@ Version: $V
 
 Options:
   -q, --quiet                quiet
-  --no-tree                  run without a kernel tree
+  --no-tree                  run without a openocd tree
   --no-signoff               do not check for 'Signed-off-by' line
   --patch                    treat FILE as patchfile (default)
   --emacs                    emacs compile window format
@@ -52,7 +52,7 @@ Options:
   --subjective, --strict     enable more subjective tests
   --ignore TYPE(,TYPE2...)   ignore various comma separated message types
   --show-types               show the message "types" in the output
-  --root=PATH                PATH to the kernel tree root
+  --root=PATH                PATH to the openocd tree root
   --no-summary               suppress the per-file summary
   --mailback                 only produce a report in case of warnings/errors
   --summary-file             include the filename in summary
@@ -165,14 +165,14 @@ if ($tree) {
 	} else {
 		if (top_of_kernel_tree('.')) {
 			$root = '.';
-		} elsif ($0 =~ m@(.*)/scripts/[^/]*$@ &&
+		} elsif ($0 =~ m@(.*)/tools/scripts/[^/]*$@ &&
 						top_of_kernel_tree($1)) {
 			$root = $1;
 		}
 	}
 
 	if (!defined $root) {
-		print "Must be run from the top-level dir. of a kernel tree\n";
+		print "Must be run from the top-level dir. of a openocd tree\n";
 		exit(2);
 	}
 }
@@ -401,9 +401,8 @@ sub top_of_kernel_tree {
 	my ($root) = @_;
 
 	my @tree_check = (
-		"COPYING", "CREDITS", "Kbuild", "MAINTAINERS", "Makefile",
-		"README", "Documentation", "arch", "include", "drivers",
-		"fs", "init", "ipc", "kernel", "lib", "scripts",
+		"AUTHORS", "BUGS", "COPYING", "HACKING", "Makefile.am",
+		"README", "contrib", "doc", "src", "tcl", "testing", "tools",
 	);
 
 	foreach my $check (@tree_check) {
