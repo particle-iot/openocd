@@ -44,22 +44,50 @@ static bool jtag_libusb_match(struct libusb_device_descriptor *dev_desc,
 static bool string_descriptor_equal(libusb_device_handle *device, uint8_t str_index,
 									const char *string)
 {
-	int retval;
+	int retval, i;
 	bool matched;
+	char desc_string_utf16[2+256*2+1]; /* Max size of string in UCS2 plus 2 byte length  */
 	char desc_string[256+1]; /* Max size of string descriptor */
+	uint16_t langid;
 
 	if (str_index == 0)
 		return false;
 
-	retval = libusb_get_string_descriptor_ascii(device, str_index,
+	/* Asking for the zero'th index is special - it returns a string
+	descriptor that contains all the language IDs supported by the device.
+	Typically there aren't many - often only one. The language IDs are 16
+	bit numbers, and they start at the third byte in the descriptor. See
+	USB 2.0 specification section 9.6.7 for more information.
+	Note from libusb 1.0 sources (descriptor.c) */
+
+	retval = libusb_get_descriptor(device, LIBUSB_DT_STRING,  str_index,
 			(unsigned char *)desc_string, sizeof(desc_string)-1);
-	if (retval < 0) {
-		LOG_ERROR("libusb_get_string_descriptor_ascii() failed with %d", retval);
+	if (retval < 4) {
+		LOG_ERROR("libusb_get_descriptor() failed with %d", retval);
+		return false;
+	}
+
+	langid = desc_string[2] | (desc_string[3] << 8);
+
+	/* libusb1's libusb_get_string_descriptor_ascii() replaces non ASCII
+	 * characters with '?' (0x3f). So use libusb_get_string_descritor() instead.
+	 * Non ASCII characters in USB serials are found in the wild on
+	 * ST-Link and STM32 Discovery boards, which have serials like
+	 * "Q\377j\006I\207PS(H\t\207".
+	 * */
+
+	memset(desc_string_utf16, 0, sizeof(desc_string_utf16));
+	retval = libusb_get_string_descriptor(device, str_index, langid,
+			(unsigned char *)desc_string_utf16, sizeof(desc_string_utf16)-1);
+	if (retval < 3) {
+		LOG_ERROR("libusb_get_string_descriptor() failed with %d", retval);
 		return false;
 	}
 
 	/* Null terminate descriptor string in case it needs to be logged. */
-	desc_string[sizeof(desc_string)-1] = '\0';
+	memset(desc_string, 0, sizeof(desc_string));
+	for (i = 0; i < (int)sizeof(desc_string); i++)
+		desc_string[i] = desc_string_utf16[2 + i*2];
 
 	matched = strncmp(string, desc_string, sizeof(desc_string)) == 0;
 	if (!matched)
