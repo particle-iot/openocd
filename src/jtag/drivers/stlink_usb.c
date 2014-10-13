@@ -38,6 +38,7 @@
 #include <target/cortex_m.h>
 
 #include "libusb_common.h"
+#include "unicode.h"
 
 #define ENDPOINT_IN  0x80
 #define ENDPOINT_OUT 0x00
@@ -1592,6 +1593,7 @@ static int stlink_usb_close(void *handle)
 	return ERROR_OK;
 }
 
+
 /** */
 static int stlink_usb_open(struct hl_interface_param_s *param, void **fd)
 {
@@ -1612,11 +1614,13 @@ static int stlink_usb_open(struct hl_interface_param_s *param, void **fd)
 
 	const uint16_t vids[] = { param->vid, 0 };
 	const uint16_t pids[] = { param->pid, 0 };
-	const char *serial = param->serial;
+    char serial_text[256];
+
+    utf8_to_text((const uint8_t*)param->serial, serial_text, sizeof(serial_text));
 
 	LOG_DEBUG("transport: %d vid: 0x%04x pid: 0x%04x serial: %s",
 			param->transport, param->vid, param->pid,
-			param->serial ? param->serial : "");
+			serial_text);
 
 	/*
 	  On certain host USB configurations(e.g. MacBook Air)
@@ -1628,7 +1632,7 @@ static int stlink_usb_open(struct hl_interface_param_s *param, void **fd)
 	  in order to become operational.
 	 */
 	do {
-		if (jtag_libusb_open(vids, pids, serial, &h->fd) != ERROR_OK) {
+		if (jtag_libusb_open(vids, pids, param->serial, &h->fd) != ERROR_OK) {
 			LOG_ERROR("open failed");
 			goto error_open;
 		}
