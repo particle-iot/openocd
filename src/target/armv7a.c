@@ -797,16 +797,13 @@ int armv7a_init_arch_info(struct target *target, struct armv7a_common *armv7a)
 {
 	struct arm *arm = &armv7a->arm;
 	arm->arch_info = armv7a;
-	target->arch_info = &armv7a->arm;
 	/*  target is useful in all function arm v4 5 compatible */
-	armv7a->arm.target = target;
-	armv7a->arm.common_magic = ARM_COMMON_MAGIC;
 	armv7a->common_magic = ARMV7_COMMON_MAGIC;
 	armv7a->armv7a_mmu.armv7a_cache.l2_cache = NULL;
 	armv7a->armv7a_mmu.armv7a_cache.ctype = -1;
 	armv7a->armv7a_mmu.armv7a_cache.flush_all_data_cache = NULL;
 	armv7a->armv7a_mmu.armv7a_cache.display_cache_info = NULL;
-	return ERROR_OK;
+	return arm_init_arch_info(target, arm);
 }
 
 int armv7a_arch_state(struct target *target)
