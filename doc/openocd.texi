@@ -8446,6 +8446,14 @@ For most RTOS supported the above symbols will be exported by default. However f
 some, eg. FreeRTOS @option{xTasksWaitingTermination} is only exported
 if @option{INCLUDE_vTaskDelete} is defined during the build.
 
+These RTOSes require additional OpenOCD-specific file to be linked
+along with the project:
+
+@table @code
+@item FreeRTOS
+contrib/rtos-helpers/FreeRTOS-openocd.c
+@end table
+
 @node Tcl Scripting API
 @chapter Tcl Scripting API
 @cindex Tcl Scripting API
