@@ -20,6 +20,12 @@ EXTRA_DIST = $(ULINK_FIRMWARE) \
 DRIVERFILES =
 SUBDIRS=
 
+if INTERNAL_LIBJAYLINK
+SUBDIRS += libjaylink
+libocdjtagdrivers_la_LIBADD += libjaylink/libjaylink/libjaylink.la
+libocdjtagdrivers_la_CPPFLAGS += -I$(srcdir)/libjaylink
+endif
+
 # Standard Driver: common files
 DRIVERFILES += driver.c
 
