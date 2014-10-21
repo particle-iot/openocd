@@ -110,6 +110,7 @@ static int ChibiOS_create(struct target *target);
 static int ChibiOS_update_threads(struct rtos *rtos);
 static int ChibiOS_get_thread_reg_list(struct rtos *rtos, int64_t thread_id, char **hex_reg_list);
 static int ChibiOS_get_symbol_list_to_lookup(symbol_table_elem_t *symbol_list[]);
+static int ChibiOS3_get_symbol_list_to_lookup(symbol_table_elem_t *symbol_list[]);
 
 struct rtos_type ChibiOS_rtos = {
 	.name = "ChibiOS",
@@ -119,6 +120,16 @@ struct rtos_type ChibiOS_rtos = {
 	.update_threads = ChibiOS_update_threads,
 	.get_thread_reg_list = ChibiOS_get_thread_reg_list,
 	.get_symbol_list_to_lookup = ChibiOS_get_symbol_list_to_lookup,
+};
+
+struct rtos_type ChibiOS3_rtos = {
+	.name = "ChibiOS3",
+
+	.detect_rtos = ChibiOS_detect_rtos,
+	.create = ChibiOS_create,
+	.update_threads = ChibiOS_update_threads,
+	.get_thread_reg_list = ChibiOS_get_thread_reg_list,
+	.get_symbol_list_to_lookup = ChibiOS3_get_symbol_list_to_lookup,
 };
 
 enum ChibiOS_symbol_values {
@@ -131,6 +142,13 @@ static const char * const ChibiOS_symbol_list[] = {
 	"rlist",		/* Thread ready list*/
 	"ch_debug",		/* Memory Signatur containing offsets of fields in rlist*/
 	"chSysInit",	/* Necessary part of API, used for ChibiOS detection*/
+	NULL
+};
+
+static const char * const ChibiOS3_symbol_list[] = {
+	"ch",			/* System data structure */
+	"ch_debug",		/* Memory Signature containing offsets of fields in system data structure */
+	"chSysInit",	/* Necessary part of API, used for ChibiOS detection */
 	NULL
 };
 
@@ -494,16 +512,33 @@ static int ChibiOS_get_thread_reg_list(struct rtos *rtos, int64_t thread_id, cha
 	return rtos_generic_stack_read(rtos->target, param->stacking_info, stack_ptr, hex_reg_list);
 }
 
-static int ChibiOS_get_symbol_list_to_lookup(symbol_table_elem_t *symbol_list[])
+static int ChibiOS_generic_get_symbol_list_to_lookup(const char * const symbols[],
+	size_t size, symbol_table_elem_t *symbol_list[])
 {
 	unsigned int i;
 	*symbol_list = malloc(
-			sizeof(symbol_table_elem_t) * ARRAY_SIZE(ChibiOS_symbol_list));
+			sizeof(symbol_table_elem_t) * size);
 
-	for (i = 0; i < ARRAY_SIZE(ChibiOS_symbol_list); i++)
-		(*symbol_list)[i].symbol_name = ChibiOS_symbol_list[i];
+	for (i = 0; i < size; i++)
+		(*symbol_list)[i].symbol_name = symbols[i];
 
 	return 0;
+}
+
+static int ChibiOS_get_symbol_list_to_lookup(symbol_table_elem_t *symbol_list[])
+{
+	return ChibiOS_generic_get_symbol_list_to_lookup(
+			ChibiOS_symbol_list,
+			ARRAY_SIZE(ChibiOS_symbol_list),
+			symbol_list);
+}
+
+static int ChibiOS3_get_symbol_list_to_lookup(symbol_table_elem_t *symbol_list[])
+{
+	return ChibiOS_generic_get_symbol_list_to_lookup(
+			ChibiOS3_symbol_list,
+			ARRAY_SIZE(ChibiOS3_symbol_list),
+			symbol_list);
 }
 
 static int ChibiOS_detect_rtos(struct target *target)
