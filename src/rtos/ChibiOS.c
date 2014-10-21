@@ -64,6 +64,9 @@ struct ChibiOS_chdebug {
 	uint8_t   cf_off_time;            /**< @brief Offset of @p p_time field.  */
 };
 
+/* Offset of the rlist structure within the system data structure (ch) */
+#define CH_RLIST_OFFSET 0x00
+
 #define GET_CH_KERNEL_MAJOR(codedVersion) ((codedVersion >> 11) & 0x1f)
 #define GET_CH_KERNEL_MINOR(codedVersion) ((codedVersion >> 6) & 0x1f)
 #define GET_CH_KERNEL_PATCH(codedVersion) ((codedVersion >> 0) & 0x3f)
@@ -110,6 +113,7 @@ static int ChibiOS_create(struct target *target);
 static int ChibiOS_update_threads(struct rtos *rtos);
 static int ChibiOS_get_thread_reg_list(struct rtos *rtos, int64_t thread_id, char **hex_reg_list);
 static int ChibiOS_get_symbol_list_to_lookup(symbol_table_elem_t *symbol_list[]);
+static int ChibiOS3_get_symbol_list_to_lookup(symbol_table_elem_t *symbol_list[]);
 
 struct rtos_type ChibiOS_rtos = {
 	.name = "ChibiOS",
@@ -121,6 +125,28 @@ struct rtos_type ChibiOS_rtos = {
 	.get_symbol_list_to_lookup = ChibiOS_get_symbol_list_to_lookup,
 };
 
+/* In ChibiOS/RT 3.0 the rlist structure has become part of a system data
+ * structure. Hence we need a different set of symbols to lookup during
+ * OS detection.
+ */
+struct rtos_type ChibiOS3_rtos = {
+	.name = "ChibiOS3",
+
+	.detect_rtos = ChibiOS_detect_rtos,
+	.create = ChibiOS_create,
+	.update_threads = ChibiOS_update_threads,
+	.get_thread_reg_list = ChibiOS_get_thread_reg_list,
+	.get_symbol_list_to_lookup = ChibiOS3_get_symbol_list_to_lookup,
+};
+
+/* In ChibiOS/RT 3.0 the entry at index 0 points to the system data structure
+ * which starts with the rlist structure. Since their addresses are the same
+ * we can use the address of the system data structure in place of the address
+ * of rlist.
+ *
+ * WARNING: This breaks once the rlist structure is not located at offset 0
+ *          in the system data structure.
+ */
 enum ChibiOS_symbol_values {
 	ChibiOS_VAL_rlist = 0,
 	ChibiOS_VAL_ch_debug = 1,
@@ -128,9 +154,24 @@ enum ChibiOS_symbol_values {
 };
 
 static const char * const ChibiOS_symbol_list[] = {
-	"rlist",		/* Thread ready list*/
-	"ch_debug",		/* Memory Signatur containing offsets of fields in rlist*/
-	"chSysInit",	/* Necessary part of API, used for ChibiOS detection*/
+	"rlist",		/* Thread ready list */
+	"ch_debug",		/* Memory Signatur containing offsets of fields in rlist */
+	"chSysInit",	/* Necessary part of API, used for ChibiOS detection */
+	NULL
+};
+
+/* In ChibiOS/RT 3.0 the ready list structure (rlist) has become part
+ * of a system data structure (ch). Given that the rlist structure is the
+ * first element of the system data structure they both share the same address
+ * in memory.
+ *
+ * WARNING: This breaks once the rlist structure is not located at offset 0
+ *          in the system data structure.
+ */
+static const char * const ChibiOS3_symbol_list[] = {
+	"ch",			/* System data structure */
+	"ch_debug",		/* Memory Signature containing offsets of fields in system data structure */
+	"chSysInit",	/* Necessary part of API, used for ChibiOS detection */
 	NULL
 };
 
@@ -494,16 +535,33 @@ static int ChibiOS_get_thread_reg_list(struct rtos *rtos, int64_t thread_id, cha
 	return rtos_generic_stack_read(rtos->target, param->stacking_info, stack_ptr, hex_reg_list);
 }
 
-static int ChibiOS_get_symbol_list_to_lookup(symbol_table_elem_t *symbol_list[])
+static int ChibiOS_generic_get_symbol_list_to_lookup(const char * const symbols[],
+	size_t size, symbol_table_elem_t *symbol_list[])
 {
 	unsigned int i;
 	*symbol_list = malloc(
-			sizeof(symbol_table_elem_t) * ARRAY_SIZE(ChibiOS_symbol_list));
+			sizeof(symbol_table_elem_t) * size);
 
-	for (i = 0; i < ARRAY_SIZE(ChibiOS_symbol_list); i++)
-		(*symbol_list)[i].symbol_name = ChibiOS_symbol_list[i];
+	for (i = 0; i < size; i++)
+		(*symbol_list)[i].symbol_name = symbols[i];
 
 	return 0;
+}
+
+static int ChibiOS_get_symbol_list_to_lookup(symbol_table_elem_t *symbol_list[])
+{
+	return ChibiOS_generic_get_symbol_list_to_lookup(
+			ChibiOS_symbol_list,
+			ARRAY_SIZE(ChibiOS_symbol_list),
+			symbol_list);
+}
+
+static int ChibiOS3_get_symbol_list_to_lookup(symbol_table_elem_t *symbol_list[])
+{
+	return ChibiOS_generic_get_symbol_list_to_lookup(
+			ChibiOS3_symbol_list,
+			ARRAY_SIZE(ChibiOS3_symbol_list),
+			symbol_list);
 }
 
 static int ChibiOS_detect_rtos(struct target *target)
