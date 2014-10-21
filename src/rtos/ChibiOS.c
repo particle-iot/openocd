@@ -64,6 +64,9 @@ struct ChibiOS_chdebug {
 	uint8_t   cf_off_time;            /**< @brief Offset of @p p_time field.  */
 };
 
+/* Offset of the rlist structure within the system data structure (ch) */
+#define CH_RLIST_OFFSET 0x00
+
 #define GET_CH_KERNEL_MAJOR(codedVersion) ((codedVersion >> 11) & 0x1f)
 #define GET_CH_KERNEL_MINOR(codedVersion) ((codedVersion >> 6) & 0x1f)
 #define GET_CH_KERNEL_PATCH(codedVersion) ((codedVersion >> 0) & 0x3f)
@@ -121,17 +124,25 @@ struct rtos_type ChibiOS_rtos = {
 	.get_symbol_list_to_lookup = ChibiOS_get_symbol_list_to_lookup,
 };
 
+
+/* In ChibiOS/RT 3.0 the rlist structure has become part of a system
+ * data structure ch. We declare both symbols as optional and later
+ * use whatever is available.
+ */
+
 enum ChibiOS_symbol_values {
 	ChibiOS_VAL_rlist = 0,
-	ChibiOS_VAL_ch_debug = 1,
-	ChibiOS_VAL_chSysInit = 2
+	ChibiOS_VAL_ch = 1,
+	ChibiOS_VAL_ch_debug = 2,
+	ChibiOS_VAL_chSysInit = 3
 };
 
-static const char * const ChibiOS_symbol_list[] = {
-	"rlist",		/* Thread ready list*/
-	"ch_debug",		/* Memory Signatur containing offsets of fields in rlist*/
-	"chSysInit",	/* Necessary part of API, used for ChibiOS detection*/
-	NULL
+static symbol_table_elem_t ChibiOS_symbol_list[] = {
+	{ "rlist", 0, true},		/* Thread ready list */
+	{ "ch", 0, true},		/* System data structure */
+	{ "ch_debug", 0, false},	/* Memory Signatur containing offsets of fields in rlist */
+	{ "chSysInit", 0, false},	/* Necessary part of API, used for ChibiOS detection */
+	{ NULL, 0, false}
 };
 
 static int ChibiOS_update_memory_signature(struct rtos *rtos)
@@ -300,7 +311,9 @@ static int ChibiOS_update_threads(struct rtos *rtos)
 	/* ChibiOS does not save the current thread count. We have to first
 	 * parse the double linked thread list to check for errors and the number of
 	 * threads. */
-	const uint32_t rlist = rtos->symbols[ChibiOS_VAL_rlist].address;
+	const uint32_t rlist = rtos->symbols[ChibiOS_VAL_rlist].address ?
+		rtos->symbols[ChibiOS_VAL_rlist].address :
+		rtos->symbols[ChibiOS_VAL_ch].address + CH_RLIST_OFFSET /* ChibiOS3 */;
 	const struct ChibiOS_chdebug *signature = param->signature;
 	uint32_t current;
 	uint32_t previous;
@@ -496,20 +509,15 @@ static int ChibiOS_get_thread_reg_list(struct rtos *rtos, int64_t thread_id, cha
 
 static int ChibiOS_get_symbol_list_to_lookup(symbol_table_elem_t *symbol_list[])
 {
-	unsigned int i;
-	*symbol_list = calloc(
-			ARRAY_SIZE(ChibiOS_symbol_list), sizeof(symbol_table_elem_t));
-
-	for (i = 0; i < ARRAY_SIZE(ChibiOS_symbol_list); i++)
-		(*symbol_list)[i].symbol_name = ChibiOS_symbol_list[i];
-
+	*symbol_list = ChibiOS_symbol_list;
 	return 0;
 }
 
 static int ChibiOS_detect_rtos(struct target *target)
 {
 	if ((target->rtos->symbols != NULL) &&
-			(target->rtos->symbols[ChibiOS_VAL_rlist].address != 0) &&
+			((target->rtos->symbols[ChibiOS_VAL_rlist].address != 0) ||
+			 (target->rtos->symbols[ChibiOS_VAL_ch].address != 0)) &&
 			(target->rtos->symbols[ChibiOS_VAL_chSysInit].address != 0)) {
 
 		if (target->rtos->symbols[ChibiOS_VAL_ch_debug].address == 0) {
