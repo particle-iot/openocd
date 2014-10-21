@@ -198,11 +198,20 @@ int mips32_save_context(struct target *target)
 	struct mips_ejtag *ejtag_info = &mips32->ejtag_info;
 
 	/* read core registers */
-	mips32_pracc_read_regs(ejtag_info, mips32->core_regs);
+	int retval = mips32_pracc_read_regs(ejtag_info, mips32->core_regs);
+	if (retval != ERROR_OK) {
+		LOG_DEBUG("mips32_pracc_read_regs failed");
+		return retval;
+	}
 
 	for (i = 0; i < MIPS32NUMCOREREGS; i++) {
-		if (!mips32->core_cache->reg_list[i].valid)
-			mips32->read_core_reg(target, i);
+		if (!mips32->core_cache->reg_list[i].valid) {
+			retval = mips32->read_core_reg(target, i);
+			if (retval != ERROR_OK) {
+				LOG_DEBUG("mips32->read_core_reg failed");
+				return retval;
+			}
+		}
 	}
 
 	return ERROR_OK;
@@ -562,11 +571,11 @@ int mips32_configure_break_unit(struct target *target)
 	}
 
 	/* check if target endianness settings matches debug control register */
-	if (((ejtag_info->debug_caps & EJTAG_DCR_ENM)
-			&& (target->endianness == TARGET_LITTLE_ENDIAN)) ||
-			(!(ejtag_info->debug_caps & EJTAG_DCR_ENM)
-			 && (target->endianness == TARGET_BIG_ENDIAN)))
+	if (((ejtag_info->debug_caps & EJTAG_DCR_ENM) && (target->endianness == TARGET_LITTLE_ENDIAN)) ||
+		(!(ejtag_info->debug_caps & EJTAG_DCR_ENM)  && (target->endianness == TARGET_BIG_ENDIAN))) {
 		LOG_WARNING("DCR endianness settings does not match target settings");
+		LOG_WARNING("Config file does not match DCR endianness");
+	}
 
 	LOG_DEBUG("DCR 0x%" PRIx32 " numinst %i numdata %i", dcr, mips32->num_inst_bpoints,
 			mips32->num_data_bpoints);

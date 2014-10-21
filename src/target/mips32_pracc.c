@@ -1016,8 +1016,10 @@ int mips32_pracc_fastdata_xfer(struct mips_ejtag *ejtag_info, struct working_are
 	int retval, i;
 	uint32_t val, ejtag_ctrl, address;
 
-	if (source->size < MIPS32_FASTDATA_HANDLER_SIZE)
+	if (source->size < MIPS32_FASTDATA_HANDLER_SIZE) {
+		LOG_ERROR("source->size (%x) < MIPS32_FASTDATA_HANDLER_SIZE", source->size);
 		return ERROR_TARGET_RESOURCE_NOT_AVAILABLE;
+	}
 
 	if (write_t) {
 		handler_code[8] = MIPS32_LW(11, 0, 8);	/* load data from probe at fastdata area */
@@ -1029,20 +1031,20 @@ int mips32_pracc_fastdata_xfer(struct mips_ejtag *ejtag_info, struct working_are
 
 	/* write program into RAM */
 	if (write_t != ejtag_info->fast_access_save) {
-		mips32_pracc_write_mem(ejtag_info, source->address, 4, ARRAY_SIZE(handler_code), handler_code);
+		mips32_pracc_write_mem_generic(ejtag_info, source->address, 4, ARRAY_SIZE(handler_code), handler_code);
 		/* save previous operation to speed to any consecutive read/writes */
 		ejtag_info->fast_access_save = write_t;
 	}
 
-	LOG_DEBUG("%s using 0x%.8" PRIx32 " for write handler", __func__, source->address);
-
-	jmp_code[0] |= UPPER16(source->address);
-	jmp_code[1] |= LOWER16(source->address);
+	jmp_code[1] |= UPPER16(source->address);
+	jmp_code[2] |= LOWER16(source->address);
 
 	for (i = 0; i < (int) ARRAY_SIZE(jmp_code); i++) {
 		retval = wait_for_pracc_rw(ejtag_info, &ejtag_ctrl);
-		if (retval != ERROR_OK)
+		if (retval != ERROR_OK) {
+			LOG_DEBUG("Error: wait_for_pracc_rw: ejtag_ctrl: 0x%8.8x", ejtag_ctrl);
 			return retval;
+		}
 
 		mips_ejtag_set_instr(ejtag_info, EJTAG_INST_DATA);
 		mips_ejtag_drscan_32_out(ejtag_info, jmp_code[i]);
@@ -1055,18 +1057,24 @@ int mips32_pracc_fastdata_xfer(struct mips_ejtag *ejtag_info, struct working_are
 
 	/* wait PrAcc pending bit for FASTDATA write */
 	retval = wait_for_pracc_rw(ejtag_info, &ejtag_ctrl);
-	if (retval != ERROR_OK)
+	if (retval != ERROR_OK)	{
+		LOG_DEBUG("wait_for_pracc_rw failed");
 		return retval;
+	}
 
 	/* next fetch to dmseg should be in FASTDATA_AREA, check */
 	address = 0;
 	mips_ejtag_set_instr(ejtag_info, EJTAG_INST_ADDRESS);
 	retval = mips_ejtag_drscan_32(ejtag_info, &address);
-	if (retval != ERROR_OK)
+	if (retval != ERROR_OK)	{
+		LOG_DEBUG("mips_ejtag_drscan_32 failed");
 		return retval;
+	}
 
-	if (address != MIPS32_PRACC_FASTDATA_AREA)
+	if (address != MIPS32_PRACC_FASTDATA_AREA) {
+		LOG_DEBUG("address != MIPS32_PRACC_FASTDATA_AREA - 0x%8.8x", address);
 		return ERROR_FAIL;
+	}
 
 	/* Send the load start address */
 	val = addr;
@@ -1074,8 +1082,10 @@ int mips32_pracc_fastdata_xfer(struct mips_ejtag *ejtag_info, struct working_are
 	mips_ejtag_fastdata_scan(ejtag_info, 1, &val);
 
 	retval = wait_for_pracc_rw(ejtag_info, &ejtag_ctrl);
-	if (retval != ERROR_OK)
+	if (retval != ERROR_OK)	{
+		LOG_DEBUG("wait_for_pracc_rw failed");
 		return retval;
+	}
 
 	/* Send the load end address */
 	val = addr + (count - 1) * 4;
@@ -1089,28 +1099,112 @@ int mips32_pracc_fastdata_xfer(struct mips_ejtag *ejtag_info, struct working_are
 	for (i = 0; i < count; i++) {
 		jtag_add_clocks(num_clocks);
 		retval = mips_ejtag_fastdata_scan(ejtag_info, write_t, buf++);
-		if (retval != ERROR_OK)
+		if (retval != ERROR_OK) {
+			LOG_DEBUG("mips_ejtag_fastdata_scan falied");
 			return retval;
+		}
 	}
 
 	retval = jtag_execute_queue();
 	if (retval != ERROR_OK) {
-		LOG_ERROR("fastdata load failed");
+		LOG_DEBUG("call to \"jtag_execute_queue\" failed - fastdata load failed");
 		return retval;
 	}
-
+		LOG_ERROR("fastdata load failed");
 	retval = wait_for_pracc_rw(ejtag_info, &ejtag_ctrl);
-	if (retval != ERROR_OK)
+	if (retval != ERROR_OK) {
+		LOG_DEBUG("call to \"wait_for_pracc_rw\" failed - fastdata load failed with 0x%8.8" PRIx32 "", retval);
 		return retval;
+	}
 
 	address = 0;
 	mips_ejtag_set_instr(ejtag_info, EJTAG_INST_ADDRESS);
 	retval = mips_ejtag_drscan_32(ejtag_info, &address);
-	if (retval != ERROR_OK)
+	if (retval != ERROR_OK) {
+		LOG_DEBUG("mips_ejtag_drscan_32 failed - %x", retval);
 		return retval;
+	}
 
-	if (address != MIPS32_PRACC_TEXT)
-		LOG_ERROR("mini program did not return to start");
+	/* If Accesses pending then attempt to cleanup any pending accesses */
+	if (address != MIPS32_PRACC_TEXT) {
 
+		LOG_WARNING("fastdata failed: checking for dangling fastdata accesses");
+		LOG_WARNING("increase \"scan_delay\" and retry \"load_image\" command");
+
+		int pending = 0;
+		val = 0xf111c0de;	/* Use 0xf111c0de "Fillcode" as fill data to satify dangling accesses */
+
+		/* Clean up dangling access */
+		do {
+			pending++;	  /* Count total number of dangling accesses */
+			mips_ejtag_set_instr(ejtag_info, EJTAG_INST_FASTDATA);
+
+			retval = mips_ejtag_fastdata_scan(ejtag_info, 1, &val);
+			/* Did fastdata scan fail?? */
+			if (retval != ERROR_OK) {
+				LOG_DEBUG("mips_ejtag_fastdata_scan failed with: 0x%8.8" PRIx32 "", retval);
+				break;
+			}
+
+			retval = wait_for_pracc_rw(ejtag_info, &ejtag_ctrl);
+			/* Wait failed ?? */
+			if (retval != ERROR_OK) {
+				LOG_DEBUG("wait_for_pracc_rw failed with: 0x%8.8" PRIx32 "", retval);
+				LOG_DEBUG("wait_for_pracc_rw returned ejtag_ctrl: 0x%8.8" PRIx32 "", ejtag_ctrl);
+				break;
+			}
+
+			address = 0;
+			mips_ejtag_set_instr(ejtag_info, EJTAG_INST_ADDRESS);
+
+			/* Get current execution address in target */
+			retval = mips_ejtag_drscan_32(ejtag_info, &address);
+			if (retval != ERROR_OK) {
+				LOG_DEBUG("\"mips_ejtag_drscan_32\" returned an error 0x%8.8" PRIx32 "", retval);
+				return retval;
+			}
+
+			/* check if reached max number of out-standing dangling accesses reached */
+			/* bad if this happens */
+			if ((pending == count) && (address == MIPS32_PRACC_TEXT)) {
+				LOG_DEBUG("\"reached max outstanding dangling accesses\" 0x%8.8" PRIx32 "", retval);
+				return ERROR_TARGET_FAST_DOWNLOAD_FAILED;
+			} else if (pending >= count) {
+					LOG_DEBUG("\"reached excessed max outstanding dangling accesses\" %d", retval);
+					return ERROR_TARGET_FAST_DOWNLOAD_FAILED;
+				}
+
+			if (address != MIPS32_PRACC_TEXT) {
+				if (pending == 1)
+					LOG_WARNING("found dangling fastdata accesses: starting clean-up");
+			}
+
+		} while (address != MIPS32_PRACC_TEXT);
+
+		/* check if mini program return to start */
+		address = 0;
+		mips_ejtag_set_instr(ejtag_info, EJTAG_INST_ADDRESS);
+
+		/* Get current execution address in target */
+		retval = mips_ejtag_drscan_32(ejtag_info, &address);
+		if (retval != ERROR_OK) {
+			LOG_DEBUG("\"mips_ejtag_drscan_32\" returned an error 0x%8.8" PRIx32 "", retval);
+			return retval;
+		}
+
+		/* If pending fastdata accesses found */
+		if (pending) {
+			if ((address != MIPS32_PRACC_FASTDATA_AREA) && (address != MIPS32_PRACC_TEXT)) {
+				LOG_DEBUG("unexpected dmseg access: 0x%8.8" PRIx32 "", address);
+				return ERROR_TARGET_FAST_DOWNLOAD_FAILED;
+			} else
+				LOG_WARNING("cleared dangling fastdata accesses: found %d out-of %d pending", pending, count);
+		}
+
+		if (address != MIPS32_PRACC_TEXT)
+			LOG_WARNING("mini program did not return to start addr = 0x%8.8" PRIx32 "", address);
+
+		return ERROR_TARGET_FAST_DOWNLOAD_FAILED;
+	}
 	return retval;
 }
