@@ -128,7 +128,7 @@ DRIVERFILES += openjtag.c
 endif
 
 if CMSIS_DAP
-DRIVERFILES += cmsis_dap_usb.c
+DRIVERFILES += cmsis_dap_usb.c cmsis_dap_usb_test.c
 endif
 
 noinst_HEADERS = \
