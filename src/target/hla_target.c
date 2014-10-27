@@ -543,12 +543,8 @@ static int adapter_assert_reset(struct target *target)
 	/* registers are now invalid */
 	register_cache_invalidate(armv7m->arm.core_cache);
 
-	if (target->reset_halt) {
-		target->state = TARGET_RESET;
-		target->debug_reason = DBG_REASON_DBGRQ;
-	} else {
-		target->state = TARGET_HALTED;
-	}
+	target->state = TARGET_HALTED;
+	target->debug_reason = DBG_REASON_DBGRQ;
 
 	return ERROR_OK;
 }
