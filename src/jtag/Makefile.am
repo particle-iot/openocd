@@ -28,7 +28,7 @@ endif
 MINIDRIVER_IMP_DIR = $(srcdir)/minidriver
 
 jtag_minidriver.h: $(JTAG_MINIDRIVER_DIR)/jtag_minidriver.h
-	cp $< $@
+	cp $(JTAG_MINIDRIVER_DIR)/jtag_minidriver.h $@
 
 BUILT_SOURCES += jtag_minidriver.h
 
@@ -58,7 +58,7 @@ endif
 # endif // MINIDRIVER
 
 minidriver_imp.h: $(MINIDRIVER_IMP_DIR)/minidriver_imp.h
-	cp $< $@
+	cp $(MINIDRIVER_IMP_DIR)/minidriver_imp.h $@
 
 
 libjtag_la_SOURCES = \

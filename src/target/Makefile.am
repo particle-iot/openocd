@@ -21,7 +21,7 @@ BUILT_SOURCES = $(DEBUG_HEADER)
 CLEANFILES = $(DEBUG_HEADER)
 
 $(DEBUG_HEADER): $(DEBUG_HANDLER) $(BIN2C)
-	$(BIN2C) < $< > $@ || { rm -f $@; false; }
+	$(BIN2C) < $(DEBUG_HANDLER) > $@ || { rm -f $@; false; }
 
 METASOURCES = AUTO
 noinst_LTLIBRARIES = libtarget.la

@@ -88,13 +88,13 @@ EXTRA_DIST = $(STARTUP_TCL_SRCS)
 BUILT_SOURCES = startup_tcl.inc
 
 startup.tcl: $(STARTUP_TCL_SRCS)
-	cat $^ > $@
+	cat $(STARTUP_TCL_SRCS) > $@
 
 BIN2C = $(top_srcdir)/src/helper/bin2char.sh
 
 # Convert .tcl to c-array
 startup_tcl.inc: startup.tcl $(BIN2C)
-	$(BIN2C) < $< > $@ || { rm -f $@; false; }
+	$(BIN2C) < startup.tcl > $@ || { rm -f $@; false; }
 
 # add generated files to make clean list
 CLEANFILES = startup.tcl startup_tcl.inc
