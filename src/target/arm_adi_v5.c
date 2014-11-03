@@ -335,8 +335,10 @@ int mem_ap_write(struct adiv5_dap *dap, const uint8_t *buffer, uint32_t size, ui
 		uint32_t this_size = size;
 
 		/* Select packed transfer if possible */
+		/* per DDI 0314 Tables 2-20 (AHB-AP) and (APB-AP), packed transfers are not supported in APB-AP */
 		if (addrinc && dap->packed_transfers && nbytes >= 4
-				&& max_tar_block_size(dap->tar_autoincr_block, address) >= 4) {
+				&& max_tar_block_size(dap->tar_autoincr_block, address) >= 4
+				&& (AP_REG_IDR_APID_APB_AP != (dap->apid & AP_REG_IDR_APID_MASK))) {
 			this_size = 4;
 			retval = dap_setup_accessport_csw(dap, csw_size | CSW_ADDRINC_PACKED);
 		} else {
@@ -470,8 +472,10 @@ int mem_ap_read(struct adiv5_dap *dap, uint8_t *buffer, uint32_t size, uint32_t 
 		uint32_t this_size = size;
 
 		/* Select packed transfer if possible */
+		/* per DDI 0314 Tables 2-20 (AHB-AP) and (APB-AP), packed transfers are not supported in APB-AP */
 		if (addrinc && dap->packed_transfers && nbytes >= 4
-				&& max_tar_block_size(dap->tar_autoincr_block, address) >= 4) {
+				&& max_tar_block_size(dap->tar_autoincr_block, address) >= 4
+				&& (AP_REG_IDR_APID_APB_AP != (dap->apid & AP_REG_IDR_APID_MASK))) {
 			this_size = 4;
 			retval = dap_setup_accessport_csw(dap, csw_size | CSW_ADDRINC_PACKED);
 		} else {
@@ -1538,6 +1542,8 @@ COMMAND_HANDLER(dap_apsel_command)
 	retval = dap_run(dap);
 	if (retval != ERROR_OK)
 		return retval;
+
+	dap->apid = apid;
 
 	command_print(CMD_CTX, "ap %" PRIi32 " selected, identification register 0x%8.8" PRIx32,
 			apsel, apid);
