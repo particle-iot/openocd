@@ -104,6 +104,11 @@
 /* Generic AP register address */
 #define AP_REG_IDR		0xFC
 
+/* Fields of the MEM-AP's IDR register */
+#define AP_REG_IDR_APID_MASK   (255UL << 0)
+#define AP_REG_IDR_APID_AHB_AP (1UL << 0)
+#define AP_REG_IDR_APID_APB_AP (2UL << 0)
+
 /* Fields of the MEM-AP's CSW register */
 #define CSW_8BIT		0
 #define CSW_16BIT		1
@@ -146,6 +151,7 @@ struct adiv5_dap {
 
 	uint32_t apcsw[256];
 	uint32_t apsel;
+	uint32_t apid;
 
 	/**
 	 * Cache for DP_SELECT bits identifying the current AP.  A DAP may
