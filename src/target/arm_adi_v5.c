@@ -335,10 +335,8 @@ int mem_ap_write(struct adiv5_dap *dap, const uint8_t *buffer, uint32_t size, ui
 		uint32_t this_size = size;
 
 		/* Select packed transfer if possible */
-		/* per DDI 0314 Tables 2-20 (AHB-AP) and (APB-AP), packed transfers are not supported in APB-AP */
 		if (addrinc && dap->packed_transfers && nbytes >= 4
-				&& max_tar_block_size(dap->tar_autoincr_block, address) >= 4
-				&& (AP_REG_IDR_APID_APB_AP != (dap->apid & AP_REG_IDR_APID_MASK))) {
+				&& max_tar_block_size(dap->tar_autoincr_block, address) >= 4) {
 			this_size = 4;
 			retval = dap_setup_accessport_csw(dap, csw_size | CSW_ADDRINC_PACKED);
 		} else {
@@ -472,10 +470,8 @@ int mem_ap_read(struct adiv5_dap *dap, uint8_t *buffer, uint32_t size, uint32_t 
 		uint32_t this_size = size;
 
 		/* Select packed transfer if possible */
-		/* per DDI 0314 Tables 2-20 (AHB-AP) and (APB-AP), packed transfers are not supported in APB-AP */
 		if (addrinc && dap->packed_transfers && nbytes >= 4
-				&& max_tar_block_size(dap->tar_autoincr_block, address) >= 4
-				&& (AP_REG_IDR_APID_APB_AP != (dap->apid & AP_REG_IDR_APID_MASK))) {
+				&& max_tar_block_size(dap->tar_autoincr_block, address) >= 4) {
 			this_size = 4;
 			retval = dap_setup_accessport_csw(dap, csw_size | CSW_ADDRINC_PACKED);
 		} else {
@@ -633,6 +629,55 @@ extern const struct dap_ops jtag_dp_ops;
 /*--------------------------------------------------------------------------*/
 
 /**
+ * Evaluate whether the current AP is capable of supporting packed transfers
+ * and set the "packed_transfers" member of parameter "dap"
+ *
+ * @param dap The DAP being utilized.
+ */
+static int check_for_packed_transfer_support(struct adiv5_dap *dap)
+{
+	int retval;
+	uint32_t csw, cfg;
+
+	/* start with the most compatible setting */
+	dap->packed_transfers = false;
+
+	retval = dap_setup_accessport(dap, CSW_8BIT | CSW_ADDRINC_PACKED, 0);
+	if (retval != ERROR_OK)
+		return retval;
+
+	retval = dap_queue_ap_read(dap, AP_REG_CSW, &csw);
+	if (retval != ERROR_OK)
+		return retval;
+
+	retval = dap_queue_ap_read(dap, AP_REG_CFG, &cfg);
+	if (retval != ERROR_OK)
+		return retval;
+
+	retval = dap_run(dap);
+	if (retval != ERROR_OK)
+		return retval;
+
+	if (csw & CSW_ADDRINC_PACKED)
+		dap->packed_transfers = true;
+	else
+		dap->packed_transfers = false;
+
+	/* Packed transfers on TI BE-32 processors do not work correctly in
+	 * many cases. */
+	if (dap->ti_be_32_quirks)
+		dap->packed_transfers = false;
+
+	LOG_DEBUG("MEM_AP Packed Transfers: %s",
+			dap->packed_transfers ? "enabled" : "disabled");
+
+	LOG_DEBUG("MEM_AP CFG: large data %d, long address %d, big-endian %d",
+			!!(cfg & 0x04), !!(cfg & 0x02), !!(cfg & 0x01));
+
+	return ERROR_OK;
+}
+
+/**
  * Initialize a DAP.  This sets up the power domains, prepares the DP
  * for further use, and arranges to use AP #0 for all AP operations
  * until dap_ap-select() changes that policy.
@@ -716,36 +761,9 @@ int ahbap_debugport_init(struct adiv5_dap *dap)
 		return retval;
 
 	/* check that we support packed transfers */
-	uint32_t csw, cfg;
-
-	retval = dap_setup_accessport(dap, CSW_8BIT | CSW_ADDRINC_PACKED, 0);
+	retval = check_for_packed_transfer_support(dap);
 	if (retval != ERROR_OK)
 		return retval;
-
-	retval = dap_queue_ap_read(dap, AP_REG_CSW, &csw);
-	if (retval != ERROR_OK)
-		return retval;
-
-	retval = dap_queue_ap_read(dap, AP_REG_CFG, &cfg);
-	if (retval != ERROR_OK)
-		return retval;
-
-	retval = dap_run(dap);
-	if (retval != ERROR_OK)
-		return retval;
-
-	if (csw & CSW_ADDRINC_PACKED)
-		dap->packed_transfers = true;
-	else
-		dap->packed_transfers = false;
-
-	/* Packed transfers on TI BE-32 processors do not work correctly in
-	 * many cases. */
-	if (dap->ti_be_32_quirks)
-		dap->packed_transfers = false;
-
-	LOG_DEBUG("MEM_AP Packed Transfers: %s",
-			dap->packed_transfers ? "enabled" : "disabled");
 
 	/* The ARM ADI spec leaves implementation-defined whether unaligned
 	 * memory accesses work, only work partially, or cause a sticky error.
@@ -754,9 +772,6 @@ int ahbap_debugport_init(struct adiv5_dap *dap)
 	 * TODO: it would be nice to have a way to detect whether unaligned
 	 * operations are supported on other processors. */
 	dap->unaligned_access_bad = dap->ti_be_32_quirks;
-
-	LOG_DEBUG("MEM_AP CFG: large data %d, long address %d, big-endian %d",
-			!!(cfg & 0x04), !!(cfg & 0x02), !!(cfg & 0x01));
 
 	return ERROR_OK;
 }
@@ -1543,10 +1558,12 @@ COMMAND_HANDLER(dap_apsel_command)
 	if (retval != ERROR_OK)
 		return retval;
 
-	dap->apid = apid;
-
 	command_print(CMD_CTX, "ap %" PRIi32 " selected, identification register 0x%8.8" PRIx32,
 			apsel, apid);
+
+	retval = check_for_packed_transfer_support(dap);
+	if (retval != ERROR_OK)
+		return retval;
 
 	return retval;
 }
