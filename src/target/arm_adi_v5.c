@@ -335,7 +335,7 @@ int mem_ap_write(struct adiv5_dap *dap, const uint8_t *buffer, uint32_t size, ui
 		uint32_t this_size = size;
 
 		/* Select packed transfer if possible */
-		if (addrinc && dap->packed_transfers && nbytes >= 4
+		if (addrinc && dap->packed_transfers[dap->ap_current >> 24] && nbytes >= 4
 				&& max_tar_block_size(dap->tar_autoincr_block, address) >= 4) {
 			this_size = 4;
 			retval = dap_setup_accessport_csw(dap, csw_size | CSW_ADDRINC_PACKED);
@@ -470,7 +470,7 @@ int mem_ap_read(struct adiv5_dap *dap, uint8_t *buffer, uint32_t size, uint32_t 
 		uint32_t this_size = size;
 
 		/* Select packed transfer if possible */
-		if (addrinc && dap->packed_transfers && nbytes >= 4
+		if (addrinc && dap->packed_transfers[dap->ap_current >> 24] && nbytes >= 4
 				&& max_tar_block_size(dap->tar_autoincr_block, address) >= 4) {
 			this_size = 4;
 			retval = dap_setup_accessport_csw(dap, csw_size | CSW_ADDRINC_PACKED);
@@ -522,7 +522,7 @@ int mem_ap_read(struct adiv5_dap *dap, uint8_t *buffer, uint32_t size, uint32_t 
 	while (nbytes > 0) {
 		uint32_t this_size = size;
 
-		if (addrinc && dap->packed_transfers && nbytes >= 4
+		if (addrinc && dap->packed_transfers[dap->ap_current >> 24] && nbytes >= 4
 				&& max_tar_block_size(dap->tar_autoincr_block, address) >= 4) {
 			this_size = 4;
 		}
@@ -643,6 +643,7 @@ extern const struct dap_ops jtag_dp_ops;
 int ahbap_debugport_init(struct adiv5_dap *dap)
 {
 	int retval;
+	const uint8_t debugport_ap_index = 0;
 
 	LOG_DEBUG(" ");
 
@@ -653,14 +654,57 @@ int ahbap_debugport_init(struct adiv5_dap *dap)
 	if (!dap->ops)
 		dap->ops = &jtag_dp_ops;
 
+	/* check that we support packed transfers */
+	uint32_t csw, cfg, idr;
+	int ap_index;
+
+	dap->ap_current = !0;
+
+	for (ap_index = 0; ap_index < 256; ap_index++) {
+
+		dap_ap_select(dap, ap_index);
+
+		dap->packed_transfers[ap_index] = false;
+
+		/* Packed transfers on TI BE-32 processors do not work correctly in
+		 * many cases. */
+		if (dap->ti_be_32_quirks)
+			continue;
+
+		retval = dap_queue_ap_read(dap, AP_REG_IDR, &idr);
+		if (retval != ERROR_OK)
+			return retval;
+		retval = dap_run(dap);
+		if (retval != ERROR_OK)
+			return retval;
+
+		/* if IDR is zero, there is no AP present at this index */
+		if (0 == idr)
+			continue;
+
+		retval = dap_setup_accessport(dap, CSW_8BIT | CSW_ADDRINC_PACKED, 0);
+		if (retval != ERROR_OK)
+			return retval;
+
+		retval = dap_queue_ap_read(dap, AP_REG_CSW, &csw);
+		if (retval != ERROR_OK)
+			return retval;
+
+		retval = dap_run(dap);
+		if (retval != ERROR_OK)
+			return retval;
+
+		if (csw & CSW_ADDRINC_PACKED)
+			dap->packed_transfers[ap_index] = true;
+	}
+
 	/* Default MEM-AP setup.
 	 *
 	 * REVISIT AP #0 may be an inappropriate default for this.
 	 * Should we probe, or take a hint from the caller?
 	 * Presumably we can ignore the possibility of multiple APs.
 	 */
-	dap->ap_current = !0;
-	dap_ap_select(dap, 0);
+	dap_ap_select(dap, debugport_ap_index);
 	dap->last_read = NULL;
 
 	/* DP initialization */
@@ -711,16 +755,7 @@ int ahbap_debugport_init(struct adiv5_dap *dap)
 	if (retval != ERROR_OK)
 		return retval;
 
-	/* check that we support packed transfers */
-	uint32_t csw, cfg;
-
-	retval = dap_setup_accessport(dap, CSW_8BIT | CSW_ADDRINC_PACKED, 0);
-	if (retval != ERROR_OK)
-		return retval;
-
-	retval = dap_queue_ap_read(dap, AP_REG_CSW, &csw);
-	if (retval != ERROR_OK)
-		return retval;
+	/* perform legacy packed transfer code for debugport AP only */
 
 	retval = dap_queue_ap_read(dap, AP_REG_CFG, &cfg);
 	if (retval != ERROR_OK)
@@ -730,18 +765,8 @@ int ahbap_debugport_init(struct adiv5_dap *dap)
 	if (retval != ERROR_OK)
 		return retval;
 
-	if (csw & CSW_ADDRINC_PACKED)
-		dap->packed_transfers = true;
-	else
-		dap->packed_transfers = false;
-
-	/* Packed transfers on TI BE-32 processors do not work correctly in
-	 * many cases. */
-	if (dap->ti_be_32_quirks)
-		dap->packed_transfers = false;
-
 	LOG_DEBUG("MEM_AP Packed Transfers: %s",
-			dap->packed_transfers ? "enabled" : "disabled");
+			dap->packed_transfers[debugport_ap_index] ? "enabled" : "disabled");
 
 	/* The ARM ADI spec leaves implementation-defined whether unaligned
 	 * memory accesses work, only work partially, or cause a sticky error.

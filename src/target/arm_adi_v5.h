@@ -203,7 +203,7 @@ struct adiv5_dap {
 	uint32_t tar_autoincr_block;
 
 	/* true if packed transfers are supported by the MEM-AP */
-	bool packed_transfers;
+	bool packed_transfers[256];
 
 	/* true if unaligned memory access is not supported by the MEM-AP */
 	bool unaligned_access_bad;
