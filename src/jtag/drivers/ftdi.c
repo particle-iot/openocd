@@ -660,6 +660,19 @@ static int ftdi_initialize(void)
 	else
 		ftdi_swd_switch_seq(NULL, SWD_TO_JTAG);
 
+	/* support connecting with srst asserted */
+	enum reset_types jtag_reset_config = jtag_get_reset_config();
+	if ((jtag_reset_config & RESET_CNCT_UNDER_SRST) && (jtag_reset_config & RESET_SRST_NO_GATING)) {
+		struct signal *srst = find_signal_by_name("nSRST");
+		if (srst)
+			ftdi_set_signal(srst, '0');
+		else {
+			LOG_ERROR("Can't assert SRST: nSRST signal is not defined");
+			return ERROR_FAIL;
+		}
+		LOG_INFO("Connecting under reset");
+	}
+
 	return mpsse_flush(mpsse_ctx);
 }
 
