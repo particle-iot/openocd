@@ -23,6 +23,8 @@ proc jtag_init {} {
 proc init_reset { mode } {
 	if {[using_jtag]} {
 		jtag arp_init-reset
+	} elseif {[using_swd]} {
+		swd arp_init-reset
 	}
 }
 

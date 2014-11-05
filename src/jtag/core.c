@@ -1510,7 +1510,16 @@ int swd_init_reset(struct command_context *cmd_ctx)
 
 	if (jtag_reset_config & RESET_HAS_SRST)
 		swd_add_reset(1);
-	swd_add_reset(0);
+
+	if (jtag_reset_config & RESET_CNCT_UNDER_SRST) {
+		if (!(jtag_reset_config & RESET_SRST_NO_GATING)) {
+			LOG_WARNING("\'srst_nogate\' reset_config option is required");
+			swd_add_reset(0);
+		}
+		/* Leave reset enabled*/
+	} else
+		swd_add_reset(0);
+
 	retval = jtag_execute_queue();
 	return retval;
 }

@@ -351,7 +351,13 @@ static const struct command_registration swd_commands[] = {
 		.help = "display or update DAP's WCR register",
 		.usage = "turnaround (1..4), prescale (0..7)",
 	},
-
+	{
+		.name = "arp_init-reset",
+		.mode = COMMAND_ANY,
+		.jim_handler = jim_jtag_arp_init_reset,
+		.help = "Uses TRST and SRST to try resetting everything on "
+				"the JTAG scan chain, then performs 'jtag arp_init'."
+	},
 	/* REVISIT -- add a command for SWV trace on/off */
 	COMMAND_REGISTRATION_DONE
 };
