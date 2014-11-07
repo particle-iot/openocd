@@ -1952,6 +1952,7 @@ static int cortex_a_read_apb_ab_memory(struct target *target,
 	int end_byte   = (address + total_bytes) & 0x3;
 	struct reg *reg;
 	uint32_t dscr;
+	uint32_t last_word;
 	uint8_t *tmp_buff = NULL;
 	uint8_t buf[8];
 	uint8_t *u8buf_ptr;
@@ -2001,52 +2002,61 @@ static int cortex_a_read_apb_ab_memory(struct target *target,
 	cortex_a_exec_opcode(target, ARMV4_5_MRC(14, 0, 0, 0, 5, 0), &dscr);
 
 	/* Write the data transfer instruction (ldc p14, c5, [r0],4)
-	 * and the DTR mode setting to fast mode
+	 * and the DTR mode setting to fast mode (for multiple words)
+	 * or non-blocking (for a single word)
 	 * in one combined write (since they are adjacent registers)
 	 */
-	u8buf_ptr = buf;
-	target_buffer_set_u32(target, u8buf_ptr, ARMV4_5_LDC(0, 1, 0, 1, 14, 5, 0, 4));
-	dscr = (dscr & ~DSCR_EXT_DCC_MASK) | DSCR_EXT_DCC_FAST_MODE;
-	target_buffer_set_u32(target, u8buf_ptr + 4, dscr);
+	target_buffer_set_u32(target, buf, ARMV4_5_LDC(0, 1, 0, 1, 14, 5, 0, 4));
+	if (total_u32 > 1)
+		dscr = (dscr & ~DSCR_EXT_DCC_MASK) | DSCR_EXT_DCC_FAST_MODE;
+	else
+		dscr = (dscr & ~DSCR_EXT_DCC_MASK) | DSCR_EXT_DCC_NON_BLOCKING;
+	target_buffer_set_u32(target, buf + 4, dscr);
 	/*  group the 2 access CPUDBG_ITR 0x84 and CPUDBG_DSCR 0x88 */
-	retval += mem_ap_sel_write_buf(swjdp, armv7a->debug_ap, u8buf_ptr, 4, 2,
+	retval += mem_ap_sel_write_buf(swjdp, armv7a->debug_ap, buf, 4, 2,
 			armv7a->debug_base + CPUDBG_ITR);
 	if (retval != ERROR_OK)
 		goto error_unset_dtr_r;
 
-	/* Optimize the read as much as we can, either way we read in a single pass  */
-	if ((start_byte) || (end_byte)) {
-		/* The algorithm only copies 32 bit words, so the buffer
-		 * should be expanded to include the words at either end.
-		 * The first and last words will be read into a temp buffer
-		 * to avoid corruption
+	if (total_u32 > 1) {
+		/* Optimize the read as much as we can, either way we read in a single pass  */
+		if ((start_byte) || (end_byte)) {
+			/* The algorithm only copies 32 bit words, so the buffer
+			 * should be expanded to include the words at either end.
+			 * The first and last words will be read into a temp buffer
+			 * to avoid corruption
+			 */
+			tmp_buff = malloc(total_u32 * 4);
+			if (!tmp_buff)
+				goto error_unset_dtr_r;
+
+			/* use the tmp buffer to read the entire data */
+			u8buf_ptr = tmp_buff;
+		} else
+			/* address and read length are aligned so read directely into the passed buffer */
+			u8buf_ptr = buffer;
+
+		/* Read most of the data - Each read of the DTRTX register causes the instruction to be reissued
+		 * Abort flags are sticky, so can be read at end of transactions
+		 *
+		 * This data is read in aligned to 32 bit boundary.
+		 *
+		 * Avoid reading the last word; in fast mode, doing so would start yet another read, which:
+		 * (1) might overrun the end of a valid memory area and cause an undesirable fault, and
+		 * (2) would, on success, leave DTRTX full when it was not expected to be
 		 */
-		tmp_buff = malloc(total_u32 * 4);
-		if (!tmp_buff)
-			goto error_unset_dtr_r;
+		retval = mem_ap_sel_read_buf_noincr(swjdp, armv7a->debug_ap, u8buf_ptr, 4, total_u32 - 1,
+										armv7a->debug_base + CPUDBG_DTRTX);
+		if (retval != ERROR_OK)
+				goto error_unset_dtr_r;
 
-		/* use the tmp buffer to read the entire data */
-		u8buf_ptr = tmp_buff;
-	} else
-		/* address and read length are aligned so read directely into the passed buffer */
-		u8buf_ptr = buffer;
-
-	/* Read the data - Each read of the DTRTX register causes the instruction to be reissued
-	 * Abort flags are sticky, so can be read at end of transactions
-	 *
-	 * This data is read in aligned to 32 bit boundary.
-	 */
-	retval = mem_ap_sel_read_buf_noincr(swjdp, armv7a->debug_ap, u8buf_ptr, 4, total_u32,
-									armv7a->debug_base + CPUDBG_DTRTX);
-	if (retval != ERROR_OK)
-			goto error_unset_dtr_r;
-
-	/* set DTR access mode back to non blocking b00  */
-	dscr = (dscr & ~DSCR_EXT_DCC_MASK) | DSCR_EXT_DCC_NON_BLOCKING;
-	retval =  mem_ap_sel_write_atomic_u32(swjdp, armv7a->debug_ap,
-					armv7a->debug_base + CPUDBG_DSCR, dscr);
-	if (retval != ERROR_OK)
-		goto error_free_buff_r;
+		/* set DTR access mode back to non blocking b00  */
+		dscr = (dscr & ~DSCR_EXT_DCC_MASK) | DSCR_EXT_DCC_NON_BLOCKING;
+		retval =  mem_ap_sel_write_atomic_u32(swjdp, armv7a->debug_ap,
+						armv7a->debug_base + CPUDBG_DSCR, dscr);
+		if (retval != ERROR_OK)
+			goto error_free_buff_r;
+	}
 
 	/* Wait for the final read instruction to finish */
 	do {
@@ -2055,6 +2065,10 @@ static int cortex_a_read_apb_ab_memory(struct target *target,
 		if (retval != ERROR_OK)
 			goto error_free_buff_r;
 	} while ((dscr & DSCR_INSTR_COMP) == 0);
+
+	/* Read the last word of data, in non blocking mode. */
+	retval = mem_ap_sel_read_atomic_u32(swjdp, armv7a->debug_ap,
+			armv7a->debug_base + CPUDBG_DTRTX, &last_word);
 
 	/* Check for sticky abort flags in the DSCR */
 	retval = mem_ap_sel_read_atomic_u32(swjdp, armv7a->debug_ap,
@@ -2071,8 +2085,18 @@ static int cortex_a_read_apb_ab_memory(struct target *target,
 
 	/* check if we need to copy aligned data by applying any shift necessary */
 	if (tmp_buff) {
+		/* we have a tmp_buff, so include the last word in it and copy everything */
+		target_buffer_set_u32(target, tmp_buff + 4 * (total_u32 - 1), last_word);
 		memcpy(buffer, tmp_buff + start_byte, total_bytes);
 		free(tmp_buff);
+	} else {
+		/* no tmp_buff, so all but last was written directly to buffer
+		 * (either total_u32=1 or addresses are aligned)
+		 * might want less than all four bytes of the last word though
+		 * bounce it through buf to extract desired bytes
+		 */
+		target_buffer_set_u32(target, buf, last_word);
+		memcpy(buffer + 4 * (total_u32 - 1), buf + start_byte, total_bytes - 4 * (total_u32 - 1));
 	}
 
 	/* Done */
