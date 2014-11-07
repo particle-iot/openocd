@@ -2031,15 +2031,21 @@ static int cortex_a_read_apb_ab_memory(struct target *target,
 		/* address and read length are aligned so read directely into the passed buffer */
 		u8buf_ptr = buffer;
 
-	/* Read the data - Each read of the DTRTX register causes the instruction to be reissued
+	/* Read most of the data - Each read of the DTRTX register causes the instruction to be reissued
 	 * Abort flags are sticky, so can be read at end of transactions
 	 *
 	 * This data is read in aligned to 32 bit boundary.
+	 *
+	 * Avoid reading the last word; in fast mode, doing so would start yet another read, which:
+	 * (1) might overrun the end of a valid memory area and cause an undesirable fault, and
+	 * (2) would, on success, leave DTRTX full when it was not expected to be
 	 */
-	retval = mem_ap_sel_read_buf_noincr(swjdp, armv7a->debug_ap, u8buf_ptr, 4, total_u32,
-									armv7a->debug_base + CPUDBG_DTRTX);
-	if (retval != ERROR_OK)
-			goto error_unset_dtr_r;
+	if (total_u32 > 1) {
+		retval = mem_ap_sel_read_buf_noincr(swjdp, armv7a->debug_ap, u8buf_ptr, 4, total_u32 - 1,
+										armv7a->debug_base + CPUDBG_DTRTX);
+		if (retval != ERROR_OK)
+				goto error_unset_dtr_r;
+	}
 
 	/* set DTR access mode back to non blocking b00  */
 	dscr = (dscr & ~DSCR_EXT_DCC_MASK) | DSCR_EXT_DCC_NON_BLOCKING;
@@ -2055,6 +2061,11 @@ static int cortex_a_read_apb_ab_memory(struct target *target,
 		if (retval != ERROR_OK)
 			goto error_free_buff_r;
 	} while ((dscr & DSCR_INSTR_COMP) == 0);
+
+	/* Read the last word of data, in non blocking mode. */
+	retval = mem_ap_sel_read_atomic_u32(swjdp, armv7a->debug_ap,
+			armv7a->debug_base + CPUDBG_DTRTX,
+			(uint32_t*)(u8buf_ptr + 4 * (total_u32 - 1)));
 
 	/* Check for sticky abort flags in the DSCR */
 	retval = mem_ap_sel_read_atomic_u32(swjdp, armv7a->debug_ap,
