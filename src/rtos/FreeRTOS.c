@@ -116,7 +116,7 @@ enum FreeRTOS_symbol_values {
 	FreeRTOS_VAL_xTasksWaitingTermination = 7,
 	FreeRTOS_VAL_xSuspendedTaskList = 8,
 	FreeRTOS_VAL_uxCurrentNumberOfTasks = 9,
-	FreeRTOS_VAL_uxTopUsedPriority = 10,
+	FreeRTOS_VAL_uxTopReadyPriority = 10,
 };
 
 static const char * const FreeRTOS_symbol_list[] = {
@@ -130,7 +130,7 @@ static const char * const FreeRTOS_symbol_list[] = {
 	"xTasksWaitingTermination",
 	"xSuspendedTaskList",
 	"uxCurrentNumberOfTasks",
-	"uxTopUsedPriority",
+	"uxTopReadyPriority",
 	NULL
 };
 
@@ -228,12 +228,13 @@ static int FreeRTOS_update_threads(struct rtos *rtos)
 	/* Find out how many lists are needed to be read from pxReadyTasksLists, */
 	int64_t max_used_priority = 0;
 	retval = target_read_buffer(rtos->target,
-			rtos->symbols[FreeRTOS_VAL_uxTopUsedPriority].address,
+			rtos->symbols[FreeRTOS_VAL_uxTopReadyPriority].address,
 			param->pointer_width,
 			(uint8_t *)&max_used_priority);
 	if (retval != ERROR_OK)
 		return retval;
-	LOG_DEBUG("FreeRTOS: Read uxTopUsedPriority at 0x%" PRIx64 ", value %" PRId64 "\r\n",
+	LOG_DEBUG("FreeRTOS: Read uxTopReadyPriority at 0x%" PRIx64 ", value %" PRId64 "\r\n",
+										rtos->symbols[FreeRTOS_VAL_uxTopReadyPriority].address,
 										rtos->symbols[FreeRTOS_VAL_uxTopUsedPriority].address,
 										max_used_priority);
 	if (max_used_priority > FREERTOS_MAX_PRIORITIES) {
