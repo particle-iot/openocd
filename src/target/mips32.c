@@ -36,7 +36,7 @@
 #include "register.h"
 
 static const char *mips_isa_strings[] = {
-	"MIPS32", "MIPS16e"
+	"MIPS32", "MIPS16"
 };
 
 static const struct {
