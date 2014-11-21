@@ -94,6 +94,7 @@ static int FreeRTOS_create(struct target *target);
 static int FreeRTOS_update_threads(struct rtos *rtos);
 static int FreeRTOS_get_thread_reg_list(struct rtos *rtos, int64_t thread_id, char **hex_reg_list);
 static int FreeRTOS_get_symbol_list_to_lookup(symbol_table_elem_t *symbol_list[]);
+static int FreeRTOS_wipe(struct rtos *rtos);
 
 struct rtos_type FreeRTOS_rtos = {
 	.name = "FreeRTOS",
@@ -103,6 +104,7 @@ struct rtos_type FreeRTOS_rtos = {
 	.update_threads = FreeRTOS_update_threads,
 	.get_thread_reg_list = FreeRTOS_get_thread_reg_list,
 	.get_symbol_list_to_lookup = FreeRTOS_get_symbol_list_to_lookup,
+	.wipe = FreeRTOS_wipe,
 };
 
 enum FreeRTOS_symbol_values {
@@ -133,6 +135,25 @@ static const char * const FreeRTOS_symbol_list[] = {
 	"uxTopUsedPriority",
 	NULL
 };
+
+
+static int FreeRTOS_wipe(struct rtos *rtos)
+{
+	int retval = ERROR_FAIL;
+	uint8_t zeros[4] = { 0, 0, 0, 0 };
+	symbol_table_elem_t *sym = rtos->symbols;
+	while (sym->symbol_name != NULL) {
+		if  (sym->address == 0)
+			return ERROR_FAIL;
+
+		retval = target_write_buffer(rtos->target, sym->address, 4, zeros);
+		if (retval != ERROR_OK)
+			return retval;
+		LOG_DEBUG("Wiped rtos variable: %s at 0x%08X", sym->symbol_name, (uint32_t)sym->address);
+		sym++;
+	}
+	return retval;
+}
 
 /* TODO: */
 /* this is not safe for little endian yet */

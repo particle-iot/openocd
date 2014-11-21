@@ -46,6 +46,7 @@ static struct rtos_type *rtos_types[] = {
 	NULL
 };
 
+static void rtos_wipe_if_needed(struct target *target);
 int rtos_thread_packet(struct connection *connection, const char *packet, int packet_size);
 
 int rtos_smp_init(struct target *target)
@@ -67,6 +68,7 @@ static int os_alloc(struct target *target, struct rtos_type *ostype)
 	os->current_thread = 0;
 	os->symbols = NULL;
 	os->target = target;
+	os->wiped = 0;
 
 	/* RTOS drivers can override the packet handler in _create(). */
 	os->gdb_thread_packet = rtos_thread_packet;
@@ -97,6 +99,12 @@ static int os_alloc_create(struct target *target, struct rtos_type *ostype)
 	}
 
 	return ret;
+}
+
+int rtos_set_wipe(Jim_GetOptInfo *goi, struct target *target)
+{
+	target->rtos_wipe = 1;
+	return ERROR_OK;
 }
 
 int rtos_create(Jim_GetOptInfo *goi, struct target *target)
@@ -325,6 +333,7 @@ int rtos_thread_packet(struct connection *connection, char const *packet, int pa
 		if (rtos_qsymbol(connection, packet, packet_size) == 1) {
 			target->rtos_auto_detect = false;
 			target->rtos->type->create(target);
+			rtos_wipe_if_needed(target);
 			target->rtos->type->update_threads(target->rtos);
 		}
 		return ERROR_OK;
@@ -409,6 +418,8 @@ int rtos_get_gdb_reg_list(struct connection *connection)
 			((current_threadid != target->rtos->current_thread) ||
 			(target->smp))) {	/* in smp several current thread are possible */
 		char *hex_reg_list;
+		rtos_wipe_if_needed(target);
+
 		target->rtos->type->get_thread_reg_list(target->rtos,
 			current_threadid,
 			&hex_reg_list);
@@ -508,10 +519,23 @@ int rtos_try_next(struct target *target)
 	return 1;
 }
 
+static void rtos_wipe_if_needed(struct target *target)
+{
+	if ((target->rtos_wipe == 1) &&
+		(target->rtos != NULL) &&
+		(target->rtos->wiped == 0) &&
+		(target->rtos->type->wipe != NULL)) {
+		if (ERROR_OK == target->rtos->type->wipe(target->rtos))
+			target->rtos->wiped = 1;
+	}
+}
+
 int rtos_update_threads(struct target *target)
 {
-	if ((target->rtos != NULL) && (target->rtos->type != NULL))
+	if ((target->rtos != NULL) && (target->rtos->type != NULL)) {
+		rtos_wipe_if_needed(target);
 		target->rtos->type->update_threads(target->rtos);
+	}
 	return ERROR_OK;
 }
 
