@@ -4190,6 +4190,22 @@ The value should normally correspond to a static mapping for the
 @option{FreeRTOS}|@option{linux}|@option{ChibiOS}|@option{embKernel}|@option{mqx}
 @xref{gdbrtossupport,,RTOS Support}.
 
+@item @code{-rtos-wipe} -- wipe rtos variables before usage.
+OpenOCD reads global variables implemented by the RTOS - In some situations,
+these global variables may contain invalid data, which could cause RTOS
+awareness in OpenOCD to malfunction.
+The main situation where this can happen is starting debug and halting before
+the global variables are initialized (usually in crt0). This may happen due to
+a "reset halt" command. The RTOS global variables will contain either random
+data or data from the previous execution run.
+Enabling this flag causes the RTOS global variables to be wiped (to zero) at
+the first halt, hence avoiding issues with invalid data.
+There are situations where you may not want the flag set: If the first halt
+occurs after global variables are initialized.  E.g. You are connecting to a
+target that is already running, OR, if you are resetting but not halting
+immediately.
+@xref{gdbrtossupport,,RTOS Support}.
+
 @end itemize
 @end deffn
 
