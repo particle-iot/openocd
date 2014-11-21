@@ -753,17 +753,12 @@ static int mips32_verify_pointer(struct command_context *cmd_ctx,
 	return ERROR_OK;
 }
 
-/**
- * MIPS32 targets expose command interface
- * to manipulate CP0 registers
- */
-COMMAND_HANDLER(mips32_handle_cp0_command)
+int mips32_cp0_command(struct command_invocation *cmd)
 {
 	int retval;
 	struct target *target = get_current_target(CMD_CTX);
 	struct mips32_common *mips32 = target_to_mips32(target);
 	struct mips_ejtag *ejtag_info = &mips32->ejtag_info;
-
 
 	retval = mips32_verify_pointer(CMD_CTX, mips32);
 	if (retval != ERROR_OK)
@@ -775,28 +770,71 @@ COMMAND_HANDLER(mips32_handle_cp0_command)
 	}
 
 	/* two or more argument, access a single register/select (write if third argument is given) */
-	if (CMD_ARGC < 2)
-		return ERROR_COMMAND_SYNTAX_ERROR;
-	else {
-		uint32_t cp0_reg, cp0_sel;
-		COMMAND_PARSE_NUMBER(u32, CMD_ARGV[0], cp0_reg);
-		COMMAND_PARSE_NUMBER(u32, CMD_ARGV[1], cp0_sel);
+	if (CMD_ARGC < 2) {
+		uint32_t value;
 
+		if (CMD_ARGC == 0) {
+			for (int i = 0; i < MIPS32NUMCP0REGS; i++) {
+				retval = mips32_cp0_read(ejtag_info, &value, mips32_cp0_regs[i].reg, mips32_cp0_regs[i].sel);
+				if (retval != ERROR_OK) {
+					command_print(CMD_CTX, "couldn't access reg %s", mips32_cp0_regs[i].name);
+					return ERROR_OK;
+				}
+
+				command_print(CMD_CTX, "%*s: 0x%8.8x", 14, mips32_cp0_regs[i].name, value);
+			}
+		} else {
+			for (int i = 0; i < MIPS32NUMCP0REGS; i++) {
+				/* find register name */
+				if (strcmp(mips32_cp0_regs[i].name, CMD_ARGV[0]) == 0) {
+					retval = mips32_cp0_read(ejtag_info, &value, mips32_cp0_regs[i].reg, mips32_cp0_regs[i].sel);
+					command_print(CMD_CTX, "0x%8.8x", value);
+					return ERROR_OK;
+				}
+			}
+
+			LOG_ERROR("BUG: register '%s' not found", CMD_ARGV[0]);
+			return ERROR_COMMAND_SYNTAX_ERROR;
+		}
+	} else {
 		if (CMD_ARGC == 2) {
 			uint32_t value;
+			char tmp = *CMD_ARGV[0];
 
-			retval = mips32_cp0_read(ejtag_info, &value, cp0_reg, cp0_sel);
-			if (retval != ERROR_OK) {
-				command_print(CMD_CTX,
-						"couldn't access reg %" PRIi32,
-						cp0_reg);
-				return ERROR_OK;
+			if (isdigit(tmp) == false) {
+				for (int i = 0; i < MIPS32NUMCP0REGS; i++) {
+					/* find register name */
+					if (strcmp(mips32_cp0_regs[i].name, CMD_ARGV[0]) == 0) {
+						COMMAND_PARSE_NUMBER(u32, CMD_ARGV[1], value);
+						retval = mips32_cp0_write(ejtag_info, value, mips32_cp0_regs[i].reg, mips32_cp0_regs[i].sel);
+						return ERROR_OK;
+					}
+				}
+
+				LOG_ERROR("BUG: register '%s' not found", CMD_ARGV[0]);
+				return ERROR_COMMAND_SYNTAX_ERROR;
+			} else {
+				uint32_t cp0_reg, cp0_sel;
+				COMMAND_PARSE_NUMBER(u32, CMD_ARGV[0], cp0_reg);
+				COMMAND_PARSE_NUMBER(u32, CMD_ARGV[1], cp0_sel);
+
+				retval = mips32_cp0_read(ejtag_info, &value, cp0_reg, cp0_sel);
+				if (retval != ERROR_OK) {
+					command_print(CMD_CTX,
+								  "couldn't access reg %" PRIi32,
+								  cp0_reg);
+					return ERROR_OK;
+				}
+
+				command_print(CMD_CTX, "cp0 reg %" PRIi32 ", select %" PRIi32 ": %8.8" PRIx32,
+							  cp0_reg, cp0_sel, value);
 			}
-			command_print(CMD_CTX, "cp0 reg %" PRIi32 ", select %" PRIi32 ": %8.8" PRIx32,
-					cp0_reg, cp0_sel, value);
-
 		} else if (CMD_ARGC == 3) {
+			uint32_t cp0_reg, cp0_sel;
 			uint32_t value;
+
+			COMMAND_PARSE_NUMBER(u32, CMD_ARGV[0], cp0_reg);
+			COMMAND_PARSE_NUMBER(u32, CMD_ARGV[1], cp0_sel);
 			COMMAND_PARSE_NUMBER(u32, CMD_ARGV[2], value);
 			retval = mips32_cp0_write(ejtag_info, value, cp0_reg, cp0_sel);
 			if (retval != ERROR_OK) {
@@ -806,11 +844,44 @@ COMMAND_HANDLER(mips32_handle_cp0_command)
 				return ERROR_OK;
 			}
 			command_print(CMD_CTX, "cp0 reg %" PRIi32 ", select %" PRIi32 ": %8.8" PRIx32,
-					cp0_reg, cp0_sel, value);
+						  cp0_reg, cp0_sel, value);
 		}
 	}
 
 	return ERROR_OK;
+}
+
+int mips32_scan_delay_command(struct command_invocation *cmd)
+{
+	struct target *target = get_current_target(CMD_CTX);
+	struct mips32_common *mips32 = target_to_mips32(target);
+	struct mips_ejtag *ejtag_info = &mips32->ejtag_info;
+
+	int retval = mips32_verify_pointer(CMD_CTX, mips32);
+	if (retval != ERROR_OK)
+		return retval;
+
+	if (CMD_ARGC == 1)
+		COMMAND_PARSE_NUMBER(uint, CMD_ARGV[0], ejtag_info->scan_delay);
+	else if (CMD_ARGC > 1)
+		return ERROR_COMMAND_SYNTAX_ERROR;
+
+	command_print(CMD_CTX, "scan delay: %d nsec", ejtag_info->scan_delay);
+	if (ejtag_info->scan_delay >= MIPS32_SCAN_DELAY_LEGACY_MODE) {
+		ejtag_info->mode = 0;
+		command_print(CMD_CTX, "running in legacy mode");
+	} else {
+		ejtag_info->mode = 1;
+		command_print(CMD_CTX, "running in fast queued mode");
+	}
+
+	return ERROR_OK;
+}
+
+COMMAND_HANDLER(mips32_handle_cp0_command)
+{
+	/* Call common code */
+	return mips32_cp0_command(cmd);
 }
 
 COMMAND_HANDLER(mips32_handle_scan_delay_command)
@@ -841,8 +912,8 @@ static const struct command_registration mips32_exec_command_handlers[] = {
 		.name = "cp0",
 		.handler = mips32_handle_cp0_command,
 		.mode = COMMAND_EXEC,
-		.usage = "regnum select [value]",
-		.help = "display/modify cp0 register",
+		.help = "display/modify cp0 register(s)",
+		.usage = "[[reg_name|regnum select] [value]]",
 	},
 		{
 		.name = "scan_delay",

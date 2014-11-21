@@ -63,12 +63,61 @@
 #define MIPS32_ARCH_REL1 0x0
 #define MIPS32_ARCH_REL2 0x1
 
+#define MIPS32_SCAN_DELAY_LEGACY_MODE 2000000
+
 /* offsets into mips32 core register cache */
 enum {
 	MIPS32_PC = 37,
 	MIPS32NUMCOREREGS
 };
 
+#define MIPS32NUMCP0REGS 38
+#define MIPS32NUMDSPREGS 7
+
+static const struct {
+	unsigned reg;
+	unsigned sel;
+	const char *name;
+} mips32_cp0_regs[MIPS32NUMCP0REGS] = {
+	{ 4, 2, "userlocal"},
+	{ 7, 0, "hwrena"},
+	{ 8, 0, "badvaddr"},
+	{ 9, 0, "count"},
+	{11, 0, "compare"},
+	{12, 0, "status"},
+	{12, 1, "intctl"},
+	{12, 2, "srsctl"},
+	{12, 4, "view_ipl"},
+	{13, 0, "cause"},
+	{13, 5, "nestedexc"},
+	{14, 0, "epc"},
+	{14, 2, "nestedepc"},
+	{15, 0, "prid"},
+	{15, 1, "ebase"},
+	{15, 2, "cdmmbase"},
+	{16, 0, "config"},
+	{16, 1, "config1"},
+	{16, 2, "config2"},
+	{16, 3, "config3"},
+	{16, 4, "config4"},
+	{16, 5, "config5"},
+	{16, 7, "config7"},
+	{17, 0, "lladdr"},
+	{23, 0, "debug"},
+	{23, 1, "tracecontrol"},
+	{23, 2, "tracecontrol2"},
+	{23, 3, "usertracedata1"},
+	{23, 4, "tracebpc"},
+	{24, 0, "depc"},
+	{24, 3, "usertracedata2"},
+	{25, 0, "perfctl0"},
+	{25, 1, "perfcnt0"},
+	{25, 2, "perfctl1"},
+	{25, 3, "perfcnt1"},
+	{26, 0, "errctl"},
+	{30, 0, "errorepc"},
+	{31, 0, "desave"},
+};
 enum mips32_isa_mode {
 	MIPS32_ISA_MIPS32 = 0,
 	MIPS32_ISA_MIPS16E = 1,
@@ -250,4 +299,6 @@ int mips32_checksum_memory(struct target *target, uint32_t address,
 int mips32_blank_check_memory(struct target *target,
 		uint32_t address, uint32_t count, uint32_t *blank);
 
+int mips32_cp0_command (struct command_invocation *cmd);
+int mips32_scan_delay_command (struct command_invocation *cmd);
 #endif	/*MIPS32_H*/
