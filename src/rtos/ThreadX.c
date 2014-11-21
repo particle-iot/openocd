@@ -176,7 +176,7 @@ static int ThreadX_update_threads(struct rtos *rtos)
 		tasks_found++;
 		rtos->thread_details = malloc(
 				sizeof(struct thread_detail) * thread_list_size);
-		rtos->thread_details->threadid = 1;
+		rtos->thread_details->threadid = -1;
 		rtos->thread_details->exists = true;
 		rtos->thread_details->display_str = NULL;
 		rtos->thread_details->extra_info_str = NULL;

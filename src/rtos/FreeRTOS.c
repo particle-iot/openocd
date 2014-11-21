@@ -198,7 +198,7 @@ static int FreeRTOS_update_threads(struct rtos *rtos)
 			LOG_ERROR("Error allocating memory for %d threads", thread_list_size);
 			return ERROR_FAIL;
 		}
-		rtos->thread_details->threadid = 1;
+		rtos->thread_details->threadid = -1;
 		rtos->thread_details->exists = true;
 		rtos->thread_details->display_str = NULL;
 		rtos->thread_details->extra_info_str = NULL;
