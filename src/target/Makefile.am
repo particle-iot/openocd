@@ -108,6 +108,7 @@ AVR32_SRC = \
 
 MIPS32_SRC = \
 	mips32.c \
+	mips_common.c \
 	mips_m4k.c \
 	mips32_pracc.c \
 	mips32_dmaacc.c \
@@ -168,6 +169,7 @@ noinst_HEADERS = \
 	etm_dummy.h \
 	image.h \
 	mips32.h \
+	mips_common.h \
 	mips_m4k.h \
 	mips_ejtag.h \
 	mips32_pracc.h \
