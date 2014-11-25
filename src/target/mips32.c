@@ -198,11 +198,19 @@ int mips32_save_context(struct target *target)
 	struct mips_ejtag *ejtag_info = &mips32->ejtag_info;
 
 	/* read core registers */
-	mips32_pracc_read_regs(ejtag_info, mips32->core_regs);
-
+	int retval = mips32_pracc_read_regs(ejtag_info, mips32->core_regs);
+	if (retval != ERROR_OK) {
+		LOG_DEBUG("mips32_pracc_read_regs failed");
+		return retval;
+	}
 	for (i = 0; i < MIPS32NUMCOREREGS; i++) {
-		if (!mips32->core_cache->reg_list[i].valid)
-			mips32->read_core_reg(target, i);
+		if (!mips32->core_cache->reg_list[i].valid) {
+			retval = mips32->read_core_reg(target, i);
+			if (retval != ERROR_OK) {
+				LOG_DEBUG("mips32->read_core_reg failed");
+				return retval;
+			}
+		}
 	}
 
 	return ERROR_OK;
@@ -230,6 +238,19 @@ int mips32_restore_context(struct target *target)
 int mips32_arch_state(struct target *target)
 {
 	struct mips32_common *mips32 = target_to_mips32(target);
+	struct mips_ejtag *ejtag_info = &mips32->ejtag_info;
+	int retval;
+	uint32_t config3;
+	uint32_t cp0_reg = 16;
+	uint32_t cp0_sel = 3;
+	retval = mips32_cp0_read(ejtag_info, &config3, cp0_reg, cp0_sel);
+	if (retval != ERROR_OK) {
+		LOG_DEBUG("reading config3 register failed");
+		return retval;
+	}
+	mips32->dsp_implemented = ((config3 & CFG3_DSPP) >>  10);
+	mips32->dsp_rev = ((config3 & CFG3_DSP_REV) >>  11);
+	mips32->mmips = ((config3 & CFG3_ISA_MODE) >>  14);
 
 	LOG_USER("target halted in %s mode due to %s, pc: 0x%8.8" PRIx32 "",
 		mips_isa_strings[mips32->isa_mode],
@@ -297,7 +318,7 @@ int mips32_init_arch_info(struct target *target, struct mips32_common *mips32, s
 	mips32->read_core_reg = mips32_read_core_reg;
 	mips32->write_core_reg = mips32_write_core_reg;
 
-	mips32->ejtag_info.scan_delay = 2000000;	/* Initial default value */
+	mips32->ejtag_info.scan_delay = MIPS32_SCAN_DELAY_LEGACY_MODE;	/* Initial default value */
 	mips32->ejtag_info.mode = 0;			/* Initial default value */
 
 	return ERROR_OK;
@@ -562,14 +583,14 @@ int mips32_configure_break_unit(struct target *target)
 	}
 
 	/* check if target endianness settings matches debug control register */
-	if (((ejtag_info->debug_caps & EJTAG_DCR_ENM)
-			&& (target->endianness == TARGET_LITTLE_ENDIAN)) ||
-			(!(ejtag_info->debug_caps & EJTAG_DCR_ENM)
-			 && (target->endianness == TARGET_BIG_ENDIAN)))
+	if (((ejtag_info->debug_caps & EJTAG_DCR_ENM) && (target->endianness == TARGET_LITTLE_ENDIAN)) ||
+		(!(ejtag_info->debug_caps & EJTAG_DCR_ENM) && (target->endianness == TARGET_BIG_ENDIAN))) {
 		LOG_WARNING("DCR endianness settings does not match target settings");
+		LOG_WARNING("Config file does not match DCR endianness - DCR: 0x%8.8x", ejtag_info->debug_caps);
+	}
 
 	LOG_DEBUG("DCR 0x%" PRIx32 " numinst %i numdata %i", dcr, mips32->num_inst_bpoints,
-			mips32->num_data_bpoints);
+			  mips32->num_data_bpoints);
 
 	mips32->bp_scanned = 1;
 
@@ -886,25 +907,7 @@ COMMAND_HANDLER(mips32_handle_cp0_command)
 
 COMMAND_HANDLER(mips32_handle_scan_delay_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
-	struct mips32_common *mips32 = target_to_mips32(target);
-	struct mips_ejtag *ejtag_info = &mips32->ejtag_info;
-
-	if (CMD_ARGC == 1)
-		COMMAND_PARSE_NUMBER(uint, CMD_ARGV[0], ejtag_info->scan_delay);
-	else if (CMD_ARGC > 1)
-			return ERROR_COMMAND_SYNTAX_ERROR;
-
-	command_print(CMD_CTX, "scan delay: %d nsec", ejtag_info->scan_delay);
-	if (ejtag_info->scan_delay >= 2000000) {
-		ejtag_info->mode = 0;
-		command_print(CMD_CTX, "running in legacy mode");
-	} else {
-		ejtag_info->mode = 1;
-		command_print(CMD_CTX, "running in fast queued mode");
-	}
-
-	return ERROR_OK;
+	return mips32_scan_delay_command(cmd);
 }
 
 static const struct command_registration mips32_exec_command_handlers[] = {
@@ -915,7 +918,7 @@ static const struct command_registration mips32_exec_command_handlers[] = {
 		.help = "display/modify cp0 register(s)",
 		.usage = "[[reg_name|regnum select] [value]]",
 	},
-		{
+	{
 		.name = "scan_delay",
 		.handler = mips32_handle_scan_delay_command,
 		.mode = COMMAND_ANY,

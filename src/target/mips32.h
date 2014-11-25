@@ -123,6 +123,23 @@ enum mips32_isa_mode {
 	MIPS32_ISA_MIPS16E = 1,
 };
 
+enum micro_mips_enabled {
+	MIPS32_ONLY = 0,
+	MICRO_MIPS_ONLY = 1,
+	MICRO_MIPS32_16_ONRESET_MIPS32 = 2,
+	MICRO_MIPS32_16_ONRESET_MIPS16 = 3,
+};
+
+enum dsp {
+	DSP_NOT_IMP = 0,
+	DSP_IMP = 1,
+};
+
+enum dsp_rev {
+	DSP_REV1 = 0,
+	DSP_REV2 = 1,
+};
+
 struct mips32_comparator {
 	int used;
 	uint32_t bp_value;
@@ -136,6 +153,9 @@ struct mips32_common {
 	struct mips_ejtag ejtag_info;
 	uint32_t core_regs[MIPS32NUMCOREREGS];
 	enum mips32_isa_mode isa_mode;
+	enum micro_mips_enabled mmips;
+	enum dsp dsp_implemented;
+	enum dsp_rev dsp_rev;
 
 	/* working area for fastdata access */
 	struct working_area *fast_data_area;
@@ -170,6 +190,22 @@ struct mips32_algorithm {
 	enum mips32_isa_mode isa_mode;
 };
 
+/*
+ * MIPS32r2 Config3 Register (CP0 Register 16, Select 3)
+ */
+#define CFG3_M			0x80000000		/* Config4 implemented */
+#define CFG3_ISAONEXC	0x00010000		/* ISA mode on exception entry */
+#define CFG3_ISA_MODE	0x0000C000		/* ISA mode */
+#define CFG3_DSP_REV	0x00000800		/* DSP Rev */
+#define CFG3_DSPP		0x00000400		/* DSP ASE present */
+#define CFG3_LPA		0x00000080		/* Large physical addresses */
+#define CFG3_VEIC		0x00000040		/* Vectored external i/u controller */
+#define CFG3_VI			0x00000020		/* Vectored i/us */
+#define CFG3_SP			0x00000010		/* Small page support */
+#define CFG3_MT			0x00000004		/* MT ASE present */
+#define CFG3_SM			0x00000002		/* SmartMIPS ASE */
+#define CFG3_TL			0x00000001		/* Trace Logic */
+
 #define MIPS32_OP_ADDIU 0x21
 #define MIPS32_OP_ANDI	0x0C
 #define MIPS32_OP_BEQ	0x04
@@ -179,6 +215,7 @@ struct mips32_algorithm {
 #define MIPS32_OP_AND	0x24
 #define MIPS32_OP_CACHE	0x2F
 #define MIPS32_OP_COP0	0x10
+#define MIPS32_OP_EXT	0x1F
 #define MIPS32_OP_J	0x02
 #define MIPS32_OP_JR	0x08
 #define MIPS32_OP_LUI	0x0F
@@ -188,6 +225,7 @@ struct mips32_algorithm {
 #define MIPS32_OP_MFHI	0x10
 #define MIPS32_OP_MTHI	0x11
 #define MIPS32_OP_MFLO	0x12
+#define MIPS32_OP_MUL	0x2
 #define MIPS32_OP_MTLO	0x13
 #define MIPS32_OP_RDHWR 0x3B
 #define MIPS32_OP_SB	0x28
@@ -197,6 +235,7 @@ struct mips32_algorithm {
 #define MIPS32_OP_XORI	0x0E
 #define MIPS32_OP_XOR	0x26
 #define MIPS32_OP_SLTU  0x2B
+#define MIPS32_OP_SLLV	0x04
 #define MIPS32_OP_SRL	0x03
 #define MIPS32_OP_SYNCI	0x1F
 
@@ -216,7 +255,9 @@ struct mips32_algorithm {
 #define MIPS32_J_INST(opcode, addr)	(((opcode) << 26) | (addr))
 
 #define MIPS32_NOP						0
+#define MIPS32_ADD(dst, src, tar)		MIPS32_R_INST(0, src, tar, dst, 0, 32)
 #define MIPS32_ADDI(tar, src, val)		MIPS32_I_INST(MIPS32_OP_ADDI, src, tar, val)
+#define MIPS32_ADDIU(tar, src, val)		MIPS32_I_INST(9, src, tar, val)
 #define MIPS32_ADDU(dst, src, tar)		MIPS32_R_INST(MIPS32_OP_SPECIAL, src, tar, dst, 0, MIPS32_OP_ADDIU)
 #define MIPS32_AND(reg, off, val)		MIPS32_R_INST(0, off, val, reg, 0, MIPS32_OP_AND)
 #define MIPS32_ANDI(tar, src, val)		MIPS32_I_INST(MIPS32_OP_ANDI, src, tar, val)
@@ -225,9 +266,11 @@ struct mips32_algorithm {
 #define MIPS32_BGTZ(reg, off)			MIPS32_I_INST(MIPS32_OP_BGTZ, reg, 0, off)
 #define MIPS32_BNE(src, tar, off)		MIPS32_I_INST(MIPS32_OP_BNE, src, tar, off)
 #define MIPS32_CACHE(op, off, base)		MIPS32_I_INST(MIPS32_OP_CACHE, base, op, off)
+#define MIPS32_EXT(dst, src, shf, sz)	MIPS32_R_INST(MIPS32_OP_EXT, src, dst, (sz-1), shf, 0)
 #define MIPS32_J(tar)				MIPS32_J_INST(MIPS32_OP_J, tar)
 #define MIPS32_JR(reg)					MIPS32_R_INST(0, reg, 0, 0, 0, MIPS32_OP_JR)
 #define MIPS32_MFC0(gpr, cpr, sel)		MIPS32_R_INST(MIPS32_OP_COP0, MIPS32_COP0_MF, gpr, cpr, 0, sel)
+#define MIPS32_MOVE(dst, src)			MIPS32_R_INST(17, 16, 0, src, dst, 6)
 #define MIPS32_MTC0(gpr, cpr, sel)		MIPS32_R_INST(MIPS32_OP_COP0, MIPS32_COP0_MT, gpr, cpr, 0, sel)
 #define MIPS32_LBU(reg, off, base)		MIPS32_I_INST(MIPS32_OP_LBU, base, reg, off)
 #define MIPS32_LHU(reg, off, base)		MIPS32_I_INST(MIPS32_OP_LHU, base, reg, off)
@@ -237,6 +280,8 @@ struct mips32_algorithm {
 #define MIPS32_MFHI(reg)				MIPS32_R_INST(0, 0, 0, reg, 0, MIPS32_OP_MFHI)
 #define MIPS32_MTLO(reg)				MIPS32_R_INST(0, reg, 0, 0, 0, MIPS32_OP_MTLO)
 #define MIPS32_MTHI(reg)				MIPS32_R_INST(0, reg, 0, 0, 0, MIPS32_OP_MTHI)
+#define MIPS32_MUL(dst, src, t)			MIPS32_R_INST(28, src, t, dst, 0, MIPS32_OP_MUL)
+#define MIPS32_OR(dst, src, val)		MIPS32_R_INST(0, src, val, dst, 0, 37)
 #define MIPS32_ORI(tar, src, val)		MIPS32_I_INST(MIPS32_OP_ORI, src, tar, val)
 #define MIPS32_XORI(tar, src, val)		MIPS32_I_INST(MIPS32_OP_XORI, src, tar, val)
 #define MIPS32_RDHWR(tar, dst)			MIPS32_R_INST(MIPS32_OP_SPECIAL3, 0, tar, dst, 0, MIPS32_OP_RDHWR)
@@ -245,7 +290,8 @@ struct mips32_algorithm {
 #define MIPS32_SW(reg, off, base)		MIPS32_I_INST(MIPS32_OP_SW, base, reg, off)
 #define MIPS32_XOR(reg, val1, val2)		MIPS32_R_INST(0, val1, val2, reg, 0, MIPS32_OP_XOR)
 #define MIPS32_SRL(reg, src, off)		MIPS32_R_INST(0, 0, src, reg, off, MIPS32_OP_SRL)
-#define MIPS32_SLTU(dst, src, tar)		MIPS32_R_INST(MIPS32_OP_SPECIAL, src, tar, dst, 0, MIPS32_OP_SLTU)
+#define MIPS32_SLTU(dst, tar, src)		MIPS32_R_INST(MIPS32_OP_SPECIAL, src, tar, dst, 0, MIPS32_OP_SLTU)
+#define MIPS32_SLLV(dst, tar, src)		MIPS32_R_INST(MIPS32_OP_SPECIAL, src, tar, dst, 0, MIPS32_OP_SLLV)
 #define MIPS32_SYNCI(off, base)			MIPS32_I_INST(MIPS32_OP_REGIMM, base, MIPS32_OP_SYNCI, off)
 
 #define MIPS32_SYNC			0xF
@@ -264,6 +310,8 @@ struct mips32_algorithm {
 #define MIPS32_DRET					0x4200001F
 #define MIPS32_SDBBP				0x7000003F	/* MIPS32_J_INST(MIPS32_OP_SPECIAL2, MIPS32_OP_SDBBP) */
 #define MIPS16_SDBBP				0xE801
+#define MICRO_MIPS32_SDBBP			0x000046C0
+#define MICRO_MIPS_SDBBP			0x46C0
 
 extern const struct command_registration mips32_command_handlers[];
 
@@ -299,6 +347,6 @@ int mips32_checksum_memory(struct target *target, uint32_t address,
 int mips32_blank_check_memory(struct target *target,
 		uint32_t address, uint32_t count, uint32_t *blank);
 
-int mips32_cp0_command (struct command_invocation *cmd);
-int mips32_scan_delay_command (struct command_invocation *cmd);
+int mips32_cp0_command(struct command_invocation *cmd);
+int mips32_scan_delay_command(struct command_invocation *cmd);
 #endif	/*MIPS32_H*/
