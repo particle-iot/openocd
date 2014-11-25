@@ -186,6 +186,7 @@ struct mips_ejtag {
 	int fast_access_save;
 	uint32_t reg8;
 	uint32_t reg9;
+	uint32_t reg10;
 	unsigned scan_delay;
 	int mode;
 	uint32_t pa_ctrl;
