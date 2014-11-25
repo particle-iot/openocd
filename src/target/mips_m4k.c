@@ -63,16 +63,6 @@ static int mips_m4k_target_create(struct target *target, Jim_Interp *interp)
 	return ERROR_OK;
 }
 
-static int mips_m4k_verify_pointer(struct command_context *cmd_ctx,
-		struct mips_m4k_common *mips_m4k)
-{
-	if (mips_m4k->common_magic != MIPSM4K_COMMON_MAGIC) {
-		command_print(cmd_ctx, "target is not an MIPS_M4K");
-		return ERROR_TARGET_INVALID;
-	}
-	return ERROR_OK;
-}
-
 COMMAND_HANDLER(mips_m4k_handle_cp0_command)
 {
 	/* Call common code - maintaining backward compatibility */
