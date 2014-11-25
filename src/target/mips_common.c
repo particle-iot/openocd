@@ -680,8 +680,23 @@ int mips_common_set_breakpoint(struct target *target,
 		if (ejtag_info->ejtag_version == EJTAG_VERSION_20)
 			comparator_list[bp_num].bp_value &= 0xFFFFFFFC;
 
-		target_write_u32(target, comparator_list[bp_num].reg_address,
-						 comparator_list[bp_num].bp_value);
+		if (mips32->mmips != MIPS32_ONLY) {
+			if ((breakpoint->length == 3) || (breakpoint->length == 5)) {
+				comparator_list[bp_num].bp_value = breakpoint->address | 1;
+
+				target_write_u32(target, comparator_list[bp_num].reg_address,
+								 comparator_list[bp_num].bp_value);
+			} else {
+				comparator_list[bp_num].bp_value = breakpoint->address;
+				target_write_u32(target, comparator_list[bp_num].reg_address,
+								 comparator_list[bp_num].bp_value);
+			}
+		} else {
+			comparator_list[bp_num].bp_value = breakpoint->address;
+				target_write_u32(target, comparator_list[bp_num].reg_address,
+								 comparator_list[bp_num].bp_value);
+		}
+		comparator_list[bp_num].bp_value = breakpoint->address;
 
 		target_write_u32(target, comparator_list[bp_num].reg_address +
 				 ejtag_info->ejtag_ibm_offs, 0x00000000);
@@ -695,17 +710,28 @@ int mips_common_set_breakpoint(struct target *target,
 	} else if (breakpoint->type == BKPT_SOFT) {
 		LOG_DEBUG("bpid: %" PRIu32, breakpoint->unique_id);
 
-		if (breakpoint->length == 4) {
+		/* IF GDB sends bp->length 5 for microMips support then change it to 4 */
+		/* Check if kind field, is indicated microMips Break */
+		/* Verify address is aligned 4 byte boundary and replacing a 32-bit instruction */
+		if ((breakpoint->length == 4) || ((breakpoint->length == 5) &&
+										  ((breakpoint->address % 4) == 0))) {
 			uint32_t verify = 0xffffffff;
+			uint32_t breakpt_instr;
 
-			retval = target_read_memory(target, breakpoint->address, breakpoint->length, 1,
-										breakpoint->orig_instr);
+			/* Remove isa_mode info from length to adjust to correct instruction size */
+			if (breakpoint->length == 5)
+				breakpt_instr = MICRO_MIPS32_SDBBP;
+		    else
+				breakpt_instr = MIPS32_SDBBP;
+
+			retval = target_read_memory(target, breakpoint->address, (breakpoint->length & 0xE),
+										1, breakpoint->orig_instr);
 			if (retval != ERROR_OK) {
 				LOG_DEBUG("target_read_memory failed");
 				return retval;
 			}
 
-			retval = target_write_u32(target, breakpoint->address, MIPS32_SDBBP);
+			retval = target_write_u32(target, breakpoint->address, breakpt_instr);
 			if (retval != ERROR_OK) {
 				LOG_DEBUG("target_write_u32 failed");
 				return retval;
@@ -717,13 +743,28 @@ int mips_common_set_breakpoint(struct target *target,
 				return retval;
 			}
 
-			if (verify != MIPS32_SDBBP) {
+			if ((breakpt_instr == MIPS32_SDBBP) && (verify != MIPS32_SDBBP)) {
 				LOG_ERROR("Unable to set 32bit breakpoint at address %08" PRIx32
 						  " - check that memory is read/writable", breakpoint->address);
 				return ERROR_OK;
+			} else {
+				if ((breakpt_instr == MICRO_MIPS32_SDBBP) && (verify != MICRO_MIPS32_SDBBP)) {
+						LOG_ERROR("Unable to set microMips32 breakpoint at address %08" PRIx32
+								  " - check that memory is read/writable", breakpoint->address);
+						return ERROR_OK;
+				}
 			}
 		} else {
 			uint16_t verify = 0xffff;
+			uint16_t breakpt_instr;
+
+			if ((breakpoint->length == 3) || ((breakpoint->length == 5) &&
+											  ((breakpoint->address % 4) != 0))) {
+				breakpoint->length = 2;
+				breakpt_instr = MICRO_MIPS_SDBBP;
+			} else {
+				breakpt_instr = MIPS16_SDBBP;
+			}
 
 			retval = target_read_memory(target, breakpoint->address, breakpoint->length, 1,
 										breakpoint->orig_instr);
@@ -732,7 +773,7 @@ int mips_common_set_breakpoint(struct target *target,
 				return retval;
 			}
 
-			retval = target_write_u16(target, breakpoint->address, MIPS16_SDBBP);
+			retval = target_write_u16(target, breakpoint->address, breakpt_instr);
 			if (retval != ERROR_OK) {
 				LOG_DEBUG("target_write_u16 failed");
 				return retval;
@@ -744,10 +785,16 @@ int mips_common_set_breakpoint(struct target *target,
 				return retval;
 			}
 
-			if (verify != MIPS16_SDBBP) {
+			if ((breakpt_instr == MIPS16_SDBBP) && (verify != MIPS16_SDBBP)) {
 				LOG_ERROR("Unable to set 16bit breakpoint at address %08" PRIx32
 						  " - check that memory is read/writable", breakpoint->address);
 				return ERROR_OK;
+			} else {
+				if ((breakpt_instr == MICRO_MIPS_SDBBP) && (verify != MICRO_MIPS_SDBBP)) {
+						LOG_ERROR("Unable to set microMips breakpoint at address %08" PRIx32
+								  " - check that memory is read/writable", breakpoint->address);
+						return ERROR_OK;
+				}
 			}
 		}
 
@@ -790,7 +837,7 @@ int mips_common_unset_breakpoint(struct target *target,
 	} else {
 		/* restore original instruction (kept in target endianness) */
 		LOG_DEBUG("bpid: %" PRIu32, breakpoint->unique_id);
-		if (breakpoint->length == 4) {
+		if ((breakpoint->length == 4) || ((breakpoint->length == 5) && ((breakpoint->address % 4) == 0))) {
 			uint32_t current_instr;
 
 			/* check that user program has not modified breakpoint instruction */
@@ -809,7 +856,7 @@ int mips_common_unset_breakpoint(struct target *target,
 			 */
 			current_instr = target_buffer_get_u32(target, (uint8_t *)&current_instr);
 
-			if (current_instr == MIPS32_SDBBP) {
+			if ((current_instr == MIPS32_SDBBP) || (current_instr == MICRO_MIPS32_SDBBP)) {
 				retval = target_write_memory(target, breakpoint->address, 4, 1, breakpoint->orig_instr);
 				if (retval != ERROR_OK)
 					return retval;
@@ -829,7 +876,7 @@ int mips_common_unset_breakpoint(struct target *target,
 			}
 
 			current_instr = target_buffer_get_u16(target, (uint8_t *)&current_instr);
-			if (current_instr == MIPS16_SDBBP) {
+			if ((current_instr == MIPS16_SDBBP) || (current_instr == MICRO_MIPS_SDBBP)) {
 				retval = target_write_memory(target, breakpoint->address, 2, 1, breakpoint->orig_instr);
 				if (retval != ERROR_OK) {
 					LOG_DEBUG("target_write_memory failed");
@@ -1074,7 +1121,6 @@ int mips_common_write_memory(struct target *target, uint32_t address,
 		int retval = mips_common_bulk_write_memory(target, address, count, buffer);
 		if (retval == ERROR_OK)
 			return ERROR_OK;
-
 		LOG_WARNING("Falling back to non-bulk write");
 	}
 
