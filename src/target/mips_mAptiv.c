@@ -38,14 +38,6 @@
 #include "target_type.h"
 #include "register.h"
 
-static int mips_mAptiv_init_target(struct command_context *cmd_ctx,
-		struct target *target)
-{
-	mips32_build_reg_cache(target);
-
-	return ERROR_OK;
-}
-
 static int mips_mAptiv_init_arch_info(struct target *target,
 		struct mips_mAptiv_common *mips_mAptiv, struct jtag_tap *tap)
 {

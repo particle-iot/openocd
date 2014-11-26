@@ -99,6 +99,37 @@ int mips32_cp0_read(struct mips_ejtag *ejtag_info,
  * @return ERROR_OK on Sucess, ERROR_FAIL otherwise
  */
 int mips32_cp0_write(struct mips_ejtag *ejtag_info,
-		uint32_t val, uint32_t cp0_reg, uint32_t cp0_sel);
+					 uint32_t val, uint32_t cp0_reg, uint32_t cp0_sel);
 
+/**
+ * \b mips32_dsp_read
+ *
+ * Simulates mfc0 ASM instruction (Move From C0),
+ * i.e. implements copro C0 Register read.
+ *
+ * @param[in] ejtag_info
+ * @param[in] val Storage to hold read value
+ * @param[in] cp0_reg Number of copro C0 register we want to read
+ * @param[in] cp0_sel Select for the given C0 register
+ *
+ * @return ERROR_OK on Sucess, ERROR_FAIL otherwise
+ */
+int mips32_pracc_read_dsp_regs(struct mips_ejtag *ejtag_info,
+							   uint32_t *val, uint32_t regs);
+
+/**
+ * \b mips32_dsp_write
+ *
+ * Simulates mtc0 ASM instruction (Move To C0),
+ * i.e. implements copro C0 Register write.
+ *
+ * @param[in] ejtag_info
+ * @param[in] val Value to be written
+ * @param[in] cp0_reg Number of copro C0 register we want to write to
+ * @param[in] cp0_sel Select for the given C0 register
+ *
+ * @return ERROR_OK on Sucess, ERROR_FAIL otherwise
+ */
+int mips32_pracc_write_dsp_regs(struct mips_ejtag *ejtag_info,
+								uint32_t val, uint32_t regs);
 #endif
