@@ -84,6 +84,18 @@ static const struct {
 	{ 37, "pc" },
 };
 
+static const struct {
+	unsigned reg;
+	const char *name;
+} mips32_dsp_regs[MIPS32NUMDSPREGS] = {
+	{ 0, "hi1"},
+	{ 1, "hi2"},
+	{ 2, "hi3"},
+	{ 3, "lo1"},
+	{ 4, "lo2"},
+	{ 5, "lo3"},
+	{ 6, "control"},
+};
 /* number of mips dummy fp regs fp0 - fp31 + fsr and fir
  * we also add 18 unknown registers to handle gdb requests */
 
@@ -905,6 +917,89 @@ COMMAND_HANDLER(mips32_handle_cp0_command)
 	return mips32_cp0_command(cmd);
 }
 
+COMMAND_HANDLER(mips32_handle_dsp_command)
+{
+	int retval;
+	struct target *target = get_current_target(CMD_CTX);
+	struct mips32_common *mips32 = target_to_mips32(target);
+	struct mips_ejtag *ejtag_info = &mips32->ejtag_info;
+
+	retval = mips32_verify_pointer(CMD_CTX, mips32);
+	if (retval != ERROR_OK)
+		return retval;
+
+	if (target->state != TARGET_HALTED) {
+		command_print(CMD_CTX, "target must be stopped for \"%s\" command", CMD_NAME);
+		return ERROR_OK;
+	}
+
+	/* Check if DSP access supported or not */
+	if ((mips32->mmips != MIPS32_ONLY) && (mips32->dsp_implemented == DSP_NOT_IMP)) {
+
+		/* Issue Error Message */
+		command_print(CMD_CTX, "DSP not implemented by this processor");
+		return ERROR_OK;
+	}
+
+	if (mips32->dsp_rev != DSP_REV2) {
+		command_print(CMD_CTX, "only DSP Rev 2 supported by this processor");
+		return ERROR_OK;
+	}
+
+	/* two or more argument, access a single register/select (write if third argument is given) */
+	if (CMD_ARGC < 2) {
+		uint32_t value;
+
+		if (CMD_ARGC == 0) {
+			value = 0;
+			for (int i = 0; i < MIPS32NUMDSPREGS; i++) {
+				retval = mips32_pracc_read_dsp_regs(ejtag_info, &value, mips32_dsp_regs[i].reg);
+				if (retval != ERROR_OK) {
+					command_print(CMD_CTX, "couldn't access reg %s", mips32_dsp_regs[i].name);
+					return retval;
+				}
+				command_print(CMD_CTX, "%*s: 0x%8.8x", 7, mips32_dsp_regs[i].name, value);
+			}
+		} else {
+			value = 0;
+			for (int i = 0; i < MIPS32NUMDSPREGS; i++) {
+				/* find register name */
+				if (strcmp(mips32_dsp_regs[i].name, CMD_ARGV[0]) == 0) {
+					retval = mips32_pracc_read_dsp_regs(ejtag_info, &value, mips32_dsp_regs[i].reg);
+					command_print(CMD_CTX, "0x%8.8x", value);
+					return retval;
+				}
+			}
+
+			LOG_ERROR("BUG: register '%s' not found", CMD_ARGV[0]);
+			return ERROR_COMMAND_SYNTAX_ERROR;
+		}
+	} else {
+		if (CMD_ARGC == 2) {
+			uint32_t value;
+			char tmp = *CMD_ARGV[0];
+
+			if (isdigit(tmp) == false) {
+				for (int i = 0; i < MIPS32NUMCP0REGS; i++) {
+					/* find register name */
+					if (strcmp(mips32_dsp_regs[i].name, CMD_ARGV[0]) == 0) {
+						COMMAND_PARSE_NUMBER(u32, CMD_ARGV[1], value);
+						retval = mips32_pracc_write_dsp_regs (ejtag_info, value, mips32_dsp_regs[i].reg);
+						return retval;
+					}
+				}
+
+				LOG_ERROR("BUG: register '%s' not found", CMD_ARGV[0]);
+				return ERROR_COMMAND_SYNTAX_ERROR;
+			}
+		} else if (CMD_ARGC == 3) {
+			return ERROR_COMMAND_SYNTAX_ERROR;
+		}
+	}
+
+	return ERROR_OK;
+}
+
 COMMAND_HANDLER(mips32_handle_scan_delay_command)
 {
 	return mips32_scan_delay_command(cmd);
@@ -924,6 +1019,14 @@ static const struct command_registration mips32_exec_command_handlers[] = {
 		.mode = COMMAND_ANY,
 		.help = "display/set scan delay in nano seconds",
 		.usage = "[value]",
+	},
+	{
+		.name = "dsp",
+		.handler = mips32_handle_dsp_command,
+		.mode = COMMAND_EXEC,
+		.help = "display or set DSP register; "
+		"with no arguments, displays all registers and their values",
+		.usage = "[(register_number|register_name) [value]]",
 	},
 	COMMAND_REGISTRATION_DONE
 };

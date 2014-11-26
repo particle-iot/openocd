@@ -312,6 +312,31 @@ struct mips32_algorithm {
 #define MIPS16_SDBBP				0xE801
 #define MICRO_MIPS32_SDBBP			0x000046C0
 #define MICRO_MIPS_SDBBP			0x46C0
+#define MIPS32_DSP_ENABLE	0x1000000
+
+#define MICRO_MIPS_OP_MFHI	0x007C
+#define MICRO_MIPS_OP_MFLO	0x107C
+
+#define MICRO_MIPS_OP_MTHI	0x207C
+#define MICRO_MIPS_OP_MTLO	0x307C
+
+#define MICRO_DSP_I_INST(rs, ac, opcode) \
+	((0 << 21) | ((rs) << 16) | ((ac) << 14) | (opcode))
+
+#define MICRO_DSP_MFLO(reg, ac)	MICRO_DSP_I_INST(reg, ac, MICRO_MIPS_OP_MFLO)
+#define MICRO_DSP_MFHI(reg, ac)	MICRO_DSP_I_INST(reg, ac, MICRO_MIPS_OP_MFHI)
+#define MICRO_DSP_MTLO(reg, ac)	MICRO_DSP_I_INST(reg, ac, MICRO_MIPS_OP_MTLO)
+#define MICRO_DSP_MTHI(reg, ac)	MICRO_DSP_I_INST(reg, ac, MICRO_MIPS_OP_MTHI)
+
+
+#define MICRO_MIPS_OP_RDDSP		0x067C
+#define MICRO_MIPS_OP_WRDSP		0x167C
+
+#define MICRO_DSP_R_INST(rt, mask, opcode) \
+	((0 << 26) | ((rt) << 21) | ((mask) << 14) | (opcode))
+
+#define MICRO_DSP_RDDSP(rt, mask)	MICRO_DSP_R_INST(rt, mask, MICRO_MIPS_OP_RDDSP)
+#define MICRO_DSP_WRDSP(rt, mask)	MICRO_DSP_R_INST(rt, mask, MICRO_MIPS_OP_WRDSP)
 
 extern const struct command_registration mips32_command_handlers[];
 
