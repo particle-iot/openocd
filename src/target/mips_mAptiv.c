@@ -22,7 +22,7 @@
  *   You should have received a copy of the GNU General Public License     *
  *   along with this program; if not, write to the                         *
  *   Free Software Foundation, Inc.,                                       *
- *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.           *
+ *                                                                         *
  ***************************************************************************/
 
 #ifdef HAVE_CONFIG_H
@@ -37,14 +37,6 @@
 #include "mips32_dmaacc.h"
 #include "target_type.h"
 #include "register.h"
-
-static int mips_mAptiv_init_target(struct command_context *cmd_ctx,
-		struct target *target)
-{
-	mips32_build_reg_cache(target);
-
-	return ERROR_OK;
-}
 
 static int mips_mAptiv_init_arch_info(struct target *target,
 		struct mips_mAptiv_common *mips_mAptiv, struct jtag_tap *tap)
@@ -68,10 +60,6 @@ static int mips_mAptiv_target_create(struct target *target, Jim_Interp *interp)
 
 	return ERROR_OK;
 }
-
-static const struct command_registration mips_mAptiv_exec_command_handlers[] = {
-	COMMAND_REGISTRATION_DONE
-};
 
 const struct command_registration mips_mAptiv_command_handlers[] = {
 	{
