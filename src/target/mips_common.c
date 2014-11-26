@@ -672,7 +672,6 @@ int mips_common_set_breakpoint(struct target *target,
 
 		breakpoint->set = bp_num + 1;
 		comparator_list[bp_num].used = 1;
-		comparator_list[bp_num].bp_value = breakpoint->address;
 
 		/* EJTAG 2.0 uses 30bit IBA. First 2 bits are reserved.
 		 * Warning: there is no IB ASID registers in 2.0.
