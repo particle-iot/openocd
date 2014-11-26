@@ -10,6 +10,9 @@
  *   Copyright (C) 2011 by Drasko DRASKOVIC                                *
  *   drasko.draskovic@gmail.com                                            *
  *                                                                         *
+ *	 Copyright (C) 2014 by Kent Brinkley								   *
+ *	 jkbrinkley.imgtec@gmail.com										   *
+ *																		   *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
  *   the Free Software Foundation; either version 2 of the License, or     *
@@ -40,41 +43,52 @@ static const char *mips_isa_strings[] = {
 };
 
 static const struct {
+	unsigned option;
+	const char *arg;
+} invalidate_cmd[5] = {
+	{ ALL, "all", },
+	{ INST, "inst", },
+	{ DATA, "data", },
+	{ ALLNOWB, "allnowb", },
+	{ DATANOWB, "datanowb", },
+};
+
+static const struct {
 	unsigned id;
 	const char *name;
 } mips32_regs[MIPS32NUMCOREREGS] = {
-	{ 0, "zero", },
-	{ 1, "at", },
-	{ 2, "v0", },
-	{ 3, "v1", },
-	{ 4, "a0", },
-	{ 5, "a1", },
-	{ 6, "a2", },
-	{ 7, "a3", },
-	{ 8, "t0", },
-	{ 9, "t1", },
-	{ 10, "t2", },
-	{ 11, "t3", },
-	{ 12, "t4", },
-	{ 13, "t5", },
-	{ 14, "t6", },
-	{ 15, "t7", },
-	{ 16, "s0", },
-	{ 17, "s1", },
-	{ 18, "s2", },
-	{ 19, "s3", },
-	{ 20, "s4", },
-	{ 21, "s5", },
-	{ 22, "s6", },
-	{ 23, "s7", },
-	{ 24, "t8", },
-	{ 25, "t9", },
-	{ 26, "k0", },
-	{ 27, "k1", },
-	{ 28, "gp", },
-	{ 29, "sp", },
-	{ 30, "fp", },
-	{ 31, "ra", },
+	{ zero, "zero", },
+	{ AT, "at", },
+	{ v0, "v0", },
+	{ v1, "v1", },
+	{ a0, "a0", },
+	{ a1, "a1", },
+	{ a2, "a2", },
+	{ a3, "a3", },
+	{ t0, "t0", },
+	{ t1, "t1", },
+	{ t2, "t2", },
+	{ t3, "t3", },
+	{ t4, "t4", },
+	{ t5, "t5", },
+	{ t6, "t6", },
+	{ t7, "t7", },
+	{ s0, "s0", },
+	{ s1, "s1", },
+	{ s2, "s2", },
+	{ s3, "s3", },
+	{ s4, "s4", },
+	{ s5, "s5", },
+	{ s6, "s6", },
+	{ s7, "s7", },
+	{ t8, "t8", },
+	{ t9, "t9", },
+	{ k0, "k0", },
+	{ k1, "k1", },
+	{ gp, "gp", },
+	{ sp, "sp", },
+	{ fp, "fp", },
+	{ ra, "ra", },
 
 	{ 32, "status", },
 	{ 33, "lo", },
@@ -984,7 +998,7 @@ COMMAND_HANDLER(mips32_handle_dsp_command)
 					/* find register name */
 					if (strcmp(mips32_dsp_regs[i].name, CMD_ARGV[0]) == 0) {
 						COMMAND_PARSE_NUMBER(u32, CMD_ARGV[1], value);
-						retval = mips32_pracc_write_dsp_regs (ejtag_info, value, mips32_dsp_regs[i].reg);
+						retval = mips32_pracc_write_dsp_regs(ejtag_info, value, mips32_dsp_regs[i].reg);
 						return retval;
 					}
 				}
@@ -995,6 +1009,132 @@ COMMAND_HANDLER(mips32_handle_dsp_command)
 		} else if (CMD_ARGC == 3) {
 			return ERROR_COMMAND_SYNTAX_ERROR;
 		}
+	}
+
+	return ERROR_OK;
+}
+
+COMMAND_HANDLER(mips32_handle_invalidate_cache_command)
+{
+	int retval = -1;
+	struct target *target = get_current_target(CMD_CTX);
+	struct mips32_common *mips32 = target_to_mips32(target);
+	struct mips_ejtag *ejtag_info = &mips32->ejtag_info;
+	int i = 0;
+
+	char *cache_msg[] = {"all", "instr", "data", "L23", NULL, NULL, NULL};
+
+	if (target->state != TARGET_HALTED) {
+		LOG_WARNING("target not halted");
+		return ERROR_TARGET_NOT_HALTED;
+	}
+
+	if (CMD_ARGC >= 2) {
+		LOG_DEBUG("ERROR_COMMAND_SYNTAX_ERROR");
+		return ERROR_COMMAND_SYNTAX_ERROR;
+	}
+
+	if (CMD_ARGC == 1) {
+		/* PARSE command options - all/inst/data/allnowb/datanowb */
+		for (i = 0; i < 5 ; i++) {
+			if (strcmp(CMD_ARGV[0], invalidate_cmd[i].arg) == 0) {
+				switch (invalidate_cmd[i].option) {
+					case ALL:
+						LOG_INFO("clearing %s cache", cache_msg[1]);
+						retval = mips32_pracc_invalidate_cache(target, ejtag_info, 0, 0, 0, invalidate_cmd[1].option);
+						if (retval != ERROR_OK)
+							return retval;
+
+						/* TODO: Add L2 code */
+						/* LOG_INFO("clearing %s cache", cache_msg[3]); */
+						/* retval = mips32_pracc_invalidate_cache(target, ejtag_info, 0, 0, 0, L2); */
+						/* if (retval != ERROR_OK) */
+						/*	return retval; */
+
+						LOG_INFO("clearing %s cache", cache_msg[2]);
+						retval = mips32_pracc_invalidate_cache(target, ejtag_info, 0, 0, 0, invalidate_cmd[2].option);
+						if (retval != ERROR_OK)
+							return retval;
+
+						break;
+
+					case INST:
+						LOG_INFO("clearing %s cache", cache_msg[invalidate_cmd[i].option]);
+						retval = mips32_pracc_invalidate_cache(target, ejtag_info, 0, 0, 0, invalidate_cmd[i].option);
+						if (retval != ERROR_OK)
+							return retval;
+
+						break;
+
+					case DATA:
+						LOG_INFO("clearing %s cache", cache_msg[invalidate_cmd[i].option]);
+						retval = mips32_pracc_invalidate_cache(target, ejtag_info, 0, 0, 0, invalidate_cmd[i].option);
+						if (retval != ERROR_OK)
+							return retval;
+
+						break;
+
+					case ALLNOWB:
+						LOG_INFO("clearing %s cache no writeback", cache_msg[invalidate_cmd[i].option]);
+						retval = mips32_pracc_invalidate_cache(target, ejtag_info, 0, 0, 0, invalidate_cmd[i].option);
+						if (retval != ERROR_OK)
+							return retval;
+
+						/* TODO: Add L2 code */
+						/* LOG_INFO("clearing %s cache no writeback", cache_msg[3]); */
+						/* retval = mips32_pracc_invalidate_cache(target, ejtag_info, 0, 0, 0, L2); */
+						/* if (retval != ERROR_OK) */
+						/*	return retval; */
+
+						LOG_INFO("clearing %s cache", cache_msg[0]);
+						retval = mips32_pracc_invalidate_cache(target, ejtag_info, 0, 0, 0, invalidate_cmd[0].option);
+						if (retval != ERROR_OK)
+							return retval;
+
+						break;
+
+					case DATANOWB:
+						LOG_INFO("clearing %s cache no writeback", cache_msg[2]);
+						retval = mips32_pracc_invalidate_cache(target, ejtag_info, 0, 0, 0, invalidate_cmd[i].option);
+						if (retval != ERROR_OK)
+							return retval;
+						break;
+
+					default:
+						LOG_ERROR("Invalid command argument '%s' not found", CMD_ARGV[0]);
+						return ERROR_COMMAND_SYNTAX_ERROR;
+						break;
+				}
+
+				if (retval == ERROR_FAIL)
+					return ERROR_FAIL;
+				else
+					break;
+			} else {
+				if (i >= DATANOWB) {
+					LOG_ERROR("Invalid command argument '%s' not found", CMD_ARGV[0]);
+					return ERROR_COMMAND_SYNTAX_ERROR;
+				}
+			}
+
+		}
+	} else {
+		/* default is All */
+		LOG_INFO("clearing %s cache", cache_msg[1]);
+		retval = mips32_pracc_invalidate_cache(target, ejtag_info, 0, 0, 0, invalidate_cmd[1].option);
+		if (retval != ERROR_OK)
+			return retval;
+
+		/* TODO: Add L2 code */
+		/* LOG_INFO("clearing %s cache", cache_msg[3]); */
+		/* retval = mips32_pracc_invalidate_cache(target, ejtag_info, 0, 0, 0, L2); */
+		/* if (retval != ERROR_OK) */
+		/*	return retval; */
+
+		LOG_INFO("clearing %s cache", cache_msg[2]);
+		retval = mips32_pracc_invalidate_cache(target, ejtag_info, 0, 0, 0, invalidate_cmd[2].option);
+		if (retval != ERROR_OK)
+			return retval;
 	}
 
 	return ERROR_OK;
@@ -1012,6 +1152,13 @@ static const struct command_registration mips32_exec_command_handlers[] = {
 		.mode = COMMAND_EXEC,
 		.help = "display/modify cp0 register(s)",
 		.usage = "[[reg_name|regnum select] [value]]",
+	},
+	{
+		.name = "invalidate",
+		.handler = mips32_handle_invalidate_cache_command,
+		.mode = COMMAND_EXEC,
+		.help = "Invalidate either or both the instruction and data caches.",
+		.usage = "[all|inst|data|allnowb|datanowb]",
 	},
 	{
 		.name = "scan_delay",
