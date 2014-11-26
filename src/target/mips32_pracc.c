@@ -985,6 +985,131 @@ int mips32_pracc_read_regs(struct mips_ejtag *ejtag_info, uint32_t *regs)
 	ejtag_info->reg10 = regs[10];
 exit:
 	pracc_queue_free(&ctx);
+
+	return ctx.retval;
+}
+
+int mips32_pracc_read_dsp_regs(struct mips_ejtag *ejtag_info, uint32_t *val, uint32_t regs)
+{
+	struct pracc_queue_info ctx = {.max_code = 48};
+	static uint32_t dsp_read_code[] = {
+		0x00204010, /* MFHI (t0,1) */
+		0x00404010, /* MFHI (t0,2) */
+		0x00604010, /* MFHI (t0,3) */
+		0x00204012, /* MFLO (t0,1) */
+		0x00404012, /* MFLO (t0,2) */
+		0x00604012, /* MFLO (t0,3) */
+		0x7fff44b8, /* MICRO_DSP_RDDSP (t0,0x1F), */
+	};
+
+	/* check status register to determine if dsp register access is enabled */
+
+	/* Get status register so it can be restored later */
+
+	/* Init context queue */
+	pracc_queue_init(&ctx);
+	if (ctx.retval != ERROR_OK)
+		goto exit;
+
+	pracc_add(&ctx, 0, MIPS32_MTC0(15, 31, 0));					/* move $15 to COP0 DeSave */
+	pracc_add(&ctx, 0, MIPS32_LUI(15, PRACC_UPPER_BASE_ADDR));	/* $15 = MIPS32_PRACC_BASE_ADDR */
+
+	/* Save Status Register */
+	pracc_add(&ctx, 0, MIPS32_MFC0(9, 12, 0));					/* move status to $9 (t1) */
+
+	/* Read it again in order to modify it */
+	pracc_add(&ctx, 0, MIPS32_MFC0(8, 12, 0));					/* move status to $0 (t0) */
+
+	/* Enable access to DSP registers by setting MX bit in status register */
+	pracc_add(&ctx, 0, MIPS32_LUI(10, UPPER16(MIPS32_DSP_ENABLE)));		/* $15 = MIPS32_PRACC_STACK */
+	pracc_add(&ctx, 0, MIPS32_ORI(10, 10, LOWER16(MIPS32_DSP_ENABLE)));
+	pracc_add(&ctx, 0, MIPS32_OR(8, 8, 10));
+	pracc_add(&ctx, 0, MIPS32_MTC0(8, 12, 0));					/* Enable DSP - update status registers */
+	pracc_add(&ctx, 0, MIPS32_NOP);								/* nop */
+	pracc_add(&ctx, 0, MIPS32_NOP);								/* nop */
+
+	pracc_add(&ctx, 0, dsp_read_code[regs]);					/* move AC or Control to $8 (t0) */
+	pracc_add(&ctx, 0, MIPS32_NOP);								/* nop */
+	pracc_add(&ctx, 0, MIPS32_MTC0(9, 12, 0));					/* Restore status registers to previous setting */
+	pracc_add(&ctx, MIPS32_PRACC_PARAM_OUT, MIPS32_SW(8, PRACC_OUT_OFFSET, 15));	/* store $8 to pracc_out */
+
+	pracc_add(&ctx, 0, MIPS32_MFC0(15, 31, 0));							/* move COP0 DeSave to $15 */
+	pracc_add(&ctx, 0, MIPS32_LUI(8, UPPER16(ejtag_info->reg8)));		/* restore upper 16 of $8 */
+	pracc_add(&ctx, 0, MIPS32_ORI(8, 8, LOWER16(ejtag_info->reg8)));	/* restore lower 16 of $8 */
+
+	pracc_add(&ctx, 0, MIPS32_LUI(9, UPPER16(ejtag_info->reg9)));		/* restore upper 16 of $9 */
+	pracc_add(&ctx, 0, MIPS32_ORI(9, 9, LOWER16(ejtag_info->reg9)));	/* restore lower 16 of $9 */
+
+	pracc_add(&ctx, 0, MIPS32_LUI(10, UPPER16(ejtag_info->reg10)));		/* restore upper 16 of $10 */
+	pracc_add(&ctx, 0, MIPS32_ORI(10, 10, LOWER16(ejtag_info->reg10)));	/* restore lower 16 of $10 */
+	pracc_add(&ctx, 0, MIPS32_B(NEG16(ctx.code_count + 1)));		/* jump to start */
+	pracc_add(&ctx, 0, MIPS32_NOP);							/* nop */
+
+	ctx.retval = mips32_pracc_exec(ejtag_info, &ctx, val);
+exit:
+	pracc_queue_free(&ctx);
+	return ctx.retval;
+}
+
+int mips32_pracc_write_dsp_regs(struct mips_ejtag *ejtag_info, uint32_t val, uint32_t regs)
+{
+	struct pracc_queue_info ctx = {.max_code = 48};
+	static uint32_t dsp_write_code[] = {
+		0x01000811, /* MTHI (t0,1) */
+		0x01001011, /* MTHI (t0,2) */
+		0x01001811, /* MTHI (t0,3) */
+		0x01000813, /* MTLO (t0,1) */
+		0x01001013, /* MTLO (t0,2) */
+		0x01001813, /* MTLO (t0,3) */
+		0x7d1ffcf8, /* WRDSP (t0,0x1F) */
+	};
+
+	/* Init context queue */
+	pracc_queue_init(&ctx);
+	if (ctx.retval != ERROR_OK)
+		goto exit;
+
+	pracc_add(&ctx, 0, MIPS32_MTC0(15, 31, 0));					/* move $15 to COP0 DeSave */
+	pracc_add(&ctx, 0, MIPS32_LUI(15, PRACC_UPPER_BASE_ADDR));	/* $15 = MIPS32_PRACC_BASE_ADDR */
+
+	/* Save Status Register */
+	pracc_add(&ctx, 0, MIPS32_MFC0(9, 12, 0));					/* move status to $9 (t1) */
+
+	/* Read it again in order to modify it */
+	pracc_add(&ctx, 0, MIPS32_MFC0(8, 12, 0));					/* move status to $0 (t0) */
+
+	/* Enable access to DSP registers by setting MX bit in status register */
+	pracc_add(&ctx, 0, MIPS32_LUI(10, UPPER16(MIPS32_DSP_ENABLE)));		/* $15 = MIPS32_PRACC_STACK */
+	pracc_add(&ctx, 0, MIPS32_ORI(10, 10, LOWER16(MIPS32_DSP_ENABLE)));
+	pracc_add(&ctx, 0, MIPS32_OR(8, 8, 10));
+	pracc_add(&ctx, 0, MIPS32_MTC0(8, 12, 0));					/* Enable DSP - update status registers */
+	pracc_add(&ctx, 0, MIPS32_NOP);								/* nop */
+	pracc_add(&ctx, 0, MIPS32_NOP);								/* nop */
+
+	pracc_add(&ctx, 0, MIPS32_LUI(8, UPPER16(val)));			/* Load val to $8 (t0) */
+	pracc_add(&ctx, 0, MIPS32_ORI(8, 8, LOWER16(val)));
+
+	pracc_add(&ctx, 0, dsp_write_code[regs]);					 /* move AC or Control to $8 (t0) */
+
+	pracc_add(&ctx, 0, MIPS32_NOP);								/* nop */
+	pracc_add(&ctx, 0, MIPS32_MTC0(9, 12, 0));					/* Restore status registers to previous setting */
+	pracc_add(&ctx, 0, MIPS32_NOP);								/* nop */
+
+	pracc_add(&ctx, 0, MIPS32_MFC0(15, 31, 0));							/* move COP0 DeSave to $15 */
+	pracc_add(&ctx, 0, MIPS32_LUI(8, UPPER16(ejtag_info->reg8)));		/* restore upper 16 of $8 */
+	pracc_add(&ctx, 0, MIPS32_ORI(8, 8, LOWER16(ejtag_info->reg8)));	/* restore lower 16 of $8 */
+
+	pracc_add(&ctx, 0, MIPS32_LUI(9, UPPER16(ejtag_info->reg9)));		/* restore upper 16 of $9 */
+	pracc_add(&ctx, 0, MIPS32_ORI(9, 9, LOWER16(ejtag_info->reg9)));	/* restore lower 16 of $9 */
+
+	pracc_add(&ctx, 0, MIPS32_LUI(10, UPPER16(ejtag_info->reg10)));		/* restore upper 16 of $10 */
+	pracc_add(&ctx, 0, MIPS32_ORI(10, 10, LOWER16(ejtag_info->reg10)));	/* restore lower 16 of $10 */
+	pracc_add(&ctx, 0, MIPS32_B(NEG16(ctx.code_count + 1)));		/* jump to start */
+	pracc_add(&ctx, 0, MIPS32_NOP);								 /* nop */
+
+	ctx.retval = mips32_pracc_exec(ejtag_info, &ctx, NULL);
+exit:
+	pracc_queue_free(&ctx);
 	return ctx.retval;
 }
 
