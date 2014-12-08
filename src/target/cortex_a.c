@@ -74,7 +74,8 @@ static int cortex_a_virt2phys(struct target *target,
 	uint32_t virt, uint32_t *phys);
 static int cortex_a_read_apb_ab_memory(struct target *target,
 	uint32_t address, uint32_t size, uint32_t count, uint8_t *buffer);
-
+static int cortex_a_invalidate_instruction_data_cacheline(struct target *target,
+	uint32_t address, uint32_t size, uint32_t count);
 
 /*  restore cp15_control_reg at resume */
 static int cortex_a_restore_cp15_control_reg(struct target *target)
@@ -2091,6 +2092,71 @@ error_free_buff_r:
 	return ERROR_FAIL;
 }
 
+static int cortex_a_invalidate_instruction_data_cacheline(struct target *target,
+	uint32_t address, uint32_t size, uint32_t count)
+{
+	int retval = ERROR_OK;
+	struct armv7a_common *armv7a = target_to_armv7a(target);
+
+	/* REVISIT this op is generic ARMv7-A/R stuff */
+	if (target->state == TARGET_HALTED) {
+		struct arm_dpm *dpm = armv7a->arm.dpm;
+
+		retval = dpm->prepare(dpm);
+		if (retval != ERROR_OK)
+			return retval;
+
+		/* The Cache handling will NOT work with MMU active, the
+		 * wrong addresses will be invalidated!
+		 *
+		 * For both ICache and DCache, walk all cache lines in the
+		 * address range. Cortex-A has fixed 64 byte line length.
+		 *
+		 * REVISIT per ARMv7, these may trigger watchpoints ...
+		 */
+		/* Invalidating physical address while MMU is active
+		 * causes issue (Linux OS booted on Cortex-A and core is halted).
+		 * As per ARMv7 Cortex-A Cache handling,
+		 * modified virtual address should be invalidated.
+		 */
+		/* invalidate I-Cache */
+		if (armv7a->armv7a_mmu.armv7a_cache.i_cache_enabled) {
+			/* ICIMVAU - Invalidate Cache single entry
+			 * with MVA to PoU
+			 *      MCR p15, 0, r0, c7, c5, 1
+			 */
+			for (uint32_t cacheline = 0;
+				cacheline < size * count;
+				cacheline += 64) {
+				retval = dpm->instr_write_data_r0(dpm,
+						ARMV4_5_MCR(15, 0, 0, 7, 5, 1),
+						address + cacheline);
+				if (retval != ERROR_OK)
+					return retval;
+			}
+		}
+
+		/* invalidate D-Cache */
+		if (armv7a->armv7a_mmu.armv7a_cache.d_u_cache_enabled) {
+			/* DCIMVAC - Invalidate data Cache line
+			 * with MVA to PoC
+			 *      MCR p15, 0, r0, c7, c6, 1
+			 */
+			for (uint32_t cacheline = 0;
+				cacheline < size * count;
+				cacheline += 64) {
+				retval = dpm->instr_write_data_r0(dpm,
+						ARMV4_5_MCR(15, 0, 0, 7, 6, 1),
+						address + cacheline);
+				if (retval != ERROR_OK)
+					return retval;
+			}
+		}
+
+		/* (void) */ dpm->finish(dpm);
+	}
+	return retval;
+}
 
 /*
  * Cortex-A Memory access
@@ -2209,61 +2275,6 @@ static int cortex_a_write_phys_memory(struct target *target,
 		}
 	}
 
-
-	/* REVISIT this op is generic ARMv7-A/R stuff */
-	if (retval == ERROR_OK && target->state == TARGET_HALTED) {
-		struct arm_dpm *dpm = armv7a->arm.dpm;
-
-		retval = dpm->prepare(dpm);
-		if (retval != ERROR_OK)
-			return retval;
-
-		/* The Cache handling will NOT work with MMU active, the
-		 * wrong addresses will be invalidated!
-		 *
-		 * For both ICache and DCache, walk all cache lines in the
-		 * address range. Cortex-A has fixed 64 byte line length.
-		 *
-		 * REVISIT per ARMv7, these may trigger watchpoints ...
-		 */
-
-		/* invalidate I-Cache */
-		if (armv7a->armv7a_mmu.armv7a_cache.i_cache_enabled) {
-			/* ICIMVAU - Invalidate Cache single entry
-			 * with MVA to PoU
-			 *      MCR p15, 0, r0, c7, c5, 1
-			 */
-			for (uint32_t cacheline = 0;
-				cacheline < size * count;
-				cacheline += 64) {
-				retval = dpm->instr_write_data_r0(dpm,
-						ARMV4_5_MCR(15, 0, 0, 7, 5, 1),
-						address + cacheline);
-				if (retval != ERROR_OK)
-					return retval;
-			}
-		}
-
-		/* invalidate D-Cache */
-		if (armv7a->armv7a_mmu.armv7a_cache.d_u_cache_enabled) {
-			/* DCIMVAC - Invalidate data Cache line
-			 * with MVA to PoC
-			 *      MCR p15, 0, r0, c7, c6, 1
-			 */
-			for (uint32_t cacheline = 0;
-				cacheline < size * count;
-				cacheline += 64) {
-				retval = dpm->instr_write_data_r0(dpm,
-						ARMV4_5_MCR(15, 0, 0, 7, 6, 1),
-						address + cacheline);
-				if (retval != ERROR_OK)
-					return retval;
-			}
-		}
-
-		/* (void) */ dpm->finish(dpm);
-	}
-
 	return retval;
 }
 
@@ -2271,7 +2282,7 @@ static int cortex_a_write_memory(struct target *target, uint32_t address,
 	uint32_t size, uint32_t count, const uint8_t *buffer)
 {
 	int mmu_enabled = 0;
-	uint32_t virt, phys;
+	uint32_t virt = 0, phys;
 	int retval;
 	struct armv7a_common *armv7a = target_to_armv7a(target);
 	struct adiv5_dap *swjdp = armv7a->arm.dap;
@@ -2304,6 +2315,12 @@ static int cortex_a_write_memory(struct target *target, uint32_t address,
 		}
 		retval = cortex_a_write_phys_memory(target, address, size,
 				count, buffer);
+		if (retval == ERROR_OK) {
+			if (mmu_enabled)
+				retval = cortex_a_invalidate_instruction_data_cacheline(target, virt, size, count);
+			else
+				retval = cortex_a_invalidate_instruction_data_cacheline(target, address, size, count);
+		}
 	} else {
 		if (mmu_enabled) {
 			retval = cortex_a_check_address(target, address);
