@@ -498,9 +498,6 @@ COMMAND_HANDLER(handle_cache_l2x)
 	struct target *target = get_current_target(CMD_CTX);
 	uint32_t base, way;
 	switch (CMD_ARGC) {
-		case 0:
-			return ERROR_COMMAND_SYNTAX_ERROR;
-			break;
 		case 2:
 			/* command_print(CMD_CTX, "%s %s", CMD_ARGV[0], CMD_ARGV[1]); */
 			COMMAND_PARSE_NUMBER(u32, CMD_ARGV[0], base);
