@@ -318,7 +318,7 @@ COMMAND_HANDLER(handle_flash_erase_command)
 			"in %fs", first, last, p->bank_number, duration_elapsed(&bench));
 	}
 
-	return ERROR_OK;
+	return retval;
 }
 
 COMMAND_HANDLER(handle_flash_protect_command)
@@ -571,7 +571,7 @@ COMMAND_HANDLER(handle_flash_write_bank_command)
 	COMMAND_PARSE_NUMBER(u32, CMD_ARGV[2], offset);
 
 	if (fileio_open(&fileio, CMD_ARGV[1], FILEIO_READ, FILEIO_BINARY) != ERROR_OK)
-		return ERROR_OK;
+		return ERROR_FAIL;
 
 	int filesize;
 	retval = fileio_size(&fileio, &filesize);
@@ -590,7 +590,7 @@ COMMAND_HANDLER(handle_flash_write_bank_command)
 	if (fileio_read(&fileio, filesize, buffer, &buf_cnt) != ERROR_OK) {
 		free(buffer);
 		fileio_close(&fileio);
-		return ERROR_OK;
+		return ERROR_FAIL;
 	}
 
 	retval = flash_driver_write(p, buffer, offset, buf_cnt);
