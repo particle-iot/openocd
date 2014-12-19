@@ -146,7 +146,7 @@ static void show_hard(FILE *f, int c)
 	unsigned size;
 	char *label;
 
-	printf("DWT - ", type);
+	printf("DWT - rawtype: %x ", type);
 
 	if (!read_varlen(f, c, &value))
 		return;
