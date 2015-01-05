@@ -505,12 +505,12 @@ BOOL WINAPI ControlHandler(DWORD dwCtrlType)
 	shutdown_openocd = 1;
 	return TRUE;
 }
+#endif
 
 void sig_handler(int sig)
 {
 	shutdown_openocd = 1;
 }
-#endif
 
 int server_preinit(void)
 {
@@ -532,11 +532,11 @@ int server_preinit(void)
 	/* register ctrl-c handler */
 	SetConsoleCtrlHandler(ControlHandler, TRUE);
 
+	signal(SIGBREAK, sig_handler);
+#endif
 	signal(SIGINT, sig_handler);
 	signal(SIGTERM, sig_handler);
-	signal(SIGBREAK, sig_handler);
 	signal(SIGABRT, sig_handler);
-#endif
 
 	return ERROR_OK;
 }
