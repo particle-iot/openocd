@@ -87,15 +87,13 @@
 #define KEY1			0xA5
 #define KEY2			0xF2
 
-struct sim3c166_options
-{
+struct sim3c166_options {
 	uint16_t RDP;
 	uint16_t user_options;
 	uint16_t protection[3];
 };
 
-struct sim3c166_flash_bank
-{
+struct sim3c166_flash_bank {
 	struct sim3c166_options option_bytes;
 	struct working_area *write_algorithm;
 	int ppage_size;
@@ -108,8 +106,7 @@ FLASH_BANK_COMMAND_HANDLER(sim3c166_flash_bank_command)
 {
 	struct sim3c166_flash_bank *sim3c166_info;
 
-	if (CMD_ARGC < 6)
-	{
+	if (CMD_ARGC < 6) {
 		LOG_WARNING("incomplete flash_bank sim3c166 configuration");
 		return ERROR_FLASH_BANK_INVALID;
 	}
@@ -135,16 +132,14 @@ static int sim3c166_wait_status_busy(struct flash_bank *bank, int timeout)
 	int retval = ERROR_OK;
 
 	/* wait for busy to clear */
-	for (;;)
-	{
+	for (;;) {
 		retval = sim3c166_get_flash_status(bank, &status);
 		if (retval != ERROR_OK)
 			return retval;
 		LOG_DEBUG("status: 0x%" PRIx32 "", status);
 		if ((status & FLASH_BSY) == 0)
 			break;
-		if (timeout-- <= 0)
-		{
+		if (timeout-- <= 0) {
 			LOG_ERROR("timed out waiting for flash");
 			return ERROR_FAIL;
 		}
@@ -315,8 +310,7 @@ static int sim3c166_protect_check(struct flash_bank *bank)
 	int num_bits;
 	int set;
 
-	if (target->state != TARGET_HALTED)
-	{
+	if (target->state != TARGET_HALTED) {
 		LOG_ERROR("Target not halted");
 		return ERROR_TARGET_NOT_HALTED;
 	}
@@ -329,8 +323,7 @@ static int sim3c166_protect_check(struct flash_bank *bank)
 	/* each protection bit is for 4 * 2K pages */
 	num_bits = (bank->num_sectors / sim3c166_info->ppage_size);
 
-	for (i = 0; i < num_bits; i++)
-	{
+	for (i = 0; i < num_bits; i++) {
 		set = 1;
 		if (protection & (1 << i))
 			set = 0;
@@ -347,8 +340,7 @@ static int sim3c166_erase(struct flash_bank *bank, int first, int last)
 	struct target *target = bank->target;
 	int i;
 
-	if (bank->target->state != TARGET_HALTED)
-	{
+	if (bank->target->state != TARGET_HALTED) {
 		LOG_ERROR("Target not halted");
 		return ERROR_TARGET_NOT_HALTED;
 	}
@@ -364,8 +356,7 @@ static int sim3c166_erase(struct flash_bank *bank, int first, int last)
 	if (retval != ERROR_OK)
 		return retval;
 
-	for (i = first; i <= last; i++)
-	{
+	for (i = first; i <= last; i++) {
 		retval = target_write_u32(target, SIM3C166_FLASH_AR, bank->base + bank->sectors[i].offset);
 		if (retval != ERROR_OK)
 			return retval;
@@ -397,20 +388,17 @@ static int sim3c166_protect(struct flash_bank *bank, int set, int first, int las
 
 	sim3c166_info = bank->driver_priv;
 
-	if (target->state != TARGET_HALTED)
-	{
+	if (target->state != TARGET_HALTED) {
 		LOG_ERROR("Target not halted");
 		return ERROR_TARGET_NOT_HALTED;
 	}
 
-	if ((first % sim3c166_info->ppage_size) != 0)
-	{
+	if ((first % sim3c166_info->ppage_size) != 0) {
 		LOG_WARNING("aligned start protect sector to a %d sector boundary",
 				sim3c166_info->ppage_size);
 		first = first - (first % sim3c166_info->ppage_size);
 	}
-	if (((last + 1) % sim3c166_info->ppage_size) != 0)
-	{
+	if (((last + 1) % sim3c166_info->ppage_size) != 0) {
 		LOG_WARNING("aligned end protect sector to a %d sector boundary",
 				sim3c166_info->ppage_size);
 		last++;
@@ -427,8 +415,7 @@ static int sim3c166_protect(struct flash_bank *bank, int set, int first, int las
 	prot_reg[1] = (uint16_t)(protection >> 8);
 	prot_reg[2] = (uint16_t)(protection >> 16);
 
-	for (i = first; i <= last; i++)
-	{
+	for (i = first; i <= last; i++) {
 		reg = (i / sim3c166_info->ppage_size) / 8;
 		bit = (i / sim3c166_info->ppage_size) - (reg * 8);
 
@@ -459,14 +446,12 @@ static int sim3c166_write(struct flash_bank *bank, const uint8_t *buffer,
 	uint32_t bytes_written = 0;
 	int retval;
 
-	if (bank->target->state != TARGET_HALTED)
-	{
+	if (bank->target->state != TARGET_HALTED) {
 		LOG_ERROR("Target not halted");
 		return ERROR_TARGET_NOT_HALTED;
 	}
 
-	if (offset & 0x1)
-	{
+	if (offset & 0x1) {
 		LOG_WARNING("offset 0x%" PRIx32 " breaks required 2-byte alignment", offset);
 		return ERROR_FLASH_DST_BREAKS_ALIGNMENT;
 	}
@@ -485,8 +470,7 @@ static int sim3c166_write(struct flash_bank *bank, const uint8_t *buffer,
 	if (retval != ERROR_OK)
 		return retval;
 
-	while (words_remaining > 0)
-	{
+	while (words_remaining > 0) {
 		uint16_t value;
 		memcpy(&value, buffer + bytes_written, sizeof(uint16_t));
 
@@ -499,8 +483,7 @@ static int sim3c166_write(struct flash_bank *bank, const uint8_t *buffer,
 		address += 2;
 	}
 
-	if (bytes_remaining)
-	{
+	if (bytes_remaining) {
 		uint16_t value = 0xffff;
 		memcpy(&value, buffer + bytes_written, bytes_remaining);
 
@@ -534,8 +517,7 @@ static int sim3c166_probe(struct flash_bank *bank)
 
 	LOG_INFO("flash size = %dkbytes", num_pages*page_size/1024);
 
-	if (bank->sectors)
-	{
+	if (bank->sectors) {
 		free(bank->sectors);
 		bank->sectors = NULL;
 	}
@@ -545,8 +527,7 @@ static int sim3c166_probe(struct flash_bank *bank)
 	bank->num_sectors = num_pages;
 	bank->sectors = malloc(sizeof(struct flash_sector) * num_pages);
 
-	for (i = 0; i < num_pages; i++)
-	{
+	for (i = 0; i < num_pages; i++) {
 		bank->sectors[i].offset = i * page_size;
 		bank->sectors[i].size = page_size;
 		bank->sectors[i].is_erased = -1;
@@ -571,8 +552,7 @@ COMMAND_HANDLER(sim3c166_handle_lock_command)
 	struct target *target = NULL;
 	struct sim3c166_flash_bank *sim3c166_info = NULL;
 
-	if (CMD_ARGC < 1)
-	{
+	if (CMD_ARGC < 1) {
 		command_print(CMD_CTX, "sim3c166 lock <bank>");
 		return ERROR_OK;
 	}
@@ -586,14 +566,12 @@ COMMAND_HANDLER(sim3c166_handle_lock_command)
 
 	target = bank->target;
 
-	if (target->state != TARGET_HALTED)
-	{
+	if (target->state != TARGET_HALTED) {
 		LOG_ERROR("Target not halted");
 		return ERROR_TARGET_NOT_HALTED;
 	}
 
-	if (sim3c166_erase_options(bank) != ERROR_OK)
-	{
+	if (sim3c166_erase_options(bank) != ERROR_OK) {
 		command_print(CMD_CTX, "sim3c166 failed to erase options");
 		return ERROR_OK;
 	}
@@ -601,8 +579,7 @@ COMMAND_HANDLER(sim3c166_handle_lock_command)
 	/* set readout protection */
 	sim3c166_info->option_bytes.RDP = 0;
 
-	if (sim3c166_write_options(bank) != ERROR_OK)
-	{
+	if (sim3c166_write_options(bank) != ERROR_OK) {
 		command_print(CMD_CTX, "sim3c166 failed to lock device");
 		return ERROR_OK;
 	}
@@ -616,8 +593,7 @@ COMMAND_HANDLER(sim3c166_handle_unlock_command)
 {
 	struct target *target = NULL;
 
-	if (CMD_ARGC < 1)
-	{
+	if (CMD_ARGC < 1) {
 		command_print(CMD_CTX, "sim3c166 unlock <bank>");
 		return ERROR_OK;
 	}
@@ -629,20 +605,17 @@ COMMAND_HANDLER(sim3c166_handle_unlock_command)
 
 	target = bank->target;
 
-	if (target->state != TARGET_HALTED)
-	{
+	if (target->state != TARGET_HALTED) {
 		LOG_ERROR("Target not halted");
 		return ERROR_TARGET_NOT_HALTED;
 	}
 
-	if (sim3c166_erase_options(bank) != ERROR_OK)
-	{
+	if (sim3c166_erase_options(bank) != ERROR_OK) {
 		command_print(CMD_CTX, "sim3c166 failed to unlock device");
 		return ERROR_OK;
 	}
 
-	if (sim3c166_write_options(bank) != ERROR_OK)
-	{
+	if (sim3c166_write_options(bank) != ERROR_OK) {
 		command_print(CMD_CTX, "sim3c166 failed to lock device");
 		return ERROR_OK;
 	}
