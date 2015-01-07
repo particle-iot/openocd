@@ -293,7 +293,7 @@ communication between developers:
 During the 0.4.x release cycle the OpenOCD project team began
 using Trac for its bug database:
 
-@uref{https://sourceforge.net/apps/trac/openocd}
+@uref{https://sourceforge.net/p/openocd/tickets/}
 
 
 @node Debug Adapter Hardware
