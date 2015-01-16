@@ -289,10 +289,15 @@ static int dpm_write_reg64(struct arm_dpm *dpm, struct reg *r, unsigned regnum)
 	switch (regnum) {
 		case 0 ... 30:
 			i = 0xd5330400 + regnum;
-			retval = dpm->instr_write_data_dcc(dpm, i, value);
+			retval = dpm->instr_write_data_dcc_64(dpm, i, value);
 			break;
-
+		case 32: /* PC */
+			i = 0xd51b4520;
+			retval = dpm->instr_write_data_r0_64(dpm, i, value);
+			break;
 		default:
+			LOG_DEBUG("register %s (%16.16llx) not defined", r->name,
+				  (unsigned long long)value);
 			break;
 	}
 
@@ -313,7 +318,7 @@ static int dpm_write_reg(struct arm_dpm *dpm, struct reg *r, unsigned regnum)
 		return dpm_write_reg32(dpm, r, regnum);
 }
 
-static int arm_dpm_read_current_registers_i(struct arm_dpm *dpm, int arch_mode)
+static int arm_dpm_read_current_registers_i(struct arm_dpm *dpm)
 {
 	struct arm *arm = dpm->arm;
 	uint32_t cpsr, instr, core_regs;
@@ -333,7 +338,7 @@ static int arm_dpm_read_current_registers_i(struct arm_dpm *dpm, int arch_mode)
 	}
 	r->dirty = true;
 
-	if (arch_mode == 64)
+	if (arm->core_state == ARM_STATE_AARCH64)
 		instr = 0xd53b4500;  /* mrs x0, dspsr_el0 */
 	else
 		instr = ARMV4_5_MRS(0, 0);
@@ -378,12 +383,12 @@ fail:
  */
 int arm_dpm_read_current_registers(struct arm_dpm *dpm)
 {
-	return arm_dpm_read_current_registers_i(dpm, 32);
+	return arm_dpm_read_current_registers_i(dpm);
 }
 
 int arm_dpm_read_current_registers_64(struct arm_dpm *dpm)
 {
-	return arm_dpm_read_current_registers_i(dpm, 64);
+	return arm_dpm_read_current_registers_i(dpm);
 }
 
 /* Avoid needless I/O ... leave breakpoints and watchpoints alone
@@ -549,7 +554,7 @@ static int arm_dpm_write_dirty_registers_64(struct arm_dpm *dpm)
 	 */
 
 	/* check everything except our scratch register R0 */
-	for (unsigned i = 1; i < 32; i++) {
+	for (unsigned i = 1; i <= 32; i++) {
 		struct arm_reg *r;
 		unsigned regnum;
 
@@ -1095,7 +1100,7 @@ int arm_dpm_setup(struct arm_dpm *dpm)
 {
 	struct arm *arm = dpm->arm;
 	struct target *target = arm->target;
-	struct reg_cache *cache;
+	struct reg_cache *cache = 0;
 
 	arm->dpm = dpm;
 
@@ -1104,11 +1109,16 @@ int arm_dpm_setup(struct arm_dpm *dpm)
 	arm->read_core_reg = arm->read_core_reg ? : arm_dpm_read_core_reg;
 	arm->write_core_reg = arm->write_core_reg ? : arm_dpm_write_core_reg;
 
-	cache = arm_build_reg_cache(target, arm);
+	if (arm->core_state == ARM_STATE_AARCH64) {
+		cache = armv8_build_reg_cache(target);
+		target->reg_cache = cache;
+	} else {
+		cache = arm_build_reg_cache(target, arm);
+		*register_get_last_cache_p(&target->reg_cache) = cache;
+	}
+
 	if (!cache)
 		return ERROR_FAIL;
-
-	*register_get_last_cache_p(&target->reg_cache) = cache;
 
 	/* coprocessor access setup */
 	arm->mrc = dpm_mrc;
@@ -1130,7 +1140,7 @@ int arm_dpm_setup(struct arm_dpm *dpm)
 
 	/* FIXME add vector catch support */
 
-	if (arch_mode == 64) {
+	if (arm->core_state == ARM_STATE_AARCH64) {
 		dpm->nbp = 1 + ((dpm->didr >> 24) & 0xf);
 		dpm->nwp = 1 + ((dpm->didr >> 28) & 0xf);
 	} else {
