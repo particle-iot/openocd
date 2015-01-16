@@ -31,6 +31,7 @@ libtarget_la_SOURCES = \
 	$(ARMV4_5_SRC) \
 	$(ARMV6_SRC) \
 	$(ARMV7_SRC) \
+	$(ARMV8_SRC) \
 	$(ARM_MISC_SRC) \
 	$(AVR32_SRC) \
 	$(MIPS32_SRC) \
@@ -83,6 +84,10 @@ ARMV7_SRC = \
 	cortex_m.c \
 	armv7a.c \
 	cortex_a.c
+
+ARMV8_SRC = \
+	aarch64.c \
+	armv8.c
 
 ARM_DEBUG_SRC = \
 	arm_dpm.c \
@@ -156,6 +161,7 @@ noinst_HEADERS = \
 	armv7a.h \
 	armv7m.h \
 	armv7m_trace.h \
+	armv8.h \
 	avrt.h \
 	dsp563xx.h \
 	dsp563xx_once.h \
@@ -163,6 +169,7 @@ noinst_HEADERS = \
 	breakpoints.h \
 	cortex_m.h \
 	cortex_a.h \
+	aarch64.h \
 	embeddedice.h \
 	etb.h \
 	etm.h \
