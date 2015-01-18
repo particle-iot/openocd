@@ -1646,14 +1646,20 @@ static int cortex_m_init_target(struct command_context *cmd_ctx,
 struct dwt_reg_state {
 	struct target *target;
 	uint32_t addr;
-	uint32_t value;		/* scratch/cache */
+	uint8_t value[4];		/* scratch/cache */
 };
 
 static int cortex_m_dwt_get_reg(struct reg *reg)
 {
 	struct dwt_reg_state *state = reg->arch_info;
 
-	return target_read_u32(state->target, state->addr, &state->value);
+	uint32_t tmp;
+	int retval = target_read_u32(state->target, state->addr, &tmp);
+	if (retval != ERROR_OK)
+		return retval;
+
+	buf_set_u32(state->value, 0, 32, tmp);
+	return ERROR_OK;
 }
 
 static int cortex_m_dwt_set_reg(struct reg *reg, uint8_t *buf)
@@ -1708,7 +1714,7 @@ static void cortex_m_dwt_addreg(struct target *t, struct reg *r, struct dwt_reg 
 
 	r->name = d->name;
 	r->size = d->size;
-	r->value = &state->value;
+	r->value = state->value;
 	r->arch_info = state;
 	r->type = &dwt_reg_type;
 }

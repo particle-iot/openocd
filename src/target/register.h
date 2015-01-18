@@ -120,7 +120,7 @@ struct reg {
 	uint32_t number;
 	struct reg_feature *feature;
 	bool caller_save;
-	void *value;
+	uint8_t *value;
 	bool dirty;
 	bool valid;
 	bool exist;
