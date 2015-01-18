@@ -418,12 +418,10 @@ static int arm11_halt(struct target *target)
 
 static uint32_t arm11_nextpc(struct arm11_common *arm11, int current, uint32_t address)
 {
-	void *value = arm11->arm.pc->value;
-
 	if (!current)
-		buf_set_u32(value, 0, 32, address);
+		buf_set_u32(arm11->arm.pc->value, 0, 32, address);
 	else
-		address = buf_get_u32(value, 0, 32);
+		address = buf_get_u32(arm11->arm.pc->value, 0, 32);
 
 	return address;
 }

@@ -458,7 +458,7 @@ struct reg *arm_reg_current(struct arm *arm, unsigned regnum)
 	return r;
 }
 
-static const uint8_t arm_gdb_dummy_fp_value[12];
+static uint8_t arm_gdb_dummy_fp_value[12];
 
 static struct reg_feature arm_gdb_dummy_fp_features = {
 	.name = "net.sourceforge.openocd.fake_fpa"
@@ -472,7 +472,7 @@ static struct reg_feature arm_gdb_dummy_fp_features = {
  */
 struct reg arm_gdb_dummy_fp_reg = {
 	.name = "GDB dummy FPA register",
-	.value = (uint8_t *) arm_gdb_dummy_fp_value,
+	.value = arm_gdb_dummy_fp_value,
 	.valid = 1,
 	.size = 96,
 	.exist = false,
@@ -481,7 +481,7 @@ struct reg arm_gdb_dummy_fp_reg = {
 	.group = "fake_fpa",
 };
 
-static const uint8_t arm_gdb_dummy_fps_value[4];
+static uint8_t arm_gdb_dummy_fps_value[4];
 
 /**
  * Dummy FPA status registers are required to support GDB on ARM.
@@ -489,7 +489,7 @@ static const uint8_t arm_gdb_dummy_fps_value[4];
  */
 struct reg arm_gdb_dummy_fps_reg = {
 	.name = "GDB dummy FPA status register",
-	.value = (uint8_t *) arm_gdb_dummy_fps_value,
+	.value = arm_gdb_dummy_fps_value,
 	.valid = 1,
 	.size = 32,
 	.exist = false,
