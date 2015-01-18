@@ -139,7 +139,7 @@ static int nds32_get_core_reg_64(struct reg *reg)
 		return ERROR_OK;
 
 	if (reg_arch_info->enable == false) {
-		buf_set_u64(reg_arch_info->value_64, 0, 64, NDS32_REGISTER_DISABLE);
+		buf_set_u64(reg_arch_info->value, 0, 64, NDS32_REGISTER_DISABLE);
 		retval = ERROR_FAIL;
 	} else {
 		uint64_t val = 0;
@@ -149,7 +149,7 @@ static int nds32_get_core_reg_64(struct reg *reg)
 		} else {
 			retval = aice_read_reg_64(aice, reg_arch_info->num, &val);
 		}
-		buf_set_u64(reg_arch_info->value_64, 0, 64, val);
+		buf_set_u64(reg_arch_info->value, 0, 64, val);
 	}
 
 	if (retval == ERROR_OK) {
@@ -428,7 +428,7 @@ static struct reg_cache *nds32_build_reg_cache(struct target *target,
 		reg_list[i].reg_data_type = calloc(sizeof(struct reg_data_type), 1);
 
 		if (FD0 <= reg_arch_info[i].num && reg_arch_info[i].num <= FD31) {
-			reg_list[i].value = reg_arch_info[i].value_64;
+			reg_list[i].value = reg_arch_info[i].value;
 			reg_list[i].type = &nds32_reg_access_type_64;
 
 			reg_list[i].reg_data_type->type = REG_TYPE_IEEE_DOUBLE;
@@ -1552,7 +1552,7 @@ int nds32_restore_context(struct target *target)
 
 				reg_arch_info = reg->arch_info;
 				if (FD0 <= reg_arch_info->num && reg_arch_info->num <= FD31) {
-					uint64_t val = buf_get_u64(reg_arch_info->value_64, 0, 64);
+					uint64_t val = buf_get_u64(reg_arch_info->value, 0, 64);
 					aice_write_reg_64(aice, reg_arch_info->num, val);
 				} else {
 					uint32_t val = buf_get_u32(reg_arch_info->value, 0, 32);
