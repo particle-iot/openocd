@@ -966,7 +966,7 @@ static int gdb_new_connection(struct connection *connection)
 	 * GDB session could leave dangling breakpoints if e.g. communication
 	 * timed out.
 	 */
-	breakpoint_clear_target(target);
+	breakpoint_clear_target(target, false);
 	watchpoint_clear_target(target);
 
 	if (target->rtos) {
@@ -1679,18 +1679,17 @@ static int gdb_breakpoint_watchpoint_packet(struct connection *connection,
 	switch (type) {
 		case 0:
 		case 1:
-			if (packet[0] == 'Z') {
+			if (packet[0] == 'Z')
 				retval = breakpoint_add(target, address, size, bp_type);
-				if (retval != ERROR_OK) {
-					retval = gdb_error(connection, retval);
-					if (retval != ERROR_OK)
-						return retval;
-				} else
-					gdb_put_packet(connection, "OK", 2);
-			} else {
-				breakpoint_remove(target, address);
+			else
+				retval = breakpoint_remove(target, address);
+
+			if (retval != ERROR_OK) {
+				retval = gdb_error(connection, retval);
+				if (retval != ERROR_OK)
+					return retval;
+			} else
 				gdb_put_packet(connection, "OK", 2);
-			}
 			break;
 		case 2:
 		case 3:
@@ -3295,7 +3294,7 @@ static int gdb_input_inner(struct connection *connection)
 					break;
 				case 'R':
 					/* handle extended restart packet */
-					breakpoint_clear_target(target);
+					breakpoint_clear_target(target, false);
 					watchpoint_clear_target(target);
 					command_run_linef(connection->cmd_ctx, "ocd_gdb_restart %s",
 							target_name(target));

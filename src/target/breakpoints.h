@@ -55,14 +55,14 @@ struct watchpoint {
 	int unique_id;
 };
 
-void breakpoint_clear_target(struct target *target);
+void breakpoint_clear_target(struct target *target, bool free_failed);
 int breakpoint_add(struct target *target,
 		target_addr_t address, uint32_t length, enum breakpoint_type type);
 int context_breakpoint_add(struct target *target,
 		uint32_t asid, uint32_t length, enum breakpoint_type type);
 int hybrid_breakpoint_add(struct target *target,
 		target_addr_t address, uint32_t asid, uint32_t length, enum breakpoint_type type);
-void breakpoint_remove(struct target *target, target_addr_t address);
+int breakpoint_remove(struct target *target, target_addr_t address);
 
 struct breakpoint *breakpoint_find(struct target *target, target_addr_t address);
 

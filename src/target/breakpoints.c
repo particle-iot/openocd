@@ -292,7 +292,6 @@ static void breakpoint_free(struct target *target, struct breakpoint *breakpoint
 {
 	struct breakpoint *breakpoint = target->breakpoints;
 	struct breakpoint **breakpoint_p = &target->breakpoints;
-	int retval;
 
 	while (breakpoint) {
 		if (breakpoint == breakpoint_to_remove)
@@ -301,12 +300,12 @@ static void breakpoint_free(struct target *target, struct breakpoint *breakpoint
 		breakpoint = breakpoint->next;
 	}
 
-	if (breakpoint == NULL)
+	if (breakpoint == NULL) {
+		LOG_WARNING("breakpoint not found");
 		return;
+	}
 
-	retval = target_remove_breakpoint(target, breakpoint);
-
-	LOG_DEBUG("free BPID: %" PRIu32 " --> %d", breakpoint->unique_id, retval);
+	LOG_DEBUG("free BPID: %" PRIu32, breakpoint->unique_id);
 	(*breakpoint_p) = breakpoint->next;
 	free(breakpoint->orig_instr);
 	free(breakpoint);
@@ -315,6 +314,7 @@ static void breakpoint_free(struct target *target, struct breakpoint *breakpoint
 static int breakpoint_remove_internal(struct target *target, target_addr_t address)
 {
 	struct breakpoint *breakpoint = target->breakpoints;
+	int retval;
 
 	while (breakpoint) {
 		if ((breakpoint->address == address) ||
@@ -323,42 +323,78 @@ static int breakpoint_remove_internal(struct target *target, target_addr_t addre
 		breakpoint = breakpoint->next;
 	}
 
-	if (breakpoint) {
-		breakpoint_free(target, breakpoint);
-		return 1;
-	} else {
-		if (!target->smp)
-			LOG_ERROR("no breakpoint at address " TARGET_ADDR_FMT " found", address);
-		return 0;
+	if (!breakpoint)
+		return ERROR_TARGET_BREAKPOINT_NOT_FOUND;
+
+	retval = target_remove_breakpoint(target, breakpoint);
+	if (retval != ERROR_OK) {
+		LOG_ERROR("Unable to remove breakpoint at address " TARGET_ADDR_FMT,
+			breakpoint->address ? breakpoint->address : breakpoint->asid);
+		return retval;
 	}
+
+	breakpoint_free(target, breakpoint);
+	return ERROR_OK;
 }
-void breakpoint_remove(struct target *target, target_addr_t address)
+
+int breakpoint_remove(struct target *target, target_addr_t address)
 {
-	int found = 0;
+	int cumulated_retval;
+
 	if (target->smp) {
 		struct target_list *head;
 		struct target *curr;
+		unsigned int found = 0;
 		head = target->head;
+		cumulated_retval = ERROR_OK;
+
 		while (head != (struct target_list *)NULL) {
 			curr = head->target;
-			found += breakpoint_remove_internal(curr, address);
+			int retval = breakpoint_remove_internal(curr, address);
+			if (retval == ERROR_OK)
+				found++;
+			else if (retval != ERROR_TARGET_BREAKPOINT_NOT_FOUND)
+				cumulated_retval = retval;
+
 			head = head->next;
 		}
-		if (found == 0)
-			LOG_ERROR("no breakpoint at address " TARGET_ADDR_FMT " found", address);
-	} else
-		breakpoint_remove_internal(target, address);
+
+		if (!found && cumulated_retval == ERROR_OK)
+			cumulated_retval = ERROR_TARGET_BREAKPOINT_NOT_FOUND;
+
+	} else {
+		cumulated_retval = breakpoint_remove_internal(target, address);
+	}
+
+	if (cumulated_retval == ERROR_TARGET_BREAKPOINT_NOT_FOUND)
+		LOG_ERROR("no breakpoint at address " TARGET_ADDR_FMT " found", address);
+	return cumulated_retval;
 }
 
-void breakpoint_clear_target_internal(struct target *target)
+static void breakpoint_clear_target_internal(struct target *target, bool free_failed)
 {
+	struct breakpoint **breakpoint_p = &target->breakpoints;
+	struct breakpoint *breakpoint = *breakpoint_p;
+	int retval;
+
 	LOG_DEBUG("Delete all breakpoints for target: %s",
 		target_name(target));
-	while (target->breakpoints != NULL)
-		breakpoint_free(target, target->breakpoints);
+	while (breakpoint != NULL) {
+		retval = target_remove_breakpoint(target, breakpoint);
+		if (retval != ERROR_OK)
+			LOG_ERROR("Unable to remove breakpoint at address " TARGET_ADDR_FMT,
+				breakpoint->address ? breakpoint->address : breakpoint->asid);
+
+		if (retval == ERROR_OK || free_failed)
+			breakpoint_free(target, breakpoint);
+		else
+			breakpoint_p = &breakpoint->next;
+
+		breakpoint = *breakpoint_p;
+	}
 }
 
-void breakpoint_clear_target(struct target *target)
+void breakpoint_clear_target(struct target *target, bool free_failed)
 {
 	if (target->smp) {
 		struct target_list *head;
@@ -366,11 +402,11 @@ void breakpoint_clear_target(struct target *target)
 		head = target->head;
 		while (head != (struct target_list *)NULL) {
 			curr = head->target;
-			breakpoint_clear_target_internal(curr);
+			breakpoint_clear_target_internal(curr, free_failed);
 			head = head->next;
 		}
 	} else
-		breakpoint_clear_target_internal(target);
+		breakpoint_clear_target_internal(target, free_failed);
 
 }
 
