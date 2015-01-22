@@ -303,6 +303,8 @@ static void breakpoint_free(struct target *target, struct breakpoint *breakpoint
 		return;
 
 	retval = target_remove_breakpoint(target, breakpoint);
+	if (retval != ERROR_OK)
+		return;
 
 	LOG_DEBUG("free BPID: %" PRIu32 " --> %d", breakpoint->unique_id, retval);
 	(*breakpoint_p) = breakpoint->next;
