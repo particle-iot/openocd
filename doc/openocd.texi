@@ -1365,14 +1365,17 @@ board file. Boards may also contain multiple targets: two CPUs; or
 a CPU and an FPGA.
 @example
 $ ls board
-actux3.cfg                        lpc1850_spifi_generic.cfg
-am3517evm.cfg                     lpc4350_spifi_generic.cfg
-arm_evaluator7t.cfg               lubbock.cfg
-at91cap7a-stk-sdram.cfg           mcb1700.cfg
-at91eb40a.cfg                     microchip_explorer16.cfg
-at91rm9200-dk.cfg                 mini2440.cfg
-at91rm9200-ek.cfg                 mini6410.cfg
-at91sam9261-ek.cfg                netgear-dg834v3.cfg
+actux3.cfg                        lpc4350_spifi_generic.cfg
+altera_sockit.cfg                 lubbock.cfg
+am3517evm.cfg                     mbed-lpc11u24.cfg
+arm_evaluator7t.cfg               mbed-lpc1768.cfg
+asus-rt-n16.cfg                   mcb1700.cfg
+asus-rt-n66u.cfg                  microchip_explorer16.cfg
+at91cap7a-stk-sdram.cfg           mini2440.cfg
+at91eb40a.cfg                     mini6410.cfg
+at91rm9200-dk.cfg                 nds32_xc5.cfg
+at91rm9200-ek.cfg                 netgear-dg834v3.cfg
+at91sam9261-ek.cfg                nordic_nrf51822_mkit.cfg
 at91sam9263-ek.cfg                olimex_LPC2378STK.cfg
 at91sam9g20-ek.cfg                olimex_lpc_h2148.cfg
 atmel_at91sam7s-ek.cfg            olimex_sam7_ex256.cfg
@@ -1382,60 +1385,79 @@ atmel_sam3n_ek.cfg                olimex_stm32_h107.cfg
 atmel_sam3s_ek.cfg                olimex_stm32_p107.cfg
 atmel_sam3u_ek.cfg                omap2420_h4.cfg
 atmel_sam3x_ek.cfg                open-bldc.cfg
-atmel_sam4s_ek.cfg                openrd.cfg
-balloon3-cpu.cfg                  osk5912.cfg
-colibri.cfg                       phone_se_j100i.cfg
-crossbow_tech_imote2.cfg          phytec_lpc3250.cfg
-csb337.cfg                        pic-p32mx.cfg
-csb732.cfg                        propox_mmnet1001.cfg
-da850evm.cfg                      pxa255_sst.cfg
-digi_connectcore_wi-9c.cfg        redbee.cfg
-diolan_lpc4350-db1.cfg            rsc-w910.cfg
-dm355evm.cfg                      sheevaplug.cfg
-dm365evm.cfg                      smdk6410.cfg
-dm6446evm.cfg                     spear300evb.cfg
-efikamx.cfg                       spear300evb_mod.cfg
-eir.cfg                           spear310evb20.cfg
-ek-lm3s1968.cfg                   spear310evb20_mod.cfg
-ek-lm3s3748.cfg                   spear320cpu.cfg
-ek-lm3s6965.cfg                   spear320cpu_mod.cfg
-ek-lm3s811.cfg                    steval_pcc010.cfg
-ek-lm3s811-revb.cfg               stm320518_eval_stlink.cfg
-ek-lm3s8962.cfg                   stm32100b_eval.cfg
-ek-lm3s9b9x.cfg                   stm3210b_eval.cfg
-ek-lm3s9d92.cfg                   stm3210c_eval.cfg
-ek-lm4f120xl.cfg                  stm3210e_eval.cfg
-ek-lm4f232.cfg                    stm3220g_eval.cfg
-embedded-artists_lpc2478-32.cfg   stm3220g_eval_stlink.cfg
-ethernut3.cfg                     stm3241g_eval.cfg
-glyn_tonga2.cfg                   stm3241g_eval_stlink.cfg
-hammer.cfg                        stm32f0discovery.cfg
-hilscher_nxdb500sys.cfg           stm32f3discovery.cfg
-hilscher_nxeb500hmi.cfg           stm32f4discovery.cfg
-hilscher_nxhx10.cfg               stm32ldiscovery.cfg
-hilscher_nxhx500.cfg              stm32vldiscovery.cfg
-hilscher_nxhx50.cfg               str910-eval.cfg
-hilscher_nxsb100.cfg              telo.cfg
-hitex_lpc1768stick.cfg            ti_am335xevm.cfg
-hitex_lpc2929.cfg                 ti_beagleboard.cfg
-hitex_stm32-performancestick.cfg  ti_beagleboard_xm.cfg
-hitex_str9-comstick.cfg           ti_beaglebone.cfg
-iar_lpc1768.cfg                   ti_blaze.cfg
-iar_str912_sk.cfg                 ti_pandaboard.cfg
-icnova_imx53_sodimm.cfg           ti_pandaboard_es.cfg
-icnova_sam9g45_sodimm.cfg         topas910.cfg
-imx27ads.cfg                      topasa900.cfg
-imx27lnst.cfg                     twr-k60f120m.cfg
-imx28evk.cfg                      twr-k60n512.cfg
-imx31pdk.cfg                      tx25_stk5.cfg
-imx35pdk.cfg                      tx27_stk5.cfg
-imx53loco.cfg                     unknown_at91sam9260.cfg
+atmel_sam4e_ek.cfg                openrd.cfg
+atmel_sam4l8_xplained_pro.cfg     or1k_generic.cfg
+atmel_sam4s_ek.cfg                osk5912.cfg
+atmel_sam4s_xplained_pro.cfg      phone_se_j100i.cfg
+atmel_samd20_xplained_pro.cfg     phytec_lpc3250.cfg
+atmel_samd21_xplained_pro.cfg     pic-p32mx.cfg
+atmel_samg53_xplained_pro.cfg     propox_mmnet1001.cfg
+atmel_samr21_xplained_pro.cfg     pxa255_sst.cfg
+balloon3-cpu.cfg                  quark_x10xx_board.cfg
+bcm28155_ap.cfg                   redbee.cfg
+bt-homehubv1.cfg                  rsc-w910.cfg
+colibri.cfg                       sheevaplug.cfg
+crossbow_tech_imote2.cfg          smdk6410.cfg
+csb337.cfg                        spear300evb.cfg
+csb732.cfg                        spear300evb_mod.cfg
+da850evm.cfg                      spear310evb20.cfg
+digi_connectcore_wi-9c.cfg        spear310evb20_mod.cfg
+digilent_zedboard.cfg             spear320cpu.cfg
+diolan_lpc4350-db1.cfg            spear320cpu_mod.cfg
+dm355evm.cfg                      steval_pcc010.cfg
+dm365evm.cfg                      stm320518_eval.cfg
+dm6446evm.cfg                     stm320518_eval_stlink.cfg
+dp_busblaster_v3.cfg              stm32100b_eval.cfg
+efikamx.cfg                       stm3210b_eval.cfg
+eir.cfg                           stm3210c_eval.cfg
+ek-lm3s1968.cfg                   stm3210e_eval.cfg
+ek-lm3s3748.cfg                   stm3220g_eval.cfg
+ek-lm3s6965.cfg                   stm3220g_eval_stlink.cfg
+ek-lm3s811.cfg                    stm3241g_eval.cfg
+ek-lm3s811-revb.cfg               stm3241g_eval_stlink.cfg
+ek-lm3s8962.cfg                   stm32429i_eval.cfg
+ek-lm3s9b9x.cfg                   stm32429i_eval_stlink.cfg
+ek-lm3s9d92.cfg                   stm32439i_eval.cfg
+ek-lm4f120xl.cfg                  stm32439i_eval_stlink.cfg
+ek-lm4f232.cfg                    stm32f0discovery.cfg
+ek-tm4c123gxl.cfg                 stm32f3discovery.cfg
+ek-tm4c1294xl.cfg                 stm32f429discovery.cfg
+embedded-artists_lpc2478-32.cfg   stm32f4discovery.cfg
+ethernut3.cfg                     stm32l0discovery.cfg
+frdm-kl25z.cfg                    stm32ldiscovery.cfg
+frdm-kl46z.cfg                    stm32vldiscovery.cfg
+glyn_tonga2.cfg                   st_nucleo_f030r8.cfg
+gumstix-aerocore.cfg              st_nucleo_f103rb.cfg
+hammer.cfg                        st_nucleo_f334r8.cfg
+hilscher_nxdb500sys.cfg           st_nucleo_f401re.cfg
+hilscher_nxeb500hmi.cfg           st_nucleo_f411re.cfg
+hilscher_nxhx10.cfg               str910-eval.cfg
+hilscher_nxhx500.cfg              telo.cfg
+hilscher_nxhx50.cfg               ti_am335xevm.cfg
+hilscher_nxsb100.cfg              ti_am43xx_evm.cfg
+hitex_lpc1768stick.cfg            ti_beagleboard.cfg
+hitex_lpc2929.cfg                 ti_beagleboard_xm.cfg
+hitex_stm32-performancestick.cfg  ti_beaglebone.cfg
+hitex_str9-comstick.cfg           ti_blaze.cfg
+iar_lpc1768.cfg                   ti_pandaboard.cfg
+iar_str912_sk.cfg                 ti_pandaboard_es.cfg
+icnova_imx53_sodimm.cfg           ti_tmdx570ls20susb.cfg
+icnova_sam9g45_sodimm.cfg         ti_tmdx570ls31usb.cfg
+imx27ads.cfg                      topas910.cfg
+imx27lnst.cfg                     topasa900.cfg
+imx28evk.cfg                      twr-k60f120m.cfg
+imx31pdk.cfg                      twr-k60n512.cfg
+imx35pdk.cfg                      tx25_stk5.cfg
+imx53loco.cfg                     tx27_stk5.cfg
+imx53-m53evk.cfg                  unknown_at91sam9260.cfg
 keil_mcb1700.cfg                  uptech_2410.cfg
 keil_mcb2140.cfg                  verdex.cfg
 kwikstik.cfg                      voipac.cfg
 linksys_nslu2.cfg                 voltcraft_dso-3062c.cfg
-lisa-l.cfg                        x300t.cfg
+linksys-wrt54gl.cfg               x300t.cfg
+lisa-l.cfg                        xmc4500_relax.cfg
 logicpd_imx27.cfg                 zy1000.cfg
+lpc1850_spifi_generic.cfg
 $
 @end example
 @item @file{target} ...
@@ -1524,7 +1546,7 @@ lpc1754.cfg                        ti_dm6446.cfg
 lpc1756.cfg                        tmpa900.cfg
 lpc1758.cfg                        tmpa910.cfg
 lpc1759.cfg                        u8500.cfg
-lpc1763.cfg
+lpc1763.cfg                        xmc4xxx.cfg
 @end example
 @item @emph{more} ... browse for other library files which may be useful.
 For example, there are various generic and CPU-specific utilities.
@@ -5729,7 +5751,21 @@ And this command is only possible when using the SWD interface.
 @deffn Command {sim3x lock}
 Lock the flash. To unlock use the @command{sim3x mass_erase} command.
 @end deffn
+@end deffn
 
+@deffn {Flash Driver} xmc4xxx
+All members of the XMC4xxx microcontroller family from Infineon.
+This driver does not require the chip and bus width to be specified.
+
+Some xmc4xxx-specific commands are defined:
+
+@deffn Command {xmc4xxx flash_password} bank_id passwd1 passwd2
+Saves flash protection passwords which are used to lock the user flash
+@end deffn
+
+@deffn Command {xmc4xxx flash_unprotect} bank_id user_level[0-1]
+Removes Flash write protection from the selected user bank
+@end deffn
 @end deffn
 
 @subsection str9xpec driver
