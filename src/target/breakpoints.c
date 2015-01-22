@@ -286,7 +286,7 @@ int hybrid_breakpoint_add(struct target *target,
 }
 
 /* free up a breakpoint */
-static void breakpoint_free(struct target *target, struct breakpoint *breakpoint_to_remove)
+static int breakpoint_free(struct target *target, struct breakpoint *breakpoint_to_remove)
 {
 	struct breakpoint *breakpoint = target->breakpoints;
 	struct breakpoint **breakpoint_p = &target->breakpoints;
@@ -299,20 +299,29 @@ static void breakpoint_free(struct target *target, struct breakpoint *breakpoint
 		breakpoint = breakpoint->next;
 	}
 
-	if (breakpoint == NULL)
-		return;
+	if (breakpoint == NULL) {
+		LOG_WARNING("breakpoint not found");
+		return ERROR_OK;
+	}
 
 	retval = target_remove_breakpoint(target, breakpoint);
+	if (retval != ERROR_OK) {
+		LOG_ERROR("Unable to remove breakpoint at address " TARGET_ADDR_FMT,
+			breakpoint->address ? : breakpoint->asid);
+		return retval;
+	}
 
 	LOG_DEBUG("free BPID: %" PRIu32 " --> %d", breakpoint->unique_id, retval);
 	(*breakpoint_p) = breakpoint->next;
 	free(breakpoint->orig_instr);
 	free(breakpoint);
+	return ERROR_OK;
 }
 
 int breakpoint_remove_internal(struct target *target, target_addr_t address)
 {
 	struct breakpoint *breakpoint = target->breakpoints;
+	int retval;
 
 	while (breakpoint) {
 		if ((breakpoint->address == address) ||
@@ -322,8 +331,8 @@ int breakpoint_remove_internal(struct target *target, target_addr_t address)
 	}
 
 	if (breakpoint) {
-		breakpoint_free(target, breakpoint);
-		return 1;
+		retval = breakpoint_free(target, breakpoint);
+		return (retval == ERROR_OK) ? 1 : 0;
 	} else {
 		if (!target->smp)
 			LOG_ERROR("no breakpoint at address " TARGET_ADDR_FMT " found", address);
@@ -350,10 +359,18 @@ void breakpoint_remove(struct target *target, target_addr_t address)
 
 void breakpoint_clear_target_internal(struct target *target)
 {
+	struct breakpoint **breakpoint_p = &target->breakpoints;
+	struct breakpoint *breakpoint = *breakpoint_p;
+	int retval;
+
 	LOG_DEBUG("Delete all breakpoints for target: %s",
 		target_name(target));
-	while (target->breakpoints != NULL)
-		breakpoint_free(target, target->breakpoints);
+	while (breakpoint != NULL) {
+		retval = breakpoint_free(target, breakpoint);
+		if (retval != ERROR_OK)
+			breakpoint_p = &breakpoint->next;
+		breakpoint = *breakpoint_p;
+	}
 }
 
 void breakpoint_clear_target(struct target *target)
