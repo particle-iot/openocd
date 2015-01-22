@@ -1980,6 +1980,8 @@ uint32_t target_get_working_area_avail(struct target *target)
 
 static void target_destroy(struct target *target)
 {
+	breakpoint_clear_target(target, true);
+
 	if (target->type->deinit_target)
 		target->type->deinit_target(target);
 
