@@ -4911,7 +4911,7 @@ comamnd or the flash driver then it defaults to 0xff.
 @end deffn
 
 @anchor{program}
-@deffn Command {program} filename [verify] [reset] [offset]
+@deffn Command {program} filename [verify] [reset] [dontexit] [offset]
 This is a helper script that simplifies using OpenOCD as a standalone
 programmer. The only required parameter is @option{filename}, the others are optional.
 @xref{Flash Programming}.

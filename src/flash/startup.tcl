@@ -3,16 +3,27 @@
 #
 # program utility proc
 # usage: program filename
-# optional args: verify, reset and address
+# optional args: verify, reset, dontexit and address
 #
 
+proc program_error {description dontexit} {
+	if {$dontexit == 0} {
+		shutdown
+	}
+
+	error $description
+}
+
 proc program {filename args} {
+	set dontexit 0
 
 	foreach arg $args {
 		if {[string equal $arg "verify"]} {
 			set verify 1
 		} elseif {[string equal $arg "reset"]} {
 			set reset 1
+		} elseif {[string equal $arg "dontexit"]} {
+			set dontexit 1
 		} else {
 			set address $arg
 		}
@@ -20,16 +31,12 @@ proc program {filename args} {
 
 	# make sure init is called
 	if {[catch {init}] != 0} {
-		echo "** OpenOCD init Failed **"
-		shutdown
-		return
+		program_error "** OpenOCD init failed **" 0
 	}
 
 	# reset target and call any init scripts
 	if {[catch {reset init}] != 0} {
-		echo "** Unable to reset target **"
-		shutdown
-		return
+		program_error "** Unable to reset target **" $dontexit
 	}
 
 	# start programming phase
@@ -48,7 +55,7 @@ proc program {filename args} {
 			if {[catch {eval verify_image $flash_args}] == 0} {
 				echo "** Verified OK **"
 			} else {
-				echo "** Verify Failed **"
+				program_error "** Verify Failed **" $dontexit
 			}
 		}
 
@@ -60,15 +67,17 @@ proc program {filename args} {
 			reset run
 		}
 	} else {
-		echo "** Programming Failed **"
+		program_error "** Programming Failed **" $dontexit
 	}
 
-	# shutdown OpenOCD
-	shutdown
+	if {$dontexit == 0} {
+		shutdown
+	}
+	return
 }
 
-add_help_text program "write an image to flash, address is only required for binary images. verify, reset are optional"
-add_usage_text program "<filename> \[address\] \[verify\] \[reset\]"
+add_help_text program "write an image to flash, address is only required for binary images. verify, reset, dontexit are optional"
+add_usage_text program "<filename> \[address\] \[verify\] \[reset\] \[dontexit\]"
 
 # stm32f0x uses the same flash driver as the stm32f1x
 # this alias enables the use of either name.
