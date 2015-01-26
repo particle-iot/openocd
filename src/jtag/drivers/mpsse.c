@@ -571,7 +571,7 @@ void mpsse_set_data_bits_low_byte(struct mpsse_ctx *ctx, uint8_t data, uint8_t d
 	if (buffer_write_space(ctx) < 3)
 		ctx->retval = mpsse_flush(ctx);
 
-	buffer_write_byte(ctx, 0x80);
+	buffer_write_byte(ctx, SET_BITS_LOW);
 	buffer_write_byte(ctx, data);
 	buffer_write_byte(ctx, dir);
 }
@@ -588,7 +588,7 @@ void mpsse_set_data_bits_high_byte(struct mpsse_ctx *ctx, uint8_t data, uint8_t 
 	if (buffer_write_space(ctx) < 3)
 		ctx->retval = mpsse_flush(ctx);
 
-	buffer_write_byte(ctx, 0x82);
+	buffer_write_byte(ctx, SET_BITS_HIGH);
 	buffer_write_byte(ctx, data);
 	buffer_write_byte(ctx, dir);
 }
@@ -605,7 +605,7 @@ void mpsse_read_data_bits_low_byte(struct mpsse_ctx *ctx, uint8_t *data)
 	if (buffer_write_space(ctx) < 1 || buffer_read_space(ctx) < 1)
 		ctx->retval = mpsse_flush(ctx);
 
-	buffer_write_byte(ctx, 0x81);
+	buffer_write_byte(ctx, GET_BITS_LOW);
 	buffer_add_read(ctx, data, 0, 8, 0);
 }
 
@@ -621,7 +621,7 @@ void mpsse_read_data_bits_high_byte(struct mpsse_ctx *ctx, uint8_t *data)
 	if (buffer_write_space(ctx) < 1 || buffer_read_space(ctx) < 1)
 		ctx->retval = mpsse_flush(ctx);
 
-	buffer_write_byte(ctx, 0x83);
+	buffer_write_byte(ctx, GET_BITS_HIGH);
 	buffer_add_read(ctx, data, 0, 8, 0);
 }
 
@@ -642,7 +642,7 @@ static void single_byte_boolean_helper(struct mpsse_ctx *ctx, bool var, uint8_t 
 void mpsse_loopback_config(struct mpsse_ctx *ctx, bool enable)
 {
 	LOG_DEBUG("%s", enable ? "on" : "off");
-	single_byte_boolean_helper(ctx, enable, 0x84, 0x85);
+	single_byte_boolean_helper(ctx, enable, LOOPBACK_START, LOOPBACK_END);
 }
 
 void mpsse_set_divisor(struct mpsse_ctx *ctx, uint16_t divisor)
@@ -657,7 +657,7 @@ void mpsse_set_divisor(struct mpsse_ctx *ctx, uint16_t divisor)
 	if (buffer_write_space(ctx) < 3)
 		ctx->retval = mpsse_flush(ctx);
 
-	buffer_write_byte(ctx, 0x86);
+	buffer_write_byte(ctx, TCK_DIVISOR);
 	buffer_write_byte(ctx, divisor & 0xff);
 	buffer_write_byte(ctx, divisor >> 8);
 }
@@ -668,7 +668,7 @@ int mpsse_divide_by_5_config(struct mpsse_ctx *ctx, bool enable)
 		return ERROR_FAIL;
 
 	LOG_DEBUG("%s", enable ? "on" : "off");
-	single_byte_boolean_helper(ctx, enable, 0x8b, 0x8a);
+	single_byte_boolean_helper(ctx, enable, EN_DIV_5, DIS_DIV_5);
 
 	return ERROR_OK;
 }
@@ -679,7 +679,7 @@ int mpsse_rtck_config(struct mpsse_ctx *ctx, bool enable)
 		return ERROR_FAIL;
 
 	LOG_DEBUG("%s", enable ? "on" : "off");
-	single_byte_boolean_helper(ctx, enable, 0x96, 0x97);
+	single_byte_boolean_helper(ctx, enable, EN_ADAPTIVE, DIS_ADAPTIVE);
 
 	return ERROR_OK;
 }
@@ -802,7 +802,7 @@ int mpsse_flush(struct mpsse_ctx *ctx)
 	struct libusb_transfer *read_transfer = 0;
 	struct transfer_result read_result = { .ctx = ctx, .done = true };
 	if (ctx->read_count) {
-		buffer_write_byte(ctx, 0x87); /* SEND_IMMEDIATE */
+		buffer_write_byte(ctx, SEND_IMMEDIATE);
 		read_result.done = false;
 		/* delay read transaction to ensure the FTDI chip can support us with data
 		   immediately after processing the MPSSE commands in the write transaction */
