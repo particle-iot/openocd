@@ -1,23 +1,28 @@
-Building OpenOCD for Windows
-----------------------------
+MSYS2 automatic install
+-----------------------
 
-You can build OpenOCD for Windows natively with either MinGW-w64/MSYS
-or Cygwin (plain MinGW might work with --disable-werror but is not
-recommended as it doesn't provide enough C99 compatibility).
-Alternatively, one can cross-compile it using MinGW-w64 on a *nix
-host. See README for the generic instructions.
+MSYS2 is a Cygwin-derived software distro for Windows using Arch
+Linux's Pacman. It allows users to perform package management in a way
+similar to modern GNU/Linux distributions or Homebrew on OS X. See
 
-Native MinGW-w64/MSYS compilation
------------------------------
+  https://msys2.github.io/
 
-As MSYS doesn't come with pkg-config pre-installed, you need to add it
-manually. The easiest way to do that is to download pkg-config-lite
-from:
+for quickstart instructions. Once you proceed with the installation,
+run
 
-  http://sourceforge.net/projects/pkgconfiglite/
+  pacman -S mingw-w64-x86_64-openocd-git (or mingw-w64-i686-openocd-git)
 
-Then simply unzip the archive to the root directory of your MinGW-w64
-installation.
+and that will take care of downloading and installing all the
+dependencies and OpenOCD itself.
+
+Should you need to test an out-of-tree patch or work on some
+improvement, you can easily recompile the package yourself by following
+
+  https://sourceforge.net/p/msys2/wiki/Contributing%20to%20MSYS2
+
+For the recommendations on building OpenOCD without MSYS2 refer to the
+end of this document.
+
 
 USB adapters
 ------------
@@ -30,13 +35,17 @@ is to use the latest Zadig installer:
 
   http://zadig.akeo.ie
 
+
 For the old drivers that use libusb-0.1 API you might need to link
 against libusb-win32 headers and install the corresponding driver with
-Zadig.
+Zadig. This is not the case for the MSYS2 port which is using
+libusb-compat and thus can use WinUSB for all libusb-based drivers.
+
 
 If you need to use the same adapter with other applications that may
 require another driver, a solution for Windows Vista and above is to
 activate the IgnoreHWSerNum registry setting for the USB device.
+
 
 That setting forces Windows to associate the driver per port instead of
 per serial number, the same behaviour as when the device does not contain
@@ -44,7 +53,32 @@ a serial number. So different drivers can be installed for the adapter on
 different ports and you just need to plug the adapter into the correct
 port depending on which application to use.
 
+
 For more information, see:
 
   http://msdn.microsoft.com/en-us/library/windows/hardware/jj649944(v=vs.85).aspx
   http://www.ftdichip.com/Support/Knowledgebase/index.html?ignorehardwareserialnumber.htm
+
+
+Building OpenOCD for Windows
+----------------------------
+
+You can build OpenOCD for Windows natively with either MinGW-w64/MSYS
+or Cygwin (plain MinGW might work with --disable-werror but is not
+recommended as it doesn't provide enough C99 compatibility).
+Alternatively, one can cross-compile it using MinGW-w64 on a *nix
+host. See README for the generic instructions and
+contrib/cross-build.sh script.
+
+
+Native MinGW-w64/MSYS compilation
+---------------------------------
+
+As MSYS doesn't come with pkg-config pre-installed, you need to add it
+manually. The easiest way to do that is to download pkg-config-lite
+from:
+
+  http://sourceforge.net/projects/pkgconfiglite/
+
+Then simply unzip the archive to the root directory of your MinGW-w64
+installation.
