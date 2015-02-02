@@ -85,6 +85,7 @@ ARMV7_SRC = \
 	cortex_a.c
 
 ARMV8_SRC = \
+	armv8_dpm.c \
 	aarch64.c \
 	armv8.c
 
