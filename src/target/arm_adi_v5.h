@@ -486,6 +486,9 @@ int dap_to_swd(struct target *target);
 /* Put debug link into JTAG mode */
 int dap_to_jtag(struct target *target);
 
+int dap_rom_display(struct command_context *cmd_ctx,
+		    uint32_t dbgbase, int depth);
+
 extern const struct command_registration dap_command_handlers[];
 
 #endif

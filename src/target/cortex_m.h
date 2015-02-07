@@ -135,6 +135,8 @@
 #define FPCR_REPLACE_BKPT_HIGH  (2 << 30)
 #define FPCR_REPLACE_BKPT_BOTH  (3 << 30)
 
+#define ROM_TABLE_ADDR		0xE00FF003
+
 struct cortex_m_fp_comparator {
 	int used;
 	int type;
