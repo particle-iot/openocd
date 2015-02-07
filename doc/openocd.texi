@@ -7565,6 +7565,12 @@ defaulting to the currently selected AP.
 @deffn Command {dap info} [num]
 Displays the ROM table for MEM-AP @var{num},
 defaulting to the currently selected AP.
+
+NB: with high-level adapters (HLAs) it's not possible to select a
+specific AP, but it's still possible to parse ROM table if its
+location is known. Without an optional argument, default Cortex-M
+value is used; if specified, @var{num} is treated like a base address
+for the table.
 @end deffn
 
 @deffn Command {dap memaccess} [value]

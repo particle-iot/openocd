@@ -2075,6 +2075,30 @@ int target_read_u32(struct target *target, uint32_t address, uint32_t *value)
 	return retval;
 }
 
+int target_read_u32_phys(struct target *target, uint32_t address, uint32_t *value)
+{
+	uint8_t value_buf[4];
+	if (!target_was_examined(target)) {
+		LOG_ERROR("Target not examined yet");
+		return ERROR_FAIL;
+	}
+
+	int retval = target_read_phys_memory(target, address, 4, 1, value_buf);
+
+	if (retval == ERROR_OK) {
+		*value = target_buffer_get_u32(target, value_buf);
+		LOG_DEBUG("address: 0x%8.8" PRIx32 ", value: 0x%8.8" PRIx32 "",
+				  address,
+				  *value);
+	} else {
+		*value = 0x0;
+		LOG_DEBUG("address: 0x%8.8" PRIx32 " failed",
+				  address);
+	}
+
+	return retval;
+}
+
 int target_read_u16(struct target *target, uint32_t address, uint16_t *value)
 {
 	uint8_t value_buf[2];

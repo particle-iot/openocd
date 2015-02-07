@@ -920,9 +920,10 @@ int dap_lookup_cs_component(struct adiv5_dap *dap, int ap,
 	return ERROR_OK;
 }
 
-static int dap_rom_display(struct command_context *cmd_ctx,
-				struct adiv5_dap *dap, int ap, uint32_t dbgbase, int depth)
+int dap_rom_display(struct command_context *cmd_ctx,
+				uint32_t dbgbase, int depth)
 {
+	struct target *target = get_current_target(cmd_ctx);
 	int retval;
 	uint32_t cid0, cid1, cid2, cid3, memtype, romentry;
 	uint16_t entry_offset;
@@ -943,22 +944,19 @@ static int dap_rom_display(struct command_context *cmd_ctx,
 		command_print(cmd_ctx, "\t%sROM table in legacy format", tabs);
 
 	/* Now we read ROM table ID registers, ref. ARM IHI 0029B sec  */
-	retval = mem_ap_read_u32(dap, (dbgbase&0xFFFFF000) | 0xFF0, &cid0);
+	retval = target_read_u32_phys(target, (dbgbase&0xFFFFF000) | 0xFF0, &cid0);
 	if (retval != ERROR_OK)
 		return retval;
-	retval = mem_ap_read_u32(dap, (dbgbase&0xFFFFF000) | 0xFF4, &cid1);
+	retval = target_read_u32_phys(target, (dbgbase&0xFFFFF000) | 0xFF4, &cid1);
 	if (retval != ERROR_OK)
 		return retval;
-	retval = mem_ap_read_u32(dap, (dbgbase&0xFFFFF000) | 0xFF8, &cid2);
+	retval = target_read_u32_phys(target, (dbgbase&0xFFFFF000) | 0xFF8, &cid2);
 	if (retval != ERROR_OK)
 		return retval;
-	retval = mem_ap_read_u32(dap, (dbgbase&0xFFFFF000) | 0xFFC, &cid3);
+	retval = target_read_u32_phys(target, (dbgbase&0xFFFFF000) | 0xFFC, &cid3);
 	if (retval != ERROR_OK)
 		return retval;
-	retval = mem_ap_read_u32(dap, (dbgbase&0xFFFFF000) | 0xFCC, &memtype);
-	if (retval != ERROR_OK)
-		return retval;
-	retval = dap_run(dap);
+	retval = target_read_u32_phys(target, (dbgbase&0xFFFFF000) | 0xFCC, &memtype);
 	if (retval != ERROR_OK)
 		return retval;
 
@@ -977,7 +975,7 @@ static int dap_rom_display(struct command_context *cmd_ctx,
 
 	/* Now we read ROM table entries from dbgbase&0xFFFFF000) | 0x000 until we get 0x00000000 */
 	for (entry_offset = 0; ; entry_offset += 4) {
-		retval = mem_ap_read_atomic_u32(dap, (dbgbase&0xFFFFF000) | entry_offset, &romentry);
+		retval = target_read_u32_phys(target, (dbgbase&0xFFFFF000) | entry_offset, &romentry);
 		if (retval != ERROR_OK)
 			return retval;
 		command_print(cmd_ctx, "\t%sROMTABLE[0x%x] = 0x%" PRIx32 "",
@@ -992,43 +990,43 @@ static int dap_rom_display(struct command_context *cmd_ctx,
 			component_base = (dbgbase & 0xFFFFF000) + (romentry & 0xFFFFF000);
 
 			/* IDs are in last 4K section */
-			retval = mem_ap_read_atomic_u32(dap, component_base + 0xFE0, &c_pid0);
+			retval = target_read_u32_phys(target, component_base + 0xFE0, &c_pid0);
 			if (retval != ERROR_OK) {
 				command_print(cmd_ctx, "\t%s\tCan't read component with base address 0x%" PRIx32
 					      ", the corresponding core might be turned off", tabs, component_base);
 				continue;
 			}
 			c_pid0 &= 0xff;
-			retval = mem_ap_read_atomic_u32(dap, component_base + 0xFE4, &c_pid1);
+			retval = target_read_u32_phys(target, component_base + 0xFE4, &c_pid1);
 			if (retval != ERROR_OK)
 				return retval;
 			c_pid1 &= 0xff;
-			retval = mem_ap_read_atomic_u32(dap, component_base + 0xFE8, &c_pid2);
+			retval = target_read_u32_phys(target, component_base + 0xFE8, &c_pid2);
 			if (retval != ERROR_OK)
 				return retval;
 			c_pid2 &= 0xff;
-			retval = mem_ap_read_atomic_u32(dap, component_base + 0xFEC, &c_pid3);
+			retval = target_read_u32_phys(target, component_base + 0xFEC, &c_pid3);
 			if (retval != ERROR_OK)
 				return retval;
 			c_pid3 &= 0xff;
-			retval = mem_ap_read_atomic_u32(dap, component_base + 0xFD0, &c_pid4);
+			retval = target_read_u32_phys(target, component_base + 0xFD0, &c_pid4);
 			if (retval != ERROR_OK)
 				return retval;
 			c_pid4 &= 0xff;
 
-			retval = mem_ap_read_atomic_u32(dap, component_base + 0xFF0, &c_cid0);
+			retval = target_read_u32_phys(target, component_base + 0xFF0, &c_cid0);
 			if (retval != ERROR_OK)
 				return retval;
 			c_cid0 &= 0xff;
-			retval = mem_ap_read_atomic_u32(dap, component_base + 0xFF4, &c_cid1);
+			retval = target_read_u32_phys(target, component_base + 0xFF4, &c_cid1);
 			if (retval != ERROR_OK)
 				return retval;
 			c_cid1 &= 0xff;
-			retval = mem_ap_read_atomic_u32(dap, component_base + 0xFF8, &c_cid2);
+			retval = target_read_u32_phys(target, component_base + 0xFF8, &c_cid2);
 			if (retval != ERROR_OK)
 				return retval;
 			c_cid2 &= 0xff;
-			retval = mem_ap_read_atomic_u32(dap, component_base + 0xFFC, &c_cid3);
+			retval = target_read_u32_phys(target, component_base + 0xFFC, &c_cid3);
 			if (retval != ERROR_OK)
 				return retval;
 			c_cid3 &= 0xff;
@@ -1048,7 +1046,7 @@ static int dap_rom_display(struct command_context *cmd_ctx,
 				unsigned minor;
 				const char *major = "Reserved", *subtype = "Reserved";
 
-				retval = mem_ap_read_atomic_u32(dap,
+				retval = target_read_u32_phys(target,
 						(component_base & 0xfffff000) | 0xfcc,
 						&devtype);
 				if (retval != ERROR_OK)
@@ -1354,7 +1352,7 @@ static int dap_rom_display(struct command_context *cmd_ctx,
 
 			/* ROM Table? */
 			if (((c_cid1 >> 4) & 0x0f) == 1) {
-				retval = dap_rom_display(cmd_ctx, dap, ap, component_base, depth + 1);
+				retval = dap_rom_display(cmd_ctx, component_base, depth + 1);
 				if (retval != ERROR_OK)
 					return retval;
 			}
@@ -1414,7 +1412,7 @@ static int dap_info_command(struct command_context *cmd_ctx,
 
 	romtable_present = ((mem_ap) && (dbgbase != 0xFFFFFFFF));
 	if (romtable_present)
-		dap_rom_display(cmd_ctx, dap, ap, dbgbase, 0);
+		dap_rom_display(cmd_ctx, dbgbase, 0);
 	else
 		command_print(cmd_ctx, "\tNo ROM table present");
 	dap_ap_select(dap, ap_old);

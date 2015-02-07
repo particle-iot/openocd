@@ -782,7 +782,38 @@ static int adapter_write_memory(struct target *target, uint32_t address,
 	return adapter->layout->api->write_mem(adapter->handle, address, size, count, buffer);
 }
 
+COMMAND_HANDLER(handle_dap_info_command)
+{
+	uint32_t dbgbase = ROM_TABLE_ADDR;
+
+	if (CMD_ARGC > 1)
+		return ERROR_COMMAND_SYNTAX_ERROR;
+	if (CMD_ARGC == 1)
+		COMMAND_PARSE_NUMBER(u32, CMD_ARGV[0], dbgbase);
+
+	return dap_rom_display(CMD_CTX, dbgbase, 0);
+}
+
+static const struct command_registration dap_commands[] = {
+	{
+		.name = "info",
+		.handler = handle_dap_info_command,
+		.mode = COMMAND_EXEC,
+		.help = "display ROM table "
+			"(base_address defaults to 0xE00FF003)",
+		.usage = "[base_address]",
+	},
+	COMMAND_REGISTRATION_DONE
+};
+
 static const struct command_registration adapter_command_handlers[] = {
+	{
+		.name = "dap",
+		.mode = COMMAND_EXEC,
+		.help = "DAP command group",
+		.usage = "",
+		.chain = dap_commands,
+	},
 	{
 		.chain = arm_command_handlers,
 	},

@@ -610,6 +610,7 @@ void target_buffer_set_u16_array(struct target *target, uint8_t *buffer, uint32_
 
 int target_read_u64(struct target *target, uint64_t address, uint64_t *value);
 int target_read_u32(struct target *target, uint32_t address, uint32_t *value);
+int target_read_u32_phys(struct target *target, uint32_t address, uint32_t *value);
 int target_read_u16(struct target *target, uint32_t address, uint16_t *value);
 int target_read_u8(struct target *target, uint32_t address, uint8_t *value);
 int target_write_u64(struct target *target, uint64_t address, uint64_t value);
