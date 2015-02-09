@@ -37,6 +37,7 @@
 #include "breakpoints.h"
 #include "target_type.h"
 #include "armv7m.h"
+#include "armv7m_trace.h"
 #include "cortex_m.h"
 #include "arm_semihosting.h"
 #include "target_request.h"
@@ -785,6 +786,9 @@ static int adapter_write_memory(struct target *target, uint32_t address,
 static const struct command_registration adapter_command_handlers[] = {
 	{
 		.chain = arm_command_handlers,
+	},
+	{
+		.chain = armv7m_trace_command_handlers,
 	},
 	COMMAND_REGISTRATION_DONE
 };

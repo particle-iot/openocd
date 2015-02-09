@@ -1838,6 +1838,14 @@ int cortex_m_examine(struct target *target)
 			armv7m->dap.tar_autoincr_block = (1 << 12);
 		}
 
+		/* Configure trace modules */
+		retval = target_write_u32(target, DCB_DEMCR, TRCENA | armv7m->demcr);
+		if (retval != ERROR_OK)
+			return retval;
+
+		armv7m_trace_tpiu_config(target);
+		armv7m_trace_itm_config(target);
+
 		/* NOTE: FPB and DWT are both optional. */
 
 		/* Setup FPB */
