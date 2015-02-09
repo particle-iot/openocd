@@ -44,6 +44,7 @@
 #include <string.h>
 #include <unistd.h>
 
+unsigned int dump_swit;
 
 /* Example ITM trace word (0xWWXXYYZZ) parsing for task events, sent
  * on port 31 (Reserved for "the" RTOS in CMSIS v1.30)
@@ -58,6 +59,9 @@ static void show_task(int port, unsigned data)
 {
 	unsigned code = data >> 16;
 	char buf[16];
+
+	if (dump_swit)
+		return;
 
 	switch (code) {
 	case 0:
@@ -86,6 +90,9 @@ static void show_task(int port, unsigned data)
 static void show_reserved(FILE *f, char *label, int c)
 {
 	unsigned i;
+
+	if (dump_swit)
+		return;
 
 	printf("%s - %#02x", label, c);
 
@@ -145,6 +152,9 @@ static void show_hard(FILE *f, int c)
 	unsigned value;
 	unsigned size;
 	char *label;
+
+	if (dump_swit)
+		return;
 
 	printf("DWT - ", type);
 
@@ -247,6 +257,15 @@ static void show_swit(FILE *f, int c)
 	unsigned value = 0;
 	unsigned i;
 
+	if (port + 1 == dump_swit) {
+		if (!read_varlen(f, c, &value))
+			return;
+		printf("%c", value);
+		return;
+	}
+	if (dump_swit)
+		return;
+
 	printf("SWIT %u - ", port);
 
 	if (!read_varlen(f, c, &value))
@@ -274,6 +293,9 @@ static void show_timestamp(FILE *f, int c)
 	unsigned counter = 0;
 	char *label = "";
 	bool delayed = false;
+
+	if (dump_swit)
+		return;
 
 	printf("TIMESTAMP - ");
 
@@ -356,7 +378,7 @@ int main(int argc, char **argv)
 	int c;
 
 	/* parse arguments */
-	while ((c = getopt(argc, argv, "f:")) != EOF) {
+	while ((c = getopt(argc, argv, "f:d:")) != EOF) {
 		switch (c) {
 		case 'f':
 			/* e.g. from UART connected to /dev/ttyUSB0 */
@@ -365,6 +387,9 @@ int main(int argc, char **argv)
 				perror(optarg);
 				return 1;
 			}
+			break;
+		case 'd':
+			dump_swit = atoi(optarg);
 			break;
 		default:
 usage:
