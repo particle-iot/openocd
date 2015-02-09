@@ -246,6 +246,8 @@ static const struct {
 };
 
 static void stlink_usb_init_buffer(void *handle, uint8_t direction, uint32_t size);
+static void stlink_usb_trace_disable(void *handle);
+static int  stlink_usb_trace_enable(void *handle);
 
 /** */
 static int stlink_usb_xfer_v1_get_status(void *handle)
@@ -979,6 +981,7 @@ static enum target_state stlink_usb_state(void *handle)
 static int stlink_usb_reset(void *handle)
 {
 	struct stlink_usb_handle_s *h = handle;
+	int res;
 
 	assert(handle != NULL);
 
@@ -991,7 +994,18 @@ static int stlink_usb_reset(void *handle)
 	else
 		h->cmdbuf[h->cmdidx++] = STLINK_DEBUG_APIV2_RESETSYS;
 
-	return stlink_cmd_allow_retry(handle, h->databuf, 2);
+	res = stlink_cmd_allow_retry(handle, h->databuf, 2);
+
+	/* restart tracing, if it's used */
+	if ((res == ERROR_OK) && h->jtag_api == STLINK_JTAG_API_V2 && h->trace.source_hz) {
+		stlink_usb_trace_disable(h);
+		res = stlink_usb_trace_enable(h);
+		if (res == ERROR_OK)
+			LOG_DEBUG("Tracing: restarted");
+		else
+			LOG_ERROR("Tracing: restart failed");
+	}
+	return res;
 }
 
 static int stlink_usb_assert_srst(void *handle, int srst)
