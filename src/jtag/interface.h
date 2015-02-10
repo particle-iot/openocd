@@ -28,6 +28,7 @@
 #define OPENOCD_JTAG_INTERFACE_H
 
 #include <jtag/jtag.h>
+#include <target/armv7m_trace.h>
 
 /* @file
  * The "Cable Helper API" is what the cable drivers can use to help
@@ -298,11 +299,24 @@ struct jtag_interface {
 	 * @returns ERROR_OK on success, or an error code on failure.
 	 */
 	int (*srst_asserted)(int *srst_asserted);
+
+	/**
+	 * Configure trace parameters for the adapter
+	 *
+	 * @param
+	 * @returns ERROR_OK on success, an error code on failure.
+	 */
+	int (*config_trace)(bool enabled, enum tpio_pin_protocol pin_protocol,
+			    uint32_t port_size, unsigned int trace_freq,
+			    armv7m_trace_callback callback, struct target *target);
 };
 
 extern const char * const jtag_only[];
 
 void adapter_assert_reset(void);
 void adapter_deassert_reset(void);
+int adapter_config_trace(bool enabled, enum tpio_pin_protocol pin_protocol,
+			 uint32_t port_size, unsigned int trace_freq,
+			 armv7m_trace_callback callback, struct target *target);
 
 #endif /* OPENOCD_JTAG_INTERFACE_H */
