@@ -24,6 +24,8 @@
 #ifndef _HL_LAYOUT_H
 #define _HL_LAYOUT_H
 
+#include <target/armv7m_trace.h>
+
 /** */
 struct hl_interface_s;
 struct hl_interface_param_s;
@@ -79,6 +81,15 @@ struct hl_layout_api_s {
 	int (*custom_command) (void *handle, const char *command);
 	/** */
 	int (*speed)(void *handle, int khz, bool query);
+	/**
+	 * Configure trace parameters for the adapter
+	 *
+	 * @param
+	 * @returns ERROR_OK on success, an error code on failure.
+	 */
+	int (*config_trace)(void *handle, bool enabled, enum tpio_pin_protocol pin_protocol,
+			    uint32_t port_size, unsigned int trace_freq,
+			    armv7m_trace_callback callback, struct target *target);
 	/** */
 	enum target_state (*state) (void *fd);
 };

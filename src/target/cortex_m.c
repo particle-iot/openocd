@@ -1856,7 +1856,7 @@ int cortex_m_examine(struct target *target)
 		if (retval != ERROR_OK)
 			return retval;
 
-		if (armv7m->trace_config.config_type != NONE) {
+		if (armv7m->trace_config.config_type != DISABLED) {
 			armv7m_trace_tpiu_config(target);
 			armv7m_trace_itm_config(target);
 		}

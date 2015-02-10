@@ -16,10 +16,11 @@
 #ifndef ARMV7M_TRACE_H
 #define ARMV7M_TRACE_H
 
-#include "command.h"
+#include <target/target.h>
+#include <command.h>
 
 enum trace_config_type {
-	NONE,
+	DISABLED,
 	EXTERNAL,
 	INTERNAL
 };
@@ -46,6 +47,9 @@ struct armv7m_trace_config {
 };
 
 extern const struct command_registration armv7m_trace_command_handlers[];
+
+typedef int (*armv7m_trace_callback)(struct target *target, uint8_t *buf,
+				     size_t size);
 
 int armv7m_trace_tpiu_config(struct target *target);
 int armv7m_trace_itm_config(struct target *target);
