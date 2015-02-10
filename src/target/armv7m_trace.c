@@ -17,16 +17,42 @@
 #include "config.h"
 #endif
 
-#include "target.h"
-#include "armv7m.h"
-#include "cortex_m.h"
-#include "armv7m_trace.h"
+#include <target/target.h>
+#include <target/armv7m.h>
+#include <target/cortex_m.h>
+#include <target/armv7m_trace.h>
+#include <jtag/interface.h>
+
+static int armv7m_trace_received(struct target *target, uint8_t *buf,
+					 size_t size)
+{
+	struct armv7m_common *armv7m = target_to_armv7m(target);
+
+	if (fwrite(buf, 1, size, armv7m->trace_config.trace_file) == size)
+		fflush(armv7m->trace_config.trace_file);
+	else {
+		LOG_ERROR("Error writing to the trace destination file");
+		return ERROR_FAIL;
+	}
+
+	return ERROR_OK;
+}
+
 
 int armv7m_trace_tpiu_config(struct target *target)
 {
 	struct armv7m_common *armv7m = target_to_armv7m(target);
 	struct armv7m_trace_config *trace_config = &armv7m->trace_config;
 	int retval;
+
+	retval = adapter_config_trace(trace_config->config_type == INTERNAL,
+				      trace_config->pin_protocol,
+				      trace_config->port_size,
+				      trace_config->trace_freq,
+				      armv7m_trace_received,
+				      target);
+	if (retval != ERROR_OK)
+		return retval;
 
 	retval = target_write_u32(target, TPIU_CSPSR, 1 << trace_config->port_size);
 	if (retval != ERROR_OK)
@@ -101,6 +127,8 @@ COMMAND_HANDLER(handle_tpiu_config_command)
 	} else if (!strcmp(CMD_ARGV[cmd_idx], "external") ||
 		   !strcmp(CMD_ARGV[cmd_idx], "internal")) {
 		if (!strcmp(CMD_ARGV[cmd_idx], "internal")) {
+			armv7m->trace_config.config_type = INTERNAL;
+
 			cmd_idx++;
 			if (CMD_ARGC == cmd_idx)
 				return ERROR_COMMAND_SYNTAX_ERROR;
@@ -119,7 +147,8 @@ COMMAND_HANDLER(handle_tpiu_config_command)
 				LOG_ERROR("Can't open trace destination file");
 				return ERROR_FAIL;
 			}
-		}
+		} else
+			armv7m->trace_config.config_type = EXTERNAL;
 		cmd_idx++;
 		if (CMD_ARGC == cmd_idx)
 			return ERROR_COMMAND_SYNTAX_ERROR;

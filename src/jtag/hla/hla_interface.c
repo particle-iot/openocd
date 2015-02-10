@@ -191,6 +191,23 @@ int hl_interface_override_target(const char **targetname)
 	return ERROR_FAIL;
 }
 
+int hl_interface_config_trace(bool enabled, enum tpio_pin_protocol pin_protocol,
+			      uint32_t port_size, unsigned int trace_freq,
+			      armv7m_trace_callback callback, struct target *target)
+{
+	if (hl_if.layout->api->config_trace)
+		return hl_if.layout->api->config_trace(hl_if.handle, enabled, pin_protocol,
+						       port_size, trace_freq,
+						       callback, target);
+	else if (enabled) {
+		LOG_ERROR("The selected interface does not support tracing");
+		return ERROR_FAIL;
+	}
+
+	return ERROR_OK;
+}
+
+
 COMMAND_HANDLER(hl_interface_handle_device_desc_command)
 {
 	LOG_DEBUG("hl_interface_handle_device_desc_command");
@@ -357,4 +374,5 @@ struct jtag_interface hl_interface = {
 	.speed = &hl_interface_speed,
 	.khz = &hl_interface_khz,
 	.speed_div = &hl_interface_speed_div,
+	.config_trace = &hl_interface_config_trace,
 };
