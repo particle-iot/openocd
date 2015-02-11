@@ -626,11 +626,14 @@ static int gdb_get_packet_inner(struct connection *connection,
 					 * warning. This code makes server ignore the first ACK
 					 * that will be received after going into noack mode,
 					 * warning only about subsequent ACK's. */
-					if (gdb_con->noack_mode > 1) {
-						LOG_WARNING("acknowledgment received, but no packet pending");
-					} else {
-						LOG_DEBUG("Received first acknowledgment after entering noack mode. Ignoring it.");
-						gdb_con->noack_mode = 2;
+					if(gdb_con->noack_mode)
+					{
+						if (gdb_con->noack_mode > 1) {
+							LOG_WARNING("acknowledgment received, but no packet pending");
+						} else {
+							LOG_DEBUG("Received first acknowledgment after entering noack mode. Ignoring it.");
+							gdb_con->noack_mode = 2;
+						}
 					}
 					break;
 				case '-':
