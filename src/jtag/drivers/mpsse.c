@@ -66,6 +66,8 @@
 #define SIO_RESET_PURGE_RX 1
 #define SIO_RESET_PURGE_TX 2
 
+#define USB_PORT_MAX 7 /* according to USB 3.0 specs */
+
 struct mpsse_ctx {
 	libusb_context *usb_ctx;
 	libusb_device_handle *usb_dev;
@@ -104,12 +106,52 @@ static bool string_descriptor_equal(libusb_device_handle *device, uint8_t str_in
 	return strncmp(string, desc_string, sizeof(desc_string)) == 0;
 }
 
+#if defined(LIBUSB_API_VERSION) && (LIBUSB_API_VERSION >= 0x01000102) /* require version libusb 1.0.16 */
+/* Determines if a device path for the format bus-port.port.port (eg 1-1.2) matches the device */
+static bool device_path_match(libusb_device *device, const char * device_path)
+{
+	uint8_t ports[USB_PORT_MAX];
+	int req_ports[USB_PORT_MAX];
+	uint8_t bus_no = libusb_get_bus_number(device);
+	int req_bus_no;
+	int offset, no_read_chars, no_returned;
+	no_returned = sscanf(device_path, "%i%n", &req_bus_no, &no_read_chars);
+	offset = no_read_chars;
+	/* Invalid string or wrong bus */
+	if (req_bus_no < 1 || no_returned != 1 || req_bus_no != bus_no)
+	  return false;
+	/* read port numbers */
+	int no_port = libusb_get_port_numbers(device, ports, USB_PORT_MAX);
+	int dev_path_len = strlen(device_path);
+	for (int i = 0; i < USB_PORT_MAX; i++) {
+	  no_returned = sscanf((device_path + offset), "%*[-.]%i%n", &(req_ports[i]), &no_read_chars);
+	  offset += no_read_chars;
+	  if (no_returned != 1) {           /* Either end of string or bad format */
+	    if (i == (no_port - 1))
+	      return true;                 /* String matched -> end of string */
+	    else
+	      return false;                /* Not exact match as there is more to come */
+	  }
+	  if (req_ports[i] != ports[i])    /* Invalid string or wrong port */
+	    return false;
+	  if (offset >= (dev_path_len - 1))
+	    break;
+	}
+	return true;
+}
+#endif
+
+
 /* Helper to open a libusb device that matches vid, pid, product string and/or serial string.
  * Set any field to 0 as a wildcard. If the device is found true is returned, with ctx containing
  * the already opened handle. ctx->interface must be set to the desired interface (channel) number
  * prior to calling this function. */
 static bool open_matching_device(struct mpsse_ctx *ctx, const uint16_t *vid, const uint16_t *pid,
-	const char *product, const char *serial)
+	const char *product, const char *serial
+#if defined(LIBUSB_API_VERSION) && (LIBUSB_API_VERSION >= 0x01000102) /* require version libusb 1.0.16 */
+	 , const char *device_path            /* Device path of same format as system ie bus-port.port.port */
+#endif
+	)
 {
 	libusb_device **list;
 	struct libusb_device_descriptor desc;
@@ -140,7 +182,12 @@ static bool open_matching_device(struct mpsse_ctx *ctx, const uint16_t *vid, con
 				  libusb_error_name(err));
 			continue;
 		}
-
+#if defined(LIBUSB_API_VERSION) && (LIBUSB_API_VERSION >= 0x01000102) /* require version libusb 1.0.16 */
+		if (device_path && !device_path_match(device, device_path)) {
+			libusb_close(ctx->usb_dev);
+			continue;
+		}
+#endif
 		if (product && !string_descriptor_equal(ctx->usb_dev, desc.iProduct, product)) {
 			libusb_close(ctx->usb_dev);
 			continue;
@@ -263,7 +310,11 @@ error:
 }
 
 struct mpsse_ctx *mpsse_open(const uint16_t *vid, const uint16_t *pid, const char *description,
-	const char *serial, int channel)
+	const char *serial,
+#if defined(LIBUSB_API_VERSION) && (LIBUSB_API_VERSION >= 0x01000102) /* require version libusb 1.0.16 */
+	const char *device_path,            /* Device path of same format as system ie bus-port.port.port */
+#endif
+	int channel)
 {
 	struct mpsse_ctx *ctx = calloc(1, sizeof(*ctx));
 	int err;
@@ -291,8 +342,11 @@ struct mpsse_ctx *mpsse_open(const uint16_t *vid, const uint16_t *pid, const cha
 		LOG_ERROR("libusb_init() failed with %s", libusb_error_name(err));
 		goto error;
 	}
-
+#if defined(LIBUSB_API_VERSION) && (LIBUSB_API_VERSION >= 0x01000102) /* require version libusb 1.0.16 */
+	if (!open_matching_device(ctx, vid, pid, description, serial, device_path)) {
+#else
 	if (!open_matching_device(ctx, vid, pid, description, serial)) {
+#endif
 		/* Four hex digits plus terminating zero each */
 		char vidstr[5];
 		char pidstr[5];
