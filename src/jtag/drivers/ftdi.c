@@ -90,6 +90,7 @@
 
 static char *ftdi_device_desc;
 static char *ftdi_serial;
+static char *ftdi_device_path;
 static uint8_t ftdi_channel;
 
 static bool swd_mode;
@@ -626,7 +627,7 @@ static int ftdi_initialize(void)
 
 	for (int i = 0; ftdi_vid[i] || ftdi_pid[i]; i++) {
 		mpsse_ctx = mpsse_open(&ftdi_vid[i], &ftdi_pid[i], ftdi_device_desc,
-				ftdi_serial, ftdi_channel);
+				ftdi_serial, ftdi_device_path, ftdi_channel);
 		if (mpsse_ctx)
 			break;
 	}
@@ -673,6 +674,19 @@ COMMAND_HANDLER(ftdi_handle_device_desc_command)
 		ftdi_device_desc = strdup(CMD_ARGV[0]);
 	} else {
 		LOG_ERROR("expected exactly one argument to ftdi_device_desc <description>");
+	}
+
+	return ERROR_OK;
+}
+
+COMMAND_HANDLER(ftdi_handle_device_path_command)
+{
+	if (CMD_ARGC == 1) {
+		if (ftdi_device_path)
+			free(ftdi_device_path);
+		ftdi_device_path = strdup(CMD_ARGV[0]);
+	} else {
+		return ERROR_COMMAND_SYNTAX_ERROR;
 	}
 
 	return ERROR_OK;
@@ -874,6 +888,13 @@ static const struct command_registration ftdi_command_handlers[] = {
 		.mode = COMMAND_EXEC,
 		.help = "control a layout-specific signal",
 		.usage = "name (1|0|z)",
+	},
+	{
+		.name = "ftdi_device_path",
+		.handler = &ftdi_handle_device_path_command,
+		.mode = COMMAND_CONFIG,
+		.help = "set the device path of the FTDI device",
+		.usage = "device_path_string",
 	},
 	{
 		.name = "ftdi_vid_pid",

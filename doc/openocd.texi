@@ -2749,6 +2749,16 @@ of the adapter. If not specified, the device description is ignored
 during device selection.
 @end deffn
 
+@deffn {Config Command} {ftdi_device_path} device_path_string
+Specify the USB device path for the FTDI chip. This is useful
+if there are multiple identical devices with unknown serial
+numbers. If not specified, the device path is ignored
+during device selection. This option requires libusb >= 1.0.16
+@example
+ftdi_device_path 1-2.3
+@end example
+@end deffn
+
 @deffn {Config Command} {ftdi_serial} serial-number
 Specifies the @var{serial-number} of the adapter to use,
 in case the vendor provides unique IDs and more than one adapter
