@@ -83,6 +83,7 @@
 #include <assert.h>
 
 /* FTDI access library includes */
+#include <libusb.h>
 #include "mpsse.h"
 
 #define JTAG_MODE (LSB_FIRST | POS_EDGE_IN | NEG_EDGE_OUT)
@@ -90,6 +91,7 @@
 
 static char *ftdi_device_desc;
 static char *ftdi_serial;
+static char *ftdi_device_path;
 static uint8_t ftdi_channel;
 
 static bool swd_mode;
@@ -626,7 +628,11 @@ static int ftdi_initialize(void)
 
 	for (int i = 0; ftdi_vid[i] || ftdi_pid[i]; i++) {
 		mpsse_ctx = mpsse_open(&ftdi_vid[i], &ftdi_pid[i], ftdi_device_desc,
-				ftdi_serial, ftdi_channel);
+				       ftdi_serial,
+#if defined(LIBUSB_API_VERSION) && (LIBUSB_API_VERSION >= 0x01000102) /* require version libusb 1.0.16 */
+				       ftdi_device_path,
+#endif
+				       ftdi_channel);
 		if (mpsse_ctx)
 			break;
 	}
@@ -673,6 +679,24 @@ COMMAND_HANDLER(ftdi_handle_device_desc_command)
 		ftdi_device_desc = strdup(CMD_ARGV[0]);
 	} else {
 		LOG_ERROR("expected exactly one argument to ftdi_device_desc <description>");
+	}
+
+	return ERROR_OK;
+}
+
+COMMAND_HANDLER(ftdi_handle_device_path_command)
+{
+#ifndef LIBUSB_API_VERSION
+	LOG_WARNING("ftdi_handle_device_path requires libusb >= 1.0.16");
+#elif LIBUSB_API_VERSION < 0x01000102
+	LOG_WARNING("ftdi_handle_device_path requires libusb >= 1.0.16");
+#endif
+	if (CMD_ARGC == 1) {
+		if (ftdi_device_path)
+			free(ftdi_device_path);
+		ftdi_device_path = strdup(CMD_ARGV[0]);
+	} else {
+		return ERROR_COMMAND_SYNTAX_ERROR;
 	}
 
 	return ERROR_OK;
@@ -876,7 +900,13 @@ static const struct command_registration ftdi_command_handlers[] = {
 		.usage = "name (1|0|z)",
 	},
 	{
-		.name = "ftdi_vid_pid",
+		.name = "ftdi_device_path",
+		.handler = &ftdi_handle_device_path_command,
+		.mode = COMMAND_CONFIG,
+		.help = "set the device path of the FTDI device",
+		.usage = "device_path_string",
+	},
+	{		.name = "ftdi_vid_pid",
 		.handler = &ftdi_handle_vid_pid_command,
 		.mode = COMMAND_CONFIG,
 		.help = "the vendor ID and product ID of the FTDI device",
