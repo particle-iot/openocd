@@ -19,8 +19,11 @@
 # them more uniformly irlen too...)
 
 if [catch {transport select}] {
- echo "Info : session transport was not selected, defaulting to JTAG"
- transport select jtag
+ echo "Info : session transport was not selected, auto-selecting"
+ foreach i {jtag swd hla_swd hla_jtag} {
+     echo "Info : trying to select $i"
+     if {![catch {transport select $i}]} break
+ }
 }
 
 proc swj_newdap {chip tag args} {
