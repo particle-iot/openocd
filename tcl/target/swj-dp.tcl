@@ -19,8 +19,7 @@
 # them more uniformly irlen too...)
 
 if [catch {transport select}] {
- echo "Info : session transport was not selected, defaulting to JTAG"
- transport select jtag
+ echo "FATAL ERROR : unable to select a session transport"
 }
 
 proc swj_newdap {chip tag args} {
