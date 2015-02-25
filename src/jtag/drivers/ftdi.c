@@ -210,6 +210,26 @@ static int ftdi_set_signal(const struct signal *s, char value)
 	return ERROR_OK;
 }
 
+static int ftdi_get_signal(const struct signal *s, uint16_t * value_out)
+{
+	uint8_t data_low = 0;
+	uint8_t data_high = 0;
+
+	if (s->data_mask == 0 && s->oe_mask == 0) {
+		LOG_ERROR("interface doesn't provide signal '%s'", s->name);
+		return ERROR_FAIL;
+	}
+
+	if (s->data_mask & 0xff)
+		mpsse_read_data_bits_low_byte(mpsse_ctx, &data_low);
+	if (s->data_mask >> 8)
+		mpsse_read_data_bits_high_byte(mpsse_ctx, &data_high);
+
+	*value_out = (((uint16_t)data_high) << 8) | data_low;
+	*value_out &= s->data_mask;
+
+	return ERROR_OK;
+}
 
 /**
  * Function move_to_state
@@ -800,6 +820,26 @@ COMMAND_HANDLER(ftdi_handle_set_signal_command)
 	return mpsse_flush(mpsse_ctx);
 }
 
+COMMAND_HANDLER(ftdi_handle_get_signal_command)
+{
+	if (CMD_ARGC < 1)
+		return ERROR_COMMAND_SYNTAX_ERROR;
+
+	struct signal *sig;
+	uint16_t sig_data = 0;
+	sig = find_signal_by_name(CMD_ARGV[0]);
+	if (!sig) {
+		LOG_ERROR("interface configuration doesn't define signal '%s'", CMD_ARGV[0]);
+		return ERROR_FAIL;
+	}
+
+	ftdi_get_signal(sig, &sig_data);
+
+	LOG_USER("Signal %s = %#06x", sig->name, sig_data);
+
+	return mpsse_flush(mpsse_ctx);
+}
+
 COMMAND_HANDLER(ftdi_handle_vid_pid_command)
 {
 	if (CMD_ARGC > MAX_USB_IDS * 2) {
@@ -874,6 +914,13 @@ static const struct command_registration ftdi_command_handlers[] = {
 		.mode = COMMAND_EXEC,
 		.help = "control a layout-specific signal",
 		.usage = "name (1|0|z)",
+	},
+	{
+		.name = "ftdi_get_signal",
+		.handler = &ftdi_handle_get_signal_command,
+		.mode = COMMAND_EXEC,
+		.help = "read the value of a layout-specific signal",
+		.usage = "name",
 	},
 	{
 		.name = "ftdi_vid_pid",

@@ -2715,7 +2715,8 @@ The driver uses a signal abstraction to enable Tcl configuration files to
 define outputs for one or several FTDI GPIO. These outputs can then be
 controlled using the @command{ftdi_set_signal} command. Special signal names
 are reserved for nTRST, nSRST and LED (for blink) so that they, if defined,
-will be used for their customary purpose.
+will be used for their customary purpose. Inputs can be read using the
+@command{ftdi_get_signal} command.
 
 Depending on the type of buffer attached to the FTDI GPIO, the outputs have to
 be controlled differently. In order to support tristateable signals such as
@@ -2808,6 +2809,10 @@ Set a previously defined signal to the specified level.
 @item @option{1}, drive high
 @item @option{z}, set to high-impedance
 @end itemize
+@end deffn
+
+@deffn {Command} {ftdi_get_signal} name
+Get the value of a previously defined signal.
 @end deffn
 
 For example adapter definitions, see the configuration files shipped in the
