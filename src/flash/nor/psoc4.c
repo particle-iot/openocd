@@ -542,7 +542,7 @@ static int psoc4_write(struct flash_bank *bank, const uint8_t *buffer,
 			memset(row_buffer + chunk_size, 0, psoc4_info->row_size - chunk_size);
 		}
 		memcpy(row_buffer + row_offset, buffer, chunk_size);
-		LOG_DEBUG("offset / row: 0x%" PRIx32 " / %d  size %d",
+		LOG_DEBUG("offset / row: 0x%" PRIx32 " / %" PRId32 ", size %" PRId32,
 				offset, row_offset, chunk_size);
 
 		/* Call "Load Latch" system ROM API */
@@ -622,10 +622,10 @@ static int psoc4_probe(struct flash_bank *bank)
 	if (retval == ERROR_OK) {
 		row_size = 128 * ((spcif_geometry >> 22) & 3);
 		flash_size_in_kb = (spcif_geometry & 0xffff) * 256 / 1024;
-		LOG_INFO("SPCIF geometry: %d kb flash, row %d bytes.", flash_size_in_kb, row_size);
+		LOG_INFO("SPCIF geometry: %" PRId16 " kb flash, row %d bytes.", flash_size_in_kb, row_size);
 	}
 
-	/* ST-Link v2 has some problem reading PSOC4_SPCIF_GEOMETRY
+	/* Early revisions of ST-Link v2 has some problem reading PSOC4_SPCIF_GEOMETRY
 		and an error is reported late. Dummy read gets this error. */
 	uint32_t dummy;
 	target_read_u32(target, PSOC4_CPUSS_SYSREQ, &dummy);
@@ -648,10 +648,10 @@ static int psoc4_probe(struct flash_bank *bank)
 	psoc4_info->silicon_id = silicon_id;
 	psoc4_info->chip_protection = protection;
 
-	/* failed reading flash size or flash size invalid (early silicon),
+	/* failed reading flash size or flash size invalid,
 	 * default to max target family */
 	if (retval != ERROR_OK || flash_size_in_kb == 0xffff || flash_size_in_kb == 0) {
-		LOG_WARNING("PSoC 4 flash size failed, probe inaccurate - assuming %dk flash",
+		LOG_WARNING("PSoC 4 flash size failed, probe inaccurate - assuming %" PRId16 " k flash",
 			max_flash_size_in_kb);
 		flash_size_in_kb = max_flash_size_in_kb;
 	}
@@ -663,7 +663,7 @@ static int psoc4_probe(struct flash_bank *bank)
 		flash_size_in_kb = psoc4_info->user_bank_size / 1024;
 	}
 
-	LOG_INFO("flash size = %d kbytes", flash_size_in_kb);
+	LOG_INFO("flash size = %" PRId16 " kbytes", flash_size_in_kb);
 
 	/* did we assign flash size? */
 	assert(flash_size_in_kb != 0xffff);
@@ -717,7 +717,7 @@ static int get_psoc4_info(struct flash_bank *bank, char *buf, int buf_size)
 	const struct psoc4_chip_details *details = psoc4_details_by_id(psoc4_info->silicon_id);
 
 	if (details)
-		printed = snprintf(buf, buf_size, "PSoC 4 %s rev 0x%04" PRIx16 " package %s",
+		printed = snprintf(buf, buf_size, "PSoC 4 %s rev 0x%04" PRIx32 " package %s",
 				details->type, psoc4_info->silicon_id & 0xffff, details->package);
 	else
 		printed = snprintf(buf, buf_size, "PSoC 4 silicon id 0x%08" PRIx32 "",
@@ -727,7 +727,7 @@ static int get_psoc4_info(struct flash_bank *bank, char *buf, int buf_size)
 	buf_size -= printed;
 
 	const char *prot_txt = psoc4_decode_chip_protection(psoc4_info->chip_protection);
-	snprintf(buf, buf_size, " flash %d kb %s", bank->size / 1024, prot_txt);
+	snprintf(buf, buf_size, " flash %" PRId32 " kb %s", bank->size / 1024, prot_txt);
 	return ERROR_OK;
 }
 
