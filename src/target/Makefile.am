@@ -6,7 +6,7 @@ else
 OOCD_TRACE_FILES =
 endif
 
-SUBDIRS = openrisc
+SUBDIRS = openrisc jem
 libtarget_la_LIBADD = $(top_builddir)/src/target/openrisc/libopenrisc.la
 
 BIN2C		= $(top_srcdir)/src/helper/bin2char.sh
