@@ -92,6 +92,32 @@ static int swd_run_inner(struct adiv5_dap *dap)
 	if (retval != ERROR_OK) {
 		/* fault response */
 		dap->do_reconnect = true;
+	} else {
+		/*
+		  From ccf4d6d64844410483d2d2513c2c4ed173604649 by
+		  Andrey Smirnov:
+
+		  Some debug dongles do more than asked for (e.g. EDBG
+		  from Atmel) behind the scenes and issuing an AP
+		  write may result in more than just an APACC SWD
+		  transaction, which in turn can possibly set sticky
+		  error bit in CTRL/STAT register of the DP (an
+		  example would be writing SYSRESETREQ to AIRCR). Such
+		  adapters may interpret CMSIS-DAP specification
+		  differently and not guarantee to report those
+		  failures via status byte of the return USB packet
+		  from CMSIS-DAP, so we need to check CTRL/STAT and if
+		  that happens clear it.
+
+		  The question if the clear sticky errors operation
+		  can always be added to the end (or to the beginning)
+		  of the queue or if it needs its own transaction is
+		  still open. Better solution would be to investigate
+		  when exactly this weird thing happens to avoid
+		  performance penalties.
+		*/
+		swd_clear_sticky_errors(dap);
+		retval = swd->run(dap);
 	}
 
 	return retval;
