@@ -625,6 +625,82 @@ done:
 
 }
 
+int armv7a_invalidate_instruction_cacheline(struct target *target,
+	uint32_t address, uint32_t size, uint32_t count)
+{
+	int retval = ERROR_OK;
+	struct armv7a_common *armv7a = target_to_armv7a(target);
+
+	if (target->state == TARGET_HALTED) {
+		struct arm_dpm *dpm = armv7a->arm.dpm;
+
+		retval = dpm->prepare(dpm);
+		if (retval != ERROR_OK)
+			return retval;
+
+		/* The Cache handling will work with MMU active, if the
+		 * modified virtual addresses are invalidated!
+		 *
+		 * As per ARMv7 Cortex-A cache documentation
+		 */
+		if (armv7a->armv7a_mmu.armv7a_cache.i_cache_enabled) {
+			/* ICIMVAU - Invalidate Cache single entry
+			 * with MVA to PoU
+			 * MCR p15, 0, r0, c7, c5, 1
+			 */
+			for (uint32_t cacheline = 0;
+				cacheline < size * count;
+				cacheline += 64) {
+				retval = dpm->instr_write_data_r0(dpm,
+						ARMV4_5_MCR(15, 0, 0, 7, 5, 1),
+						address + cacheline);
+				if (retval != ERROR_OK)
+					return retval;
+			}
+		}
+		/* (void) */ dpm->finish(dpm);
+	}
+	return retval;
+}
+
+int armv7a_invalidate_data_cacheline(struct target *target,
+	uint32_t address, uint32_t size, uint32_t count)
+{
+	int retval = ERROR_OK;
+	struct armv7a_common *armv7a = target_to_armv7a(target);
+
+	if (target->state == TARGET_HALTED) {
+		struct arm_dpm *dpm = armv7a->arm.dpm;
+
+		retval = dpm->prepare(dpm);
+		if (retval != ERROR_OK)
+			return retval;
+
+		/* The Cache handling will work with MMU active, if the
+		 * modified virtual addresses are invalidated!
+		 *
+		 * As per ARMv7 Cortex-A cache documentation
+		 */
+		if (armv7a->armv7a_mmu.armv7a_cache.d_u_cache_enabled) {
+			/* DCIMVAC - Invalidate data Cache line
+			 * with MVA to PoU
+			 * MCR p15, 0, r0, c7, c6, 1
+			 */
+			for (uint32_t cacheline = 0;
+				cacheline < size * count;
+				cacheline += 64) {
+				retval = dpm->instr_write_data_r0(dpm,
+						ARMV4_5_MCR(15, 0, 0, 7, 6, 1),
+						address + cacheline);
+				if (retval != ERROR_OK)
+					return retval;
+			}
+		}
+		/* (void) */ dpm->finish(dpm);
+	}
+	return retval;
+}
+
 int armv7a_identify_cache(struct target *target)
 {
 	/*  read cache descriptor */

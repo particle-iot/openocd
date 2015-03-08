@@ -173,7 +173,10 @@ int armv7a_mmu_translate_va(struct target *target,  uint32_t va, uint32_t *val);
 
 int armv7a_handle_cache_info_command(struct command_context *cmd_ctx,
 		struct armv7a_cache_common *armv7a_cache);
-
+int armv7a_invalidate_instruction_cacheline(struct target *target,
+	uint32_t address, uint32_t size, uint32_t count);
+int armv7a_invalidate_data_cacheline(struct target *target,
+	uint32_t address, uint32_t size, uint32_t count);
 extern const struct command_registration armv7a_command_handlers[];
 
 #endif /* ARMV4_5_H */
