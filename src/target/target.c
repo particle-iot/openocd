@@ -4782,8 +4782,14 @@ static int jim_target_reset(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
 	/* do the assert */
 	if (n->value == NVP_ASSERT)
 		e = target->type->assert_reset(target);
-	else
+	else {
 		e = target->type->deassert_reset(target);
+
+		if (e == ERROR_OK) {
+			target_reset_examined(target);
+			e = target_examine_one(target);
+		}
+	}
 	return (e == ERROR_OK) ? JIM_OK : JIM_ERR;
 }
 
