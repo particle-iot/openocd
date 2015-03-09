@@ -8636,6 +8636,25 @@ Defaults to off.
 
 @end deffn
 
+@section Tcl RPC server trace output
+@cindex RPC trace output
+
+Trace data is sent asynchronously to other commands being executed over
+the RPC server, so the port must be polled continuously.
+
+Target trace data is emitted as a Tcl associative array in the following format.
+
+@verbatim
+type target_trace data [trace-data-hex-encoded]
+@end verbatim
+
+@deffn {Command} tcl_trace [on/off]
+Toggle output of target trace data to the current Tcl RPC server.
+Only available from the Tcl RPC server.
+Defaults to off.
+
+@end deffn
+
 @node FAQ
 @chapter FAQ
 @cindex faq
