@@ -845,9 +845,6 @@ static int kinetis_erase(struct flash_bank *bank, int first, int last)
 	if ((first > bank->num_sectors) || (last > bank->num_sectors))
 		return ERROR_FLASH_OPERATION_FAILED;
 
-	if ((first == 0) && (last == (bank->num_sectors - 1)))
-		return kinetis_mass_erase(bank);
-
 	/*
 	 * FIXME: TODO: use the 'Erase Flash Block' command if the
 	 * requested erase is PFlash or NVM and encompasses the entire
