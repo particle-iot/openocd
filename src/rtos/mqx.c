@@ -33,11 +33,13 @@
 
 /* constants */
 #define MQX_THREAD_NAME_LENGTH			(255)
-#define MQX_KERNEL_OFFSET_TDLIST		(0x0108)
+/* magic number to estimate max address of TD_LIST in kernel_data */
+#define MQX_KERNEL_MAX_OFFSET_TDLIST	(0x0130)
 #define MQX_KERNEL_OFFSET_SYSTEM_TASK	(0x0050)
 #define MQX_KERNEL_OFFSET_ACTIVE_TASK	(0x001C)
 #define MQX_KERNEL_OFFSET_CAPABILITY	(0x0000)
 #define MQX_QUEUE_OFFSET_SIZE			(0x0008)
+#define MQX_TASK_TDLIST					(0x006c)
 #define MQX_TASK_OFFSET_STATE			(0x0008)
 #define MQX_TASK_OFFSET_ID				(0x000c)
 #define MQX_TASK_OFFSET_TEMPLATE		(0x0068)
@@ -244,6 +246,47 @@ static int mqx_is_scheduler_running(
 }
 
 /*
+ * kernel_data->TD_LIST offset depends on MQX build configuration, so
+ * it's useless. This is alternative solution which loops over
+ * kernel_data->ACTIVE_PTR->TD_LIST_INFO and check whether
+ * queue_element address is in range where kernel_data->TD_LIST
+ * should be placed.
+ */
+static int find_kd_tdlist_address(
+	struct rtos *rtos,
+	uint32_t kernel_data_addr,
+	uint32_t active_td_addr,
+	uint32_t *task_queue_addr
+)
+{
+	uint32_t active_q_element = active_td_addr + MQX_TASK_TDLIST;
+	uint32_t next_q_element, current_q_element = active_q_element;
+
+	/* max one loop over whole queue */
+	do {
+		/* read value of q_element->NEXT */
+		if (ERROR_OK !=  mqx_get_member(
+			rtos, current_q_element, 0, 4, "TD_LIST_INFO", &next_q_element
+		))
+			return ERROR_FAIL;
+		/* move to next q_element */
+		current_q_element = next_q_element;
+		/* hey!, current q_element looks like kernel_data->TD_LIST */
+		if (
+			(current_q_element >= kernel_data_addr) &&
+			(current_q_element <= kernel_data_addr + MQX_KERNEL_MAX_OFFSET_TDLIST)
+		) {
+			*task_queue_addr = current_q_element;
+			return ERROR_OK;
+		}
+	} while (current_q_element != active_q_element);
+	/* none of elements pass "kernel_data->TD_LIST" condition,
+	 * maybe MQX_KERNEL_MAX_OFFSET_TDLIST value should be increased.
+	 */
+	return ERROR_FAIL;
+}
+
+/*
  * API function, return 1 if MQX is present
  */
 static int mqx_detect_rtos(
@@ -308,15 +351,6 @@ static int mqx_update_threads(
 	)) {
 		return ERROR_FAIL;
 	}
-	/* get task queue address */
-	task_queue_addr = kernel_data_addr + MQX_KERNEL_OFFSET_TDLIST;
-	/* get task queue size */
-	if (ERROR_OK != mqx_get_member(
-		rtos, task_queue_addr, MQX_QUEUE_OFFSET_SIZE, 2,
-		"kernel_data->TD_LIST.SIZE", &task_queue_size
-	)) {
-		return ERROR_FAIL;
-	}
 	/* get active ptr */
 	if (ERROR_OK != mqx_get_member(
 		rtos, kernel_data_addr, MQX_KERNEL_OFFSET_ACTIVE_TASK, 4,
@@ -324,7 +358,19 @@ static int mqx_update_threads(
 	)) {
 		return ERROR_FAIL;
 	}
-
+	/* workaround, find kernel_data->TD_LIST address */
+	if (ERROR_OK != find_kd_tdlist_address(
+		rtos, kernel_data_addr, active_td_addr, &task_queue_addr
+	)) {
+		return ERROR_FAIL;
+	}
+	/* get task queue size */
+	if (ERROR_OK != mqx_get_member(
+		rtos, task_queue_addr, MQX_QUEUE_OFFSET_SIZE, 2,
+		"kernel_data->TD_LIST.SIZE", &task_queue_size
+	)) {
+		return ERROR_FAIL;
+	}
 	/* setup threads info */
 	rtos->thread_count = task_queue_size;
 	rtos->current_thread = 0;
@@ -459,6 +505,7 @@ static int mqx_get_thread_reg_list(
 	uint32_t task_queue_addr = 0;
 	uint32_t task_queue_size = 0;
 	uint32_t kernel_data_addr = 0;
+	uint32_t active_td_addr = 0;
 
 	*hex_reg_list = NULL;
 	if (thread_id == 0) {
@@ -479,8 +526,19 @@ static int mqx_get_thread_reg_list(
 	)) {
 		return ERROR_FAIL;
 	}
-	/* get task queue address */
-	task_queue_addr = kernel_data_addr + MQX_KERNEL_OFFSET_TDLIST;
+	/* get active ptr */
+	if (ERROR_OK != mqx_get_member(
+		rtos, kernel_data_addr, MQX_KERNEL_OFFSET_ACTIVE_TASK, 4,
+		"kernel_data->ACTIVE_PTR", (void *)&active_td_addr
+	)) {
+		return ERROR_FAIL;
+	}
+	/* workaround, find kernel_data->TD_LIST address */
+	if (ERROR_OK != find_kd_tdlist_address(
+		rtos, kernel_data_addr, active_td_addr, &task_queue_addr
+	)) {
+		return ERROR_FAIL;
+	}
 	/* get task queue size */
 	if (ERROR_OK != mqx_get_member(
 		rtos, task_queue_addr, MQX_QUEUE_OFFSET_SIZE, 2,
