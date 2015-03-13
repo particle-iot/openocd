@@ -608,6 +608,10 @@ COMMAND_HANDLER(handle_shutdown_command)
 
 	shutdown_openocd = 1;
 
+	if (CMD_ARGC == 1)
+		if (!strcmp(CMD_ARGV[0], "error"))
+			return ERROR_FAIL;
+
 	return ERROR_COMMAND_CLOSE_CONNECTION;
 }
 
