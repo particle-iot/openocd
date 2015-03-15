@@ -1903,17 +1903,27 @@ static int cortex_a_assert_reset(struct target *target)
 
 	/* FIXME when halt is requested, make it work somehow... */
 
-	/* Issue some kind of warm reset. */
-	if (target_has_event_action(target, TARGET_EVENT_RESET_ASSERT))
-		target_handle_event(target, TARGET_EVENT_RESET_ASSERT);
-	else if (jtag_get_reset_config() & RESET_HAS_SRST) {
-		/* REVISIT handle "pulls" cases, if there's
-		 * hardware that needs them to work.
-		 */
-		jtag_add_reset(0, 1);
+	if (!(target_was_examined(target))) {
+		if (jtag_get_reset_config() & RESET_HAS_SRST)
+			jtag_add_reset(0, 1);
+		else {
+			LOG_WARNING("Reset is not asserted because the target is not examined.");
+			LOG_WARNING("Use a reset button or power cycle the target.");
+			return ERROR_TARGET_NOT_EXAMINED;
+		}
 	} else {
-		LOG_ERROR("%s: how to reset?", target_name(target));
-		return ERROR_FAIL;
+		/* Issue some kind of warm reset. */
+		if (target_has_event_action(target, TARGET_EVENT_RESET_ASSERT))
+			target_handle_event(target, TARGET_EVENT_RESET_ASSERT);
+		else if (jtag_get_reset_config() & RESET_HAS_SRST) {
+			/* REVISIT handle "pulls" cases, if there's
+			 * hardware that needs them to work.
+			 */
+			jtag_add_reset(0, 1);
+		} else {
+			LOG_ERROR("%s: how to reset?", target_name(target));
+			return ERROR_FAIL;
+		}
 	}
 
 	/* registers are now invalid */
