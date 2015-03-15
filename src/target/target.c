@@ -4874,7 +4874,9 @@ static int jim_target_reset(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
 	if (!target->tap->enabled)
 		return jim_target_tap_disabled(interp);
 	if (!(target_was_examined(target))) {
-		LOG_ERROR("Target not examined yet");
+		LOG_INFO("Target not examined yet - continuing");
+/* Question: any reason to return here? Do we need to check examined state at all? */
+	if (0)
 		return ERROR_TARGET_NOT_EXAMINED;
 	}
 	if (!target->type->assert_reset || !target->type->deassert_reset) {
