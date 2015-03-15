@@ -642,6 +642,8 @@ extern const struct dap_ops jtag_dp_ops;
  */
 int ahbap_debugport_init(struct adiv5_dap *dap)
 {
+	uint32_t ctrlstat;
+	int cnt = 0;
 	int retval;
 
 	LOG_DEBUG(" ");
@@ -684,20 +686,35 @@ int ahbap_debugport_init(struct adiv5_dap *dap)
 	if (retval != ERROR_OK)
 		return retval;
 
-	/* Check that we have debug power domains activated */
-	LOG_DEBUG("DAP: wait CDBGPWRUPACK");
-	retval = dap_dp_poll_register(dap, DP_CTRL_STAT,
-				      CDBGPWRUPACK, CDBGPWRUPACK,
-				      DAP_POWER_DOMAIN_TIMEOUT);
+	retval = dap_queue_dp_read(dap, DP_CTRL_STAT, &ctrlstat);
+	if (retval != ERROR_OK)
+		return retval;
+	retval = dap_run(dap);
 	if (retval != ERROR_OK)
 		return retval;
 
-	LOG_DEBUG("DAP: wait CSYSPWRUPACK");
-	retval = dap_dp_poll_register(dap, DP_CTRL_STAT,
-				      CSYSPWRUPACK, CSYSPWRUPACK,
-				      DAP_POWER_DOMAIN_TIMEOUT);
-	if (retval != ERROR_OK)
-		return retval;
+	/* Check that we have debug power domains activated */
+	while (!(ctrlstat & CDBGPWRUPACK) && (cnt++ < 10)) {
+		LOG_DEBUG("DAP: wait CDBGPWRUPACK");
+		retval = dap_queue_dp_read(dap, DP_CTRL_STAT, &ctrlstat);
+		if (retval != ERROR_OK)
+			return retval;
+		retval = dap_run(dap);
+		if (retval != ERROR_OK)
+			return retval;
+		alive_sleep(10);
+	}
+
+	while (!(ctrlstat & CSYSPWRUPACK) && (cnt++ < 10)) {
+		LOG_DEBUG("DAP: wait CSYSPWRUPACK");
+		retval = dap_queue_dp_read(dap, DP_CTRL_STAT, &ctrlstat);
+		if (retval != ERROR_OK)
+			return retval;
+		retval = dap_run(dap);
+		if (retval != ERROR_OK)
+			return retval;
+		alive_sleep(10);
+	}
 
 	retval = dap_queue_dp_read(dap, DP_CTRL_STAT, NULL);
 	if (retval != ERROR_OK)
