@@ -373,21 +373,20 @@ static int at91sam7_read_part_info(struct flash_bank *bank)
 
 	if (at91sam7_info->cidr != 0) {
 		/* flash already configured, update clock and check for protected sectors */
-		struct flash_bank *fb = bank;
 		struct flash_bank *t_bank = bank;
 
 		while (t_bank) {
-			/* re-calculate master clock frequency */
-			at91sam7_read_clock_info(t_bank);
+			if (t_bank->target == target) {
+					/* re-calculate master clock frequency */
+					at91sam7_read_clock_info(t_bank);
 
-			/* no timming */
-			at91sam7_set_flash_mode(t_bank, FMR_TIMING_NONE);
+					/* no timming */
+					at91sam7_set_flash_mode(t_bank, FMR_TIMING_NONE);
 
-			/* check protect state */
-			at91sam7_protect_check(t_bank);
-
-			t_bank = fb->next;
-			fb = t_bank;
+					/* check protect state */
+					at91sam7_protect_check(t_bank);
+			}
+			t_bank = t_bank->next;
 		}
 
 		return ERROR_OK;
@@ -402,32 +401,32 @@ static int at91sam7_read_part_info(struct flash_bank *bank)
 
 	if (at91sam7_info->flash_autodetection == 0) {
 		/* banks and sectors are already created, based on data from input file */
-		struct flash_bank *fb = bank;
 		struct flash_bank *t_bank = bank;
 		while (t_bank) {
-			at91sam7_info = t_bank->driver_priv;
+			if (t_bank->target == target) {
+				at91sam7_info = t_bank->driver_priv;
 
-			at91sam7_info->cidr = cidr;
-			at91sam7_info->cidr_ext = (cidr >> 31)&0x0001;
-			at91sam7_info->cidr_nvptyp = (cidr >> 28)&0x0007;
-			at91sam7_info->cidr_arch = (cidr >> 20)&0x00FF;
-			at91sam7_info->cidr_sramsiz = (cidr >> 16)&0x000F;
-			at91sam7_info->cidr_nvpsiz2 = (cidr >> 12)&0x000F;
-			at91sam7_info->cidr_nvpsiz = (cidr >> 8)&0x000F;
-			at91sam7_info->cidr_eproc = (cidr >> 5)&0x0007;
-			at91sam7_info->cidr_version = cidr&0x001F;
+				at91sam7_info->cidr = cidr;
+				at91sam7_info->cidr_ext = (cidr >> 31)&0x0001;
+				at91sam7_info->cidr_nvptyp = (cidr >> 28)&0x0007;
+				at91sam7_info->cidr_arch = (cidr >> 20)&0x00FF;
+				at91sam7_info->cidr_sramsiz = (cidr >> 16)&0x000F;
+				at91sam7_info->cidr_nvpsiz2 = (cidr >> 12)&0x000F;
+				at91sam7_info->cidr_nvpsiz = (cidr >> 8)&0x000F;
+				at91sam7_info->cidr_eproc = (cidr >> 5)&0x0007;
+				at91sam7_info->cidr_version = cidr&0x001F;
 
-			/* calculate master clock frequency */
-			at91sam7_read_clock_info(t_bank);
+				/* calculate master clock frequency */
+				at91sam7_read_clock_info(t_bank);
 
-			/* no timming */
-			at91sam7_set_flash_mode(t_bank, FMR_TIMING_NONE);
+				/* no timming */
+				at91sam7_set_flash_mode(t_bank, FMR_TIMING_NONE);
 
-			/* check protect state */
-			at91sam7_protect_check(t_bank);
+				/* check protect state */
+				at91sam7_protect_check(t_bank);
+			}
 
-			t_bank = fb->next;
-			fb = t_bank;
+			t_bank = t_bank->next;
 		}
 
 		return ERROR_OK;
