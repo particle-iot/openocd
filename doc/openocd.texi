@@ -5421,6 +5421,28 @@ lpc2900 secure_jtag 0
 @end deffn
 @end deffn
 
+@deffn {Flash Driver} niiet
+This is a driver for NT32M4F1 microcontrollers (by NIIET).
+Flash memory has main block (0x100000b) and info block(0x2000b).
+By default main block is mapped to adresses 0x0 ... 0xFFFFF. Info block
+is NOT memory mapped by default, but it can be mapped to addresses 0x0 ... 0x2000,
+instead of first 0x2000 bytes of main block.
+Function "setMemType" can be used to map main or info memory in "examine-end"
+event-handler. This function is found in scripts/target/niiet.tcl.
+If using standard configuration file "niiet.cfg", OpenOCD can be launched
+with "-c set IMEMORY false" or "-c "set IMEMORY true"" command ("false" for mapping
+main block and "true" for mapping info block). If IMEMORY is not specified, MAIN
+memory block will be mapped.
+Full erase, single and block writes are supported for both main and info blocks.
+The predefined parameters @var{chip_width} and @var{bus_width} of the @code{flash bank}
+command are ignored and can be set as 0. The driver has one additional mandatory parameter -
+memory block type: 1 for info block, 0 for main block.
+
+@example
+flash bank $_CHIPNAME.flash niiet 0x00000000 0x100000 0 0 $_TARGETNAME 0
+@end example
+@end deffn
+
 @deffn {Flash Driver} ocl
 This driver is an implementation of the ``on chip flash loader''
 protocol proposed by Pavel Chromy.
