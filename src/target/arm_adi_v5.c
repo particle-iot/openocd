@@ -1364,7 +1364,7 @@ static int dap_rom_display(struct command_context *cmd_ctx,
 				full = "(Debug Unit)";
 				break;
 			default:
-				LOG_DEBUG("Unrecognized Part number 0x%" PRIx32, part_num);
+				LOG_DEBUG("Unrecognized Part number 0x%u", part_num);
 				type = "-*- unrecognized -*-";
 				full = "";
 				break;

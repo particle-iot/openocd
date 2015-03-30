@@ -512,7 +512,7 @@ static int sim3x_flash_write(struct flash_bank *bank, const uint8_t * buffer, ui
 					"for padding buffer");
 			return ERROR_FAIL;
 		}
-		LOG_INFO("odd number of bytes to write (%d), extending to %d "
+		LOG_INFO("odd number of bytes to write (%" PRId32 "), extending to %" PRId32 " "
 				"and padding with 0xff", old_count, count);
 
 		new_buffer[count - 1] = 0xff;
