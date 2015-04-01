@@ -77,8 +77,7 @@ static int jim_version_command(Jim_Interp *interp, int argc,
 }
 
 static int log_target_callback_event_handler(struct target *target,
-	enum target_event event,
-	void *priv)
+	enum target_event event, void *priv)
 {
 	switch (event) {
 		case TARGET_EVENT_GDB_START:
