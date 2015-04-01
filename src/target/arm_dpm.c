@@ -286,10 +286,15 @@ static int dpm_write_reg64(struct arm_dpm *dpm, struct reg *r, unsigned regnum)
 	switch (regnum) {
 		case 0 ... 30:
 			i = 0xd5330400 + regnum;
-			retval = dpm->instr_write_data_dcc(dpm, i, value);
+			retval = dpm->instr_write_data_dcc_64(dpm, i, value);
 			break;
-
+		case 32: /* PC */
+			i = 0xd51b4520;
+			retval = dpm->instr_write_data_r0_64(dpm, i, value);
+			break;
 		default:
+			LOG_DEBUG("register %s (%16.16llx) not defined", r->name,
+				  (unsigned long long)value);
 			break;
 	}
 
@@ -546,7 +551,7 @@ static int arm_dpm_write_dirty_registers_64(struct arm_dpm *dpm)
 	 */
 
 	/* check everything except our scratch register R0 */
-	for (unsigned i = 1; i < 32; i++) {
+	for (unsigned i = 1; i <= 32; i++) {
 		struct arm_reg *r;
 		unsigned regnum;
 
@@ -1100,10 +1105,10 @@ int arm_dpm_setup(struct arm_dpm *dpm, int arch_mode)
 	arm->read_core_reg = arm->read_core_reg ? : arm_dpm_read_core_reg;
 	arm->write_core_reg = arm->write_core_reg ? : arm_dpm_write_core_reg;
 
-	if (arch_mode == 64)
-		;
-		/* cache = armv8_build_reg_cache(target); */
-	else {
+	if (arch_mode == 64) {
+		cache = armv8_build_reg_cache(target);
+		target->reg_cache = cache;
+	} else {
 		cache = arm_build_reg_cache(target, arm);
 		*register_get_last_cache_p(&target->reg_cache) = cache;
 	}
