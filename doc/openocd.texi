@@ -5029,6 +5029,36 @@ flash bank $_FLASHNAME aduc702x 0 0 0 0 $_TARGETNAME
 @end deffn
 
 @anchor{at91samd}
+@deffn {DCC Driver} at91samd
+@cindex at91samd_dcc
+
+@deffn Command {at91samd dcc server}
+Controls the DCC server. Use ``enable'' with an optional port (the port is
+22000 if not specified) to start the server or ``disable'' to turn it off. Run
+without arguments to check if the server is running. Once enabled, you may
+telnet to the corresponding port to perform DCC IO.
+
+@example
+at91samd dcc server enable 22000
+@end example
+@end deffn
+
+@deffn Command {at91samd dcc channel}
+Controls DCC channels, of which there are two (DCC 0 and 1).  Specify the
+channel number and then ``read'' or ``write'' to enable (start polling) a
+channel or ``off'' to disable (stop polling) it. When enabling you may supply
+one more argument for channel size (one of b, h, or w) to control whether the
+data is transferred in byte, half-word, or word sizes. Byte is the default if
+nothing is specified.
+
+@example
+at91samd dcc channel 0 write b
+at91samd dcc channel 1 read b
+@end example
+@end deffn
+@end deffn
+
+@cindex at91samd
 @deffn {Flash Driver} at91samd
 @cindex at91samd
 
