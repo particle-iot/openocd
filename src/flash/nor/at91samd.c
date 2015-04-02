@@ -24,6 +24,7 @@
 
 #include "imp.h"
 #include "helper/binarybuffer.h"
+#include "target/at91samd_dcc.h"
 
 #define SAMD_NUM_SECTORS	16
 #define SAMD_PAGE_SIZE_MAX	1024
@@ -1044,6 +1045,9 @@ static const struct command_registration at91samd_exec_command_handlers[] = {
 			"Please see Table 20-2 of the SAMD20 datasheet for allowed values."
 			"Changes are stored immediately but take affect after the MCU is"
 			"reset.",
+	},
+	{
+		.chain = at91samd_dcc_command_handlers,
 	},
 	COMMAND_REGISTRATION_DONE
 };
