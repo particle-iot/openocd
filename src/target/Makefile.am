@@ -36,6 +36,7 @@ libtarget_la_SOURCES = \
 	$(MIPS32_SRC) \
 	$(NDS32_SRC) \
 	$(INTEL_IA32_SRC) \
+	at91samd_dcc.c \
 	avrt.c \
 	dsp563xx.c \
 	dsp563xx_once.c \
@@ -156,6 +157,7 @@ noinst_HEADERS = \
 	armv7a.h \
 	armv7m.h \
 	armv7m_trace.h \
+	at91samd_dcc.h \
 	avrt.h \
 	dsp563xx.h \
 	dsp563xx_once.h \
