@@ -153,7 +153,7 @@ void *buf_set_buf(const void *_src, unsigned src_start,
 
 	/* fallback to slow bit copy */
 	for (i = 0; i < len; i++) {
-		if (((*src >> (sq&7)) & 1) == 1)
+		if (((*src >> (sq&7)) & 1))
 			*dst |= 1 << (dq&7);
 		else
 			*dst &= ~(1 << (dq&7));
