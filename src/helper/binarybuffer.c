@@ -130,7 +130,7 @@ void *buf_set_buf(const void *_src, unsigned src_start,
 {
 	const uint8_t *src = _src;
 	uint8_t *dst = _dst;
-	unsigned i, sb, db, sq, dq, lb, lq;
+	unsigned i, sb, db, sq, dq, lb, lq, lb_aligned = 0;
 
 	sb = src_start >> 3;
 	db = dst_start >> 3;
@@ -139,16 +139,26 @@ void *buf_set_buf(const void *_src, unsigned src_start,
 	lb = len >> 3;
 	lq = len & 7;
 
+	if (lb)
+		lb_aligned = lb - lq;
+
 	src += sb;
 	dst += db;
 
 	/* check if both buffers are on byte boundary and
-	 * len is a multiple of 8bit so we can simple copy
-	 * the buffer */
-	if ((sq == 0) && (dq == 0) &&  (lq == 0)) {
-		for (i = 0; i < lb; i++)
-			*dst++ = *src++;
-		return _dst;
+	 * if they are, copy as many _BYTES_ as we can.
+	 *
+	 * Remaining bits, in case there are any, will be copied
+	 * using slow bitwise copy below.
+	 */
+	if ((sq == 0) && (dq == 0) && lb_aligned) {
+		memcpy(_dst, _src, lb_aligned);
+		src += lb_aligned;
+		dst += lb_aligned;
+		len -= lb_aligned << 3;
+
+		if (len == 0)
+			return _dst;
 	}
 
 	/* fallback to slow bit copy */
