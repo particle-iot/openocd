@@ -132,12 +132,12 @@ void *buf_set_buf(const void *_src, unsigned src_start,
 	uint8_t *dst = _dst;
 	unsigned i, sb, db, sq, dq, lb, lq;
 
-	sb = src_start / 8;
-	db = dst_start / 8;
-	sq = src_start % 8;
-	dq = dst_start % 8;
-	lb = len / 8;
-	lq = len % 8;
+	sb = src_start >> 3;
+	db = dst_start >> 3;
+	sq = src_start & 7;
+	dq = dst_start & 7;
+	lb = len >> 3;
+	lq = len & 7;
 
 	src += sb;
 	dst += db;
