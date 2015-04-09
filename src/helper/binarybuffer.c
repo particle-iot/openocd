@@ -157,14 +157,10 @@ void *buf_set_buf(const void *_src, unsigned src_start,
 			*dst |= 1 << (dq&7);
 		else
 			*dst &= ~(1 << (dq&7));
-		if (sq++ == 7) {
-			sq = 0;
+		if (sq++ == 7)
 			src++;
-		}
-		if (dq++ == 7) {
-			dq = 0;
+		if (dq++ == 7)
 			dst++;
-		}
 	}
 
 	return _dst;
