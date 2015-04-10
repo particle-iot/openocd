@@ -130,7 +130,8 @@ void *buf_set_buf(const void *_src, unsigned src_start,
 {
 	const uint8_t *src = _src;
 	uint8_t *dst = _dst;
-	unsigned i, sb, db, sq, dq, lb, lq, lb_aligned = 0;
+	unsigned sb, db, sq, dq, lb, lq, lb_aligned = 0;
+	uint8_t mask, tmp;
 
 	sb = src_start >> 3;
 	db = dst_start >> 3;
@@ -161,17 +162,10 @@ void *buf_set_buf(const void *_src, unsigned src_start,
 			return _dst;
 	}
 
-	/* fallback to slow bit copy */
-	for (i = 0; i < len; i++) {
-		if (((*src >> (sq&7)) & 1))
-			*dst |= 1 << (dq&7);
-		else
-			*dst &= ~(1 << (dq&7));
-		if (sq++ == 7)
-			src++;
-		if (dq++ == 7)
-			dst++;
-	}
+	mask = (1 << len) - 1;
+	tmp = ((*src >> sq) & mask);
+	*dst &= ~(mask << dq);
+	*dst |= (tmp << dq);
 
 	return _dst;
 }
