@@ -528,17 +528,17 @@ void mpsse_clock_tms_cs(struct mpsse_ctx *ctx, const uint8_t *out, unsigned out_
 		if (buffer_write_space(ctx) < 3 || (in && buffer_read_space(ctx) < 1))
 			ctx->retval = mpsse_flush(ctx);
 
-		/* Byte transfer */
-		unsigned this_bits = length;
-		/* MPSSE command limit */
-		/* NOTE: there's a report of an FT2232 bug in this area, where shifting
+		/* Byte transfer
+		 *
+		 * MPSSE command limit
+		 *
+		 * NOTE: there's a report of an FT2232 bug in this area, where shifting
 		 * exactly 7 bits can make problems with TMS signaling for the last
 		 * clock cycle:
 		 *
 		 * http://developer.intra2net.com/mailarchive/html/libftdi/2009/msg00292.html
 		 */
-		if (this_bits > 7)
-			this_bits = 7;
+		unsigned this_bits = length & 7;
 
 		if (this_bits > 0) {
 			buffer_write_byte(ctx, mode);
