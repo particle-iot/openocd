@@ -547,7 +547,7 @@ void mpsse_clock_tms_cs(struct mpsse_ctx *ctx, const uint8_t *out, unsigned out_
 			/* TODO: Fix MSB first, if allowed in MPSSE */
 			bit_copy(&data, 0, out, out_offset, this_bits);
 			out_offset += this_bits;
-			buffer_write_byte(ctx, data | (tdi ? 0x80 : 0x00));
+			buffer_write_byte(ctx, data | (!!tdi << 7));
 			if (in)
 				in_offset += buffer_add_read(ctx,
 						in,
