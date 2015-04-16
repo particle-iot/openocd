@@ -5899,6 +5899,17 @@ if @{ [info exists IMEMORY] && [string equal $IMEMORY true] @} @{
 @end example
 @end deffn
 
+@deffn {Flash Driver} sfctl
+This driver supports SPI flash controller of Toshiba TX03 Microcontroller
+
+The flash type and size are autodetected based on the table of known JEDEC IDs
+hardcoded in the OpenOCD sources.
+
+@example
+flash bank $_FLASHNAME sfctl 0x0 0 0 0 $_TARGETNAME 0x40006000
+@end example
+@end deffn
+
 @section mFlash
 
 @subsection mFlash Configuration
