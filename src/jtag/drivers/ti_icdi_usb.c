@@ -744,6 +744,11 @@ static int icdi_usb_open(struct hl_interface_param_s *param, void **fd)
 	if (retval != ERROR_OK)
 		goto error_open;
 
+	/* mask interrupts when single-stepping */
+	retval = icdi_send_remote_cmd(h, "stepirq 0");
+	if (retval != ERROR_OK)
+		goto error_open;
+
 	*fd = h;
 
 	/* set the max target read/write buffer in bytes
