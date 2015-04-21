@@ -457,7 +457,7 @@ static int icdi_usb_step(void *handle)
 	int result;
 
 	/* step target at current address */
-	result = icdi_send_cmd(handle, "s");
+	result = icdi_send_cmd(handle, "stepirq 0");
 	if (result != ERROR_OK)
 		return result;
 
