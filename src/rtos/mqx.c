@@ -291,6 +291,9 @@ static int mqx_update_threads(
 	uint16_t task_queue_size = 0;
 	uint32_t active_td_addr = 0;
 
+	if (!rtos->symbols)
+		return -4;
+
 	/* clear old data */
 	rtos_free_threadlist(rtos);
 	/* check scheduler */
