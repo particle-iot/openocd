@@ -1646,6 +1646,49 @@ COMMAND_HANDLER(dap_apid_command)
 	return retval;
 }
 
+COMMAND_HANDLER(dap_apreg_command)
+{
+	struct target *target = get_current_target(CMD_CTX);
+	struct arm *arm = target_to_arm(target);
+	struct adiv5_dap *dap = arm->dap;
+
+	uint32_t apsel, reg, value;
+	int retval;
+	uint32_t apold = dap->ap_current;
+
+	if (CMD_ARGC < 2 || CMD_ARGC > 3)
+		return ERROR_COMMAND_SYNTAX_ERROR;
+
+	COMMAND_PARSE_NUMBER(u32, CMD_ARGV[0], apsel);
+	/* AP address is in bits 31:24 of DP_SELECT */
+	if (apsel >= 256)
+		return ERROR_COMMAND_SYNTAX_ERROR;
+
+	COMMAND_PARSE_NUMBER(u32, CMD_ARGV[1], reg);
+	if (reg >= 256 || (reg & 3))
+		return ERROR_COMMAND_SYNTAX_ERROR;
+
+	dap_ap_select(dap, apsel);
+
+	if (CMD_ARGC == 3) {
+		COMMAND_PARSE_NUMBER(u32, CMD_ARGV[2], value);
+		retval = dap_queue_ap_write(dap, reg, value);
+	} else {
+		retval = dap_queue_ap_read(dap, reg, &value);
+	}
+	if (retval == ERROR_OK)
+		retval = dap_run(dap);
+
+	dap_ap_select(dap, apold);
+	if (retval != ERROR_OK)
+		return retval;
+
+	if (CMD_ARGC == 2)
+		command_print(CMD_CTX, "0x%08" PRIx32, value);
+
+	return retval;
+}
+
 COMMAND_HANDLER(dap_ti_be_32_quirks_command)
 {
 	struct target *target = get_current_target(CMD_CTX);
@@ -1704,6 +1747,13 @@ static const struct command_registration dap_commands[] = {
 		.help = "return ID register from AP "
 			"(default currently selected AP)",
 		.usage = "[ap_num]",
+	},
+	{
+		.name = "apreg",
+		.handler = dap_apreg_command,
+		.mode = COMMAND_EXEC,
+		.help = "read/write a register from AP",
+		.usage = "ap_num reg [value]",
 	},
 	{
 		.name = "baseaddr",
