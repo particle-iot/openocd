@@ -2138,6 +2138,181 @@ int target_blank_check_memory(struct target *target, uint32_t address, uint32_t 
 	return retval;
 }
 
+int target_read_phys_u64(struct target *target, uint64_t address, uint64_t *value)
+{
+	uint8_t value_buf[8];
+	if (!target_was_examined(target)) {
+		LOG_ERROR("Target not examined yet");
+		return ERROR_FAIL;
+	}
+
+	int retval = target_read_phys_memory(target, address, 8, 1, value_buf);
+
+	if (retval == ERROR_OK) {
+		*value = target_buffer_get_u64(target, value_buf);
+		LOG_DEBUG("address: 0x%" PRIx64 ", value: 0x%16.16" PRIx64 "",
+				  address,
+				  *value);
+	} else {
+		*value = 0x0;
+		LOG_DEBUG("address: 0x%" PRIx64 " failed",
+				  address);
+	}
+
+	return retval;
+}
+
+int target_read_phys_u32(struct target *target, uint32_t address, uint32_t *value)
+{
+	uint8_t value_buf[4];
+	if (!target_was_examined(target)) {
+		LOG_ERROR("Target not examined yet");
+		return ERROR_FAIL;
+	}
+
+	int retval = target_read_phys_memory(target, address, 4, 1, value_buf);
+
+	if (retval == ERROR_OK) {
+		*value = target_buffer_get_u32(target, value_buf);
+		LOG_DEBUG("address: 0x%8.8" PRIx32 ", value: 0x%8.8" PRIx32 "",
+				  address,
+				  *value);
+	} else {
+		*value = 0x0;
+		LOG_DEBUG("address: 0x%8.8" PRIx32 " failed",
+				  address);
+	}
+
+	return retval;
+}
+
+int target_read_phys_u16(struct target *target, uint32_t address, uint16_t *value)
+{
+	uint8_t value_buf[2];
+	if (!target_was_examined(target)) {
+		LOG_ERROR("Target not examined yet");
+		return ERROR_FAIL;
+	}
+
+	int retval = target_read_phys_memory(target, address, 2, 1, value_buf);
+
+	if (retval == ERROR_OK) {
+		*value = target_buffer_get_u16(target, value_buf);
+		LOG_DEBUG("address: 0x%8.8" PRIx32 ", value: 0x%4.4x",
+				  address,
+				  *value);
+	} else {
+		*value = 0x0;
+		LOG_DEBUG("address: 0x%8.8" PRIx32 " failed",
+				  address);
+	}
+
+	return retval;
+}
+
+int target_read_phys_u8(struct target *target, uint32_t address, uint8_t *value)
+{
+	if (!target_was_examined(target)) {
+		LOG_ERROR("Target not examined yet");
+		return ERROR_FAIL;
+	}
+
+	int retval = target_read_phys_memory(target, address, 1, 1, value);
+
+	if (retval == ERROR_OK) {
+		LOG_DEBUG("address: 0x%8.8" PRIx32 ", value: 0x%2.2x",
+				  address,
+				  *value);
+	} else {
+		*value = 0x0;
+		LOG_DEBUG("address: 0x%8.8" PRIx32 " failed",
+				  address);
+	}
+
+	return retval;
+}
+
+int target_write_phys_u64(struct target *target, uint64_t address, uint64_t value)
+{
+	int retval;
+	uint8_t value_buf[8];
+	if (!target_was_examined(target)) {
+		LOG_ERROR("Target not examined yet");
+		return ERROR_FAIL;
+	}
+
+	LOG_DEBUG("address: 0x%" PRIx64 ", value: 0x%16.16" PRIx64 "",
+			  address,
+			  value);
+
+	target_buffer_set_u64(target, value_buf, value);
+	retval = target_write_phys_memory(target, address, 8, 1, value_buf);
+	if (retval != ERROR_OK)
+		LOG_DEBUG("failed: %i", retval);
+
+	return retval;
+}
+
+int target_write_phys_u32(struct target *target, uint32_t address, uint32_t value)
+{
+	int retval;
+	uint8_t value_buf[4];
+	if (!target_was_examined(target)) {
+		LOG_ERROR("Target not examined yet");
+		return ERROR_FAIL;
+	}
+
+	LOG_DEBUG("address: 0x%8.8" PRIx32 ", value: 0x%8.8" PRIx32 "",
+			  address,
+			  value);
+
+	target_buffer_set_u32(target, value_buf, value);
+	retval = target_write_phys_memory(target, address, 4, 1, value_buf);
+	if (retval != ERROR_OK)
+		LOG_DEBUG("failed: %i", retval);
+
+	return retval;
+}
+
+int target_write_phys_u16(struct target *target, uint32_t address, uint16_t value)
+{
+	int retval;
+	uint8_t value_buf[2];
+	if (!target_was_examined(target)) {
+		LOG_ERROR("Target not examined yet");
+		return ERROR_FAIL;
+	}
+
+	LOG_DEBUG("address: 0x%8.8" PRIx32 ", value: 0x%8.8x",
+			  address,
+			  value);
+
+	target_buffer_set_u16(target, value_buf, value);
+	retval = target_write_phys_memory(target, address, 2, 1, value_buf);
+	if (retval != ERROR_OK)
+		LOG_DEBUG("failed: %i", retval);
+
+	return retval;
+}
+
+int target_write_phys_u8(struct target *target, uint32_t address, uint8_t value)
+{
+	int retval;
+	if (!target_was_examined(target)) {
+		LOG_ERROR("Target not examined yet");
+		return ERROR_FAIL;
+	}
+
+	LOG_DEBUG("address: 0x%8.8" PRIx32 ", value: 0x%2.2x",
+			  address, value);
+
+	retval = target_write_phys_memory(target, address, 1, 1, &value);
+	if (retval != ERROR_OK)
+		LOG_DEBUG("failed: %i", retval);
+
+	return retval;
+}
+
 int target_read_u64(struct target *target, uint64_t address, uint64_t *value)
 {
 	uint8_t value_buf[8];
