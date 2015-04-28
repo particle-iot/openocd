@@ -353,6 +353,28 @@ static void jlink_execute_sleep(struct jtag_command *cmd)
 	jtag_sleep(cmd->cmd.sleep->us);
 }
 
+static void jlink_execute_stableclocks(struct jtag_command *cmd)
+{
+	/* this is only allowed while in a stable state.  A check for a stable
+	 * state was done in jtag_add_clocks()
+	 */
+	int num_cycles = cmd->cmd.stableclocks->num_cycles;
+
+	/* TMS is either held high or low. */
+	uint8_t tms = tap_get_state() == TAP_RESET ? 1 : 0;
+
+	while (num_cycles > 0) {
+		/* there are no state transitions in this code, so omit state tracking */
+		unsigned this_len = num_cycles > 7 ? 7 : num_cycles;
+		jlink_tap_append_step(tms, 0);
+		num_cycles -= this_len;
+	}
+
+	DEBUG_JTAG_IO("clocks %i while in %s",
+		cmd->cmd.stableclocks->num_cycles,
+		tap_state_name(tap_get_state()));
+}
+
 static void jlink_execute_command(struct jtag_command *cmd)
 {
 	switch (cmd->type) {
@@ -373,6 +395,9 @@ static void jlink_execute_command(struct jtag_command *cmd)
 			break;
 		case JTAG_SLEEP:
 			jlink_execute_sleep(cmd);
+			break;
+		case JTAG_STABLECLOCKS:
+			jlink_execute_stableclocks(cmd);
 			break;
 		default:
 			LOG_ERROR("BUG: unknown JTAG command type encountered");
