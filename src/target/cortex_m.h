@@ -171,6 +171,7 @@ struct cortex_m_common {
 	uint32_t nvic_dfsr;  /* Debug Fault Status Register - shows reason for debug halt */
 	uint32_t nvic_icsr;  /* Interrupt Control State Register - shows active and pending IRQ */
 
+	int cortex_m7;
 	/* Flash Patch and Breakpoint (FPB) */
 	int fp_num_lit;
 	int fp_num_code;

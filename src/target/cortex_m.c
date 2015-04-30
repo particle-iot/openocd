@@ -1936,6 +1936,11 @@ int cortex_m_examine(struct target *target)
 			armv7m->dap.tar_autoincr_block = (1 << 12);
 		}
 
+		if (i == 7)
+			cortex_m->cortex_m7 = 1;
+		else
+			cortex_m->cortex_m7 = 0;
+
 		/* Configure trace modules */
 		retval = target_write_u32(target, DCB_DEMCR, TRCENA | armv7m->demcr);
 		if (retval != ERROR_OK)
