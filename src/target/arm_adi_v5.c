@@ -1353,8 +1353,16 @@ static int dap_rom_display(struct command_context *cmd_ctx,
 				type = "Cortex-A5 ETM";
 				full = "(Embedded Trace)";
 				break;
+			case 0x9a7:
+				type = "Cortex-A7 PMU";
+				full = "(Performance Monitoring Unit)";
+				break;
 			case 0xc05:
 				type = "Cortex-A5 Debug";
+				full = "(Debug Unit)";
+				break;
+			case 0xc07:
+				type = "Cortex-A7 Debug";
 				full = "(Debug Unit)";
 				break;
 			case 0xc08:
