@@ -363,8 +363,6 @@ static int register_command_handler(struct command_context *cmd_ctx,
 	if (NULL == ocd_name)
 		return JIM_ERR;
 
-	LOG_DEBUG("registering '%s'...", ocd_name);
-
 	Jim_CmdProc *func = c->handler ? &script_command : &command_unknown;
 	int retval = Jim_CreateCommand(interp, ocd_name, func, c, NULL);
 	free(ocd_name);
@@ -391,6 +389,8 @@ struct command *register_command(struct command_context *context,
 		return NULL;
 
 	const char *name = cr->name;
+	LOG_DEBUG("registering '%s'...", name);
+
 	struct command **head = command_list_for_parent(context, parent);
 	struct command *c = command_find(*head, name);
 	if (NULL != c) {
