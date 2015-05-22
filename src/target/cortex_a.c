@@ -2220,7 +2220,8 @@ static int cortex_a_write_apb_ab_memory(struct target *target,
 	if (retval != ERROR_OK)
 		goto out;
 
-	if (size == 4 && (address % 4) == 0) {
+	/* if (size == 4 && (address % 4) == 0) { */
+	if (0) {
 		/* We are doing a word-aligned transfer, so use fast mode. */
 		retval = cortex_a_write_apb_ab_memory_fast(target, count, buffer, &dscr);
 	} else {
@@ -2525,7 +2526,8 @@ static int cortex_a_read_apb_ab_memory(struct target *target,
 	if (retval != ERROR_OK)
 		goto out;
 
-	if (size == 4 && (address % 4) == 0) {
+	/* if (size == 4 && (address % 4) == 0) { */
+	if (0) {
 		/* We are doing a word-aligned transfer, so use fast mode. */
 		retval = cortex_a_read_apb_ab_memory_fast(target, count, buffer, &dscr);
 	} else {
