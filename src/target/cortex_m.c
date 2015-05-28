@@ -1145,9 +1145,15 @@ int cortex_m_set_breakpoint(struct target *target, struct breakpoint *breakpoint
 			return ERROR_FAIL;
 		}
 		breakpoint->set = fp_num + 1;
-		hilo = (breakpoint->address & 0x2) ? FPCR_REPLACE_BKPT_HIGH : FPCR_REPLACE_BKPT_LOW;
 		comparator_list[fp_num].used = 1;
+
+		if (cortex_m->cortex_m7) {
+			comparator_list[fp_num].fpcr_value = breakpoint->address | 1;
+		} else {
+		hilo = (breakpoint->address & 0x2) ? FPCR_REPLACE_BKPT_HIGH : FPCR_REPLACE_BKPT_LOW;
 		comparator_list[fp_num].fpcr_value = (breakpoint->address & 0x1FFFFFFC) | hilo | 1;
+		}
+
 		target_write_u32(target, comparator_list[fp_num].fpcr_address,
 			comparator_list[fp_num].fpcr_value);
 		LOG_DEBUG("fpc_num %i fpcr_value 0x%" PRIx32 "",
@@ -1935,6 +1941,11 @@ int cortex_m_examine(struct target *target)
 			/* Cortex-M3/M4 has 4096 bytes autoincrement range */
 			armv7m->dap.tar_autoincr_block = (1 << 12);
 		}
+
+		if (i == 7)
+			cortex_m->cortex_m7 = 1;
+                else
+			cortex_m->cortex_m7 = 0;
 
 		/* Configure trace modules */
 		retval = target_write_u32(target, DCB_DEMCR, TRCENA | armv7m->demcr);
