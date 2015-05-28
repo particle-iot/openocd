@@ -1879,8 +1879,8 @@ static void cortex_m_dwt_free(struct target *target)
   http://infocenter.arm.com/help/topic/com.arm.doc.ddi0489c/DDI0489C_cortex_m7_trm.pdf
   chapiter 8.3, FPU programmers model
 */
-/* 
-   The cortex m7 come with three option : without FPH, Simple Precision FPU, 
+/*
+   The cortex m7 come with three option : without FPH, Simple Precision FPU,
    Double Precision. The value for simple precision is the same than cortex m4
    The FPU version for cortex m7 are FPUv5_SP, FPUv5_DP.
 */
@@ -1954,9 +1954,9 @@ int cortex_m_examine(struct target *target)
 			armv7m->arm.is_armv6m = true;
 		}
 
-		if ((armv7m->fp_feature != FPv4_SP && 
-		     armv7m->fp_feature != FPv5_SP && 
-		     armv7m->fp_feature != FPv5_DP)&&
+		if ((armv7m->fp_feature != FPv4_SP &&
+		     armv7m->fp_feature != FPv5_SP &&
+		     armv7m->fp_feature != FPv5_DP) &&
 		    armv7m->arm.core_cache->num_regs > ARMV7M_NUM_CORE_REGS_NOFP) {
 			/* free unavailable FPU registers */
 			size_t idx;
@@ -1974,9 +1974,9 @@ int cortex_m_examine(struct target *target)
 
 		if (i == 7)
 			cortex_m->cortex_m7 = 1;
-                else
+		else
 			cortex_m->cortex_m7 = 0;
-                
+
 		/* Configure trace modules */
 		retval = target_write_u32(target, DCB_DEMCR, TRCENA | armv7m->demcr);
 		if (retval != ERROR_OK)
