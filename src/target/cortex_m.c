@@ -1944,7 +1944,7 @@ int cortex_m_examine(struct target *target)
 
 		if (i == 7)
 			cortex_m->cortex_m7 = 1;
-                else
+		else
 			cortex_m->cortex_m7 = 0;
 
 		/* Configure trace modules */
