@@ -13,7 +13,7 @@
  *   GNU General Public License for more details.                          *
  *                                                                         *
  ***************************************************************************/
- 
+
 /***************************************************************************
  *  This version for ADuCM360 is largely based on the following flash      *
  *  drivers:                                                               *
@@ -75,7 +75,7 @@ FLASH_BANK_COMMAND_HANDLER(aducm360_flash_bank_command)
 
 	bank->base = 0x00000000;
 	bank->size = 0x00020000;
-	
+
 	aducm360_build_sector_list(bank);
 
 	return ERROR_OK;
@@ -121,7 +121,7 @@ static int aducm360_mass_erase(struct target *target)
 	printf("performing mass erase...");
 
 	/* Clear any old status */
-	target_read_u32(target, ADUCM360_FLASH_BASE + ADUCM360_FLASH_FEESTA,&value);
+	target_read_u32(target, ADUCM360_FLASH_BASE + ADUCM360_FLASH_FEESTA, &value);
 
 	/* Enable the writing to the flash*/
 	aducm360_set_write_enable(target, 1);
@@ -153,19 +153,19 @@ static int aducm360_page_erase(struct target *target, uint32_t padd)
 	printf("performing sector erase (at 0x%08lX)... ", (unsigned long)padd);
 
 	/* Clear any old status */
-	target_read_u32(target, ADUCM360_FLASH_BASE + ADUCM360_FLASH_FEESTA,&value);
+	target_read_u32(target, ADUCM360_FLASH_BASE + ADUCM360_FLASH_FEESTA, &value);
 
 	/* Enable the writing to the flash*/
 	aducm360_set_write_enable(target, 1);
 
 	/* Unlock for writing */
-	target_write_u32(target, ADUCM360_FLASH_BASE+ADUCM360_FLASH_FEEKEY,0x0000F456);
-	target_write_u32(target, ADUCM360_FLASH_BASE+ADUCM360_FLASH_FEEKEY,0x0000F123);
+	target_write_u32(target, ADUCM360_FLASH_BASE+ADUCM360_FLASH_FEEKEY, 0x0000F456);
+	target_write_u32(target, ADUCM360_FLASH_BASE+ADUCM360_FLASH_FEEKEY, 0x0000F123);
 	/* Write the sector address */
-	target_write_u32(target, ADUCM360_FLASH_BASE+ADUCM360_FLASH_FEEADR0L,padd & 0xFFFF);
-	target_write_u32(target, ADUCM360_FLASH_BASE+ADUCM360_FLASH_FEEADR0H,(padd>>16) & 0xFFFF);
+	target_write_u32(target, ADUCM360_FLASH_BASE+ADUCM360_FLASH_FEEADR0L, padd & 0xFFFF);
+	target_write_u32(target, ADUCM360_FLASH_BASE+ADUCM360_FLASH_FEEADR0H, (padd>>16) & 0xFFFF);
 	/* Issue the 'ERASEPAGE' command */
-	target_write_u32(target, ADUCM360_FLASH_BASE+ADUCM360_FLASH_FEECMD,0x00000001);
+	target_write_u32(target, ADUCM360_FLASH_BASE+ADUCM360_FLASH_FEECMD, 0x00000001);
 
 	/* Check the result */
 	res = aducm360_check_flash_completion(target, 50);
@@ -183,22 +183,23 @@ static int aducm360_page_erase(struct target *target, uint32_t padd)
 /* ----------------------------------------------------------------------- */
 static int aducm360_erase(struct flash_bank *bank, int first, int last)
 {
-	int 			res=ERROR_OK;
-	int				i;
-	int 			count;
-	struct target 	*target = bank->target;
-	uint32_t 		padd;
+	int             res=ERROR_OK;
+	int             i;
+	int             count;
+	struct target   *target = bank->target;
+	uint32_t        padd;
 
-	printf("performing aducm360_erase(%d,%d)...\n",first,last);
+	printf("performing aducm360_erase(%d,%d)...\n", first, last);
 
 	if (((first | last) == 0) || ((first == 0) && (last >= bank->num_sectors))) {
 		res = aducm360_mass_erase(target);
 	} else {
 		count = last - first + 1;
-		for (i=0; i<count; ++i) {
+		for (i = 0; i < count; ++i) {
 			padd = bank->base + ((first+i)*FLASH_SECTOR_SIZE);
 			res = aducm360_page_erase(target, padd);
-			if (res != ERROR_OK) break;
+			if (res != ERROR_OK) 
+				break;
 		}
 	}
 
@@ -219,19 +220,19 @@ static int aducm360_write_block_sync(
 		uint32_t offset,
 		uint32_t count)
 {
-	struct target 			*target = bank->target;
-	uint32_t 				target_buffer_size = 8192;
-	struct working_area 	*helper;
-	struct working_area 	*target_buffer;
-	uint32_t 				address = bank->base + offset;
-	struct reg_param 		reg_params[8];
-	int						ix;
-	int 					retval = ERROR_OK;
-	uint32_t				entry_point=0, exit_point=0;
-	uint32_t				res;
+	struct target           *target = bank->target;
+	uint32_t                target_buffer_size = 8192;
+	struct working_area     *helper;
+	struct working_area     *target_buffer;
+	uint32_t                address = bank->base + offset;
+	struct reg_param        reg_params[8];
+	int                     ix;
+	int                     retval = ERROR_OK;
+	uint32_t                entry_point = 0, exit_point = 0;
+	uint32_t                res;
 	struct armv7m_algorithm armv7m_algo;
 #if 0
-	static const uint32_t 	aducm360_flash_write_code[] = {
+	static const uint32_t   aducm360_flash_write_code[] = {
 			/* Single blink pulse */
 			0xEA4F2240,	0x22002302,	0x0302EA43,	0x2303EA4F,	0xEA432260,
 			0xEA4F0302,	0x22302303,	0x0402EA43,	0xF8842208,	0x22012020,
@@ -239,13 +240,13 @@ static int aducm360_write_block_sync(
 			0x4282EA4F,	0x33012300,	0xD1FC4293,	0xF04FBF00,	0xBE000301
 	};
 #else
-	static const uint32_t 	aducm360_flash_write_code[] = {
+	static const uint32_t   aducm360_flash_write_code[] = {
 			/* helper.code */
-			0x88AF4D10,0x0704F047,0x682F80AF,0x600E6806,
-			0xF017882F,0xF43F0F08,0xF851AFFB,0x42B77B04,
-			0x800DF040,0x0004F100,0xF47F3A04,0x686FAFEF,
-			0x0704F027,0xF04F80AF,0xF0000400,0xF04FB802,
-			0xBE000480,0x40002800,0x00015000,0x20000000,
+			0x88AF4D10, 0x0704F047, 0x682F80AF, 0x600E6806,
+			0xF017882F, 0xF43F0F08, 0xF851AFFB, 0x42B77B04,
+			0x800DF040, 0x0004F100, 0xF47F3A04, 0x686FAFEF,
+			0x0704F027, 0xF04F80AF, 0xF0000400, 0xF04FB802,
+			0xBE000480, 0x40002800, 0x00015000, 0x20000000,
 			0x00013000
 	};
 #endif
@@ -267,7 +268,7 @@ static int aducm360_write_block_sync(
 	}
 	printf("allocated at 0x%08lX .. 0x%08lX ...\n",
 			(unsigned long)helper->address,
-			(unsigned long)(helper->address + helper->size - 1) );
+			(unsigned long)(helper->address + helper->size - 1));
 
 	/*  ----- Upload the helper code to the space in the target's RAM -----  */
 	printf("sending the aducm360_write_block code to the target...\n");
@@ -275,16 +276,18 @@ static int aducm360_write_block_sync(
 	target_buffer_set_u32_array(target, code, ARRAY_SIZE(aducm360_flash_write_code),
 			aducm360_flash_write_code);
 	retval = target_write_buffer(target, helper->address, sizeof(code), code);
-	if (retval != ERROR_OK)	return retval;
+	if (retval != ERROR_OK)	
+		return retval;
 	entry_point = helper->address;
 	printf("Helper's RAM start address:0x%08lX, exit point address:0x%08lX\n",
 			(unsigned long)entry_point, (unsigned long)exit_point);
 
 	/*  ----- Allocate space in the target's RAM for the user application's object code -----  */
 	while (target_alloc_working_area_try(target, target_buffer_size, &target_buffer) != ERROR_OK) {
-		printf("couldn't allocate a buffer space of 0x%08lX bytes in the target's SRAM.\n", (unsigned long)target_buffer_size);
+		printf("couldn't allocate a buffer space of 0x%08lX bytes in the target's SRAM.\n", 
+				(unsigned long)target_buffer_size);
 		target_buffer_size /= 2;
-		if (target_buffer_size <= 256) {		// No room available
+		if (target_buffer_size <= 256) {		/* No room availablen */
 			LOG_WARNING("no large enough working area available, can't do block memory writes");
 			target_free_working_area(target, helper);
 			return ERROR_TARGET_RESOURCE_NOT_AVAILABLE;
@@ -292,15 +295,15 @@ static int aducm360_write_block_sync(
 	}
 	printf("buffer space of 0x%08lX bytes was successfully allocated.\n", (unsigned long)target_buffer_size);
 
-	// ----- Prepare the target for the helper -----
+	/* ----- Prepare the target for the helper ----- */
 	armv7m_algo.common_magic = ARMV7M_COMMON_MAGIC;
 	armv7m_algo.core_mode = ARM_MODE_THREAD;
 
-	init_reg_param(&reg_params[0], "r0", 32, PARAM_OUT); //SRC
-	init_reg_param(&reg_params[1], "r1", 32, PARAM_OUT); //DST
-	init_reg_param(&reg_params[2], "r2", 32, PARAM_OUT); //COUNT
-	init_reg_param(&reg_params[3], "r3", 32, PARAM_OUT); //not used
-	init_reg_param(&reg_params[4], "r4", 32, PARAM_IN);	 //RESULT
+	init_reg_param(&reg_params[0], "r0", 32, PARAM_OUT); /*SRC      */
+	init_reg_param(&reg_params[1], "r1", 32, PARAM_OUT); /*DST      */
+	init_reg_param(&reg_params[2], "r2", 32, PARAM_OUT); /*COUNT    */
+	init_reg_param(&reg_params[3], "r3", 32, PARAM_OUT); /*not used */
+	init_reg_param(&reg_params[4], "r4", 32, PARAM_IN);	 /*RESULT   */
 
 	/*  ===== Execute the Main Programming Loop! ===== */
 	ix = 0;
@@ -312,18 +315,20 @@ static int aducm360_write_block_sync(
 				thisrun_count, (unsigned long)thisrun_count);
 
 		/* ----- Upload the chunk ----- */
-		retval = target_write_buffer(target, target_buffer->address, thisrun_count, buffer); if (retval != ERROR_OK) break;
-		// Set the arguments for the helper
-		buf_set_u32(reg_params[0].value, 0, 32, target_buffer->address);	//SRC
-		buf_set_u32(reg_params[1].value, 0, 32, address);					//DST
-		buf_set_u32(reg_params[2].value, 0, 32, thisrun_count);				//COUNT
-		buf_set_u32(reg_params[3].value, 0, 32, 0);							//NOT USED
+		retval = target_write_buffer(target, target_buffer->address, thisrun_count, buffer); 
+		if (retval != ERROR_OK) 
+			break;
+		/* Set the arguments for the helper */
+		buf_set_u32(reg_params[0].value, 0, 32, target_buffer->address);	/*SRC     */
+		buf_set_u32(reg_params[1].value, 0, 32, address);					/*DST     */
+		buf_set_u32(reg_params[2].value, 0, 32, thisrun_count);				/*COUNT   */
+		buf_set_u32(reg_params[3].value, 0, 32, 0);							/*NOT USED*/
 
-		printf("Programming chunk %02d...\n",ix);
+		printf("Programming chunk %02d...\n", ix);
 		retval = target_run_algorithm(target, 0, NULL, 5,
 				reg_params,	entry_point, exit_point, 10000, &armv7m_algo);
 
-		printf("retval = 0x%08X...\n",(unsigned)retval);
+		printf("retval = 0x%08X...\n", (unsigned)retval);
 		if (retval != ERROR_OK) {
 			LOG_ERROR("error executing aducm360 flash write algorithm");
 			break;
@@ -360,19 +365,19 @@ static int aducm360_write_block_async(
 		uint32_t offset,
 		uint32_t count)
 {
-	struct target 			*target = bank->target;
-	uint32_t 				target_buffer_size = 1024;
-	struct working_area 	*helper;
-	struct working_area 	*target_buffer;
-	uint32_t 				address = bank->base + offset;
-	struct reg_param 		reg_params[9];
-	int 					retval = ERROR_OK;
-	uint32_t				entry_point=0, exit_point=0;
-	uint32_t				res;
-	uint32_t				wcount;
+	struct target           *target = bank->target;
+	uint32_t                target_buffer_size = 1024;
+	struct working_area     *helper;
+	struct working_area     *target_buffer;
+	uint32_t                address = bank->base + offset;
+	struct reg_param        reg_params[9];
+	int                     retval = ERROR_OK;
+	uint32_t                entry_point = 0, exit_point = 0;
+	uint32_t                res;
+	uint32_t                wcount;
 	struct armv7m_algorithm armv7m_algo;
 
-	static const uint32_t 	aducm360_flash_write_code[] = {
+	static const uint32_t   aducm360_flash_write_code[] = {
 			/* helper.code */
 			/*
 			0x404CF8DF,	0xF04588A5,	0x80A50504,	0x8000F8D0,
@@ -410,7 +415,7 @@ static int aducm360_write_block_async(
 	}
 	printf("allocated at 0x%08lX .. 0x%08lX ...\n",
 			(unsigned long)helper->address,
-			(unsigned long)(helper->address + helper->size - 1) );
+			(unsigned long)(helper->address + helper->size - 1));
 
 	/*  ----- Upload the helper code to the space in the target's RAM -----  */
 	printf("sending the aducm360_write_block code to the target...\n");
@@ -418,16 +423,18 @@ static int aducm360_write_block_async(
 	target_buffer_set_u32_array(target, code, ARRAY_SIZE(aducm360_flash_write_code),
 			aducm360_flash_write_code);
 	retval = target_write_buffer(target, helper->address, sizeof(code), code);
-	if (retval != ERROR_OK)	return retval;
+	if (retval != ERROR_OK)	
+		return retval;
 	entry_point = helper->address;
 	printf("Helper's RAM start address:0x%08lX, exit point address:0x%08lX\n",
 			(unsigned long)entry_point, (unsigned long)exit_point);
 
 	/*  ----- Allocate space in the target's RAM for the user application's object code ----- */
 	while (target_alloc_working_area_try(target, target_buffer_size, &target_buffer) != ERROR_OK) {
-		printf("couldn't allocate a buffer space of 0x%08lX bytes in the target's SRAM.\n", (unsigned long)target_buffer_size);
+		printf("couldn't allocate a buffer space of 0x%08lX bytes in the target's SRAM.\n", 
+				(unsigned long)target_buffer_size);
 		target_buffer_size /= 2;
-		if (target_buffer_size <= 256) {		// No room available
+		if (target_buffer_size <= 256) {		/* No room available */
 			LOG_WARNING("no large enough working area available, can't do block memory writes");
 			target_free_working_area(target, helper);
 			return ERROR_TARGET_RESOURCE_NOT_AVAILABLE;
@@ -463,7 +470,7 @@ static int aducm360_write_block_async(
 		LOG_ERROR("error %d executing stellaris flash write algorithm", retval);
 	*/
 
-	printf("retval = 0x%08X...\n",(unsigned)retval);
+	printf("retval = 0x%08X...\n", (unsigned)retval);
 	if (retval != ERROR_OK) {
 		LOG_ERROR("error executing aducm360 flash write algorithm");
 	} else {
@@ -501,10 +508,10 @@ static int aducm360_write_block(struct flash_bank *bank,
 
 	switch (choice) {
 	case 0:
-		return aducm360_write_block_sync(bank,buffer,offset,count);
+		return aducm360_write_block_sync(bank, buffer, offset, count);
 		break;
 	case 1:
-		return aducm360_write_block_async(bank,buffer,offset,count);
+		return aducm360_write_block_async(bank, buffer, offset, count);
 		break;
 	default:
 		printf("Info! The aducm360_write_block is cancelled on purpose!\n");
@@ -522,27 +529,29 @@ static int aducm360_write_modified(struct flash_bank *bank,
 {
 	uint32_t		value;
 	int				res = ERROR_OK;
-	uint32_t 		i, a, d;
-	struct target 	*target = bank->target;
+	uint32_t        i, a, d;
+	struct target   *target = bank->target;
 
-	printf("performing slow write (offset=0x%08lX, count=0x%08lX)... \n",
+	printf("performing slow write (offset=0x%08lX, count=0x%08lX)...\n",
 			(unsigned long)offset, (unsigned long)count);
 
 	/* Enable the writing to the flash */
 	aducm360_set_write_enable(target, 1);
 
 	/* Clear any old status */
-	target_read_u32(target, ADUCM360_FLASH_BASE + ADUCM360_FLASH_FEESTA,&value);
+	target_read_u32(target, ADUCM360_FLASH_BASE + ADUCM360_FLASH_FEESTA, &value);
 
 	printf("writing flash ...");
-	for (i=0; i<count; i+=4) {
+	for (i = 0; i < count; i += 4) {
 		a = offset+i;
-		d = *((uint32_t*)(&buffer[i]));
-		if (i%256==0)printf("\n"); printf(".");
+		d = *((uint32_t *)(&buffer[i]));
+		if (i%256 == 0) 
+			printf("\n"); 
+		printf(".");
 		target_write_u32(target, a, d);
 		do {
 			target_read_u32(target, ADUCM360_FLASH_BASE + ADUCM360_FLASH_FEESTA, &value);
-		} while(!(value & FEESTA_WRDONE));
+		} while (!(value & FEESTA_WRDONE));
 	}
 	printf("\n");
 	aducm360_set_write_enable(target, 0);
@@ -588,12 +597,12 @@ static int aducm360_set_write_enable(struct target *target, int enable)
 	/* don't bother to preserve int enable bit here */
 	uint32_t	value;
 
-	target_read_u32(target,ADUCM360_FLASH_BASE + ADUCM360_FLASH_FEECON0, &value);
+	target_read_u32(target, ADUCM360_FLASH_BASE + ADUCM360_FLASH_FEECON0, &value);
 	if (enable)
 		value |= 0x00000004;
 	else
 		value &= ~0x00000004;
-	target_write_u32(target,ADUCM360_FLASH_BASE + ADUCM360_FLASH_FEECON0, value);
+	target_write_u32(target, ADUCM360_FLASH_BASE + ADUCM360_FLASH_FEECON0, value);
 
 	return ERROR_OK;
 }
@@ -606,14 +615,16 @@ static int aducm360_set_write_enable(struct target *target, int enable)
  * so in some cases may slow things down without a usleep after the first read */
 static int aducm360_check_flash_completion(struct target *target, unsigned int timeout_ms)
 {
-	uint32_t v=1;
+	uint32_t v = 1;
 
 	long long endtime = timeval_ms() + timeout_ms;
 	while (1) {
 		target_read_u32(target, ADUCM360_FLASH_BASE+ADUCM360_FLASH_FEESTA, &v);
-		if ((v & 0x00000001) == 0)	break;
+		if ((v & 0x00000001) == 0)	
+			break;
 		alive_sleep(1);
-		if (timeval_ms() >= endtime) break;
+		if (timeval_ms() >= endtime) 
+			break;
 	}
 
 	/*printf("aducm360_FEESTA=%08lX\n", (unsigned long)v & 0xFFFF);*/
