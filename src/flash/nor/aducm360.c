@@ -183,7 +183,7 @@ static int aducm360_page_erase(struct target *target, uint32_t padd)
 /* ----------------------------------------------------------------------- */
 static int aducm360_erase(struct flash_bank *bank, int first, int last)
 {
-	int             res=ERROR_OK;
+	int             res = ERROR_OK;
 	int             i;
 	int             count;
 	struct target   *target = bank->target;
@@ -198,7 +198,7 @@ static int aducm360_erase(struct flash_bank *bank, int first, int last)
 		for (i = 0; i < count; ++i) {
 			padd = bank->base + ((first+i)*FLASH_SECTOR_SIZE);
 			res = aducm360_page_erase(target, padd);
-			if (res != ERROR_OK) 
+			if (res != ERROR_OK)
 				break;
 		}
 	}
@@ -276,7 +276,7 @@ static int aducm360_write_block_sync(
 	target_buffer_set_u32_array(target, code, ARRAY_SIZE(aducm360_flash_write_code),
 			aducm360_flash_write_code);
 	retval = target_write_buffer(target, helper->address, sizeof(code), code);
-	if (retval != ERROR_OK)	
+	if (retval != ERROR_OK)
 		return retval;
 	entry_point = helper->address;
 	printf("Helper's RAM start address:0x%08lX, exit point address:0x%08lX\n",
@@ -284,7 +284,7 @@ static int aducm360_write_block_sync(
 
 	/*  ----- Allocate space in the target's RAM for the user application's object code -----  */
 	while (target_alloc_working_area_try(target, target_buffer_size, &target_buffer) != ERROR_OK) {
-		printf("couldn't allocate a buffer space of 0x%08lX bytes in the target's SRAM.\n", 
+		printf("couldn't allocate a buffer space of 0x%08lX bytes in the target's SRAM.\n",
 				(unsigned long)target_buffer_size);
 		target_buffer_size /= 2;
 		if (target_buffer_size <= 256) {		/* No room availablen */
@@ -315,8 +315,8 @@ static int aducm360_write_block_sync(
 				thisrun_count, (unsigned long)thisrun_count);
 
 		/* ----- Upload the chunk ----- */
-		retval = target_write_buffer(target, target_buffer->address, thisrun_count, buffer); 
-		if (retval != ERROR_OK) 
+		retval = target_write_buffer(target, target_buffer->address, thisrun_count, buffer);
+		if (retval != ERROR_OK)
 			break;
 		/* Set the arguments for the helper */
 		buf_set_u32(reg_params[0].value, 0, 32, target_buffer->address);	/*SRC     */
@@ -423,7 +423,7 @@ static int aducm360_write_block_async(
 	target_buffer_set_u32_array(target, code, ARRAY_SIZE(aducm360_flash_write_code),
 			aducm360_flash_write_code);
 	retval = target_write_buffer(target, helper->address, sizeof(code), code);
-	if (retval != ERROR_OK)	
+	if (retval != ERROR_OK)
 		return retval;
 	entry_point = helper->address;
 	printf("Helper's RAM start address:0x%08lX, exit point address:0x%08lX\n",
@@ -431,7 +431,7 @@ static int aducm360_write_block_async(
 
 	/*  ----- Allocate space in the target's RAM for the user application's object code ----- */
 	while (target_alloc_working_area_try(target, target_buffer_size, &target_buffer) != ERROR_OK) {
-		printf("couldn't allocate a buffer space of 0x%08lX bytes in the target's SRAM.\n", 
+		printf("couldn't allocate a buffer space of 0x%08lX bytes in the target's SRAM.\n",
 				(unsigned long)target_buffer_size);
 		target_buffer_size /= 2;
 		if (target_buffer_size <= 256) {		/* No room available */
@@ -545,8 +545,8 @@ static int aducm360_write_modified(struct flash_bank *bank,
 	for (i = 0; i < count; i += 4) {
 		a = offset+i;
 		d = *((uint32_t *)(&buffer[i]));
-		if (i%256 == 0) 
-			printf("\n"); 
+		if (i%256 == 0)
+			printf("\n");
 		printf(".");
 		target_write_u32(target, a, d);
 		do {
@@ -620,10 +620,10 @@ static int aducm360_check_flash_completion(struct target *target, unsigned int t
 	long long endtime = timeval_ms() + timeout_ms;
 	while (1) {
 		target_read_u32(target, ADUCM360_FLASH_BASE+ADUCM360_FLASH_FEESTA, &v);
-		if ((v & 0x00000001) == 0)	
+		if ((v & 0x00000001) == 0)
 			break;
 		alive_sleep(1);
-		if (timeval_ms() >= endtime) 
+		if (timeval_ms() >= endtime)
 			break;
 	}
 
