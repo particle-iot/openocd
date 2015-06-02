@@ -126,6 +126,9 @@ endif
 if OPENJTAG
 DRIVERFILES += openjtag.c
 endif
+if CY7C65215
+DRIVERFILES += cy7c65215.c
+endif
 
 if CMSIS_DAP
 DRIVERFILES += cmsis_dap_usb.c
