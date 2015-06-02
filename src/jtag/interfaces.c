@@ -89,6 +89,9 @@ extern struct jtag_interface usbprog_interface;
 #if BUILD_OPENJTAG == 1
 extern struct jtag_interface openjtag_interface;
 #endif
+#if BUILD_CY7C65215 == 1
+extern struct jtag_interface cy7c65215_interface;
+#endif
 #if BUILD_JLINK == 1
 extern struct jtag_interface jlink_interface;
 #endif
@@ -187,6 +190,9 @@ struct jtag_interface *jtag_interfaces[] = {
 #endif
 #if BUILD_OPENJTAG == 1
 		&openjtag_interface,
+#endif
+#if BUILD_CY7C65215 == 1
+		&cy7c65215_interface,
 #endif
 #if BUILD_JLINK == 1
 		&jlink_interface,

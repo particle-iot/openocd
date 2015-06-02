@@ -211,6 +211,7 @@ m4_define([USB_ADAPTERS],
 	[[[jlink], [Segger J-Link JTAG Programmer], [JLINK]],
 	[[osbdm], [OSBDM (JTAG only) Programmer], [OSBDM]],
 	[[opendous], [eStick/opendous JTAG Programmer], [OPENDOUS]],
+	[[cy7c65215], [Cypress CY7C65215 USB-Serial Bridge], [CY7C65215]],
 	[[aice], [Andes JTAG Programmer], [AICE]]])
 
 m4_define([USB0_ADAPTERS],
