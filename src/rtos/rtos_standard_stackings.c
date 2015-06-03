@@ -113,6 +113,46 @@ static const struct stack_register_offset rtos_standard_NDS32_N1068_stack_offset
 	{ 0x10, 32 },		/* IFC_LP */
 };
 
+static const struct stack_register_offset rtos_standard_arm926ejs_stack_offsets_normal[] = {
+	{ -1,   32 },		/* r0       */
+	{ -1,   32 },		/* r1       */
+	{ -1,   32 },		/* r2       */
+	{ -1,   32 },		/* r3       */
+	{ 0x08, 32 },		/* r4       */
+	{ 0x0C, 32 },		/* r5       */
+	{ 0x10, 32 },		/* r6       */
+	{ 0x14, 32 },		/* r7       */
+	{ 0x18, 32 },		/* r8       */
+	{ 0x1C, 32 },		/* r9       */
+	{ 0x20, 32 },		/* r10      */
+	{ 0x24, 32 },		/* r11      */
+	{ -1,   32 },		/* r12      */
+	{ -2,   32 },		/* sp (r13) */
+	{ 0x28, 32 },		/* lr (r14) */
+	{ -1,   32 },		/* pc (r15) */
+	{ 0x04, 32 },		/* xPSR     */
+};
+
+static const struct stack_register_offset rtos_standard_arm926ejs_stack_offsets_interrupt[] = {
+	{ 0x08, 32 },		/* r0       */
+	{ 0x0C, 32 },		/* r1       */
+	{ 0x10, 32 },		/* r2       */
+	{ 0x14, 32 },		/* r3       */
+	{ 0x18, 32 },		/* r4       */
+	{ 0x1C, 32 },		/* r5       */
+	{ 0x20, 32 },		/* r6       */
+	{ 0x24, 32 },		/* r7       */
+	{ 0x28, 32 },		/* r8       */
+	{ 0x2C, 32 },		/* r9       */
+	{ 0x30, 32 },		/* r10      */
+	{ 0x34, 32 },		/* r11      */
+	{ 0x38, 32 },		/* r12      */
+	{ -2,   32 },		/* sp (r13) */
+	{ 0x3C, 32 },		/* lr (r14) */
+	{ 0x40, 32 },		/* pc (r15) */
+	{ 0x04, 32 },		/* xPSR     */
+};
+
 const struct rtos_register_stacking rtos_standard_Cortex_M3_stacking = {
 	0x40,					/* stack_registers_size */
 	-1,						/* stack_growth_direction */
@@ -135,4 +175,21 @@ const struct rtos_register_stacking rtos_standard_NDS32_N1068_stacking = {
 	32,					/* num_output_registers */
 	8,					/* stack_alignment */
 	rtos_standard_NDS32_N1068_stack_offsets	/* register_offsets */
+};
+
+const struct rtos_register_stacking rtos_standard_arm926ejs_stackings[2] = {
+	{
+		0x2c,				/* stack_registers_size */
+		-1,					/* stack_growth_direction */
+		17,					/* num_output_registers */
+		0,					/* stack_alignment */
+		rtos_standard_arm926ejs_stack_offsets_normal	/* register_offsets */
+	},
+	{
+		0x44,				/* stack_registers_size */
+		-1,					/* stack_growth_direction */
+		17,					/* num_output_registers */
+		0,					/* stack_alignment */
+		rtos_standard_arm926ejs_stack_offsets_interrupt	/* register_offsets */
+	}
 };

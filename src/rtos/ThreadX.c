@@ -37,6 +37,9 @@ static int ThreadX_update_threads(struct rtos *rtos);
 static int ThreadX_get_thread_reg_list(struct rtos *rtos, int64_t thread_id, char **hex_reg_list);
 static int ThreadX_get_symbol_list_to_lookup(symbol_table_elem_t *symbol_list[]);
 
+static const struct rtos_register_stacking *get_stacking_info(struct rtos *rtos, int64_t stack_ptr);
+static const struct rtos_register_stacking *get_stacking_info_arm926ejs(struct rtos *rtos, int64_t stack_ptr);
+
 struct ThreadX_thread_state {
 	int value;
 	const char *desc;
@@ -69,6 +72,7 @@ struct ThreadX_params {
 	unsigned char thread_state_offset;
 	unsigned char thread_next_offset;
 	const struct rtos_register_stacking *stacking_info;
+	const struct rtos_register_stacking *(*get_stacking_info)(struct rtos *rtos, int64_t stack_ptr);
 };
 
 static const struct ThreadX_params ThreadX_params_list[] = {
@@ -80,6 +84,7 @@ static const struct ThreadX_params ThreadX_params_list[] = {
 	48,							/* thread_state_offset; */
 	136,						/* thread_next_offset */
 	&rtos_standard_Cortex_M3_stacking,	/* stacking_info */
+	NULL,						/* get_stacking_info */
 	},
 	{
 	"cortex_r4",				/* target_name */
@@ -89,6 +94,17 @@ static const struct ThreadX_params ThreadX_params_list[] = {
 	48,							/* thread_state_offset; */
 	136,						/* thread_next_offset */
 	&rtos_standard_Cortex_R4_stacking,	/* stacking_info */
+	NULL,						/* get_stacking_info */
+	},
+	{
+	"arm926ejs",				/* target_name */
+	4,							/* pointer_width; */
+	8,							/* thread_stack_offset; */
+	40,							/* thread_name_offset; */
+	48,							/* thread_state_offset; */
+	136,						/* thread_next_offset */
+	rtos_standard_arm926ejs_stackings,	/* stacking_info */
+	get_stacking_info_arm926ejs,	/* get_stacking_info */
 	},
 };
 
@@ -116,6 +132,33 @@ const struct rtos_type ThreadX_rtos = {
 	.get_thread_reg_list = ThreadX_get_thread_reg_list,
 	.get_symbol_list_to_lookup = ThreadX_get_symbol_list_to_lookup,
 };
+
+static const struct rtos_register_stacking* get_stacking_info(struct rtos *rtos, int64_t stack_ptr)
+{
+	const struct ThreadX_params *param = rtos->rtos_specific_params;
+
+	if (param->get_stacking_info != NULL)
+		return param->get_stacking_info(rtos, stack_ptr);
+	else
+		return param->stacking_info;
+}
+
+static const struct rtos_register_stacking* get_stacking_info_arm926ejs(struct rtos *rtos, int64_t stack_ptr)
+{
+	const struct ThreadX_params *param = rtos->rtos_specific_params;
+	int retval;
+	uint32_t flag;
+
+	retval = target_read_buffer(rtos->target, stack_ptr,
+								sizeof(flag), (uint8_t *)&flag);
+	if (retval != ERROR_OK)
+		return NULL;
+
+	if (flag == 0)
+		return &param->stacking_info[0];
+	else
+		return &param->stacking_info[1];
+}
 
 static int ThreadX_update_threads(struct rtos *rtos)
 {
@@ -299,13 +342,14 @@ static int ThreadX_get_thread_reg_list(struct rtos *rtos, int64_t thread_id, cha
 {
 	int retval;
 	const struct ThreadX_params *param;
+	const struct rtos_register_stacking *stacking_info;
 
 	*hex_reg_list = NULL;
 
 	if (rtos == NULL)
 		return -1;
 
-	if (thread_id == 0)
+	if (thread_id == 0 || thread_id == 1)
 		return -2;
 
 	if (rtos->rtos_specific_params == NULL)
@@ -323,8 +367,19 @@ static int ThreadX_get_thread_reg_list(struct rtos *rtos, int64_t thread_id, cha
 		LOG_ERROR("Error reading stack frame from ThreadX thread");
 		return retval;
 	}
+	if (stack_ptr == 0) {
+		LOG_ERROR("Null stack pointer in ThreadX thread");
+		return -5;
+	}
 
-	return rtos_generic_stack_read(rtos->target, param->stacking_info, stack_ptr, hex_reg_list);
+	/* Get corresponding stacking info */
+	stacking_info = get_stacking_info(rtos, stack_ptr);
+	if (stacking_info == NULL) {
+		LOG_ERROR("Unknown stacking info for ThreadX thread");
+		return -6;
+	}
+
+	return rtos_generic_stack_read(rtos->target, stacking_info, stack_ptr, hex_reg_list);
 }
 
 static int ThreadX_get_symbol_list_to_lookup(symbol_table_elem_t *symbol_list[])
