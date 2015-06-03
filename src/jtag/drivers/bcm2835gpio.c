@@ -301,9 +301,8 @@ COMMAND_HANDLER(bcm2835gpio_handle_speed_coeffs)
 
 COMMAND_HANDLER(bcm2835gpio_handle_peripheral_base)
 {
-	if (CMD_ARGC == 1) {
+	if (CMD_ARGC == 1)
 		COMMAND_PARSE_NUMBER(u32, CMD_ARGV[0], bcm2835_peri_base);
-	}
 	return ERROR_OK;
 }
 
