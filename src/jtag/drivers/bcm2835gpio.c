@@ -30,7 +30,8 @@
 
 #include <sys/mman.h>
 
-#define BCM2835_PERI_BASE	0x20000000
+/* #define BCM2835_PERI_BASE	0x20000000 */
+#define BCM2835_PERI_BASE	0x3F000000
 #define BCM2835_GPIO_BASE	(BCM2835_PERI_BASE + 0x200000) /* GPIO controller */
 
 #define BCM2835_PADS_GPIO_0_27		(BCM2835_PERI_BASE + 0x100000)
@@ -55,6 +56,9 @@ static int bcm2835gpio_read(void);
 static void bcm2835gpio_write(int tck, int tms, int tdi);
 static void bcm2835gpio_reset(int trst, int srst);
 
+static int bcm2835_swdio_read(void);
+static void bcm2835_swdio_drive(bool is_output);
+
 static int bcm2835gpio_init(void);
 static int bcm2835gpio_quit(void);
 
@@ -62,6 +66,8 @@ static struct bitbang_interface bcm2835gpio_bitbang = {
 	.read = bcm2835gpio_read,
 	.write = bcm2835gpio_write,
 	.reset = bcm2835gpio_reset,
+	.swdio_read = bcm2835_swdio_read,
+	.swdio_drive = bcm2835_swdio_drive,
 	.blink = NULL
 };
 
@@ -119,6 +125,19 @@ static void bcm2835gpio_reset(int trst, int srst)
 
 	GPIO_SET = set;
 	GPIO_CLR = clear;
+}
+
+static void bcm2835_swdio_drive(bool is_output)
+{
+	if (is_output)
+		OUT_GPIO(tdi_gpio);
+	else
+		INP_GPIO(tdi_gpio);
+}
+
+static int bcm2835_swdio_read(void)
+{
+	return !!(GPIO_LEV & 1 << tdi_gpio);
 }
 
 static int bcm2835gpio_khz(int khz, int *jtag_speed)
@@ -284,11 +303,14 @@ static const struct command_registration bcm2835gpio_command_handlers[] = {
 	COMMAND_REGISTRATION_DONE
 };
 
+static const char * const bcm2835_transports[] = { "jtag", "swd", NULL };
+
 struct jtag_interface bcm2835gpio_interface = {
 	.name = "bcm2835gpio",
 	.supported = DEBUG_CAP_TMS_SEQ,
 	.execute_queue = bitbang_execute_queue,
-	.transports = jtag_only,
+	.transports = bcm2835_transports,
+	.swd = &bitbang_swd,
 	.speed = bcm2835gpio_speed,
 	.khz = bcm2835gpio_khz,
 	.speed_div = bcm2835gpio_speed_div,
@@ -365,6 +387,9 @@ static int bcm2835gpio_init(void)
 	LOG_DEBUG("saved pinmux settings: tck %d tms %d tdi %d "
 		  "tdo %d trst %d srst %d", tck_gpio_mode, tms_gpio_mode,
 		  tdi_gpio_mode, tdo_gpio_mode, trst_gpio_mode, srst_gpio_mode);
+
+	if (swd_mode)
+		bitbang_switch_to_swd();
 
 	return ERROR_OK;
 }
