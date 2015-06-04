@@ -52,6 +52,9 @@ static uint8_t usb_address;
 static bool use_usb_address;
 static uint8_t iface = JAYLINK_TIF_JTAG;
 static bool trace_enabled;
+static uint8_t *emucom_setaftercapabilities_data;
+static size_t emucom_setaftercapabilities_length;
+static uint32_t emucom_setaftercapabilities_channel;
 
 #define JLINK_MAX_SPEED			12000
 #define JLINK_TAP_BUFFER_SIZE	2048
@@ -316,6 +319,40 @@ static int select_interface(void)
 	return ERROR_OK;
 }
 
+static int emucom_setaftercapabilities(void)
+{
+	int result;
+	uint32_t length;
+
+	if (emucom_setaftercapabilities_data == NULL)
+		return ERROR_OK;
+
+	if (!jaylink_has_cap(caps, JAYLINK_DEV_CAP_EMUCOM)) {
+		LOG_ERROR("EMUCOM message configured but not supported.");
+		return ERROR_FAIL;
+	}
+
+	if (devh == NULL) {
+		LOG_ERROR("EMUCOM messages only work when a device handle is available.");
+		return ERROR_FAIL;
+	}
+
+	length = emucom_setaftercapabilities_length;
+	result = jaylink_emucom_write(devh, emucom_setaftercapabilities_channel, emucom_setaftercapabilities_data, &length);
+	if (result != ERROR_OK) {
+		LOG_ERROR("Failed to write EMUCOM message.");
+		return ERROR_FAIL;
+	}
+	if (length != emucom_setaftercapabilities_length) {
+		LOG_ERROR("Unexpected written length of EMUCOM message.");
+		return ERROR_FAIL;
+	}
+
+	LOG_INFO("Wrote %d bytes of EMUCOM message.", length);
+
+	return ERROR_OK;
+}
+
 static int jlink_register(void)
 {
 	int ret;
@@ -535,6 +572,10 @@ static int jlink_init(void)
 
 		memcpy(&tmp_config, &config, sizeof(struct device_config));
 	}
+
+	ret = emucom_setaftercapabilities();
+	if (ret != ERROR_OK)
+		return ERROR_JTAG_INIT_FAILED;
 
 	ret = jaylink_get_hardware_status(devh, &hwstatus);
 
@@ -1425,6 +1466,81 @@ COMMAND_HANDLER(jlink_handle_config_write_command)
 	return ERROR_OK;
 }
 
+static signed char parse_hexnibble(char c) {
+	if (c >= '0' && c <= '9')
+		return c - '0';
+	if (c >= 'a' && c <= 'f')
+		return c - 'a' + 10;
+	if (c >= 'A' && c <= 'F')
+		return c - 'A' + 10;
+	return -1;
+}
+/* returns true on success, frees *output on demand */
+static bool parse_hexstring(const char *input, uint8_t **output, size_t *length)
+{
+	size_t inputlength = strlen(input);
+	signed char nibble;
+
+	if (*output != NULL) {
+		free(*output);
+		*output = NULL;
+	}
+
+	*length = (inputlength + 1) / 3;
+	if (*length * 3 - 1 != inputlength) goto error;
+
+	*output = malloc(*length);
+	if (*output == NULL) goto error;
+
+	for (size_t cursor = 0; cursor < inputlength; ++cursor) {
+		switch(cursor % 3) {
+		case 0:
+			nibble = parse_hexnibble(input[cursor]);
+			if (nibble < 0) goto error;
+			(*output)[cursor / 3] = nibble << 4;
+			break;
+		case 1:
+			nibble = parse_hexnibble(input[cursor]);
+			if (nibble < 0) goto error;
+			(*output)[cursor / 3] += nibble;
+			break;
+		case 2:
+			if (input[cursor] != ':') goto error;
+			break;
+		}
+	}
+
+	return true;
+
+error:
+	if (*output != NULL)
+		free(*output);
+	*output = NULL;
+	*length = 0;
+	return false;
+}
+
+COMMAND_HANDLER(jlink_handle_emucom_setaftercapabilities_command)
+{
+	if (CMD_ARGC == 2) {
+		if (sscanf(CMD_ARGV[0], "0x%" SCNx32, &emucom_setaftercapabilities_channel) != 1 \
+				&& sscanf(CMD_ARGV[0], "%" SCNu32, &emucom_setaftercapabilities_channel) != 1) {
+			command_print(CMD_CTX, "Numeric EMUCOM channel number is invalid: %s.", CMD_ARGV[0]);
+			return ERROR_FAIL;
+		}
+
+		if (parse_hexstring(CMD_ARGV[1], &emucom_setaftercapabilities_data, &emucom_setaftercapabilities_length) == false) {
+			command_print(CMD_CTX, "Message for EMUCOM is invalid: %s.", CMD_ARGV[1]);
+			return ERROR_FAIL;
+		}
+
+		return ERROR_OK;
+	} else {
+		LOG_ERROR("Two arguments are required.");
+		return ERROR_COMMAND_SYNTAX_ERROR;
+	}
+}
+
 COMMAND_HANDLER(jlink_handle_config_command)
 {
 	if (!jaylink_has_cap(caps, JAYLINK_DEV_CAP_READ_CONFIG)) {
@@ -1483,6 +1599,18 @@ static const struct command_registration jlink_config_subcommand_handlers[] = {
 	COMMAND_REGISTRATION_DONE
 };
 
+static const struct command_registration jlink_emucom_subcommand_handlers[] = {
+	{
+		.name = "set-after-capabilities",
+		.handler = &jlink_handle_emucom_setaftercapabilities_command,
+		.mode = COMMAND_CONFIG,
+		.help = "Send an EMUCOM message to a given channel between "
+			"capability query and get_hardware_status.",
+		.usage = "0x<channel> <bytes in colon separated hex notation>",
+	},
+	COMMAND_REGISTRATION_DONE
+};
+
 static const struct command_registration jlink_subcommand_handlers[] = {
 	{
 		.name = "jtag",
@@ -1531,6 +1659,12 @@ static const struct command_registration jlink_subcommand_handlers[] = {
 		.help = "access the device configuration. If no argument is given "
 			"this will show the device configuration",
 		.chain = jlink_config_subcommand_handlers,
+	},
+	{
+		.name = "emucom",
+		.help = "Store messages to be transmitted to the device using "
+			"the EMUCOM channel",
+		.chain = jlink_emucom_subcommand_handlers,
 	},
 	COMMAND_REGISTRATION_DONE
 };
