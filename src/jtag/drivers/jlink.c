@@ -52,9 +52,16 @@ static uint8_t usb_address;
 static bool use_usb_address;
 static uint8_t iface = JAYLINK_TIF_JTAG;
 static bool trace_enabled;
+static uint8_t direction = 0xff;
 
 #define JLINK_MAX_SPEED			12000
 #define JLINK_TAP_BUFFER_SIZE	2048
+
+
+#define DIRECTION_CHANNEL 0x10000
+#define DIRECTION_CHANNEL_SIZE 15
+#define DIRECTION_CHANNEL_BYTE 13
+static const char * const direction_names[] = {"in", "out", "mcu", "off"};
 
 static unsigned int swd_buffer_size = JLINK_TAP_BUFFER_SIZE;
 
@@ -316,6 +323,42 @@ static int select_interface(void)
 	return ERROR_OK;
 }
 
+static int set_direction(uint8_t dir)
+{
+	/** The commands sent here are not fully understood, but were only
+	 * observed on USB when the EnergyAware eACommander modified the debug
+	 * direction. */
+
+	int result;
+	uint32_t length = DIRECTION_CHANNEL_SIZE;
+	uint8_t buffer[DIRECTION_CHANNEL_SIZE] =  "\x01\0\0\0\0\x03\x03\x05\0\x0c\0\x02\0\xff\0";
+
+	if (!jaylink_has_cap(caps, JAYLINK_DEV_CAP_EMUCOM)) {
+		LOG_ERROR("EMUCOM is not supported by the device.");
+		return ERROR_FAIL;
+	}
+
+	/** FIXME there might be a specific emucom direction capability as well */
+
+	if (devh == NULL) {
+		LOG_ERROR("Direction commands only work when a device handle is available.");
+		return ERROR_FAIL;
+	}
+
+	buffer[DIRECTION_CHANNEL_BYTE] = dir;
+	result = jaylink_emucom_write(devh, DIRECTION_CHANNEL, buffer, &length);
+	if (result != ERROR_OK) {
+		LOG_ERROR("Failed to write direction configuration.");
+		return ERROR_FAIL;
+	}
+	if (length != DIRECTION_CHANNEL_SIZE) {
+		LOG_ERROR("Unexpected length of direction channel.");
+		return ERROR_FAIL;
+	}
+
+	return ERROR_OK;
+}
+
 static int jlink_register(void)
 {
 	int ret;
@@ -534,6 +577,13 @@ static int jlink_init(void)
 		}
 
 		memcpy(&tmp_config, &config, sizeof(struct device_config));
+	}
+
+	if (direction != 0xff) {
+		ret = set_direction(direction);
+		if (ret != ERROR_OK) {
+			return ERROR_JTAG_INIT_FAILED;
+		}
 	}
 
 	ret = jaylink_get_hardware_status(devh, &hwstatus);
@@ -1425,6 +1475,48 @@ COMMAND_HANDLER(jlink_handle_config_write_command)
 	return ERROR_OK;
 }
 
+COMMAND_HANDLER(jlink_handle_config_direction_command)
+{
+	/** While this command works basically, it has several shortcomings:
+	 *
+	 * * This command is likely not to work on most JLink devices, yet does
+	 *   not keep the user from trying. Probably, support can be determined
+	 *   with a better understanding of the commands involved.
+	 *
+	 * * Was it already mentioned that the commands sent via USB were
+	 *   reverse engineered without full understanding of their semantics?
+	 *   (It was, in the documentation of set_direction).
+	 *
+	 * * It has not been tested what happens when set_direction
+	 *   fails in between (eg. because of talking to a JLink device that
+	 *   does not uspport multiple direction configurations). Quite
+	 *   possibly, the complete USB connection needs to be abandoned, but
+	 *   the author doesn't know whether returning ERROR_FAIL is sufficient
+	 *   to cause that.
+	 */
+
+	uint8_t arg_direction = 0xff;
+
+	if (CMD_ARGC == 1) {
+		if (strcmp(CMD_ARGV[0], direction_names[0]) == 0) arg_direction = 0;
+		if (strcmp(CMD_ARGV[0], direction_names[1]) == 0) arg_direction = 1;
+		if (strcmp(CMD_ARGV[0], direction_names[2]) == 0) arg_direction = 2;
+		if (strcmp(CMD_ARGV[0], direction_names[3]) == 0) arg_direction = 3;
+
+		if (arg_direction == 0xff) {
+			LOG_ERROR("Argument needs to be one of 'in', 'out', 'mcu' or 'off'.");
+			return ERROR_COMMAND_ARGUMENT_INVALID;
+		}
+
+		direction = arg_direction;
+
+		return ERROR_OK;
+	} else {
+		LOG_ERROR("Need zero or one argument to jlink_geckodirection");
+		return ERROR_COMMAND_SYNTAX_ERROR;
+	}
+}
+
 COMMAND_HANDLER(jlink_handle_config_command)
 {
 	if (!jaylink_has_cap(caps, JAYLINK_DEV_CAP_READ_CONFIG)) {
@@ -1479,6 +1571,15 @@ static const struct command_registration jlink_config_subcommand_handlers[] = {
 		.handler = &jlink_handle_config_write_command,
 		.mode = COMMAND_EXEC,
 		.help = "write configuration to the device"
+	},
+	{
+		.name = "direction",
+		.handler = &jlink_handle_config_direction_command,
+		.mode = COMMAND_CONFIG,
+		.help = "Configure whether to work on the development gecko board's MCU ('mcu'), "
+			"to program a device connected via the 20-pin header ('out'), to allow "
+			"debugging from there to the mcu ('in') or to disable debugging at all "
+			"('off'). Without argument, outputs configured direction."
 	},
 	COMMAND_REGISTRATION_DONE
 };
