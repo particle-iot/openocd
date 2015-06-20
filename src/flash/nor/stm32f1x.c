@@ -889,6 +889,11 @@ static int stm32x_probe(struct flash_bank *bank)
 		stm32x_info->ppage_size = 2;
 		max_flash_size_in_kb = 256;
 		break;
+	case 0x419: /* medium density (STM32F103c8) */
+		page_size = 1024;
+		stm32x_info->ppage_size = 4;
+		max_flash_size_in_kb = 64;
+		break;
 	case 0x420: /* value line density */
 		page_size = 1024;
 		stm32x_info->ppage_size = 4;
