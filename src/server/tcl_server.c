@@ -26,12 +26,14 @@
 #include <target/target.h>
 
 #define TCL_SERVER_VERSION		"TCL Server 0.1"
-#define TCL_MAX_LINE			(4096)
+#define TCL_LINE_INITIAL		(4*1024)
+#define TCL_LINE_MAX			(4*1024*1024)
 
 struct tcl_connection {
 	int tc_linedrop;
 	int tc_lineoffset;
-	char tc_line[TCL_MAX_LINE];
+	int tc_line_size;
+	char *tc_line;
 	int tc_outerror;/* flag an output error */
 	enum target_state tc_laststate;
 	bool tc_notify;
@@ -116,11 +118,17 @@ static int tcl_new_connection(struct connection *connection)
 {
 	struct tcl_connection *tclc;
 
-	tclc = malloc(sizeof(struct tcl_connection));
+	tclc = calloc(1, sizeof(struct tcl_connection));
 	if (tclc == NULL)
 		return ERROR_CONNECTION_REJECTED;
 
-	memset(tclc, 0, sizeof(struct tcl_connection));
+	tclc->tc_line_size = TCL_LINE_INITIAL;
+	tclc->tc_line = malloc(tclc->tc_line_size);
+	if (tclc->tc_line == NULL) {
+		free(tclc);
+		return ERROR_CONNECTION_REJECTED;
+	}
+
 	connection->priv = tclc;
 
 	struct target *target = get_target_by_num(connection->cmd_ctx->current_target);
@@ -162,10 +170,27 @@ static int tcl_input(struct connection *connection)
 	for (i = 0; i < rlen; i++) {
 		/* buffer the data */
 		tclc->tc_line[tclc->tc_lineoffset] = in[i];
-		if (tclc->tc_lineoffset < TCL_MAX_LINE)
+		if (tclc->tc_lineoffset < tclc->tc_line_size) {
 			tclc->tc_lineoffset++;
-		else
+		} else if (tclc->tc_line_size >= TCL_LINE_MAX) {
+			/* maximum line size reached, drop line */
 			tclc->tc_linedrop = 1;
+		} else {
+			/* grow line buffer: exponential below 1 MB, linear above */
+			if (tclc->tc_line_size <= 1*1024*1024)
+				tclc->tc_line_size *= 2;
+			else
+				tclc->tc_line_size += 1*1024*1024;
+
+			if (tclc->tc_line_size > TCL_LINE_MAX)
+				tclc->tc_line_size = TCL_LINE_MAX;
+
+			tclc->tc_line = realloc(tclc->tc_line, tclc->tc_line_size);
+			if (tclc->tc_line == NULL)
+				return ERROR_CONNECTION_REJECTED;
+
+			tclc->tc_lineoffset++;
+		}
 
 		/* ctrl-z is end of command. When testing from telnet, just
 		 * press ctrl-z a couple of times first to put telnet into the
@@ -201,9 +226,13 @@ static int tcl_input(struct connection *connection)
 
 static int tcl_closed(struct connection *connection)
 {
+	struct tcl_connection *tclc;
+	tclc = connection->priv;
+
 	/* cleanup connection context */
-	if (connection->priv) {
-		free(connection->priv);
+	if (tclc) {
+		free(tclc->tc_line);
+		free(tclc);
 		connection->priv = NULL;
 	}
 
