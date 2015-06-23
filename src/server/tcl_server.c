@@ -26,7 +26,7 @@
 #include <target/target.h>
 
 #define TCL_SERVER_VERSION		"TCL Server 0.1"
-#define TCL_MAX_LINE			(4096)
+#define TCL_MAX_LINE			(4*1024*1024)
 
 struct tcl_connection {
 	int tc_linedrop;
