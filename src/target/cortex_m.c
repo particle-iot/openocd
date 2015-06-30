@@ -1694,7 +1694,10 @@ void cortex_m_deinit_target(struct target *target)
 	struct cortex_m_common *cortex_m = target_to_cm(target);
 
 	free(cortex_m->fp_comparator_list);
+
 	cortex_m_dwt_free(target);
+	armv7m_free_reg_cache(target);
+
 	free(cortex_m);
 }
 
@@ -1924,10 +1927,19 @@ int cortex_m_examine(struct target *target)
 		    armv7m->arm.core_cache->num_regs > ARMV7M_NUM_CORE_REGS_NOFP) {
 			/* free unavailable FPU registers */
 			size_t idx;
+
 			for (idx = ARMV7M_NUM_CORE_REGS_NOFP;
 			     idx < armv7m->arm.core_cache->num_regs;
-			     idx++)
-				free(armv7m->arm.core_cache->reg_list[idx].value);
+			     idx++) {
+				if (armv7m->arm.core_cache->reg_list[idx].value)
+					free(armv7m->arm.core_cache->reg_list[idx].value);
+
+				if (armv7m->arm.core_cache->reg_list[idx].feature)
+					free(armv7m->arm.core_cache->reg_list[idx].feature);
+
+				if (armv7m->arm.core_cache->reg_list[idx].reg_data_type)
+					free(armv7m->arm.core_cache->reg_list[idx].reg_data_type);
+			}
 			armv7m->arm.core_cache->num_regs = ARMV7M_NUM_CORE_REGS_NOFP;
 		}
 
