@@ -1,0 +1,9 @@
+Verified+1: jenkins
+Code-Review+1: David Ung <davidu@nvidia.com>
+Code-Review+2: Spencer Oliver <spen@spen-soft.co.uk>
+Code-Review+1: Oleksij Rempel
+Submitted-by: Spencer Oliver <spen@spen-soft.co.uk>
+Submitted-at: Tue, 30 Jun 2015 14:57:54 +0100
+Reviewed-on: http://openocd.zylin.com/2781
+Project: openocd
+Branch: refs/heads/master
