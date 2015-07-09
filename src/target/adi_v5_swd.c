@@ -123,6 +123,7 @@ static int swd_connect(struct adiv5_dap *dap)
 
 	if (status == ERROR_OK) {
 		LOG_INFO("SWD IDCODE %#8.8" PRIx32, idcode);
+		dap->jtag_info->tap->idcode = idcode;
 		dap->do_reconnect = false;
 	} else
 		dap->do_reconnect = true;
