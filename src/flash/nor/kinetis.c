@@ -92,11 +92,12 @@ static const struct {
 	unsigned pflash_sector_size_bytes;
 	unsigned nvm_sector_size_bytes;
 	unsigned num_blocks;
-} kinetis_flash_params[4] = {
+} kinetis_flash_params[5] = {
 	{ 1<<10, 1<<10, 2 },
 	{ 2<<10, 1<<10, 2 },
 	{ 2<<10, 2<<10, 2 },
-	{ 4<<10, 4<<10, 4 }
+	{ 4<<10, 4<<10, 4 },
+	{ 4<<10, 1<<10, 4 }
 };
 
 /* Addressess */
@@ -106,6 +107,7 @@ static const struct {
 #define FTFx_FCCOB3	0x40020004
 #define FTFx_FPROT3	0x40020010
 #define SIM_SDID	0x40048024
+#define SIM_SOPT1	0x40047000
 #define SIM_FCFG1	0x4004804c
 #define SIM_FCFG2	0x40048050
 
@@ -118,14 +120,14 @@ static const struct {
 #define FTFx_CMD_SETFLEXRAM 0x81
 #define FTFx_CMD_MASSERASE  0x44
 
-/* The Kinetis K series uses the following SDID layout :
+/* The older Kinetis K series uses the following SDID layout :
  * Bit 31-16 : 0
  * Bit 15-12 : REVID
  * Bit 11-7  : DIEID
  * Bit 6-4   : FAMID
  * Bit 3-0   : PINID
  *
- * The Kinetis KL series uses the following SDID layout :
+ * The newer Kinetis series uses the following SDID layout :
  * Bit 31-28 : FAMID
  * Bit 27-24 : SUBFAMID
  * Bit 23-20 : SERIESID
@@ -134,9 +136,12 @@ static const struct {
  * Bit 6-4   : Reserved (0)
  * Bit 3-0   : PINID
  *
- * SERIESID should be 1 for the KL-series so we assume that if
- * bits 31-16 are 0 then it's a K-series MCU.
+ * We assume that if bits 31-16 are 0 then it's an older
+ * K-series MCU.
  */
+
+#define KINETIS_SOPT1_RAMSIZE_MASK  0x0000F000
+#define KINETIS_SOPT1_RAMSIZE_K24FN1M 0x0000B000
 
 #define KINETIS_SDID_K_SERIES_MASK  0x0000FFFF
 
@@ -144,6 +149,7 @@ static const struct {
 #define KINETIS_SDID_DIEID_K_A	0x00000100
 #define KINETIS_SDID_DIEID_K_B	0x00000200
 #define KINETIS_SDID_DIEID_KL	0x00000000
+#define KINETIS_SDID_DIEID_K24FN1M	0x00000300 /* Detect Errata 7534 */
 
 /* We can't rely solely on the FAMID field to determine the MCU
  * type since some FAMID values identify multiple MCUs with
@@ -176,8 +182,29 @@ static const struct {
 #define KINETIS_K_SDID_K60_M150  0x000001C0
 #define KINETIS_K_SDID_K70_M150  0x000001D0
 
-#define KINETIS_KL_SDID_SERIESID_MASK 0x00F00000
-#define KINETIS_KL_SDID_SERIESID_KL   0x00100000
+#define KINETIS_SDID_SERIESID_MASK 0x00F00000
+#define KINETIS_SDID_SERIESID_K   0x00000000
+#define KINETIS_SDID_SERIESID_KL   0x00100000
+#define KINETIS_SDID_SERIESID_KW   0x00500000
+#define KINETIS_SDID_SERIESID_KV   0x00600000
+
+#define KINETIS_SDID_SUBFAMID_MASK  0x0F000000
+#define KINETIS_SDID_SUBFAMID_KX0   0x00000000
+#define KINETIS_SDID_SUBFAMID_KX1   0x01000000
+#define KINETIS_SDID_SUBFAMID_KX2   0x02000000
+#define KINETIS_SDID_SUBFAMID_KX3   0x03000000
+#define KINETIS_SDID_SUBFAMID_KX4   0x04000000
+#define KINETIS_SDID_SUBFAMID_KX5   0x05000000
+#define KINETIS_SDID_SUBFAMID_KX6   0x06000000
+
+#define KINETIS_SDID_FAMILYID_MASK  0xF0000000
+#define KINETIS_SDID_FAMILYID_K0X   0x00000000
+#define KINETIS_SDID_FAMILYID_K1X   0x10000000
+#define KINETIS_SDID_FAMILYID_K2X   0x20000000
+#define KINETIS_SDID_FAMILYID_K3X   0x30000000
+#define KINETIS_SDID_FAMILYID_K4X   0x40000000
+#define KINETIS_SDID_FAMILYID_K6X   0x60000000
+#define KINETIS_SDID_FAMILYID_K7X   0x70000000
 
 struct kinetis_flash_bank {
 	unsigned granularity;
@@ -1060,8 +1087,10 @@ static int kinetis_read_part_info(struct flash_bank *bank)
 
 	kinfo->klxx = 0;
 
-	/* K-series MCU? */
+	granularity = UINT_MAX;
+
 	if ((kinfo->sim_sdid & (~KINETIS_SDID_K_SERIES_MASK)) == 0) {
+		/* older K-series MCU */
 		uint32_t mcu_type = kinfo->sim_sdid & KINETIS_K_SDID_TYPE_MASK;
 
 		switch (mcu_type) {
@@ -1105,12 +1134,47 @@ static int kinetis_read_part_info(struct flash_bank *bank)
 			LOG_ERROR("Unsupported K-family FAMID");
 			return ERROR_FLASH_OPER_UNSUPPORTED;
 		}
-	}
-	/* KL-series? */
-	else if ((kinfo->sim_sdid & KINETIS_KL_SDID_SERIESID_MASK) == KINETIS_KL_SDID_SERIESID_KL) {
-		kinfo->klxx = 1;
-		granularity = 0;
 	} else {
+		/* Newer K-series or KL series MCU */
+		switch (kinfo->sim_sdid & KINETIS_SDID_SERIESID_MASK) {
+		case KINETIS_SDID_SERIESID_K:
+			switch (kinfo->sim_sdid & (KINETIS_SDID_FAMILYID_MASK | KINETIS_SDID_SUBFAMID_MASK)) {
+			case KINETIS_SDID_FAMILYID_K2X | KINETIS_SDID_SUBFAMID_KX2: {
+				/* MK24FN1M reports as K22, this should detect it (according to errata note 1N83J) */
+				uint32_t sopt1;
+				result = target_read_u32(target, SIM_SOPT1, &sopt1);
+				if (result != ERROR_OK)
+					return result;
+
+				if (((kinfo->sim_sdid & (KINETIS_SDID_DIEID_MASK)) == KINETIS_SDID_DIEID_K24FN1M) &&
+						((sopt1 & KINETIS_SOPT1_RAMSIZE_MASK) == KINETIS_SOPT1_RAMSIZE_K24FN1M)) {
+					/* MK24FN1M */
+					granularity = 4;
+				} else {
+					/* K22 with new-style SDID? */
+					break;
+				}
+				break;
+			}
+			case KINETIS_SDID_FAMILYID_K2X | KINETIS_SDID_SUBFAMID_KX4:
+				/* K24 */
+				granularity = 4;
+				break;
+			default:
+				break;
+			}
+			break;
+		case KINETIS_SDID_SERIESID_KL:
+			/* KL-series */
+			kinfo->klxx = 1;
+			granularity = 0;
+			break;
+		default:
+			break;
+		}
+	}
+
+	if (granularity == UINT_MAX) {
 		LOG_ERROR("MCU is unsupported");
 		return ERROR_FLASH_OPER_UNSUPPORTED;
 	}
