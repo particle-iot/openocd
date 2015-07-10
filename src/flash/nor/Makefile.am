@@ -32,6 +32,7 @@ NOR_DRIVERS = \
 	stellaris.c \
 	stm32f1x.c \
 	stm32f2x.c \
+	stm32f7x.c \
 	stm32lx.c \
 	str7x.c \
 	str9x.c \
