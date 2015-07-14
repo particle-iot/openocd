@@ -147,6 +147,8 @@
 #define KINETIS_K_SDID_K21_M120	 0x00000330
 #define KINETIS_K_SDID_K22_M50   0x00000210
 #define KINETIS_K_SDID_K22_M120	 0x00000310
+#define KINETIS_K_SDID_K22_M120_FN256 0x00000A90
+#define KINETIS_K_SDID_K22_M120_FN512 0x00000E90
 #define KINETIS_K_SDID_K30_M72   0x000000A0
 #define KINETIS_K_SDID_K30_M100  0x00000120
 #define KINETIS_K_SDID_K40_M72   0x000000B0
@@ -1104,10 +1106,26 @@ static int kinetis_read_part_info(struct flash_bank *bank)
 			kinfo->flash_support = FS_PROGRAM_LONGWORD | FS_PROGRAM_SECTOR;
 			kinfo->max_flash_prog_size = 2<<10;
 			break;
+		case KINETIS_K_SDID_K22_M120_FN256:
+		case KINETIS_K_SDID_K22_M120_FN512:
+			/* 2kB sectors FTFA */
+			pflash_sector_size_bytes = 2<<10;
+			kinfo->max_flash_prog_size = 2<<10;
+			nvm_sector_size_bytes = 2<<10;
+			num_blocks = 2;		/* 1 or 2 blocks */
+			kinfo->flash_support = FS_PROGRAM_LONGWORD;
+			break;
+		case KINETIS_K_SDID_K22_M120:
+		case KINETIS_K_SDID_K21_M120:
+			/* 4kB sectors (MK22FN1M0, FX512) */
+			pflash_sector_size_bytes = 4<<10;
+			kinfo->max_flash_prog_size = 1<<10;
+			nvm_sector_size_bytes = 4<<10;
+			num_blocks = 2;
+			kinfo->flash_support = FS_PROGRAM_PHRASE | FS_PROGRAM_SECTOR;
+			break;
 		case KINETIS_K_SDID_K10_M120:
 		case KINETIS_K_SDID_K20_M120:
-		case KINETIS_K_SDID_K21_M120:
-		case KINETIS_K_SDID_K22_M120:
 		case KINETIS_K_SDID_K60_M150:
 		case KINETIS_K_SDID_K70_M150:
 			/* 4kB sectors */
