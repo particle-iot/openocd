@@ -1806,7 +1806,7 @@ static struct jlink *jlink_usb_open()
 	 * on win32 this may take a second or two to re-enumerate */
 	int retval;
 	while ((retval = jtag_libusb_open(vids, pids, jlink_serial, &devh)) != ERROR_OK) {
-		usleep(1000);
+		openocd_usleep(1000);
 		timeout--;
 		if (!timeout)
 			break;
