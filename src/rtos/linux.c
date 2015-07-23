@@ -218,7 +218,7 @@ static int linux_os_thread_reg_list(struct rtos *rtos,
 			LOG_ERROR
 			(
 				"current thread %" PRIx64 ": no target to perform access of core id %" PRIx32,
-				thread_id,
+				(unsigned long long) thread_id,
 				next->core_id);
 			return ERROR_FAIL;
 		}
@@ -699,7 +699,7 @@ struct current_thread *add_current_thread(struct current_thread *currents,
 struct threads *liste_del_task(struct threads *task_list, struct threads **t,
 	struct threads *prev)
 {
-	LOG_INFO("del task %" PRId64, (*t)->threadid);
+	LOG_INFO("del task %" PRId64, (unsigned long long) (*t)->threadid);
 	prev->next = (*t)->next;
 
 	if (prev == task_list)
@@ -840,8 +840,8 @@ int linux_get_tasks(struct target *target, int context)
 	/*  check that all current threads have been identified  */
 
 	LOG_INFO("complete time %" PRId64 ", thread mean %" PRId64 "\n",
-		(timeval_ms() - start),
-		(timeval_ms() - start) / linux_os->threadid_count);
+		(unsigned long long) (timeval_ms() - start),
+		(unsigned long long) ((timeval_ms() - start) / linux_os->threadid_count));
 
 	LOG_INFO("threadid count %d", linux_os->threadid_count);
 	free(t);
@@ -1110,7 +1110,7 @@ static int linux_task_update(struct target *target, int context)
 	}
 
 	LOG_INFO("update thread done %" PRId64 ", mean%" PRId64 "\n",
-		(timeval_ms() - start), (timeval_ms() - start) / loop);
+		(unsigned long long) (timeval_ms() - start), (unsigned long long) ((timeval_ms() - start) / loop));
 	free(t);
 	linux_os->threads_needs_update = 0;
 	return ERROR_OK;
@@ -1142,7 +1142,7 @@ int linux_gdb_thread_packet(struct target *target,
 	struct threads *temp = linux_os->thread_list;
 
 	while (temp != NULL) {
-		tmp_str += sprintf(tmp_str, "%016" PRIx64, temp->threadid);
+		tmp_str += sprintf(tmp_str, "%016" PRIx64, (unsigned long long) temp->threadid);
 		temp = temp->next;
 		if (temp)
 			tmp_str += sprintf(tmp_str, ",");
@@ -1177,7 +1177,7 @@ int linux_gdb_thread_update(struct target *target,
 		char *tmp_strr = out_strr;
 		tmp_strr += sprintf(tmp_strr, "m");
 		/*LOG_INFO("CHAR MALLOC & M DONE");*/
-		tmp_strr += sprintf(tmp_strr, "%016" PRIx64, temp->threadid);
+		tmp_strr += sprintf(tmp_strr, "%016" PRIx64, (unsigned long long) temp->threadid);
 
 		temp = temp->next;
 
@@ -1185,7 +1185,7 @@ int linux_gdb_thread_update(struct target *target,
 			/*LOG_INFO("INTO GDB THREAD UPDATE WHILE");*/
 			tmp_strr += sprintf(tmp_strr, ",");
 			tmp_strr +=
-				sprintf(tmp_strr, "%016" PRIx64, temp->threadid);
+				sprintf(tmp_strr, "%016" PRIx64, (unsigned long long) temp->threadid);
 			temp = temp->next;
 		}
 

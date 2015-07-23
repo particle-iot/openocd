@@ -354,7 +354,7 @@ int rtos_thread_packet(struct connection *connection, char const *packet, int pa
 				char *tmp_str = out_str;
 				for (i = 0; i < target->rtos->thread_count; i++) {
 					tmp_str += sprintf(tmp_str, "%c%016" PRIx64, i == 0 ? 'm' : ',',
-										target->rtos->thread_details[i].threadid);
+										(unsigned long long) target->rtos->thread_details[i].threadid);
 				}
 				gdb_put_packet(connection, out_str, strlen(out_str));
 				free(out_str);
@@ -381,7 +381,7 @@ int rtos_thread_packet(struct connection *connection, char const *packet, int pa
 		if (target->rtos != NULL) {
 			char buffer[19];
 			int size;
-			size = snprintf(buffer, 19, "QC%016" PRIx64, target->rtos->current_thread);
+			size = snprintf(buffer, 19, "QC%016" PRIx64, (unsigned long long) target->rtos->current_thread);
 			gdb_put_packet(connection, buffer, size);
 		} else
 			gdb_put_packet(connection, "QC0", 3);
@@ -409,7 +409,7 @@ int rtos_thread_packet(struct connection *connection, char const *packet, int pa
 		if ((packet[1] == 'g') && (target->rtos != NULL)) {
 			sscanf(packet, "Hg%16" SCNx64, &target->rtos->current_threadid);
 			LOG_DEBUG("RTOS: GDB requested to set current thread to 0x%" PRIx64 "\r\n",
-										target->rtos->current_threadid);
+										(unsigned long long) target->rtos->current_threadid);
 		}
 		gdb_put_packet(connection, "OK", 2);
 		return ERROR_OK;
@@ -430,8 +430,8 @@ int rtos_get_gdb_reg_list(struct connection *connection)
 
 		LOG_DEBUG("RTOS: getting register list for thread 0x%" PRIx64
 				  ", target->rtos->current_thread=0x%" PRIx64 "\r\n",
-										current_threadid,
-										target->rtos->current_thread);
+										(unsigned long long) current_threadid,
+										(unsigned long long) target->rtos->current_thread);
 
 		target->rtos->type->get_thread_reg_list(target->rtos,
 			current_threadid,

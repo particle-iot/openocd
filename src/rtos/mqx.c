@@ -527,7 +527,7 @@ static int mqx_get_thread_reg_list(
 		}
 	}
 	if (!my_task_addr) {
-		LOG_ERROR("MQX_RTOS - threadid %" PRId64 " does not match any task", thread_id);
+		LOG_ERROR("MQX_RTOS - threadid %" PRId64 " does not match any task", (unsigned long long) thread_id);
 		return ERROR_FAIL;
 	}
 	/* get task stack head address */

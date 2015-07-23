@@ -1236,14 +1236,14 @@ static int jtag_validate_ircapture(void)
 		if ((val & tap->ir_capture_mask) != tap->ir_capture_value) {
 			LOG_ERROR("%s: IR capture error; saw 0x%0*" PRIx64 " not 0x%0*" PRIx32,
 				jtag_tap_name(tap),
-				(tap->ir_length + 7) / tap->ir_length, val,
+				(tap->ir_length + 7) / tap->ir_length, (unsigned long long) val,
 				(tap->ir_length + 7) / tap->ir_length, tap->ir_capture_value);
 
 			retval = ERROR_JTAG_INIT_FAILED;
 			goto done;
 		}
 		LOG_DEBUG("%s: IR capture 0x%0*" PRIx64, jtag_tap_name(tap),
-			(tap->ir_length + 7) / tap->ir_length, val);
+			(tap->ir_length + 7) / tap->ir_length, (unsigned long long) val);
 		chain_pos += tap->ir_length;
 	}
 

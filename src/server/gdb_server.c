@@ -759,7 +759,8 @@ static void gdb_signal_reply(struct target *target, struct connection *connectio
 
 		current_thread[0] = '\0';
 		if (target->rtos != NULL) {
-			snprintf(current_thread, sizeof(current_thread), "thread:%016" PRIx64 ";", target->rtos->current_thread);
+			snprintf(current_thread, sizeof(current_thread), "thread:%016" PRIx64 ";",
+									(unsigned long long) target->rtos->current_thread);
 			target->rtos->current_threadid = target->rtos->current_thread;
 		}
 

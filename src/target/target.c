@@ -2151,12 +2151,12 @@ int target_read_u64(struct target *target, uint64_t address, uint64_t *value)
 	if (retval == ERROR_OK) {
 		*value = target_buffer_get_u64(target, value_buf);
 		LOG_DEBUG("address: 0x%" PRIx64 ", value: 0x%16.16" PRIx64 "",
-				  address,
-				  *value);
+				  (unsigned long long) address,
+				  (unsigned long long) *value);
 	} else {
 		*value = 0x0;
 		LOG_DEBUG("address: 0x%" PRIx64 " failed",
-				  address);
+				  (unsigned long long) address);
 	}
 
 	return retval;
@@ -2242,8 +2242,8 @@ int target_write_u64(struct target *target, uint64_t address, uint64_t value)
 	}
 
 	LOG_DEBUG("address: 0x%" PRIx64 ", value: 0x%16.16" PRIx64 "",
-			  address,
-			  value);
+			  (unsigned long long) address,
+			  (unsigned long long) value);
 
 	target_buffer_set_u64(target, value_buf, value);
 	retval = target_write_memory(target, address, 8, 1, value_buf);

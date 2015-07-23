@@ -655,7 +655,7 @@ static int read_hw_reg(struct target *t, int reg, uint32_t *regval, uint8_t cach
 	}
 	LOG_DEBUG("reg=%s, op=0x%016" PRIx64 ", val=0x%08" PRIx32,
 			x86_32->cache->reg_list[reg].name,
-			arch_info->op,
+			(unsigned long long) arch_info->op,
 			*regval);
 	return ERROR_OK;
 }
@@ -673,7 +673,7 @@ static int write_hw_reg(struct target *t, int reg, uint32_t regval, uint8_t cach
 	buf_set_u32(reg_buf, 0, 32, regval);
 	LOG_DEBUG("reg=%s, op=0x%016" PRIx64 ", val=0x%08" PRIx32,
 			x86_32->cache->reg_list[reg].name,
-			arch_info->op,
+			(unsigned long long) arch_info->op,
 			regval);
 
 	scan.out[0] = RDWRPDR;
@@ -770,7 +770,7 @@ static int submit_instruction(struct target *t, int num)
 
 static int submit_reg_pir(struct target *t, int num)
 {
-	LOG_DEBUG("reg %s op=0x%016" PRIx64, regs[num].name, regs[num].op);
+	LOG_DEBUG("reg %s op=0x%016" PRIx64, regs[num].name, (unsigned long long) regs[num].op);
 	int err = submit_pir(t, regs[num].op);
 	if (err != ERROR_OK) {
 		LOG_ERROR("%s error submitting pir", __func__);
@@ -782,7 +782,7 @@ static int submit_reg_pir(struct target *t, int num)
 static int submit_instruction_pir(struct target *t, int num)
 {
 	LOG_DEBUG("%s op=0x%016" PRIx64, instructions[num].name,
-			instructions[num].op);
+			(unsigned long long) instructions[num].op);
 	int err = submit_pir(t, instructions[num].op);
 	if (err != ERROR_OK) {
 		LOG_ERROR("%s error submitting pir", __func__);
