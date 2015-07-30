@@ -863,7 +863,7 @@ int dap_get_debugbase(struct adiv5_dap *dap, int ap,
 }
 
 int dap_lookup_cs_component(struct adiv5_dap *dap, int ap,
-			uint32_t dbgbase, uint8_t type, uint32_t *addr, int32_t *idx)
+			uint32_t dbgbase, uint8_t type, uint32_t *addr, int32_t idx)
 {
 	uint32_t ap_old;
 	uint32_t romentry, entry_offset = 0, component_base, devtype;
@@ -908,11 +908,11 @@ int dap_lookup_cs_component(struct adiv5_dap *dap, int ap,
 			if (retval != ERROR_OK)
 				return retval;
 			if ((devtype & 0xff) == type) {
-				if (!*idx) {
+				if (!idx) {
 					*addr = component_base;
 					break;
 				} else
-					(*idx)--;
+					idx--;
 			}
 		}
 		entry_offset += 4;
