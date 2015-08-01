@@ -147,6 +147,10 @@ build_bitbang=no
 build_bitq=no
 is_cygwin=no
 is_mingw=no
+is_mingw_w64_64bit=no
+is_mingw_w64_32bit=no
+is_msys2_64bit=no
+is_msys2_32bit=no
 is_win32=no
 is_darwin=no
 
@@ -554,36 +558,119 @@ case "${host_cpu}" in
     ;;
 esac
 
-case $host in
+# Some hosts declare -cygwin but are actually MinGW
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([], [[return __MINGW32__;]])],
+  [fixed_host=x-mingwx],[fixed_host=$host])
+
+case $fixed_host in
   *-cygwin*)
     is_win32=yes
     parport_use_ppdev=no
 
-    AC_COMPILE_IFELSE([AC_LANG_PROGRAM([], [[return __MINGW32__;]])],
-      [is_mingw=yes],[is_mingw=no])
-    if test $is_mingw = yes; then
-      AC_DEFINE([IS_MINGW], [1], [1 if building for MinGW.])
-      if test x$parport_use_giveio = xno; then
-        AC_MSG_WARN([--disable-parport-giveio is not supported by MinGW32 hosts])
-      fi
-      parport_use_giveio=yes
-      is_cygwin=no
-    else
-      is_cygwin=yes
-      AC_DEFINE([IS_CYGWIN], [1], [1 if building for Cygwin.])
-      # sys/io.h needed under cygwin for parport access
-      if test $build_parport = yes; then
-        AC_CHECK_HEADERS([sys/io.h],[],AC_MSG_ERROR([Please install the cygwin ioperm package]))
-      fi
+    is_cygwin=yes
+    AC_DEFINE([IS_CYGWIN], [1], [1 if building for Cygwin.])
+    # sys/io.h needed under cygwin for parport access
+    if test $build_parport = yes; then
+      AC_CHECK_HEADERS([sys/io.h],[],AC_MSG_ERROR([Please install the cygwin ioperm package]))
     fi
 
     AC_DEFINE([IS_WIN32], [1], [1 if building for Win32.])
     AC_DEFINE([IS_DARWIN], [0], [0 if not building for Darwin.])
     ;;
   *-mingw*)
-    is_mingw=yes
     is_win32=yes
     parport_use_ppdev=no
+
+    # There are 5 different systems that could give this host type:
+    # MinGW             (mingw.org)
+    # MinGW-w64 32 Bit  (mingw-w64.org)
+    # MinGW-w64 64 Bit  (mingw-w64.org)
+    # MSYS2 32 Bit      (msys2.github.io)
+    # MSYS2 64 Bit      (msys2.github.io)
+
+    AC_MSG_CHECKING([for MinGW])
+    AC_RUN_IFELSE([AC_LANG_PROGRAM([[
+			#include <stdio.h>
+		]], [[
+			#if (!defined(__MINGW32__) || defined(__MINGW64_VERSION_MAJOR)
+			#error Not MinGW
+			#endif
+		]])], [
+			is_mingw=yes
+			AC_MSG_RESULT([yes])
+			AC_DEFINE([IS_MINGW], [1], [1 if building for MinGW.])
+		], [
+			is_mingw=no
+			AC_MSG_RESULT([no])
+		], [
+			is_mingw=yes
+			AC_MSG_RESULT([Skipping as we are cross-compiling - defaulting to standard MinGW])
+		])
+
+    AC_MSG_CHECKING([for MinGW-w64 64-bit])
+    AC_RUN_IFELSE([AC_LANG_PROGRAM([[
+			#include <stdio.h>
+		]], [[
+			#if (!defined(__MINGW64_VERSION_MAJOR)) || (!defined(__MINGW64__))
+			#error Not MinGW-w64 64-bit
+			#endif
+		]])], [
+			is_mingw_w64_64bit=yes
+			AC_MSG_RESULT([yes])
+			AC_DEFINE([IS_MINGW_W64_64_BIT], [1], [1 if building for MinGW-w64 64-Bit.])
+		], [
+			is_mingw_w64_64bit=no
+			AC_MSG_RESULT([no])
+		], [
+			AC_MSG_RESULT([Skipping as we are cross-compiling])
+		])
+
+	AC_MSG_CHECKING([for MinGW-w64 32-bit])
+    AC_RUN_IFELSE([AC_LANG_PROGRAM([[
+			#include <stdio.h>
+		]], [[
+			#if (!defined(__MINGW64_VERSION_MAJOR)) || defined(__MINGW64__)
+			#error Not MinGW-w64 32-bit
+			#endif
+		]])], [
+			is_mingw_w64_32bit=yes
+			AC_MSG_RESULT([yes])
+			AC_DEFINE([IS_MINGW_W64_32_BIT], [1], [1 if building for MinGW-w64 32-Bit.])
+		], [
+			is_mingw_w64_32bit=no
+			AC_MSG_RESULT([no])
+		], [
+			AC_MSG_RESULT([Skipping as we are cross-compiling])
+		])
+
+	AC_MSG_CHECKING([for MSYS2])
+    AC_RUN_IFELSE([AC_LANG_PROGRAM([[
+			#include <stdio.h>
+		]], [[
+			#if (!defined(__MSYS__)) || defined(_WIN32) || defined(__MINGW32__)
+			#error Not MSYS2 64-bit
+			#endif
+		]])], [
+			msys2_ver=`uname -s 2>/dev/null`
+			case "$msys2_ver" in
+				*MINGW32*)
+					is_msys2_32bit=yes
+					AC_MSG_RESULT([yes - 32-bit])
+					AC_DEFINE([IS_MSYS2_32_BIT], [1], [1 if building for MSYS2 32-Bit.])
+				;;
+				*MINGW64*)
+					is_msys2_64bit=yes
+					AC_MSG_RESULT([yes - 64-bit])
+					AC_DEFINE([IS_MSYS2_64_BIT], [1], [1 if building for MSYS2 64-Bit.])
+				;;
+			esac
+		], [
+			is_msys2_32bit=no
+			is_msys2_64bit=no
+			AC_MSG_RESULT([no])
+		], [
+			AC_MSG_RESULT([Skipping as we are cross-compiling])
+		])
 
     if test x$parport_use_giveio = xno; then
       AC_MSG_WARN([--disable-parport-giveio is not supported by MinGW32 hosts])
@@ -596,7 +683,6 @@ case $host in
 
     CFLAGS="$CFLAGS -D__USE_MINGW_ANSI_STDIO"
 
-    AC_DEFINE([IS_MINGW], [1], [1 if building for MinGW.])
     AC_DEFINE([IS_WIN32], [1], [1 if building for Win32.])
     AC_DEFINE([IS_DARWIN], [0], [0 if not building for Darwin.])
     ;;
@@ -1200,6 +1286,10 @@ AM_CONDITIONAL([USE_LIBUSB0], [test $use_libusb0 = yes])
 AM_CONDITIONAL([USE_LIBUSB1], [test $use_libusb1 = yes])
 AM_CONDITIONAL([IS_CYGWIN], [test $is_cygwin = yes])
 AM_CONDITIONAL([IS_MINGW], [test $is_mingw = yes])
+AM_CONDITIONAL([IS_MINGW_W64_64_BIT], [test $is_mingw_w64_64bit = yes])
+AM_CONDITIONAL([IS_MINGW_W64_32_BIT], [test $is_mingw_w64_32bit = yes])
+AM_CONDITIONAL([IS_MSYS2_64_BIT], [test $is_msys2_64bit = yes])
+AM_CONDITIONAL([IS_MSYS2_32_BIT], [test $is_msys2_32bit = yes])
 AM_CONDITIONAL([IS_WIN32], [test $is_win32 = yes])
 AM_CONDITIONAL([IS_DARWIN], [test $is_darwin = yes])
 AM_CONDITIONAL([BITQ], [test $build_bitq = yes])
