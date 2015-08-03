@@ -30,6 +30,11 @@
 #include <server/server.h>
 
 #include <getopt.h>
+#include <unistd.h>
+
+#if defined(__linux__) || defined(IS_MSYS2_64_BIT) || defined(IS_MSYS2_32_BIT)
+#include <libgen.h>
+#endif
 
 static int help_flag, version_flag;
 
@@ -70,10 +75,18 @@ static char *find_suffix(const char *text, const char *suffix)
 
 static void add_default_dirs(void)
 {
-	const char *run_prefix;
+	const char *run_prefix = NULL;
 	char *path;
 
-#ifdef _WIN32
+	/* Dynamically get the full pathname of the OpenOCD executable
+	 * In case it has been unzipped manually in a non-standard location
+	 *
+	 * This is platform dependent since C does not
+	 * have a method for doing this.
+	 * See http://stackoverflow.com/a/1024937
+	 */
+#if defined(_WIN32)
+	/* Get the Windows current executable name via GetModuleFileName */
 	char strExePath[MAX_PATH];
 	GetModuleFileName(NULL, strExePath, MAX_PATH);
 
@@ -91,19 +104,46 @@ static void add_default_dirs(void)
 		*end_of_prefix = '\0';
 
 	run_prefix = strExePath;
-#else
+#elif defined(__linux__) || defined(IS_MSYS2_64_BIT) || defined(IS_MSYS2_32_BIT)
 	run_prefix = "";
+	int path_size = 1024;
+	char *strExePath;
+	ssize_t retval;
+	while (1) {
+		strExePath = (char *) malloc(path_size);
+		if (strExePath == NULL)
+			break;
+		retval = readlink("/proc/self/exe", strExePath, path_size);
+		LOG_DEBUG("retval=%d path_size=%d", (int)retval, (int)path_size);
+		if (retval < path_size) {
+			strExePath = dirname(strExePath);
+			run_prefix = strExePath;
+			break;
+		} else if (retval == path_size) {
+			free(strExePath);
+			path_size *= 2;
+		} else {
+			break;
+		}
+	}
+#else
+	LOG_WARNING("Platform has no implementation for getting executable path");
 #endif
 
-	LOG_DEBUG("bindir=%s", BINDIR);
+	/* Installation directory for binaries    - defaults to /usr/bin/ */
+	LOG_DEBUG("bindir=%s",     BINDIR);
+
+	/* Installation directory for shared data - defaults to /usr/share/openocd/ */
 	LOG_DEBUG("pkgdatadir=%s", PKGDATADIR);
-	LOG_DEBUG("run_prefix=%s", run_prefix);
 
 	/*
 	 * The directory containing OpenOCD-supplied scripts should be
-	 * listed last in the built-in search order, so the user can
+	 * listed last in the built-in search order, so the site administrator can
 	 * override these scripts with site-specific customizations.
+	 * User-specific search directories should go first so they can override all others
 	 */
+
+	/* User-specific scripts stored in <Home>/.openocd */
 	const char *home = getenv("HOME");
 
 	if (home) {
@@ -114,6 +154,7 @@ static void add_default_dirs(void)
 		}
 	}
 #ifdef _WIN32
+	/* Windows user-specific scripts stored in <AppData>/OpenOCD */
 	const char *appdata = getenv("APPDATA");
 
 	if (appdata) {
@@ -125,16 +166,40 @@ static void add_default_dirs(void)
 	}
 #endif
 
-	path = alloc_printf("%s%s%s", run_prefix, PKGDATADIR, "/site");
+	/* Site specific scripts - offset from installation package data directory */
+	path = alloc_printf("%s%s", PKGDATADIR, "/site");
 	if (path) {
 		add_script_search_dir(path);
 		free(path);
 	}
 
-	path = alloc_printf("%s%s%s", run_prefix, PKGDATADIR, "/scripts");
+	/* Standard scripts location */
+	path = alloc_printf("%s%s", PKGDATADIR, "/scripts");
 	if (path) {
 		add_script_search_dir(path);
 		free(path);
+	}
+
+	if (run_prefix) {
+		LOG_DEBUG("run_prefix=%s", run_prefix); /* Location of current executable */
+
+		/* Running from source tree - TCL directory relative to executable */
+		path = alloc_printf("%s%s", run_prefix, "/../tcl");
+		if (path) {
+			add_script_search_dir(path);
+			free(path);
+		}
+
+		/* Running from unzipped location - scripts directory relative to executable */
+		path = alloc_printf("%s%s", run_prefix, "/../share/openocd/scripts");
+		if (path) {
+			add_script_search_dir(path);
+			free(path);
+		}
+	} else {
+		LOG_WARNING("Executable path could not be determined. "
+			"If executable is in non-standard location, then default "
+			"script search path will not locate scripts - use '-s' option if needed.");
 	}
 }
 
