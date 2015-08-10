@@ -33,14 +33,58 @@
 
 #define MIPS64_COMMON_MAGIC		0xB640B640
 
-/* offsets into mips64 core register cache */
-#define MIPS64_NUM_CORE_REGS 40
-#define MIPS64_NUM_FP_REGS 34
-enum {
-	MIPS64_PC = MIPS64_NUM_CORE_REGS - 1,
-	MIPS64_FIR = MIPS64_NUM_CORE_REGS + MIPS64_NUM_FP_REGS - 1,
-	MIPS64NUMCOREREGS
-};
+/* MIPS64 CP0 registers */
+#define MIPS64_C0_INDEX		0
+#define MIPS64_C0_RANDOM	1
+#define MIPS64_C0_ENTRYLO0	2
+#define MIPS64_C0_ENTRYLO1	3
+#define MIPS64_C0_CONTEXT	4
+#define MIPS64_C0_PAGEMASK	5
+#define MIPS64_C0_WIRED		6
+#define MIPS64_C0_BADVADDR	8
+#define MIPS64_C0_COUNT		9
+#define MIPS64_C0_ENTRYHI	10
+#define MIPS64_C0_COMPARE	11
+#define MIPS64_C0_STATUS	12
+#define MIPS64_C0_CAUSE		13
+#define MIPS64_C0_EPC		14
+#define MIPS64_C0_PRID		15
+#define MIPS64_C0_CONFIG	16
+#define MIPS64_C0_LLA		17
+#define MIPS64_C0_WATCHLO	18
+#define MIPS64_C0_WATCHHI	19
+#define MIPS64_C0_XCONTEXT	20
+#define MIPS64_C0_MEMCTRL	22
+#define MIPS64_C0_DEBUG		23
+#define MIPS64_C0_DEPC		24
+#define MIPS64_C0_PERFCOUNT	25
+#define MIPS64_C0_ECC		26
+#define MIPS64_C0_CACHERR	27
+#define MIPS64_C0_TAGLO		28
+#define MIPS64_C0_TAGHI		29
+#define MIPS64_C0_DATAHI	29
+#define MIPS64_C0_EEPC		30
+
+/* MIPS64 CP1 registers */
+#define MIPS64_C1_FIR		0
+#define MIPS64_C1_FCONFIG	24
+#define MIPS64_C1_FCSR		31
+#define MIPS64_C1_FCCR		25
+#define MIPS64_C1_FEXR		26
+#define MIPS64_C1_FENR		28
+
+/* offsets into mips64 register cache */
+#define MIPS64_NUM_CORE_REGS	34
+#define MIPS64_NUM_C0_REGS	34
+#define MIPS64_NUM_FP_REGS	38
+
+#define MIPS64_NUM_REGS		(MIPS64_NUM_CORE_REGS + \
+				 MIPS64_NUM_C0_REGS + \
+				 MIPS64_NUM_FP_REGS)
+
+#define MIPS64_NUM_CORE_C0_REGS	(MIPS64_NUM_CORE_REGS + MIPS64_NUM_C0_REGS)
+
+#define MIPS64_PC		MIPS64_NUM_CORE_REGS
 
 struct mips64_comparator {
 	int used;
@@ -53,7 +97,7 @@ struct mips64_common {
 	void *arch_info;
 	struct reg_cache *core_cache;
 	struct mips_ejtag ejtag_info;
-	uint64_t core_regs[MIPS64NUMCOREREGS];
+	uint64_t core_regs[MIPS64_NUM_REGS];
 
 	struct working_area *fast_data_area;
 
@@ -127,7 +171,9 @@ struct mips64_core_reg {
 #define MIPS64_MTC0(gpr, cpr, sel)	MIPS64_R_INST(MIPS64_OP_COP0, MIPS64_COP_MT, gpr, cpr, 0, sel)
 #define MIPS64_DMTC0(gpr, cpr, sel)	MIPS64_R_INST(MIPS64_OP_COP0, MIPS64_COP_DMT, gpr, cpr, 0, sel)
 #define MIPS64_MFC1(gpr, cpr, sel)	MIPS64_R_INST(MIPS64_OP_COP1, MIPS64_COP_MF, gpr, cpr, 0, 0)
+#define MIPS64_DMFC1(gpr, cpr, sel)	MIPS64_R_INST(MIPS64_OP_COP1, MIPS64_COP_DMF, gpr, cpr, 0, 0)
 #define MIPS64_MTC1(gpr, cpr, sel)	MIPS64_R_INST(MIPS64_OP_COP1, MIPS64_COP_MT, gpr, cpr, 0, 0)
+#define MIPS64_DMTC1(gpr, cpr, sel)	MIPS64_R_INST(MIPS64_OP_COP1, MIPS64_COP_DMT, gpr, cpr, 0, 0)
 #define MIPS64_MFC2(gpr, cpr, sel)	MIPS64_R_INST(MIPS64_OP_COP2, MIPS64_COP_MF, gpr, cpr, 0, sel)
 #define MIPS64_MTC2(gpr, cpr, sel)	MIPS64_R_INST(MIPS64_OP_COP2, MIPS64_COP_MT, gpr, cpr, 0, sel)
 #define MIPS64_CFC1(gpr, cpr, sel)	MIPS64_R_INST(MIPS64_OP_COP1, MIPS64_COP_CF, gpr, cpr, 0, 0)
