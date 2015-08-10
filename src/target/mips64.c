@@ -43,116 +43,165 @@ static const struct {
 	const char *feature;
 	int flag;
 } mips64_regs[] = {
-	{  0,  "r0", REG_TYPE_INT, NULL, "org.gnu.gdb.mips.cpu", 0 },
-	{  1,  "r1", REG_TYPE_INT, NULL, "org.gnu.gdb.mips.cpu", 0 },
-	{  2,  "r2", REG_TYPE_INT, NULL, "org.gnu.gdb.mips.cpu", 0 },
-	{  3,  "r3", REG_TYPE_INT, NULL, "org.gnu.gdb.mips.cpu", 0 },
-	{  4,  "r4", REG_TYPE_INT, NULL, "org.gnu.gdb.mips.cpu", 0 },
-	{  5,  "r5", REG_TYPE_INT, NULL, "org.gnu.gdb.mips.cpu", 0 },
-	{  6,  "r6", REG_TYPE_INT, NULL, "org.gnu.gdb.mips.cpu", 0 },
-	{  7,  "r7", REG_TYPE_INT, NULL, "org.gnu.gdb.mips.cpu", 0 },
-	{  8,  "r8", REG_TYPE_INT, NULL, "org.gnu.gdb.mips.cpu", 0 },
-	{  9,  "r9", REG_TYPE_INT, NULL, "org.gnu.gdb.mips.cpu", 0 },
-	{ 10, "r10", REG_TYPE_INT, NULL, "org.gnu.gdb.mips.cpu", 0 },
-	{ 11, "r11", REG_TYPE_INT, NULL, "org.gnu.gdb.mips.cpu", 0 },
-	{ 12, "r12", REG_TYPE_INT, NULL, "org.gnu.gdb.mips.cpu", 0 },
-	{ 13, "r13", REG_TYPE_INT, NULL, "org.gnu.gdb.mips.cpu", 0 },
-	{ 14, "r14", REG_TYPE_INT, NULL, "org.gnu.gdb.mips.cpu", 0 },
-	{ 15, "r15", REG_TYPE_INT, NULL, "org.gnu.gdb.mips.cpu", 0 },
-	{ 16, "r16", REG_TYPE_INT, NULL, "org.gnu.gdb.mips.cpu", 0 },
-	{ 17, "r17", REG_TYPE_INT, NULL, "org.gnu.gdb.mips.cpu", 0 },
-	{ 18, "r18", REG_TYPE_INT, NULL, "org.gnu.gdb.mips.cpu", 0 },
-	{ 19, "r19", REG_TYPE_INT, NULL, "org.gnu.gdb.mips.cpu", 0 },
-	{ 20, "r20", REG_TYPE_INT, NULL, "org.gnu.gdb.mips.cpu", 0 },
-	{ 21, "r21", REG_TYPE_INT, NULL, "org.gnu.gdb.mips.cpu", 0 },
-	{ 22, "r22", REG_TYPE_INT, NULL, "org.gnu.gdb.mips.cpu", 0 },
-	{ 23, "r23", REG_TYPE_INT, NULL, "org.gnu.gdb.mips.cpu", 0 },
-	{ 24, "r24", REG_TYPE_INT, NULL, "org.gnu.gdb.mips.cpu", 0 },
-	{ 25, "r25", REG_TYPE_INT, NULL, "org.gnu.gdb.mips.cpu", 0 },
-	{ 26, "r26", REG_TYPE_INT, NULL, "org.gnu.gdb.mips.cpu", 0 },
-	{ 27, "r27", REG_TYPE_INT, NULL, "org.gnu.gdb.mips.cpu", 0 },
-	{ 28, "r28", REG_TYPE_INT, NULL, "org.gnu.gdb.mips.cpu", 0 },
-	{ 29, "r29", REG_TYPE_INT, NULL, "org.gnu.gdb.mips.cpu", 0 },
-	{ 30, "r30", REG_TYPE_INT, NULL, "org.gnu.gdb.mips.cpu", 0 },
-	{ 31, "r31", REG_TYPE_INT, NULL, "org.gnu.gdb.mips.cpu", 0 },
-	{ 32, "status", REG_TYPE_INT, NULL, "org.gnu.gdb.mips.cp0", 0 },
-	{ 33, "lo", REG_TYPE_INT, NULL, "org.gnu.gdb.mips.cpu", 0 },
-	{ 34, "hi", REG_TYPE_INT, NULL, "org.gnu.gdb.mips.cpu", 0 },
-	{ 35, "badvaddr", REG_TYPE_INT, NULL, "org.gnu.gdb.mips.cp0", 0 },
-	{ 36, "cause", REG_TYPE_INT, NULL, "org.gnu.gdb.mips.cp0", 0 },
-	{ 37, "debug", REG_TYPE_INT, NULL, "org.gnu.gdb.mips.cp0", 0 },
-	{ 38, "processorID", REG_TYPE_INT, NULL, "org.gnu.gdb.mips.cp0", 0 },
-	{ 39, "pc", REG_TYPE_INT, NULL, "org.gnu.gdb.mips.cpu", 0 },
-
-	{ MIPS64_PC + 1,  "f0", REG_TYPE_IEEE_SINGLE, NULL,
-		 "org.gnu.gdb.mips.fpu", MIPS32_GDB_DUMMY_FP_REG },
-	{ MIPS64_PC + 2,  "f1", REG_TYPE_IEEE_SINGLE, NULL,
-		 "org.gnu.gdb.mips.fpu", MIPS32_GDB_DUMMY_FP_REG },
-	{ MIPS64_PC + 3,  "f2", REG_TYPE_IEEE_SINGLE, NULL,
-		 "org.gnu.gdb.mips.fpu", MIPS32_GDB_DUMMY_FP_REG },
-	{ MIPS64_PC + 4,  "f3", REG_TYPE_IEEE_SINGLE, NULL,
-		 "org.gnu.gdb.mips.fpu", MIPS32_GDB_DUMMY_FP_REG },
-	{ MIPS64_PC + 5, "f4", REG_TYPE_IEEE_SINGLE, NULL,
-		 "org.gnu.gdb.mips.fpu", MIPS32_GDB_DUMMY_FP_REG },
-	{ MIPS64_PC + 6,  "f5", REG_TYPE_IEEE_SINGLE, NULL,
-		 "org.gnu.gdb.mips.fpu", MIPS32_GDB_DUMMY_FP_REG },
-	{ MIPS64_PC + 7,  "f6", REG_TYPE_IEEE_SINGLE, NULL,
-		 "org.gnu.gdb.mips.fpu", MIPS32_GDB_DUMMY_FP_REG },
-	{ MIPS64_PC + 8,  "f7", REG_TYPE_IEEE_SINGLE, NULL,
-		 "org.gnu.gdb.mips.fpu", MIPS32_GDB_DUMMY_FP_REG },
-	{ MIPS64_PC + 9,  "f8", REG_TYPE_IEEE_SINGLE, NULL,
-		 "org.gnu.gdb.mips.fpu", MIPS32_GDB_DUMMY_FP_REG },
-	{ MIPS64_PC + 10,  "f9", REG_TYPE_IEEE_SINGLE, NULL,
-		 "org.gnu.gdb.mips.fpu", MIPS32_GDB_DUMMY_FP_REG },
-	{ MIPS64_PC + 11, "f10", REG_TYPE_IEEE_SINGLE, NULL,
-		 "org.gnu.gdb.mips.fpu", MIPS32_GDB_DUMMY_FP_REG },
-	{ MIPS64_PC + 12, "f11", REG_TYPE_IEEE_SINGLE, NULL,
-		 "org.gnu.gdb.mips.fpu", MIPS32_GDB_DUMMY_FP_REG },
-	{ MIPS64_PC + 13, "f12", REG_TYPE_IEEE_SINGLE, NULL,
-		 "org.gnu.gdb.mips.fpu", MIPS32_GDB_DUMMY_FP_REG },
-	{ MIPS64_PC + 14, "f13", REG_TYPE_IEEE_SINGLE, NULL,
-		 "org.gnu.gdb.mips.fpu", MIPS32_GDB_DUMMY_FP_REG },
-	{ MIPS64_PC + 15, "f14", REG_TYPE_IEEE_SINGLE, NULL,
-		 "org.gnu.gdb.mips.fpu", MIPS32_GDB_DUMMY_FP_REG },
-	{ MIPS64_PC + 16, "f15", REG_TYPE_IEEE_SINGLE, NULL,
-		 "org.gnu.gdb.mips.fpu", MIPS32_GDB_DUMMY_FP_REG },
-	{ MIPS64_PC + 17, "f16", REG_TYPE_IEEE_SINGLE, NULL,
-		 "org.gnu.gdb.mips.fpu", MIPS32_GDB_DUMMY_FP_REG },
-	{ MIPS64_PC + 18, "f17", REG_TYPE_IEEE_SINGLE, NULL,
-		 "org.gnu.gdb.mips.fpu", MIPS32_GDB_DUMMY_FP_REG },
-	{ MIPS64_PC + 19, "f18", REG_TYPE_IEEE_SINGLE, NULL,
-		 "org.gnu.gdb.mips.fpu", MIPS32_GDB_DUMMY_FP_REG },
-	{ MIPS64_PC + 20, "f19", REG_TYPE_IEEE_SINGLE, NULL,
-		 "org.gnu.gdb.mips.fpu", MIPS32_GDB_DUMMY_FP_REG },
-	{ MIPS64_PC + 21, "f20", REG_TYPE_IEEE_SINGLE, NULL,
-		 "org.gnu.gdb.mips.fpu", MIPS32_GDB_DUMMY_FP_REG },
-	{ MIPS64_PC + 22, "f21", REG_TYPE_IEEE_SINGLE, NULL,
-		 "org.gnu.gdb.mips.fpu", MIPS32_GDB_DUMMY_FP_REG },
-	{ MIPS64_PC + 23, "f22", REG_TYPE_IEEE_SINGLE, NULL,
-		 "org.gnu.gdb.mips.fpu", MIPS32_GDB_DUMMY_FP_REG },
-	{ MIPS64_PC + 24, "f23", REG_TYPE_IEEE_SINGLE, NULL,
-		 "org.gnu.gdb.mips.fpu", MIPS32_GDB_DUMMY_FP_REG },
-	{ MIPS64_PC + 25, "f24", REG_TYPE_IEEE_SINGLE, NULL,
-		 "org.gnu.gdb.mips.fpu", MIPS32_GDB_DUMMY_FP_REG },
-	{ MIPS64_PC + 26, "f25", REG_TYPE_IEEE_SINGLE, NULL,
-		 "org.gnu.gdb.mips.fpu", MIPS32_GDB_DUMMY_FP_REG },
-	{ MIPS64_PC + 27, "f26", REG_TYPE_IEEE_SINGLE, NULL,
-		 "org.gnu.gdb.mips.fpu", MIPS32_GDB_DUMMY_FP_REG },
-	{ MIPS64_PC + 28, "f27", REG_TYPE_IEEE_SINGLE, NULL,
-		 "org.gnu.gdb.mips.fpu", MIPS32_GDB_DUMMY_FP_REG },
-	{ MIPS64_PC + 29, "f28", REG_TYPE_IEEE_SINGLE, NULL,
-		 "org.gnu.gdb.mips.fpu", MIPS32_GDB_DUMMY_FP_REG },
-	{ MIPS64_PC + 30, "f29", REG_TYPE_IEEE_SINGLE, NULL,
-		 "org.gnu.gdb.mips.fpu", MIPS32_GDB_DUMMY_FP_REG },
-	{ MIPS64_PC + 31, "f30", REG_TYPE_IEEE_SINGLE, NULL,
-		 "org.gnu.gdb.mips.fpu", MIPS32_GDB_DUMMY_FP_REG },
-	{ MIPS64_PC + 32, "f31", REG_TYPE_IEEE_SINGLE, NULL,
-		 "org.gnu.gdb.mips.fpu", MIPS32_GDB_DUMMY_FP_REG },
-	{ MIPS64_PC + 33, "fcsr", REG_TYPE_INT, "float",
-		"org.gnu.gdb.mips.fpu", MIPS32_GDB_DUMMY_FP_REG },
-	{ MIPS64_PC + 34, "fir", REG_TYPE_INT, "float",
-		"org.gnu.gdb.mips.fpu", MIPS32_GDB_DUMMY_FP_REG }
+	{  0,  "r0", REG_TYPE_UINT64, NULL, "org.gnu.gdb.mips.cpu", 0 },
+	{  1,  "r1", REG_TYPE_UINT64, NULL, "org.gnu.gdb.mips.cpu", 0 },
+	{  2,  "r2", REG_TYPE_UINT64, NULL, "org.gnu.gdb.mips.cpu", 0 },
+	{  3,  "r3", REG_TYPE_UINT64, NULL, "org.gnu.gdb.mips.cpu", 0 },
+	{  4,  "r4", REG_TYPE_UINT64, NULL, "org.gnu.gdb.mips.cpu", 0 },
+	{  5,  "r5", REG_TYPE_UINT64, NULL, "org.gnu.gdb.mips.cpu", 0 },
+	{  6,  "r6", REG_TYPE_UINT64, NULL, "org.gnu.gdb.mips.cpu", 0 },
+	{  7,  "r7", REG_TYPE_UINT64, NULL, "org.gnu.gdb.mips.cpu", 0 },
+	{  8,  "r8", REG_TYPE_UINT64, NULL, "org.gnu.gdb.mips.cpu", 0 },
+	{  9,  "r9", REG_TYPE_UINT64, NULL, "org.gnu.gdb.mips.cpu", 0 },
+	{ 10, "r10", REG_TYPE_UINT64, NULL, "org.gnu.gdb.mips.cpu", 0 },
+	{ 11, "r11", REG_TYPE_UINT64, NULL, "org.gnu.gdb.mips.cpu", 0 },
+	{ 12, "r12", REG_TYPE_UINT64, NULL, "org.gnu.gdb.mips.cpu", 0 },
+	{ 13, "r13", REG_TYPE_UINT64, NULL, "org.gnu.gdb.mips.cpu", 0 },
+	{ 14, "r14", REG_TYPE_UINT64, NULL, "org.gnu.gdb.mips.cpu", 0 },
+	{ 15, "r15", REG_TYPE_UINT64, NULL, "org.gnu.gdb.mips.cpu", 0 },
+	{ 16, "r16", REG_TYPE_UINT64, NULL, "org.gnu.gdb.mips.cpu", 0 },
+	{ 17, "r17", REG_TYPE_UINT64, NULL, "org.gnu.gdb.mips.cpu", 0 },
+	{ 18, "r18", REG_TYPE_UINT64, NULL, "org.gnu.gdb.mips.cpu", 0 },
+	{ 19, "r19", REG_TYPE_UINT64, NULL, "org.gnu.gdb.mips.cpu", 0 },
+	{ 20, "r20", REG_TYPE_UINT64, NULL, "org.gnu.gdb.mips.cpu", 0 },
+	{ 21, "r21", REG_TYPE_UINT64, NULL, "org.gnu.gdb.mips.cpu", 0 },
+	{ 22, "r22", REG_TYPE_UINT64, NULL, "org.gnu.gdb.mips.cpu", 0 },
+	{ 23, "r23", REG_TYPE_UINT64, NULL, "org.gnu.gdb.mips.cpu", 0 },
+	{ 24, "r24", REG_TYPE_UINT64, NULL, "org.gnu.gdb.mips.cpu", 0 },
+	{ 25, "r25", REG_TYPE_UINT64, NULL, "org.gnu.gdb.mips.cpu", 0 },
+	{ 26, "r26", REG_TYPE_UINT64, NULL, "org.gnu.gdb.mips.cpu", 0 },
+	{ 27, "r27", REG_TYPE_UINT64, NULL, "org.gnu.gdb.mips.cpu", 0 },
+	{ 28, "r28", REG_TYPE_UINT64, NULL, "org.gnu.gdb.mips.cpu", 0 },
+	{ 29, "r29", REG_TYPE_UINT64, NULL, "org.gnu.gdb.mips.cpu", 0 },
+	{ 30, "r30", REG_TYPE_UINT64, NULL, "org.gnu.gdb.mips.cpu", 0 },
+	{ 31, "r31", REG_TYPE_UINT64, NULL, "org.gnu.gdb.mips.cpu", 0 },
+	{ 32, "lo", REG_TYPE_UINT64, NULL, "org.gnu.gdb.mips.cpu", 0 },
+	{ 33, "hi", REG_TYPE_UINT64, NULL, "org.gnu.gdb.mips.cpu", 0 },
+	{ MIPS64_NUM_CORE_REGS + 0, "pc", REG_TYPE_UINT64, NULL, "org.gnu.gdb.mips.cpu", 0 },
+	{ MIPS64_NUM_CORE_REGS + 1, "Random", REG_TYPE_UINT32, NULL, "org.gnu.gdb.mips.cp0", 0 },
+	{ MIPS64_NUM_CORE_REGS + 2, "Entrylo_0", REG_TYPE_UINT64, NULL, "org.gnu.gdb.mips.cp0", 0 },
+	{ MIPS64_NUM_CORE_REGS + 3, "Entrylo_1", REG_TYPE_UINT64, NULL, "org.gnu.gdb.mips.cp0", 0 },
+	{ MIPS64_NUM_CORE_REGS + 4, "Context", REG_TYPE_UINT64, NULL, "org.gnu.gdb.mips.cp0", 0 },
+	{ MIPS64_NUM_CORE_REGS + 5, "Pagemask", REG_TYPE_UINT32, NULL, "org.gnu.gdb.mips.cp0", 0 },
+	{ MIPS64_NUM_CORE_REGS + 6, "Wired", REG_TYPE_UINT32, NULL, "org.gnu.gdb.mips.cp0", 0 },
+	{ MIPS64_NUM_CORE_REGS + 7, "badvaddr", REG_TYPE_UINT64, NULL, "org.gnu.gdb.mips.cp0", 0 },
+	{ MIPS64_NUM_CORE_REGS + 8, "Count", REG_TYPE_UINT32, NULL, "org.gnu.gdb.mips.cp0", 0 },
+	{ MIPS64_NUM_CORE_REGS + 9, "EntryHi", REG_TYPE_UINT64, NULL, "org.gnu.gdb.mips.cp0", 0 },
+	{ MIPS64_NUM_CORE_REGS + 10, "Compare", REG_TYPE_UINT32, NULL, "org.gnu.gdb.mips.cp0", 0 },
+	{ MIPS64_NUM_CORE_REGS + 11, "status", REG_TYPE_UINT32, NULL, "org.gnu.gdb.mips.cp0", 0 },
+	{ MIPS64_NUM_CORE_REGS + 12, "cause", REG_TYPE_UINT32, NULL, "org.gnu.gdb.mips.cp0", 0 },
+	{ MIPS64_NUM_CORE_REGS + 13, "EPC", REG_TYPE_UINT64, NULL, "org.gnu.gdb.mips.cp0", 0 },
+	{ MIPS64_NUM_CORE_REGS + 14, "PrID", REG_TYPE_UINT32, NULL, "org.gnu.gdb.mips.cp0", 0 },
+	{ MIPS64_NUM_CORE_REGS + 15, "Config", REG_TYPE_UINT32, NULL, "org.gnu.gdb.mips.cp0", 0 },
+	{ MIPS64_NUM_CORE_REGS + 16, "LLA", REG_TYPE_UINT32, NULL, "org.gnu.gdb.mips.cp0", 0 },
+	{ MIPS64_NUM_CORE_REGS + 17, "WatchLo0", REG_TYPE_UINT64, NULL, "org.gnu.gdb.mips.cp0", 0 },
+	{ MIPS64_NUM_CORE_REGS + 18, "WatchLo1", REG_TYPE_UINT64, NULL, "org.gnu.gdb.mips.cp0", 0 },
+	{ MIPS64_NUM_CORE_REGS + 19, "WatchHi0", REG_TYPE_UINT32, NULL, "org.gnu.gdb.mips.cp0", 0 },
+	{ MIPS64_NUM_CORE_REGS + 20, "WatchHi1", REG_TYPE_UINT32, NULL, "org.gnu.gdb.mips.cp0", 0 },
+	{ MIPS64_NUM_CORE_REGS + 21, "Xcontext", REG_TYPE_UINT64, NULL, "org.gnu.gdb.mips.cp0", 0 },
+	{ MIPS64_NUM_CORE_REGS + 22, "ChipMemCtrl", REG_TYPE_UINT32, NULL, "org.gnu.gdb.mips.cp0", 0 },
+	{ MIPS64_NUM_CORE_REGS + 23, "Debug", REG_TYPE_UINT32, NULL, "org.gnu.gdb.mips.cp0", 0 },
+	{ MIPS64_NUM_CORE_REGS + 24, "Perfcount, sel=0", REG_TYPE_UINT32, NULL, "org.gnu.gdb.mips.cp0", 0 },
+	{ MIPS64_NUM_CORE_REGS + 25, "Perfcount, sel=1", REG_TYPE_UINT64, NULL, "org.gnu.gdb.mips.cp0", 0 },
+	{ MIPS64_NUM_CORE_REGS + 26, "Perfcount, sel=2", REG_TYPE_UINT32, NULL, "org.gnu.gdb.mips.cp0", 0 },
+	{ MIPS64_NUM_CORE_REGS + 27, "Perfcount, sel=3", REG_TYPE_UINT64, NULL, "org.gnu.gdb.mips.cp0", 0 },
+	{ MIPS64_NUM_CORE_REGS + 28, "ECC", REG_TYPE_UINT32, NULL, "org.gnu.gdb.mips.cp0", 0 },
+	{ MIPS64_NUM_CORE_REGS + 29, "CacheErr", REG_TYPE_UINT32, NULL, "org.gnu.gdb.mips.cp0", 0 },
+	{ MIPS64_NUM_CORE_REGS + 30, "TagLo", REG_TYPE_UINT32, NULL, "org.gnu.gdb.mips.cp0", 0 },
+	{ MIPS64_NUM_CORE_REGS + 31, "TagHi", REG_TYPE_UINT32, NULL, "org.gnu.gdb.mips.cp0", 0 },
+	{ MIPS64_NUM_CORE_REGS + 32, "DataHi", REG_TYPE_UINT64, NULL, "org.gnu.gdb.mips.cp0", 0 },
+	{ MIPS64_NUM_CORE_REGS + 33, "EEPC", REG_TYPE_UINT64, NULL, "org.gnu.gdb.mips.cp0", 0 },
+	{ MIPS64_NUM_CORE_C0_REGS + 0,  "f0", REG_TYPE_IEEE_DOUBLE, NULL,
+		 "org.gnu.gdb.mips.fpu", 0 },
+	{ MIPS64_NUM_CORE_C0_REGS + 1,  "f1", REG_TYPE_IEEE_DOUBLE, NULL,
+		 "org.gnu.gdb.mips.fpu", 0 },
+	{ MIPS64_NUM_CORE_C0_REGS + 2,  "f2", REG_TYPE_IEEE_DOUBLE, NULL,
+		 "org.gnu.gdb.mips.fpu", 0 },
+	{ MIPS64_NUM_CORE_C0_REGS + 3,  "f3", REG_TYPE_IEEE_DOUBLE, NULL,
+		 "org.gnu.gdb.mips.fpu", 0 },
+	{ MIPS64_NUM_CORE_C0_REGS + 4, "f4", REG_TYPE_IEEE_DOUBLE, NULL,
+		 "org.gnu.gdb.mips.fpu", 0 },
+	{ MIPS64_NUM_CORE_C0_REGS + 5,  "f5", REG_TYPE_IEEE_DOUBLE, NULL,
+		 "org.gnu.gdb.mips.fpu", 0 },
+	{ MIPS64_NUM_CORE_C0_REGS + 6,  "f6", REG_TYPE_IEEE_DOUBLE, NULL,
+		 "org.gnu.gdb.mips.fpu", 0 },
+	{ MIPS64_NUM_CORE_C0_REGS + 7,  "f7", REG_TYPE_IEEE_DOUBLE, NULL,
+		 "org.gnu.gdb.mips.fpu", 0 },
+	{ MIPS64_NUM_CORE_C0_REGS + 8,  "f8", REG_TYPE_IEEE_DOUBLE, NULL,
+		 "org.gnu.gdb.mips.fpu", 0 },
+	{ MIPS64_NUM_CORE_C0_REGS + 9,  "f9", REG_TYPE_IEEE_DOUBLE, NULL,
+		 "org.gnu.gdb.mips.fpu", 0 },
+	{ MIPS64_NUM_CORE_C0_REGS + 10, "f10", REG_TYPE_IEEE_DOUBLE, NULL,
+		 "org.gnu.gdb.mips.fpu", 0 },
+	{ MIPS64_NUM_CORE_C0_REGS + 11, "f11", REG_TYPE_IEEE_DOUBLE, NULL,
+		 "org.gnu.gdb.mips.fpu", 0 },
+	{ MIPS64_NUM_CORE_C0_REGS + 12, "f12", REG_TYPE_IEEE_DOUBLE, NULL,
+		 "org.gnu.gdb.mips.fpu", 0 },
+	{ MIPS64_NUM_CORE_C0_REGS + 13, "f13", REG_TYPE_IEEE_DOUBLE, NULL,
+		 "org.gnu.gdb.mips.fpu", 0 },
+	{ MIPS64_NUM_CORE_C0_REGS + 14, "f14", REG_TYPE_IEEE_DOUBLE, NULL,
+		 "org.gnu.gdb.mips.fpu", 0 },
+	{ MIPS64_NUM_CORE_C0_REGS + 15, "f15", REG_TYPE_IEEE_DOUBLE, NULL,
+		 "org.gnu.gdb.mips.fpu", 0 },
+	{ MIPS64_NUM_CORE_C0_REGS + 16, "f16", REG_TYPE_IEEE_DOUBLE, NULL,
+		 "org.gnu.gdb.mips.fpu", 0 },
+	{ MIPS64_NUM_CORE_C0_REGS + 17, "f17", REG_TYPE_IEEE_DOUBLE, NULL,
+		 "org.gnu.gdb.mips.fpu", 0 },
+	{ MIPS64_NUM_CORE_C0_REGS + 18, "f18", REG_TYPE_IEEE_DOUBLE, NULL,
+		 "org.gnu.gdb.mips.fpu", 0 },
+	{ MIPS64_NUM_CORE_C0_REGS + 19, "f19", REG_TYPE_IEEE_DOUBLE, NULL,
+		 "org.gnu.gdb.mips.fpu", 0 },
+	{ MIPS64_NUM_CORE_C0_REGS + 20, "f20", REG_TYPE_IEEE_DOUBLE, NULL,
+		 "org.gnu.gdb.mips.fpu", 0 },
+	{ MIPS64_NUM_CORE_C0_REGS + 21, "f21", REG_TYPE_IEEE_DOUBLE, NULL,
+		 "org.gnu.gdb.mips.fpu", 0 },
+	{ MIPS64_NUM_CORE_C0_REGS + 22, "f22", REG_TYPE_IEEE_DOUBLE, NULL,
+		 "org.gnu.gdb.mips.fpu", 0 },
+	{ MIPS64_NUM_CORE_C0_REGS + 23, "f23", REG_TYPE_IEEE_DOUBLE, NULL,
+		 "org.gnu.gdb.mips.fpu", 0 },
+	{ MIPS64_NUM_CORE_C0_REGS + 24, "f24", REG_TYPE_IEEE_DOUBLE, NULL,
+		 "org.gnu.gdb.mips.fpu", 0 },
+	{ MIPS64_NUM_CORE_C0_REGS + 25, "f25", REG_TYPE_IEEE_DOUBLE, NULL,
+		 "org.gnu.gdb.mips.fpu", 0 },
+	{ MIPS64_NUM_CORE_C0_REGS + 26, "f26", REG_TYPE_IEEE_DOUBLE, NULL,
+		 "org.gnu.gdb.mips.fpu", 0 },
+	{ MIPS64_NUM_CORE_C0_REGS + 27, "f27", REG_TYPE_IEEE_DOUBLE, NULL,
+		 "org.gnu.gdb.mips.fpu", 0 },
+	{ MIPS64_NUM_CORE_C0_REGS + 28, "f28", REG_TYPE_IEEE_DOUBLE, NULL,
+		 "org.gnu.gdb.mips.fpu", 0 },
+	{ MIPS64_NUM_CORE_C0_REGS + 29, "f29", REG_TYPE_IEEE_DOUBLE, NULL,
+		 "org.gnu.gdb.mips.fpu", 0 },
+	{ MIPS64_NUM_CORE_C0_REGS + 30, "f30", REG_TYPE_IEEE_DOUBLE, NULL,
+		 "org.gnu.gdb.mips.fpu", 0 },
+	{ MIPS64_NUM_CORE_C0_REGS + 31, "f31", REG_TYPE_IEEE_DOUBLE, NULL,
+		 "org.gnu.gdb.mips.fpu", 0 },
+	{ MIPS64_NUM_CORE_C0_REGS + 32, "fcsr", REG_TYPE_INT, "float",
+		"org.gnu.gdb.mips.fpu", 0 },
+	{ MIPS64_NUM_CORE_C0_REGS + 33, "fir", REG_TYPE_INT, "float",
+		"org.gnu.gdb.mips.fpu", 0 },
+	{ MIPS64_NUM_CORE_C0_REGS + 34, "fconfig", REG_TYPE_INT, "float",
+		"org.gnu.gdb.mips.fpu", 0 },
+	{ MIPS64_NUM_CORE_C0_REGS + 35, "fccr", REG_TYPE_INT, "float",
+		"org.gnu.gdb.mips.fpu", 0 },
+	{ MIPS64_NUM_CORE_C0_REGS + 36, "fexr", REG_TYPE_INT, "float",
+		"org.gnu.gdb.mips.fpu", 0 },
+	{ MIPS64_NUM_CORE_C0_REGS + 37, "fenr", REG_TYPE_INT, "float",
+		"org.gnu.gdb.mips.fpu", 0 },
 };
+
+static int reg_type2size(enum reg_type type)
+{
+	switch (type) {
+	case REG_TYPE_UINT32:
+	case REG_TYPE_INT:
+		return 32;
+	case REG_TYPE_UINT64:
+	case REG_TYPE_IEEE_DOUBLE:
+		return 64;
+	default:
+		return 64;
+	}
+}
 
 static uint8_t mips32_gdb_dummy_fp_value[] = {0, 0, 0, 0};
 
@@ -194,7 +243,7 @@ int mips64_read_core_reg(struct target *target, int num)
 	/* get pointers to arch-specific information */
 	struct mips64_common *mips64 = target->arch_info;
 
-	if ((num < 0) || (num >= MIPS64NUMCOREREGS))
+	if ((num < 0) || (num >= MIPS64_NUM_REGS))
 		return ERROR_COMMAND_ARGUMENT_INVALID;
 
 	reg_value = mips64->core_regs[num];
@@ -212,7 +261,7 @@ int mips64_write_core_reg(struct target *target, int num)
 	/* get pointers to arch-specific information */
 	struct mips64_common *mips64 = target->arch_info;
 
-	if ((num < 0) || (num >= MIPS64NUMCOREREGS))
+	if ((num < 0) || (num >= MIPS64_NUM_REGS))
 		return ERROR_COMMAND_ARGUMENT_INVALID;
 
 	reg_value = buf_get_u64(mips64->core_cache->reg_list[num].value, 0, 64);
@@ -247,10 +296,10 @@ int mips64_get_gdb_reg_list(struct target *target, struct reg **reg_list[],
 	register int i;
 
 	/* include floating point registers */
-	*reg_list_size = MIPS64NUMCOREREGS;
+	*reg_list_size = MIPS64_NUM_REGS;
 	*reg_list = malloc(sizeof(struct reg *) * (*reg_list_size));
 
-	for (i = 0; i < MIPS64NUMCOREREGS; i++)
+	for (i = 0; i < MIPS64_NUM_REGS; i++)
 		(*reg_list)[i] = &mips64->core_cache->reg_list[i];
 
 	return ERROR_OK;
@@ -270,7 +319,7 @@ int mips64_save_context(struct target *target)
 	if (retval != ERROR_OK)
 		return retval;
 
-	for (i = 0; i < MIPS64NUMCOREREGS; i++)
+	for (i = 0; i < MIPS64_NUM_REGS; i++)
 			retval = mips64->read_core_reg(target, i);
 
 	return retval;
@@ -284,7 +333,7 @@ int mips64_restore_context(struct target *target)
 	struct mips64_common *mips64 = target->arch_info;
 	struct mips_ejtag *ejtag_info = &mips64->ejtag_info;
 
-	for (i = 0; i < MIPS64NUMCOREREGS; i++) {
+	for (i = 0; i < MIPS64_NUM_REGS; i++) {
 		if (mips64->core_cache->reg_list[i].dirty)
 			mips64->write_core_reg(target, i);
 	}
@@ -319,7 +368,7 @@ struct reg_cache *mips64_build_reg_cache(struct target *target)
 	/* get pointers to arch-specific information */
 	struct mips64_common *mips64 = target->arch_info;
 
-	unsigned num_regs = MIPS64NUMCOREREGS;
+	unsigned num_regs = MIPS64_NUM_REGS;
 	struct reg_cache **cache_p = register_get_last_cache_p(&target->reg_cache);
 	struct reg_cache *cache = malloc(sizeof(struct reg_cache));
 	struct reg *reg_list = malloc(sizeof(struct reg) * num_regs);
@@ -340,7 +389,7 @@ struct reg_cache *mips64_build_reg_cache(struct target *target)
 		arch_info[i].target = target;
 		arch_info[i].mips64_common = mips64;
 		reg_list[i].name = mips64_regs[i].name;
-		reg_list[i].size = 64;
+		reg_list[i].size = reg_type2size(mips64_regs[i].type);
 		reg_list[i].value = calloc(1, 8);
 
 		if (mips64_regs[i].flag == MIPS32_GDB_DUMMY_FP_REG) {
