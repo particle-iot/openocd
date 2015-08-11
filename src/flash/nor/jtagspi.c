@@ -307,11 +307,11 @@ static int jtagspi_erase(struct flash_bank *bank, int first, int last)
 		retval = jtagspi_sector_erase(bank, sector);
 		if (retval != ERROR_OK) {
 			LOG_ERROR("Sector erase failed.");
-			break;
+			return retval;
 		}
 	}
 
-	return retval;
+	return ERROR_OK;
 }
 
 static int jtagspi_protect(struct flash_bank *bank, int set, int first, int last)
