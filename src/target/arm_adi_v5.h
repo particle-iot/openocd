@@ -386,6 +386,24 @@ typedef struct _rom_entry {
 
 } rom_entry_t;
 
+/*
+ * IDR[27:24]: JEP106 Continuation code
+ * IDR[23:17]: JEP106 ID code
+ */
+static inline uint16_t idr_get_jep106(uint32_t idr)
+{
+	uint16_t jep106;
+
+	jep106 = (((idr >> IDR_JEP106_CONT_SHIFT) & 0x0F) << 8);	/* bit[27:24] */
+	jep106 |= ((idr >> IDR_JEP106_ID_SHIFT) & 0x7F);		/* bit[23:17] */
+
+	return jep106;
+}
+
+static inline uint8_t idr_get_id_type(uint32_t idr)
+{
+	return ((idr & IDR_ID_TYPE_MASK) >> IDR_ID_TYPE_SHIFT);
+}
 
 /* NOTE: JEP106 Continuation code & ID code
  *	For easy understanding (i.e.: ARM(0x4, 0x3B) -> 0x43B)

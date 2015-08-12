@@ -1750,35 +1750,62 @@ int dap_find_ap(struct adiv5_dap *dap, enum ap_type type_to_find, struct adiv5_a
 			return retval;
 
 		retval = dap_run(dap);
+//		LOG_DEBUG("rc=%d: reg[0x%x] = 0x%x", retval, AP_REG_IDR, id_val);
+
+		if (retval != ERROR_OK)
+			return retval;
+
+		/* An IDR value of zero indicates that there is no AP present */
+		if (id_val == 0x0)
+			continue;
+		LOG_DEBUG("AP found at %03d, IDR=0x%08x", ap, id_val);
 
 		/* IDR bits:
 		 * 31-28 : Revision
-		 * 27-24 : JEDEC bank (0x4 for ARM)
-		 * 23-17 : JEDEC code (0x3B for ARM)
-		 * 16-13 : Class (0b1000=Mem-AP)
+		 * 27-24 : JEP106 continuation code (0x4 for ARM)
+		 * 23-17 : JEP106 ID code (0x3B for ARM)
+		 * 16-13 : Class (0b0000=No defined, 0b1000=Mem-AP)
 		 * 12-8  : Reserved
-		 *  7-4  : AP Variant (non-zero for JTAG-AP)
-		 *  3-0  : AP Type (0=JTAG-AP 1=AHB-AP 2=APB-AP 4=AXI-AP)
+		 *  7-4  : AP Identification Variant
+		 *  3-0  : AP Identification Type
+		 *         0x0: JTAG-AP. Variant[7:4] must be non-zero
+		 *         0x1: AMBA AHB bus.
+		 *         0x2: AMBA APB2/APB3 bus.
+		 *         0x4: AMBA AXI3/AXI4 bus with optional ACE-Lite support.
+		 *         Other: Reserved
 		 */
 
-		/* Reading register for a non-existant AP should not cause an error,
-		 * but just to be sure, try to continue searching if an error does happen.
-		 */
-		if ((retval == ERROR_OK) &&                  /* Register read success */
-			((id_val & IDR_JEP106) == IDR_JEP106_ARM) && /* Jedec codes match */
-			((id_val & IDR_TYPE) == type_to_find)) {      /* type matches*/
+		if ((idr_get_jep106(id_val) == JEP106_ARM) &&	/* JEP106 codes match ARM */
+			(idr_get_id_type(id_val) == type_to_find)) {/* type matches */
+			/* type verification for WARNING messages */
+			switch (type_to_find) {
+			case 0x0: if ((id_val & 0xF0) == 0)
+					LOG_WARNING("ID Variant is zero for JTAG-AP");
+				break;
+			case 0x1: /* fall through for MEM-AP */
+			case 0x2: /* fall thgough for MEM-AP */
+			case 0x4: if ((id_val & (0xF<<13)) != (0x1<<16)) /* MEM-AP */
+					LOG_WARNING("Class is not MEM-AP for %s bus",
+						(type_to_find == AP_TYPE_AHB_AP) ? "AHB" :
+						(type_to_find == AP_TYPE_APB_AP) ? "APB" :
+						(type_to_find == AP_TYPE_AXI_AP) ? "AXI" : "Unknown");
+				break;
+			default:
+				LOG_WARNING("Unknown AP type (0x%x)", (id_val & 0xF));
+				break;
+			}
 
 			LOG_DEBUG("Found %s at AP index: %d (IDR=0x%08" PRIX32 ")",
-						(type_to_find == AP_TYPE_AHB_AP)  ? "AHB-AP"  :
-						(type_to_find == AP_TYPE_APB_AP)  ? "APB-AP"  :
-						(type_to_find == AP_TYPE_AXI_AP)  ? "AXI-AP"  :
-						(type_to_find == AP_TYPE_JTAG_AP) ? "JTAG-AP" : "Unknown",
-						ap_num, id_val);
+				(type_to_find == AP_TYPE_AHB_AP)  ? "AHB-AP"  :
+				(type_to_find == AP_TYPE_APB_AP)  ? "APB-AP"  :
+				(type_to_find == AP_TYPE_AXI_AP)  ? "AXI-AP"  :
+				(type_to_find == AP_TYPE_JTAG_AP) ? "JTAG-AP" : "Unknown",
+				ap_num, id_val);
 
 			*ap_out = &dap->ap[ap_num];
 			return ERROR_OK;
-		}
-	}
+		}	/* End of if (idr_*) */
+	}	/* End of for(ap_num) */
 
 	LOG_DEBUG("No %s found",
 				(type_to_find == AP_TYPE_AHB_AP)  ? "AHB-AP"  :
