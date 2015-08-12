@@ -314,7 +314,7 @@ COMMAND_HANDLER(kinetis_mdm_mass_erase)
 	}
 
 	int retval;
-	const uint8_t original_ap = dap->ap_current;
+	const uint8_t original_ap = dap_ap_get_select(dap);
 
 	/*
 	 * ... Power on the processor, or if power has already been
@@ -413,7 +413,7 @@ COMMAND_HANDLER(kinetis_check_flash_security_status)
 
 	uint32_t val;
 	int retval;
-	const uint8_t origninal_ap = dap->ap_current;
+	const uint8_t origninal_ap = dap_ap_get_select(dap);
 
 	dap_ap_select(dap, 1);
 
