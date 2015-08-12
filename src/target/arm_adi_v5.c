@@ -13,6 +13,9 @@
  *   Copyright (C) 2013 by Andreas Fritiofson                              *
  *   andreas.fritiofson@gmail.com                                          *
  *                                                                         *
+ *   Copyright (C) 2015 by Alamy Liu                                       *
+ *   alamy.liu@gmail.com                                                   *
+ *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
  *   the Free Software Foundation; either version 2 of the License, or     *
@@ -62,7 +65,10 @@
  * Relevant specifications from ARM include:
  *
  * ARM(tm) Debug Interface v5 Architecture Specification    ARM IHI 0031A
+ * ARM(rm) Debug Interface Architecture Specification ADIv5.0 to ADIv5.2
+ *                                                          ARM IHI 0031C
  * CoreSight(tm) v1.0 Architecture Specification            ARM IHI 0029B
+ * CoreSight(tm) v2.0 Architecture Specification            ARM IHI 0029D
  *
  * CoreSight(tm) DAP-Lite TRM, ARM DDI 0316D
  * Cortex-M3(tm) TRM, ARM DDI 0337G
@@ -567,6 +573,680 @@ int mem_ap_write_buf_noincr(struct adiv5_ap *ap,
 
 /*--------------------------------------------------------------------------*/
 
+/* CID Class description -- see ARM IHI 0031C Table 9-3 */
+static const char *class_description[16] = {
+	"Generic verification component", "ROM table", "Reserved", "Reserved",
+	"Reserved", "Reserved", "Reserved", "Reserved",
+	"Reserved", "Debug (CoreSight) component",
+	"Reserved", "Peripheral Test Block",
+	"Reserved", "OptimoDE DESS",
+	"Generic IP component", "PrimeCell or System component"
+};
+
+static bool is_pid_valid(uint64_t PID)
+{
+	return ((PID >> 40) == 0x0);
+}
+
+static bool is_cid_valid(uint32_t CID)
+{
+	return ((CID & 0xFFFF0FFF) == 0xB105000D);
+}
+
+static bool is_pid_cid_valid(uint64_t PID, uint32_t CID)
+{
+	return (is_pid_valid(PID) && is_cid_valid(CID));
+}
+
+
+/* PIDR4.SIZE = PID[39:36]: 4KB count in Log2
+ *   0b0000    1 block
+ *   0b0001    2 blocks
+ *   0b0010    4 blocks
+ *   0b0011    8 blocks
+ */
+uint32_t get_pid_4k_count(uint64_t PID)
+{
+	uint32_t count_log2;
+	uint32_t count_4k;
+
+	count_log2 = (PID >> 36) & 0xF;		/* # in Log2 */
+	count_4k   = 0x1 << count_log2;		/* # in 4KB */
+
+	return count_4k;
+}
+
+void mem_ap_interpret_pid(uint64_t PID)
+{
+
+}
+
+cid_class_t get_cid_class(uint32_t CID)
+{
+	/* Component Class at Bits[15:12] */
+	return ((CID & 0x0000F000) >> 12);
+}
+
+void mem_ap_interpret_cid(uint32_t CID)
+{
+	cid_class_t cid_class = get_cid_class(CID);
+
+	LOG_DEBUG("class (0x%02x): %s", cid_class, class_description[cid_class]);
+}
+
+
+void mem_ap_interpret_pid_cid(uint64_t PID, uint32_t CID)
+{
+	mem_ap_interpret_pid(PID);
+	mem_ap_interpret_cid(CID);
+}
+
+int mem_ap_read_memtype(
+	struct adiv5_dap *dap, uint8_t ap, uintmax_t base,
+	uint32_t *memtype)
+{
+	int retval;
+	uint32_t type;
+
+	/* Read MEMTYPE registers */
+	retval = mem_ap_read_atomic_u32(dap, base | 0xFC0, &type);
+	if (retval != ERROR_OK) return retval;
+
+	LOG_DEBUG("MEMTYPE=0x%08x: Debug bus %s",
+		type,
+		(type & 0x1) ? "+ Sys mem present" : "");
+
+	/* return memtype value */
+	if (memtype)
+		*memtype = type;
+
+	return ERROR_OK;
+}
+
+int mem_ap_read_cid(
+	struct adiv5_dap *dap, uint8_t ap, uintmax_t base,
+	uint32_t *cid)
+{
+	int retval;
+	uint32_t CIDR[4], CID = 0;
+
+	/* Read Component ID registers */
+	retval = mem_ap_read_u32(dap, base | 0xFF0, &(CIDR[0]));
+	if (retval != ERROR_OK) return retval;
+	retval = mem_ap_read_u32(dap, base | 0xFF4, &(CIDR[1]));
+	if (retval != ERROR_OK) return retval;
+	retval = mem_ap_read_u32(dap, base | 0xFF8, &(CIDR[2]));
+	if (retval != ERROR_OK) return retval;
+	retval = mem_ap_read_u32(dap, base | 0xFFC, &(CIDR[3]));
+	if (retval != ERROR_OK) return retval;
+	retval = dap_run(dap);
+	if (retval != ERROR_OK) return retval;
+
+	/* Only bits[7:0] of each CIDR are used */
+	CID = 0;	CID |= (CIDR[3] & 0xFF);
+	CID <<= 8;	CID |= (CIDR[2] & 0xFF);
+	CID <<= 8;	CID |= (CIDR[1] & 0xFF);
+	CID <<= 8;	CID |= (CIDR[0] & 0xFF);
+
+	LOG_DEBUG("CID=%08X", CID);
+
+	/* Verification: Some PIDR/CIDR have fixed values */
+	if (is_cid_valid(CID)) {
+		mem_ap_interpret_cid(CID);
+	} else {
+		/* non-fatal error, just logging */
+		LOG_ERROR("PID/CID invalid (non-fatal)");
+	}
+
+
+	/* return CID values */
+	if (cid) {
+		*cid = CID;
+	}
+
+	return ERROR_OK;
+}
+
+/*
+ * A debugger must handle the following situations as non-fatal errors:
+ * - BaseAddress is a faulting location
+ * - The four words starting at (BaseAddress + 0xFF0) are not valid
+ *   component ID registers
+ * - An entry in the ROM table points to a faulting location
+ * - An entry in the ROM table points to a memory block that does not
+ *   have a set of four valid Component ID registers starting at
+ *   offset 0xFF0
+ *
+ * Caller MUST guarantee *pid has 8 uint32_t spaces, and *cid has 4
+ */
+int mem_ap_read_pid_cid(
+	struct adiv5_dap *dap, uintmax_t base,
+	uint64_t *pid, uint32_t *cid)
+{
+	int retval;
+	uint32_t PIDR[8];
+	uint32_t CIDR[4], CID = 0;
+	uint64_t PID = 0;
+
+	/* Read Peripheral ID registers */
+	retval = mem_ap_read_u32(dap, base | 0xFD0, &(PIDR[4]));
+	if (retval != ERROR_OK) return retval;
+	retval = mem_ap_read_u32(dap, base | 0xFD4, &(PIDR[5]));
+	if (retval != ERROR_OK) return retval;
+	retval = mem_ap_read_u32(dap, base | 0xFD8, &(PIDR[6]));
+	if (retval != ERROR_OK) return retval;
+	retval = mem_ap_read_u32(dap, base | 0xFDC, &(PIDR[7]));
+	if (retval != ERROR_OK) return retval;
+	retval = mem_ap_read_u32(dap, base | 0xFE0, &(PIDR[0]));
+	if (retval != ERROR_OK) return retval;
+	retval = mem_ap_read_u32(dap, base | 0xFE4, &(PIDR[1]));
+	if (retval != ERROR_OK) return retval;
+	retval = mem_ap_read_u32(dap, base | 0xFE8, &(PIDR[2]));
+	if (retval != ERROR_OK) return retval;
+	retval = mem_ap_read_u32(dap, base | 0xFEC, &(PIDR[3]));
+	if (retval != ERROR_OK) return retval;
+	retval = dap_run(dap);
+	if (retval != ERROR_OK) return retval;
+
+	/* Only bits[7:0] of each PIDR are used */
+	PID = 0;	PID |= (PIDR[7] & 0xFF);
+	PID <<= 8;	PID |= (PIDR[6] & 0xFF);
+	PID <<= 8;	PID |= (PIDR[5] & 0xFF);
+	PID <<= 8;	PID |= (PIDR[4] & 0xFF);
+	PID <<= 8;	PID |= (PIDR[3] & 0xFF);
+	PID <<= 8;	PID |= (PIDR[2] & 0xFF);
+	PID <<= 8;	PID |= (PIDR[1] & 0xFF);
+	PID <<= 8;	PID |= (PIDR[0] & 0xFF);
+
+
+	/* Read Component ID registers */
+	retval = mem_ap_read_u32(dap, base | 0xFF0, &(CIDR[0]));
+	if (retval != ERROR_OK) return retval;
+	retval = mem_ap_read_u32(dap, base | 0xFF4, &(CIDR[1]));
+	if (retval != ERROR_OK) return retval;
+	retval = mem_ap_read_u32(dap, base | 0xFF8, &(CIDR[2]));
+	if (retval != ERROR_OK) return retval;
+	retval = mem_ap_read_u32(dap, base | 0xFFC, &(CIDR[3]));
+	if (retval != ERROR_OK) return retval;
+	retval = dap_run(dap);
+	if (retval != ERROR_OK) return retval;
+
+	/* Only bits[7:0] of each CIDR are used */
+	CID = 0;	CID |= (CIDR[3] & 0xFF);
+	CID <<= 8;	CID |= (CIDR[2] & 0xFF);
+	CID <<= 8;	CID |= (CIDR[1] & 0xFF);
+	CID <<= 8;	CID |= (CIDR[0] & 0xFF);
+
+	LOG_DEBUG("PID=0x%.*" PRIX64 ", CID=%08X", 16, PID, CID);
+
+	/* Verification: Some PIDR/CIDR have fixed values */
+	if (is_pid_cid_valid(PID, CID)) {
+		mem_ap_interpret_pid_cid(PID, CID);
+	} else {
+		/* non-fatal error, just logging */
+		LOG_ERROR("PID/CID invalid (non-fatal)");
+	}
+
+
+	/* return PID/CID values */
+	if (pid) {
+		*pid = PID;
+	}
+	if (cid) {
+		*cid = CID;
+	}
+
+	return ERROR_OK;
+}
+
+#if 0 /* good */
+int mem_ap_read_registers(struct adiv5_dap *dap, uint8_t ap)
+{
+	int retval;
+
+	struct mem_ap_regs *regs;
+	uint32_t csw, tar, tar_la, mbt, base, base_la, cfg;
+	uintmax_t baseaddr;
+
+	mem_ap_regs = malloc( sizeof(struct mem_ap_regs) );
+	if (mem_ap_regs == NULL) {
+		LOG_ERROR("Failed to allocate mem_ap_regs structure");
+		return ERROR_FAIL;
+	}
+
+
+	dap_ap_select(dap, ap);
+
+	retval = dap_queue_ap_read(dap, MEM_AP_REG_CSW, &csw);
+	if (retval != ERROR_OK) return retval;
+
+	retval = dap_queue_ap_read(dap, MEM_AP_REG_TAR, &tar);
+	if (retval != ERROR_OK) return retval;
+
+	retval = dap_queue_ap_read(dap, MEM_AP_REG_TAR_LA, &tar_la);
+	if (retval != ERROR_OK) return retval;
+
+	/* We do NOT dump DRW, BD0-3.
+	 * These registers cannot be read until the memory access has completed
+	 */
+
+	retval = dap_queue_ap_read(dap, MEM_AP_REG_MBT, &mbt);
+	if (retval != ERROR_OK) return retval;
+
+	retval = dap_queue_ap_read(dap, MEM_AP_REG_BASE_LA, &base_la);
+	if (retval != ERROR_OK) return retval;
+
+	retval = dap_queue_ap_read(dap, MEM_AP_REG_CFG, &cfg);
+	if (retval != ERROR_OK) return retval;
+
+	retval = dap_queue_ap_read(dap, MEM_AP_REG_BASE, &base);
+	if (retval != ERROR_OK) return retval;
+
+	retval = dap_run(dap);
+	if (retval != ERROR_OK) return retval;
+
+	LOG_DEBUG("AP 0x%02x: csw=%08x tar_la/tar=%08x/%08x mbt=%08x base_la/base=%08x/%08x cfg=%08x",
+		ap,
+		csw,
+		tar_la, tar,
+		mbt,
+		base_la, base,
+		cfg);
+
+	/* ARM Juno r1 has the value of 0xE00FF003 */
+	if (base == 0xFFFFFFFF) {
+		/* Legacy format when no debug entries are present */
+		baseaddr = 0x0;
+	} else if ((base & 0x2) == 0) {
+		/* bit[1]=0: Legacy format for specifying BASEADDR */
+
+		/* Bits[11:0] should be zero. Not checking, just zero it out */
+		baseaddr = base & 0xFFFFF000;
+	} else {
+		/* bit[1]=1: ARM Debug Interface v5 format */
+		baseaddr = base & 0xFFFFF000;
+
+		/* Debug register or ROM table address */
+		if (base & 0x1) {	/* bit[0]=1: Debug entry present */
+			/* Debug entry present */
+		} else {
+			/* No debug entry present -> ROM table */
+		}
+	}
+
+	if (base != 0xFFFFFFFF) {
+		retval = mem_ap_read_pid_cid(dap, baseaddr, NULL, NULL);
+	}
+
+	return ERROR_OK;
+}
+#endif
+
+/* CoreSight ID description table */
+/* [Major][Sub]
+     Major: 0x7-0xF are Reserved
+     Sub  : 0x7-0xF are Reserved for all Major type
+ */
+#define	CS_DEV_MAJOR_MAX	(0x6)
+#define	CS_DEV_SUB_MAX		(0x6)
+
+static char *csid_major_descriptions[CS_DEV_MAJOR_MAX+1] = {
+	"Miscellaneous",	"Trace Sink",		"Trace Link",
+	"Trace Source",		"Debug Control",	"Debug Logic",
+	"PMU"
+};
+
+static char *csid_sub_descriptions[CS_DEV_MAJOR_MAX+1][CS_DEV_SUB_MAX+1] = {
+	/* 0x0: Miscellaneous */
+	{"Other",       "Reserved",     "Reserved",     "Reserved",
+	                "Validation",   "Reserved",     "Reserved"},
+	/* 0x1: Trace Sink */
+	{"Other",       "Trace port",   "Buffer (ETB)", "Router",
+	                "Reserved",     "Reserved",     "Reserved"},
+	/* 0x2: Trace Link */
+	{"Other",       "Funnel/Router","Filter",       "FIFO/Large Buffer",
+	                "Reserved",     "Reserved",     "Reserved"},
+	/* 0x3: Trace Source */
+	{"Other",       "Processor",    "DSP",          "Engine/Coprocessor",
+	                "Bus",          "Reserved",     "Software"},
+	/* 0x4: Debug Control */
+	{"Other",       "Trig Matrix",  "Auth Module",  "Power Req",
+	                "Reserved",     "Reserved",     "Reserved"},
+	/* 0x5: Debug Logic */
+	{"Other",       "Processor",    "DSP",          "Engine/Coprocessor",
+	                "Bus",          "Mem(BIST)",    "Reserved"},
+	/* 0x6: Performance Monitor */
+	{"Other",       "Processor",    "DSP",          "Engine/Coprocessor",
+	                "Bus",          "Mem(MMU)",     "Reserved"}
+
+	/*
+	 * CTI: Cross Trigger Interface
+	 * PMU: Performance Monitor Unit
+	 * ETM: Embedded Trace marcrocell
+	 */
+};
+
+int mem_ap_examine_coresight(
+	struct adiv5_dap *dap,
+	uintmax_t base)
+{
+	int retval;
+	uint32_t devtype;
+	uint8_t dev_sub, dev_major;
+
+	retval = mem_ap_read_atomic_u32(dap, base | 0xFCC, &devtype);
+	if (retval != ERROR_OK) return retval;
+
+	dev_sub   = (devtype & 0xF0) >> 4;	/* bit 7:4 */
+	dev_major = (devtype & 0x0F);		/* bit 3:0 */
+
+	if (dev_major > CS_DEV_MAJOR_MAX)
+		LOG_INFO("Unknown CoreSight major devtype (major=0x%x,sub=0x%x)",
+			dev_major, dev_sub);
+	else {
+		LOG_INFO("CoreSight devtype(0x%x,0x%x) = %s - %s",
+			dev_major, dev_sub,
+			csid_major_descriptions[dev_major],
+			(dev_sub <= CS_DEV_SUB_MAX)
+				? csid_sub_descriptions[dev_major][dev_sub]
+				: "Unknown"
+		);
+	}
+
+	return ERROR_OK;
+}
+
+
+int mem_ap_read_registers(
+	struct adiv5_dap *dap,
+	uint8_t ap,
+	struct _mem_ap_regs *regs)
+{
+	int retval;
+
+//	struct mem_ap_regs *regs;
+//	uint32_t csw, tar, tar_la, mbt, base, base_la, cfg;
+//	uintmax_t baseaddr;
+	if (regs == NULL) return ERROR_FAIL;
+
+
+	dap_ap_select(dap, ap);
+
+	retval = dap_queue_ap_read(dap, MEM_AP_REG_CSW, &(regs->csw));
+	if (retval != ERROR_OK) return retval;
+
+	retval = dap_queue_ap_read(dap, MEM_AP_REG_TAR, &(regs->tar));
+	if (retval != ERROR_OK) return retval;
+
+	retval = dap_queue_ap_read(dap, MEM_AP_REG_TAR_LA, &(regs->tar_la));
+	if (retval != ERROR_OK) return retval;
+
+	/* We do NOT read DRW, BD0-3.
+	 * These registers cannot be read until the memory access has completed
+	 */
+
+	retval = dap_queue_ap_read(dap, MEM_AP_REG_MBT, &(regs->mbt));
+	if (retval != ERROR_OK) return retval;
+
+	retval = dap_queue_ap_read(dap, MEM_AP_REG_BASE_LA, &(regs->base_la));
+	if (retval != ERROR_OK) return retval;
+
+	retval = dap_queue_ap_read(dap, MEM_AP_REG_CFG, &(regs->cfg));
+	if (retval != ERROR_OK) return retval;
+
+	retval = dap_queue_ap_read(dap, MEM_AP_REG_BASE, &(regs->base));
+	if (retval != ERROR_OK) return retval;
+
+	retval = dap_run(dap);
+	if (retval != ERROR_OK) return retval;
+
+	LOG_DEBUG("AP 0x%02x: csw=%08x tar_la/tar=%08x/%08x "
+		"mbt=%08x base_la/base=%08x/%08x cfg=%08x",
+		ap,
+		regs->csw,
+		regs->tar_la, regs->tar,
+		regs->mbt,
+		regs->base_la, regs->base,
+		regs->cfg);
+
+	return ERROR_OK;
+}
+
+int dp_scan_romtable(
+	struct adiv5_dap *dap,
+	uintmax_t baseaddr,
+	uint8_t tbl_level)
+//	struct _mem_ap_regs *regs)
+{
+	int retval;
+	uint32_t entry_offset;
+	uint32_t romentry;
+	uintmax_t component_base;
+	struct _rom_entry entry;
+
+	if (dap == NULL)	return ERROR_FAIL;
+
+
+
+	/*
+	 * Now we read ROM table entries until we
+	 *   reach the end of the ROM Table (0xF00)
+	 *   or hit a blank entry (0x00000000)
+	 */
+	for (entry_offset = 0; entry_offset < 0xF00 ; entry_offset += 4) {
+		retval = mem_ap_read_atomic_u32(dap,
+				baseaddr | entry_offset,
+				&romentry);
+		if (retval != ERROR_OK)
+			continue;
+
+		LOG_DEBUG("---- Entry[0x%03X/0x%" PRIXMAX "] = 0x%08x %s",
+			entry_offset, baseaddr, romentry,
+			(romentry==0x0 ? "(end of table)" : ""));
+
+		if (romentry == 0x0) {	/* Table end marker */
+			break;
+		}
+
+
+		/* decode entry fields
+		 * IHI0031C: Table 10-2 Format of a ROM Table entry
+		 */
+		entry.addr_ofst			= romentry & (0xFFFFF << 12);	/* signed */
+		entry.power_domain_id		= (romentry & (0x1F << 4)) >> 4;
+		entry.power_domain_id_valid	= (romentry & ( 0x1 << 2)) >> 2;
+		entry.format			= (romentry & ( 0x1 << 1)) >> 1;
+		entry.present			= (romentry & ( 0x1 << 0)) >> 0;
+
+		/* 10.2.2 Empty entries and the end of the ROM Table
+		 *   When scanning the ROM Table, an entry marked as
+		 * not present must be skipped. However you must not assume
+		 * that an entry that is marked as not present represents
+		 * the end of the ROM Table
+		 */
+		if (! entry.present) {	/* Empty entry */
+//			command_print(cmd_ctx, "\t\tComponent not present");
+			LOG_DEBUG("component not present at 0x%x", entry_offset);
+			continue;
+		}
+
+		if (! entry.format) {	/* Not a 32-bit ROM entry format */
+			continue;
+		}
+
+
+
+/*
+		LOG_DEBUG("ofst=0x%08x, power id=0x%x (valid=%d), 32-bit ROM table format=%d, entry present=%d",
+			entry.addr_ofst,
+			entry.power_domain_id, entry.power_domain_id_valid,
+			entry.format, entry.present);
+*/
+		LOG_DEBUG("ofst=0x%08x, pwrID=0x%x(valid=%d)",
+			entry.addr_ofst,
+			entry.power_domain_id, entry.power_domain_id_valid);
+
+
+		/* 10.2.1 Component descriptions and the component base address */
+		/* Component_Base = ROM_Base + Address offset */
+		component_base = baseaddr + entry.addr_ofst;
+//		LOG_DEBUG("component_base(last 4KB)=0x%.16" PRIxMAX, component_base);
+
+		retval = mem_ap_read_pid_cid(dap, component_base,
+				&(entry.PID), &(entry.CID));
+		if (! is_pid_cid_valid(entry.PID, entry.CID))
+			continue;
+
+		/* find the 1st 4KB address (true component base address ) */
+		component_base -= 0x1000 * (get_pid_4k_count(entry.PID) - 1);
+		LOG_DEBUG("base(1st 4KB)=0x%.16" PRIxMAX, component_base);
+
+		switch (get_cid_class(entry.CID))
+		{
+		case CC_VERIFICATION:	/* Generic verification component */
+			/* TBD */
+			break;
+
+		case CC_ROM:		/* ROM Table */
+			retval = dp_scan_romtable(dap, component_base, tbl_level+1);
+			break;
+
+		case CC_DEBUG:		/* Debug (CoreSight) component */
+			retval = mem_ap_examine_coresight(dap, component_base);
+			/* TBD */
+			break;
+
+		case CC_PTB:		/* Peripheral Test Block (PTB) */
+			/* TBD */
+			break;
+
+		case CC_DESS:		/* OptimoDE Data Engine SubSystem component */
+			/* TBD */
+			break;
+
+		case CC_IP:		/* Generic IP component */
+			/* TBD */
+			break;
+
+		case CC_PCELL:		/* PrimeCell peripheral */
+			/* TBD */
+			break;
+
+		default:		/* Invalid component class type */
+			break;
+
+		}	/* End of switch (cid class) */
+
+
+	} /* End of for(entry_offset) */
+
+	return ERROR_OK;
+}
+
+int dp_scan_mem_ap(struct adiv5_dap *dap, uint8_t ap)
+{
+	int retval;
+	struct _mem_ap_regs regs;
+//	mem_ap_regs_t mem_ap_regs;
+
+
+	retval = mem_ap_read_registers(dap, ap, &regs);
+	if (retval != ERROR_OK)
+		return retval;
+
+
+	/* ARM Juno r1 has the value of 0xE00FF003 */
+	if (regs.base == 0xFFFFFFFF) {
+		/* Legacy format when no debug entries are present */
+		regs.baseaddr = 0x0;
+	} else if ((regs.base & 0x2) == 0) {
+		/* bit[1]=0: Legacy format for specifying BASEADDR */
+
+		/* Bits[11:0] should be zero. Not checking, just zero it out */
+		regs.baseaddr = regs.base & 0xFFFFF000;
+	} else {
+		/* bit[1]=1: ARM Debug Interface v5 format */
+		regs.baseaddr = regs.base & 0xFFFFF000;
+
+		/* Debug register or ROM table address */
+		if (regs.base & 0x1) {	/* bit[0]=1: Debug entry present */
+			/* Debug entry present */
+		} else {
+			/* No debug entry present -> ROM table */
+		}
+	}
+
+	/* PID/CID depends on valid entry */
+	if (! has_mem_ap_entry(&regs))
+		return ERROR_OK;
+
+LOG_DEBUG("----- Trace line ----- : baseaddr=0x%"PRIXMAX, regs.baseaddr);
+#if 0
+	retval = mem_ap_read_pid_cid(dap,
+			regs.baseaddr,
+			&(regs.PID),
+			&(regs.CID));
+#else
+	retval = mem_ap_read_cid(dap, ap,
+			regs.baseaddr,
+			&(regs.CID));
+#endif
+	if (retval != ERROR_OK) return retval;
+
+
+	retval = mem_ap_read_memtype(dap, ap, regs.baseaddr, &(regs.memtype));
+	if (retval != ERROR_OK) return retval;
+
+
+	switch (get_cid_class(regs.CID))
+	{
+	case CC_VERIFICATION:	/* Generic verification component */
+		/* TBD */
+		break;
+
+	case CC_ROM:		/* ROM Table */
+		retval = dp_scan_romtable(dap, regs.baseaddr, 0 /*root*/);
+		break;
+
+	case CC_DEBUG:		/* Debug (CoreSight) component */
+		retval = mem_ap_examine_coresight(dap, regs.baseaddr);
+		/* TBD */
+		break;
+
+	case CC_PTB:		/* Peripheral Test Block (PTB) */
+		/* TBD */
+		break;
+
+	case CC_DESS:		/* OptimoDE Data Engine SubSystem component */
+		/* TBD */
+		break;
+
+	case CC_IP:		/* Generic IP component */
+		/* TBD */
+		break;
+
+	case CC_PCELL:		/* PrimeCell peripheral */
+		/* TBD */
+		break;
+
+	default:		/* Invalid component class type */
+		break;
+
+	}	/* End of switch (cid class) */
+
+
+	return ERROR_OK;
+}
+
+int dp_scan_jtag_ap(struct adiv5_dap *dap, uint8_t ap)
+{
+//	int retval;
+
+
+	return ERROR_OK;
+}
+
+/*--------------------------------------------------------------------------*/
 
 #define DAP_POWER_DOMAIN_TIMEOUT (10)
 
@@ -1044,16 +1724,7 @@ int debugport_deinit(struct adiv5_dap *dap)
 	return ERROR_OK;
 }
 
-/* CID interpretation -- see ARM IHI 0029B section 3
- * and ARM IHI 0031A table 13-3.
- */
-static const char *class_description[16] = {
-	"Reserved", "ROM table", "Reserved", "Reserved",
-	"Reserved", "Reserved", "Reserved", "Reserved",
-	"Reserved", "CoreSight component", "Reserved", "Peripheral Test Block",
-	"Reserved", "OptimoDE DESS",
-	"Generic IP component", "PrimeCell or System component"
-};
+/*--------------------------------------------------------------------------*/
 
 static bool is_dap_cid_ok(uint32_t cid3, uint32_t cid2, uint32_t cid1, uint32_t cid0)
 {

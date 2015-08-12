@@ -327,6 +327,36 @@ struct dap_ops {
 	int (*sync)(struct adiv5_dap *dap);
 };
 
+typedef struct _mem_ap_regs {
+	uint32_t	csw;
+	uint32_t	tar;
+	uint32_t	tar_la;
+	/* We do NOT hold DRW, BD0-3. These registers cannot be read until
+	 * the memory access has completed */
+	uint32_t	mbt;
+	uint32_t	base_la;
+	uint32_t	cfg;
+	uint32_t	base;
+
+	/* ----- Register alike values ----- */
+
+	/* base address from base_la/base register values (New or Legacy) */
+	/* Value might be changed after parsing ROM Table */
+	uintmax_t	baseaddr;
+
+	uint64_t	PID;	/* bits[7:0] of each PIDR */
+	uint32_t	CID;	/* bits[7:0] of each CIDR */
+
+	uint32_t	memtype;	/* ROM Table class only */
+} mem_ap_regs_t;
+
+static inline bool is_valid_baseaddr(struct _mem_ap_regs *r)
+{
+	assert(r != NULL);
+	return (r->base != 0xFFFFFFFF);
+}
+#define	has_mem_ap_entry	is_valid_baseaddr	/* function alias */
+
 typedef struct _rom_entry {
 	int32_t addr_ofst;	/* Relative base address of the component (signed) */
 
