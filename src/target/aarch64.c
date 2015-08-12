@@ -2241,6 +2241,9 @@ static int aarch64_examine_first(struct target *target)
 		/* Get ROM Table base */
 		uint32_t apid;
 		int32_t coreidx = target->coreid;
+
+		LOG_DEBUG("[-dbgbase] not set for core %d, trying to detect ...", coreidx);
+		/* Alamy: WARNING: scan tap to find a debug port (Juno r1 at AP==1) */
 		retval = dap_get_debugbase(swjdp, 1, &dbgbase, &apid);
 		if (retval != ERROR_OK)
 			return retval;
