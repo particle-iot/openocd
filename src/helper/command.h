@@ -41,6 +41,22 @@ enum command_mode {
 	COMMAND_ANY,
 };
 
+/**
+ * Helper struct to share a common Jim interpreter among multiple command
+ * contexts.
+ */
+struct command_interpreter {
+	/** Jim interpreter. */
+	Jim_Interp *interp;
+	/** Number of references held on this interpreter. */
+	unsigned int refcnt;
+	/**
+	 * Determines whether the Jim interpreter should be free'd when the last
+	 * reference is released.
+	 */
+	bool free;
+};
+
 struct command_context;
 
 /** The type signature for command context's output handler. */
@@ -48,7 +64,7 @@ typedef int (*command_output_handler_t)(struct command_context *context,
 		const char *line);
 
 struct command_context {
-	Jim_Interp *interp;
+	struct command_interpreter *interp;
 	enum command_mode mode;
 	struct command *commands;
 	int current_target;

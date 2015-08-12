@@ -358,7 +358,7 @@ static int command_unknown(Jim_Interp *interp, int argc, Jim_Obj *const *argv);
 static int register_command_handler(struct command_context *cmd_ctx,
 	struct command *c)
 {
-	Jim_Interp *interp = cmd_ctx->interp;
+	Jim_Interp *interp = cmd_ctx->interp->interp;
 	char *ocd_name = alloc_printf("ocd_%s", c->name);
 	if (NULL == ocd_name)
 		return JIM_ERR;
@@ -408,7 +408,7 @@ struct command *register_command(struct command_context *context,
 
 	int retval = ERROR_OK;
 	if (NULL != cr->jim_handler && NULL == parent) {
-		retval = Jim_CreateCommand(context->interp, cr->name,
+		retval = Jim_CreateCommand(context->interp->interp, cr->name,
 				cr->jim_handler, cr->jim_handler_data, NULL);
 	} else if (NULL != cr->handler || NULL != parent)
 		retval = register_command_handler(context, command_root(c));
@@ -645,7 +645,7 @@ int command_run_line(struct command_context *context, char *line)
 	 * happen when the Jim Tcl interpreter is provided by eCos for
 	 * instance.
 	 */
-	Jim_Interp *interp = context->interp;
+	Jim_Interp *interp = context->interp->interp;
 	Jim_DeleteAssocData(interp, "context");
 	retcode = Jim_SetAssocData(interp, "context", NULL, context);
 	if (retcode == JIM_OK) {
@@ -722,8 +722,14 @@ void command_set_output_handler(struct command_context *context,
 
 struct command_context *copy_command_context(struct command_context *context)
 {
-	struct command_context *copy_context = malloc(sizeof(struct command_context));
+	struct command_context *copy_context;
 
+	copy_context = malloc(sizeof(struct command_context));
+
+	if (!copy_context)
+		return NULL;
+
+	context->interp->refcnt++;
 	*copy_context = *context;
 
 	return copy_context;
@@ -731,8 +737,17 @@ struct command_context *copy_command_context(struct command_context *context)
 
 void command_done(struct command_context *cmd_ctx)
 {
-	if (NULL == cmd_ctx)
+	if (cmd_ctx == NULL)
 		return;
+
+	cmd_ctx->interp->refcnt--;
+
+	if (!cmd_ctx->interp->refcnt) {
+		if (cmd_ctx->interp->free)
+			Jim_FreeInterp(cmd_ctx->interp->interp);
+
+		free(cmd_ctx->interp);
+	}
 
 	free(cmd_ctx);
 }
@@ -1271,14 +1286,28 @@ static const struct command_registration command_builtin_handlers[] = {
 
 struct command_context *command_init(const char *startup_tcl, Jim_Interp *interp)
 {
-	struct command_context *context = malloc(sizeof(struct command_context));
+	struct command_context *context;
 	const char *HostOs;
+
+	context = malloc(sizeof(struct command_context));
+
+	if (!context) {
+		LOG_ERROR("Failed to allocate command context.");
+		return NULL;
+	}
 
 	context->mode = COMMAND_EXEC;
 	context->commands = NULL;
 	context->current_target = 0;
 	context->output_handler = NULL;
 	context->output_handler_priv = NULL;
+	context->interp = malloc(sizeof(struct command_interpreter));
+
+	if (!context->interp) {
+		LOG_ERROR("Failed to allocate command interpreter.");
+		free(context);
+		return NULL;
+	}
 
 	/* Create a jim interpreter if we were not handed one */
 	if (interp == NULL) {
@@ -1287,9 +1316,13 @@ struct command_context *command_init(const char *startup_tcl, Jim_Interp *interp
 		/* Add all the Jim core commands */
 		Jim_RegisterCoreCommands(interp);
 		Jim_InitStaticExtensions(interp);
+		context->interp->free = true;
+	} else {
+		context->interp->free = false;
 	}
 
-	context->interp = interp;
+	context->interp->interp = interp;
+	context->interp->refcnt = 1;
 
 	/* Stick to lowercase for HostOS strings. */
 #if defined(_MSC_VER)
@@ -1357,7 +1390,7 @@ void process_jim_events(struct command_context *cmd_ctx)
 		return;
 
 	recursion++;
-	Jim_ProcessEvents(cmd_ctx->interp, JIM_ALL_EVENTS | JIM_DONT_WAIT);
+	Jim_ProcessEvents(cmd_ctx->interp->interp, JIM_ALL_EVENTS | JIM_DONT_WAIT);
 	recursion--;
 }
 

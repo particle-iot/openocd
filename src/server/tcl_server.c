@@ -167,7 +167,7 @@ static int tcl_new_connection(struct connection *connection)
 
 static int tcl_input(struct connection *connection)
 {
-	Jim_Interp *interp = (Jim_Interp *)connection->cmd_ctx->interp;
+	Jim_Interp *interp;
 	int retval;
 	int i;
 	ssize_t rlen;
@@ -175,6 +175,8 @@ static int tcl_input(struct connection *connection)
 	int reslen;
 	struct tcl_connection *tclc;
 	unsigned char in[256];
+
+	interp = connection->cmd_ctx->interp->interp;
 
 	rlen = connection_read(connection, &in, sizeof(in));
 	if (rlen <= 0) {

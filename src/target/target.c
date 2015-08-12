@@ -640,13 +640,14 @@ static int target_process_reset(struct command_context *cmd_ctx, enum target_res
 	jtag_poll_set_enabled(false);
 
 	sprintf(buf, "ocd_process_reset %s", n->name);
-	retval = Jim_Eval(cmd_ctx->interp, buf);
+	retval = Jim_Eval(cmd_ctx->interp->interp, buf);
 
 	jtag_poll_set_enabled(save_poll);
 
 	if (retval != JIM_OK) {
-		Jim_MakeErrorMessage(cmd_ctx->interp);
-		command_print(NULL, "%s\n", Jim_GetString(Jim_GetResult(cmd_ctx->interp), NULL));
+		Jim_MakeErrorMessage(cmd_ctx->interp->interp);
+		command_print(NULL, "%s\n",
+			Jim_GetString(Jim_GetResult(cmd_ctx->interp->interp), NULL));
 		return ERROR_FAIL;
 	}
 
@@ -1270,7 +1271,7 @@ static int target_init(struct command_context *cmd_ctx)
 		return retval;
 
 	retval = target_register_timer_callback(&handle_target,
-			polling_interval, 1, cmd_ctx->interp);
+			polling_interval, 1, cmd_ctx->interp->interp);
 	if (ERROR_OK != retval)
 		return retval;
 

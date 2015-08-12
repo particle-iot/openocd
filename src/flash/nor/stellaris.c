@@ -1358,6 +1358,7 @@ COMMAND_HANDLER(stellaris_handle_recover_command)
 {
 	struct flash_bank *bank;
 	int retval;
+	const char *tmp;
 
 	if (CMD_ARGC != 0)
 		return ERROR_COMMAND_SYNTAX_ERROR;
@@ -1372,8 +1373,11 @@ COMMAND_HANDLER(stellaris_handle_recover_command)
 	 * cycle to recover.
 	 */
 
-	Jim_Eval_Named(CMD_CTX->interp, "catch { hla_command \"debug unlock\" }", 0, 0);
-	if (!strcmp(Jim_GetString(Jim_GetResult(CMD_CTX->interp), NULL), "0")) {
+	Jim_Eval_Named(CMD_CTX->interp->interp,
+		"catch { hla_command \"debug unlock\" }", 0, 0);
+	tmp = Jim_GetString(Jim_GetResult(CMD_CTX->interp->interp), NULL);
+
+	if (!strcmp(tmp, "0")) {
 		retval = ERROR_OK;
 		goto user_action;
 	}

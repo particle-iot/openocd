@@ -1472,7 +1472,7 @@ static int dsp563xx_get_default_memory(void)
 	if (!global_cmd_ctx)
 		return MEM_P;
 
-	interp = global_cmd_ctx->interp;
+	interp = global_cmd_ctx->interp->interp;
 
 	if (!interp)
 		return MEM_P;
