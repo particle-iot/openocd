@@ -368,7 +368,7 @@ static int aarch64_dpm_prepare(struct arm_dpm *dpm)
 	/* this "should never happen" ... */
 	if (dscr & DSCR_DTR_RX_FULL) {
 		LOG_ERROR("DSCR_DTR_RX_FULL, dscr 0x%08" PRIx32, dscr);
-		/* Clear DCCRX */
+		/* Clear DCCRX */	/* Alamy: Verify DSCR/DCCRX ? */
 		retval = mem_ap_sel_read_u32(swjdp, a8->armv8_common.debug_ap,
 			a8->armv8_common.debug_base + CPUDBG_DTRRX, &dscr);
 		if (retval != ERROR_OK)
@@ -2260,6 +2260,13 @@ static int aarch64_examine_first(struct target *target)
 		armv8->debug_base,
 		target->coreid);
 
+	/* Alamy: Hacking
+		armv8->debug_ap == 0, but we need it to be 1
+	 */
+	LOG_DEBUG("debug_ap = %d", armv8->debug_ap);
+	armv8->debug_ap = 1;
+	LOG_DEBUG("debug_ap = %d", armv8->debug_ap);
+
 	retval = mem_ap_sel_write_atomic_u32(swjdp, armv8->debug_ap,
 			armv8->debug_base + 0x300, 0);
 	if (retval != ERROR_OK) {
@@ -2357,10 +2364,12 @@ static int aarch64_examine(struct target *target)
 {
 	int retval = ERROR_OK;
 
+LOG_DEBUG("Alamy");
 	/* don't re-probe hardware after each reset */
 	if (!target_was_examined(target))
 		retval = aarch64_examine_first(target);
 
+LOG_DEBUG("Alamy");
 	/* Configure core debug access */
 	if (retval == ERROR_OK)
 		retval = aarch64_init_debug_access(target);
