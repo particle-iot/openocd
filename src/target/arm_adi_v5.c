@@ -2143,288 +2143,310 @@ static int dap_rom_display(struct command_context *cmd_ctx,
 	else
 		command_print(cmd_ctx, "\t%sMEMTYPE system memory not present: dedicated debug bus", tabs);
 
-	/* Now we read ROM table entries from dbgbase&0xFFFFF000) | 0x000 until we get 0x00000000 */
-	for (entry_offset = 0; ; entry_offset += 4) {
+	/*
+	 * Now we read ROM table entries from dbgbase&0xFFFFF000) | 0x000
+	 * Until we reach the end of the ROM Table (0xF00)
+	 *       or hit a blank entry (0x00000000)
+	 */
+	for (entry_offset = 0; entry_offset < 0xF00 ; entry_offset += 4) {
 		retval = mem_ap_read_atomic_u32(ap, (dbgbase&0xFFFFF000) | entry_offset, &romentry);
 		if (retval != ERROR_OK)
 			return retval;
 		command_print(cmd_ctx, "\t%sROMTABLE[0x%x] = 0x%" PRIx32 "",
 				tabs, entry_offset, romentry);
-		if (romentry & 0x01) {
-			uint32_t c_cid0, c_cid1, c_cid2, c_cid3;
-			uint32_t c_pid0, c_pid1, c_pid2, c_pid3, c_pid4;
-			uint32_t component_base;
-			uint16_t part_num, designer_id;
-			const char *type, *full;
+		if (romentry == 0x0) {	/* Table end marker */
+			break;
+		}
+		if ((romentry & 0x01) == 0x0) {	/* Empty entry */
+			command_print(cmd_ctx, "\t\tComponent not present");
+			continue;
+		}
 
-			component_base = (dbgbase & 0xFFFFF000) + (romentry & 0xFFFFF000);
+		/* An entry is present (romentry bit[1] == 0b1) */
+		{
+		uint32_t c_cid0, c_cid1, c_cid2, c_cid3;
+		uint32_t c_pid0, c_pid1, c_pid2, c_pid3, c_pid4;
+		uint32_t component_base;
+		uint32_t part_num;
+		const char *type, *full;
 
-			/* IDs are in last 4K section */
-			retval = mem_ap_read_atomic_u32(ap, component_base + 0xFE0, &c_pid0);
-			if (retval != ERROR_OK) {
-				command_print(cmd_ctx, "\t%s\tCan't read component with base address 0x%" PRIx32
-					      ", the corresponding core might be turned off", tabs, component_base);
-				continue;
-			}
-			c_pid0 &= 0xff;
-			retval = mem_ap_read_atomic_u32(ap, component_base + 0xFE4, &c_pid1);
-			if (retval != ERROR_OK)
-				return retval;
-			c_pid1 &= 0xff;
-			retval = mem_ap_read_atomic_u32(ap, component_base + 0xFE8, &c_pid2);
-			if (retval != ERROR_OK)
-				return retval;
-			c_pid2 &= 0xff;
-			retval = mem_ap_read_atomic_u32(ap, component_base + 0xFEC, &c_pid3);
-			if (retval != ERROR_OK)
-				return retval;
-			c_pid3 &= 0xff;
-			retval = mem_ap_read_atomic_u32(ap, component_base + 0xFD0, &c_pid4);
-			if (retval != ERROR_OK)
-				return retval;
-			c_pid4 &= 0xff;
+		component_base = (dbgbase & 0xFFFFF000) + (romentry & 0xFFFFF000);
 
-			retval = mem_ap_read_atomic_u32(ap, component_base + 0xFF0, &c_cid0);
-			if (retval != ERROR_OK)
-				return retval;
-			c_cid0 &= 0xff;
-			retval = mem_ap_read_atomic_u32(ap, component_base + 0xFF4, &c_cid1);
-			if (retval != ERROR_OK)
-				return retval;
-			c_cid1 &= 0xff;
-			retval = mem_ap_read_atomic_u32(ap, component_base + 0xFF8, &c_cid2);
-			if (retval != ERROR_OK)
-				return retval;
-			c_cid2 &= 0xff;
-			retval = mem_ap_read_atomic_u32(ap, component_base + 0xFFC, &c_cid3);
-			if (retval != ERROR_OK)
-				return retval;
-			c_cid3 &= 0xff;
+		/* IDs are in last 4K section */
+		retval = mem_ap_read_atomic_u32(dap, component_base + 0xFE0, &c_pid0);
+		if (retval != ERROR_OK) {
+			command_print(cmd_ctx, "\t%s\tCan't read component with base address 0x%" PRIx32
+				      ", the corresponding core might be turned off", tabs, component_base);
+			continue;
+		}
+		c_pid0 &= 0xff;
+		retval = mem_ap_read_atomic_u32(dap, component_base + 0xFE4, &c_pid1);
+		if (retval != ERROR_OK)
+			return retval;
+		c_pid1 &= 0xff;
+		retval = mem_ap_read_atomic_u32(dap, component_base + 0xFE8, &c_pid2);
+		if (retval != ERROR_OK)
+			return retval;
+		c_pid2 &= 0xff;
+		retval = mem_ap_read_atomic_u32(dap, component_base + 0xFEC, &c_pid3);
+		if (retval != ERROR_OK)
+			return retval;
+		c_pid3 &= 0xff;
+		retval = mem_ap_read_atomic_u32(dap, component_base + 0xFD0, &c_pid4);
+		if (retval != ERROR_OK)
+			return retval;
+		c_pid4 &= 0xff;
+		/* Alamy: PIC_5-7, 0xFD4, 0xFD8, 0xFDC */
 
-			command_print(cmd_ctx, "\t\tComponent base address 0x%" PRIx32 ", "
-				      "start address 0x%" PRIx32, component_base,
-				      /* component may take multiple 4K pages */
-				      (uint32_t)(component_base - 0x1000*(c_pid4 >> 4)));
-			command_print(cmd_ctx, "\t\tComponent class is 0x%" PRIx8 ", %s",
-					(uint8_t)((c_cid1 >> 4) & 0xf),
-					/* See ARM IHI 0029B Table 3-3 */
-					class_description[(c_cid1 >> 4) & 0xf]);
+		retval = mem_ap_read_atomic_u32(dap, component_base + 0xFF0, &c_cid0);
+		if (retval != ERROR_OK)
+			return retval;
+		c_cid0 &= 0xff;
+		retval = mem_ap_read_atomic_u32(dap, component_base + 0xFF4, &c_cid1);
+		if (retval != ERROR_OK)
+			return retval;
+		c_cid1 &= 0xff;
+		retval = mem_ap_read_atomic_u32(dap, component_base + 0xFF8, &c_cid2);
+		if (retval != ERROR_OK)
+			return retval;
+		c_cid2 &= 0xff;
+		retval = mem_ap_read_atomic_u32(dap, component_base + 0xFFC, &c_cid3);
+		if (retval != ERROR_OK)
+			return retval;
+		c_cid3 &= 0xff;
 
-			/* CoreSight component? */
-			if (((c_cid1 >> 4) & 0x0f) == 9) {
-				uint32_t devtype;
-				unsigned minor;
-				const char *major = "Reserved", *subtype = "Reserved";
+		/* Alamy: ERROR: pid4 >> 4 is a log value */
+		command_print(cmd_ctx, "\t\tComponent base address 0x%" PRIx32 ", "
+			      "start address 0x%" PRIx32, component_base,
+			      /* component may take multiple 4K pages */
+			      (uint32_t)(component_base - 0x1000*(c_pid4 >> 4)));
+		command_print(cmd_ctx, "\t\tComponent class is 0x%" PRIx8 ", %s",
+				(uint8_t)((c_cid1 >> 4) & 0xf),
+				/* See ARM IHI 0029B Table 3-3 */
+				class_description[(c_cid1 >> 4) & 0xf]);
 
-				retval = mem_ap_read_atomic_u32(ap,
-						(component_base & 0xfffff000) | 0xfcc,
-						&devtype);
-				if (retval != ERROR_OK)
-					return retval;
-				minor = (devtype >> 4) & 0x0f;
-				switch (devtype & 0x0f) {
+		/* CoreSight component? */	/* Alamy: other component ? */
+		if (((c_cid1 >> 4) & 0x0f) == 9) {
+			uint32_t devtype;
+			unsigned minor;
+			const char *major = "Reserved", *subtype = "Reserved";
+
+			retval = mem_ap_read_atomic_u32(dap,
+					(component_base & 0xfffff000) | 0xfcc,
+					&devtype);
+			if (retval != ERROR_OK)
+				return retval;
+			minor = (devtype >> 4) & 0x0f;
+			switch (devtype & 0x0f) {
+			case 0:
+				major = "Miscellaneous";
+				switch (minor) {
 				case 0:
-					major = "Miscellaneous";
-					switch (minor) {
-					case 0:
-						subtype = "other";
-						break;
-					case 4:
-						subtype = "Validation component";
-						break;
-					}
-					break;
-				case 1:
-					major = "Trace Sink";
-					switch (minor) {
-					case 0:
-						subtype = "other";
-						break;
-					case 1:
-						subtype = "Port";
-						break;
-					case 2:
-						subtype = "Buffer";
-						break;
-					case 3:
-						subtype = "Router";
-						break;
-					}
-					break;
-				case 2:
-					major = "Trace Link";
-					switch (minor) {
-					case 0:
-						subtype = "other";
-						break;
-					case 1:
-						subtype = "Funnel, router";
-						break;
-					case 2:
-						subtype = "Filter";
-						break;
-					case 3:
-						subtype = "FIFO, buffer";
-						break;
-					}
-					break;
-				case 3:
-					major = "Trace Source";
-					switch (minor) {
-					case 0:
-						subtype = "other";
-						break;
-					case 1:
-						subtype = "Processor";
-						break;
-					case 2:
-						subtype = "DSP";
-						break;
-					case 3:
-						subtype = "Engine/Coprocessor";
-						break;
-					case 4:
-						subtype = "Bus";
-						break;
-					case 6:
-						subtype = "Software";
-						break;
-					}
+					subtype = "other";
 					break;
 				case 4:
-					major = "Debug Control";
-					switch (minor) {
-					case 0:
-						subtype = "other";
-						break;
-					case 1:
-						subtype = "Trigger Matrix";
-						break;
-					case 2:
-						subtype = "Debug Auth";
-						break;
-					case 3:
-						subtype = "Power Requestor";
-						break;
-					}
-					break;
-				case 5:
-					major = "Debug Logic";
-					switch (minor) {
-					case 0:
-						subtype = "other";
-						break;
-					case 1:
-						subtype = "Processor";
-						break;
-					case 2:
-						subtype = "DSP";
-						break;
-					case 3:
-						subtype = "Engine/Coprocessor";
-						break;
-					case 4:
-						subtype = "Bus";
-						break;
-					case 5:
-						subtype = "Memory";
-						break;
-					}
-					break;
-				case 6:
-					major = "Perfomance Monitor";
-					switch (minor) {
-					case 0:
-						subtype = "other";
-						break;
-					case 1:
-						subtype = "Processor";
-						break;
-					case 2:
-						subtype = "DSP";
-						break;
-					case 3:
-						subtype = "Engine/Coprocessor";
-						break;
-					case 4:
-						subtype = "Bus";
-						break;
-					case 5:
-						subtype = "Memory";
-						break;
-					}
+					subtype = "Validation component";
 					break;
 				}
-				command_print(cmd_ctx, "\t\tType is 0x%02" PRIx8 ", %s, %s",
-						(uint8_t)(devtype & 0xff),
-						major, subtype);
-				/* REVISIT also show 0xfc8 DevId */
+				break;
+			case 1:
+				major = "Trace Sink";
+				switch (minor) {
+				case 0:
+					subtype = "other";
+					break;
+				case 1:
+					subtype = "Port";
+					break;
+				case 2:
+					subtype = "Buffer";
+					break;
+				case 3:
+					subtype = "Router";
+					break;
+				}
+				break;
+			case 2:
+				major = "Trace Link";
+				switch (minor) {
+				case 0:
+					subtype = "other";
+					break;
+				case 1:
+					subtype = "Funnel, router";
+					break;
+				case 2:
+					subtype = "Filter";
+					break;
+				case 3:
+					subtype = "FIFO, buffer";
+					break;
+				}
+				break;
+			case 3:
+				major = "Trace Source";
+				switch (minor) {
+				case 0:
+					subtype = "other";
+					break;
+				case 1:
+					subtype = "Processor";
+					break;
+				case 2:
+					subtype = "DSP";
+					break;
+				case 3:
+					subtype = "Engine/Coprocessor";
+					break;
+				case 4:
+					subtype = "Bus";
+					break;
+				case 6:
+					subtype = "Software";
+					break;
+				}
+				break;
+			case 4:
+				major = "Debug Control";
+				switch (minor) {
+				case 0:
+					subtype = "other";
+					break;
+				case 1:
+					subtype = "Trigger Matrix";
+					break;
+				case 2:
+					subtype = "Debug Auth";
+					break;
+				case 3:
+					subtype = "Power Requestor";
+					break;
+				}
+				break;
+			case 5:
+				major = "Debug Logic";
+				switch (minor) {
+				case 0:
+					subtype = "other";
+					break;
+				case 1:
+					subtype = "Processor";
+					break;
+				case 2:
+					subtype = "DSP";
+					break;
+				case 3:
+					subtype = "Engine/Coprocessor";
+					break;
+				case 4:
+					subtype = "Bus";
+					break;
+				case 5:
+					subtype = "Memory";
+					break;
+				}
+				break;
+			case 6:
+				major = "Perfomance Monitor";
+				switch (minor) {
+				case 0:
+					subtype = "other";
+					break;
+				case 1:
+					subtype = "Processor";
+					break;
+				case 2:
+					subtype = "DSP";
+					break;
+				case 3:
+					subtype = "Engine/Coprocessor";
+					break;
+				case 4:
+					subtype = "Bus";
+					break;
+				case 5:
+					subtype = "Memory";
+					break;
+				}
+				break;
 			}
+			command_print(cmd_ctx, "\t\tType is 0x%02" PRIx8 ", %s, %s",
+					(uint8_t)(devtype & 0xff),
+					major, subtype);
+			/* REVISIT also show 0xfc8 DevId */
+		}
 
-			if (!is_dap_cid_ok(cid3, cid2, cid1, cid0))
-				command_print(cmd_ctx,
-						"\t\tCID3 0%02x"
-						", CID2 0%02x"
-						", CID1 0%02x"
-						", CID0 0%02x",
-						(int)c_cid3,
-						(int)c_cid2,
-						(int)c_cid1,
-						(int)c_cid0);
+		if (!is_dap_cid_ok(cid3, cid2, cid1, cid0))
 			command_print(cmd_ctx,
-				"\t\tPeripheral ID[4..0] = hex "
-				"%02x %02x %02x %02x %02x",
-				(int)c_pid4, (int)c_pid3, (int)c_pid2,
-				(int)c_pid1, (int)c_pid0);
+					"\t\tCID3 0%02x"
+					", CID2 0%02x"
+					", CID1 0%02x"
+					", CID0 0%02x",
+					(int)c_cid3,
+					(int)c_cid2,
+					(int)c_cid1,
+					(int)c_cid0);
+		command_print(cmd_ctx,
+			"\t\tPeripheral ID[4..0] = hex "
+			"%02x %02x %02x %02x %02x",
+			(int)c_pid4, (int)c_pid3, (int)c_pid2,
+			(int)c_pid1, (int)c_pid0);
 
-			part_num = (c_pid0 & 0xff);
-			part_num |= (c_pid1 & 0x0f) << 8;
-			designer_id = (c_pid1 & 0xf0) >> 4;
-			designer_id |= (c_pid2 & 0x0f) << 4;
-			designer_id |= (c_pid4 & 0x0f) << 8;
-			if ((designer_id & 0x80) == 0) {
-				/* Legacy ASCII ID, clear invalid bits */
-				designer_id &= 0x7f;
-			}
+		/* Part number interpretations are from Cortex
+		 * core specs, the CoreSight components TRM
+		 * (ARM DDI 0314H), CoreSight System Design
+		 * Guide (ARM DGI 0012D) and ETM specs; also
+		 * from chip observation (e.g. TI SDTI).
+		 */
 
-			/* default values to be overwritten upon finding a match */
-			type = NULL;
-			full = "";
+		part_num = (c_pid0 & 0xff);
+		part_num |= (c_pid1 & 0x0f) << 8;
+		designer_id = (c_pid1 & 0xf0) >> 4;
+		designer_id |= (c_pid2 & 0x0f) << 4;
+		designer_id |= (c_pid4 & 0x0f) << 8;
+		if ((designer_id & 0x80) == 0) {
+			/* Legacy ASCII ID, clear invalid bits */
+			designer_id &= 0x7f;
+		}
 
-			/* search dap_partnums[] array for a match */
-			unsigned entry;
-			for (entry = 0; entry < ARRAY_SIZE(dap_partnums); entry++) {
+		/* default values to be overwritten upon finding a match */
+		type = NULL;
+		full = "";
 
-				if ((dap_partnums[entry].designer_id != designer_id) && (dap_partnums[entry].designer_id != ANY_ID))
-					continue;
+		/* search dap_partnums[] array for a match */
+		unsigned entry;
+		for (entry = 0; entry < ARRAY_SIZE(dap_partnums); entry++) {
 
-				if (dap_partnums[entry].part_num != part_num)
-					continue;
+			if ((dap_partnums[entry].designer_id != designer_id) && (dap_partnums[entry].designer_id != ANY_ID))
+				continue;
 
-				type = dap_partnums[entry].type;
-				full = dap_partnums[entry].full;
-				break;
-			}
+			if (dap_partnums[entry].part_num != part_num)
+				continue;
 
-			if (type) {
-				command_print(cmd_ctx, "\t\tPart is %s %s",
-						type, full);
-			} else {
-				command_print(cmd_ctx, "\t\tUnrecognized (Part 0x%" PRIx16 ", designer 0x%" PRIx16 ")",
-						part_num, designer_id);
-			}
+			type = dap_partnums[entry].type;
+			full = dap_partnums[entry].full;
+			break;
+		}
 
-			/* ROM Table? */
-			if (((c_cid1 >> 4) & 0x0f) == 1) {
-				retval = dap_rom_display(cmd_ctx, ap, component_base, depth + 1);
-				if (retval != ERROR_OK)
-					return retval;
-			}
+		if (type) {
+			command_print(cmd_ctx, "\t\tPart is %s %s",
+					type, full);
 		} else {
-			if (romentry)
-				command_print(cmd_ctx, "\t\tComponent not present");
-			else
-				break;
+			command_print(cmd_ctx, "\t\tUnrecognized (Part 0x%" PRIx16 ", designer 0x%" PRIx16 ")",
+					part_num, designer_id);
+		}
+
+		/* ROM Table? */
+		if (((c_cid1 >> 4) & 0x0f) == 1) {
+			/*
+			 * Recursive is okay because the following references are prohibited:
+			 * A. Entries in ROM Table A and B both point to ROM Table C.
+			 * B. ROM Table being referenced from different MEM-AP. (similiar to case A)
+			 * C. Circular ROM Table references.
+			 */
+			retval = dap_rom_display(cmd_ctx, ap, component_base, depth + 1);
+			if (retval != ERROR_OK)
+				return retval;
 		}
 	}
 	command_print(cmd_ctx, "\t%s\tEnd of ROM table", tabs);
