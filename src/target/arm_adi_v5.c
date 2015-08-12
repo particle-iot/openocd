@@ -882,6 +882,133 @@ int dap_lookup_cs_component(struct adiv5_ap *ap,
 	return ERROR_OK;
 }
 
+int dap_romtable_lookup_cs_component(
+	struct adiv5_dap *dap,
+	uintmax_t rombase, uint8_t l_devtype,
+	uint16_t l_jep106, uint16_t l_partnum,
+	int32_t *l_index,
+	uint32_t *found_base)
+{
+	int retval;
+	uint32_t entry_offset;		/* Offset to walk through ROM Table */
+	uint32_t romentry;
+	uintmax_t component_base;
+	struct _rom_entry entry;
+
+	if (dap == NULL)		return ERROR_FAIL;
+	if (found_base == NULL)	return ERROR_OK;	/* No need to continue */
+
+	/* Clear to zero so we know the component is found or not later */
+	*found_base = 0x0;
+
+	/*
+	 * Now we read ROM table entries until we
+	 *   reach the end of the ROM Table (0xF00)
+	 *   or hit a blank entry (0x00000000)
+	 */
+	for (entry_offset = 0; entry_offset < 0xF00 ; entry_offset += 4) {
+		retval = mem_ap_read_atomic_u32(dap,
+				rombase | entry_offset,
+				&romentry);
+		if (retval != ERROR_OK)
+			continue;
+
+		LOG_DEBUG("---- Entry[0x%03X/0x%" PRIXMAX "] = 0x%08x %s",
+			entry_offset, rombase, romentry,
+			(romentry==0x0 ? "(end of table)" : ""));
+
+		if (romentry == 0x0)	/* Table end marker */
+			break;
+
+
+		/* decode entry fields
+		 * IHI0031C: Table 10-2 Format of a ROM Table entry
+		 */
+		entry.addr_ofst			= romentry & (0xFFFFF << 12);	/* signed */
+		entry.power_domain_id		= (romentry & (0x1F << 4)) >> 4;
+		entry.power_domain_id_valid	= (romentry & ( 0x1 << 2)) >> 2;
+		entry.format			= (romentry & ( 0x1 << 1)) >> 1;
+		entry.present			= (romentry & ( 0x1 << 0)) >> 0;
+
+		/* 10.2.2 Empty entries and the end of the ROM Table
+		 *   When scanning the ROM Table, an entry marked as
+		 * not present must be skipped. However you must not assume
+		 * that an entry that is marked as not present represents
+		 * the end of the ROM Table
+		 */
+		if (! entry.present)	/* Empty entry */
+			continue;
+
+		if (! entry.format)	/* Not a 32-bit ROM entry format */
+			continue;
+
+		LOG_DEBUG("ofst=0x%08x, pwrID=0x%x(valid=%d)",
+			entry.addr_ofst,
+			entry.power_domain_id, entry.power_domain_id_valid);
+
+
+		/* 10.2.1 Component descriptions and the component base address */
+		/* Component_Base = ROM_Base + Address offset */
+		component_base = rombase + entry.addr_ofst;
+//		LOG_DEBUG("component_base(last 4KB)=0x%.16" PRIxMAX, component_base);
+
+		retval = mem_ap_read_pid_cid(dap, component_base,
+				&(entry.PID), &(entry.CID));
+		if (! is_pid_cid_valid(entry.PID, entry.CID))
+			continue;
+
+		/* find the 1st 4KB address (true component base address ) */
+		component_base -= 0x1000 * (get_pid_4k_count(entry.PID) - 1);
+		LOG_DEBUG("base(1st 4KB)=0x%.16" PRIxMAX, component_base);
+
+		switch (get_cid_class(entry.CID))
+		{
+		uint32_t devtype;
+		case CC_ROM:		/* ROM Table */
+			retval = dap_romtable_lookup_cs_component(dap,
+				component_base, l_devtype,
+				l_jep106, l_partnum,
+				l_index,
+				found_base);
+			if ((retval == ERROR_OK) || (retval == ERROR_FAIL))
+				return ERROR_OK;
+			/* Let's continue if component not found */
+			break;
+
+		case CC_DEBUG:		/* Debug (CoreSight) component */
+//			uint32_t devtype;
+			retval = mem_ap_read_atomic_u32(dap, component_base | 0xFCC, &devtype);
+			if (retval != ERROR_OK) return retval;
+
+			/* Matching devtype & PID */
+			if ((devtype & 0xFF) != l_devtype)		continue;
+			if (pid_get_jep106(entry.PID) != l_jep106)	continue;
+			if (pid_get_partnum(entry.PID) != l_partnum)	continue;
+//			if ((*l_index)--)				continue;
+
+			/* Found the component */
+			if ( !((*l_index)--) ) {
+				*found_base = component_base;
+				return ERROR_OK;
+			}
+			break;
+
+		default:
+			/* We are not interested in other classes
+				CC_VERIFICATION:	Generic verification component
+				CC_PTB:			Peripheral Test Block (PTB)
+				CC_DESS:		OptimoDE Data Engine SubSystem component
+				CC_IP:			Generic IP component
+				CC_PCELL:		PrimeCell peripheral
+			 */
+			break;
+		}	/* End of switch (cid class) */
+	} /* End of for(entry_offset) */
+
+	/* Woops, component not found */
+	return ERROR_TARGET_RESOURCE_NOT_AVAILABLE;
+}
+
 /* The designer identity code is encoded as:
  * bits 11:8 : JEP106 Bank (number of continuation codes), only valid when bit 7 is 1.
  * bit 7     : Set when bits 6:0 represent a JEP106 ID and cleared when bits 6:0 represent

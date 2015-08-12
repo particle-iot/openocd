@@ -156,6 +156,20 @@
 #define IDR_REV_SHIFT           (28)
 #define IDR_REV_MASK            (0xF << IDR_REV_SHIFT)
 
+typedef enum cid_class {	/* CID[15:12] */
+	CC_VERIFICATION		= 0x0,	/* Generic verification component */
+	CC_ROM			= 0x1,	/* ROM Table */
+	CC_DEBUG		= 0x9,	/* Debug (CoreSight) component */
+	CC_PTB			= 0xB,	/* Peripheral Test Block (PTB) */
+	CC_DESS			= 0xD,	/* OptimoDE Data Engine SubSystem component */
+	CC_IP			= 0xE,	/* Generic IP component */
+	CC_PCELL		= 0xF	/* PrimeCell peripheral */
+} cid_class_t;
+
+#define	JEP106_ARM		(0x43B)
+#define	PID_PART_CORTEX_A57	(0xD07)
+#define	PID_PART_CORTEX_A53	(0xD03)
+
 /* Fields of the MEM-AP's IDR register */
 #define IDR_REV     (0xFUL << 28)
 #define IDR_JEP106  (0x7FFUL << 17)
@@ -312,6 +326,67 @@ struct dap_ops {
 	 * sticky error conditions */
 	int (*sync)(struct adiv5_dap *dap);
 };
+
+typedef struct _rom_entry {
+	int32_t addr_ofst;	/* Relative base address of the component (signed) */
+
+	unsigned int power_domain_id:5;	/* Power domain of the component */
+	bool power_domain_id_valid:1;	/* Indicates if the Power domain ID is valid */
+	bool format:1;		/* 32-bit ROM Table format */
+	bool present:1;		/* Entry present */
+
+	uint64_t	PID;	/* bits[7:0] of each PIDR */
+	uint32_t	CID;	/* bits[7:0] of each CIDR */
+
+#if 0
+	/* WARNING: not sharing(union) with PID.
+	 * C compiler does NOT guarantee bit fields mapping.
+	 */
+	struct _pid {		/* bit fields of PID */
+		uint8_t 4kb_log2_count:4;
+		uint8_t jep106_cont:4;
+		uint8_t revand:4;
+		uint8_t cust:4;
+		uint8_t rev:4;
+		uint8_t is_jep106:1;
+		uint8_t jep106_id:7;
+		uint16_t partnum:12;
+	} pid;
+#endif
+
+} rom_entry_t;
+
+
+/* NOTE: JEP106 Continuation code & ID code
+ *	For easy understanding (i.e.: ARM(0x4, 0x3B) -> 0x43B)
+ *	Use 8-bit to hold 7-bit ID code (bit[7] is not used).
+ *	Continuation code will be at bit[12:9]
+ *	Thus, JEP106_ARM would be 0x43B
+ */
+/*
+ * PID[35:32]: JEP106 Continuation code (ARM is 0x4)
+ * PID[19]   : Uses JEP106 ID code      (should be 0b1)
+ * PID[18:12]: JEP106 ID code           (ARM is 0x3B)
+  */
+static inline uint16_t pid_get_jep106(uint64_t pid)
+{
+	uint16_t jep106;
+
+	jep106 = (((pid >> 32) & 0x0F) << 8);	/* bit[35:32] */
+	jep106 |= ((pid >> 12) & 0x7F);		/* bit[18:12] */
+
+	return jep106;	/* jep106 == 0x43B for ARM */
+}
+
+/* bit[11:0] of PID */
+static inline uint16_t pid_get_partnum(uint64_t pid)
+{
+	return (uint16_t)(pid & 0x0FFF);
+}
+
+
+extern void jtag_dump_queue(const char *func, int line);
+
 
 /*
  * Access Port classes (IDR[16:13])
@@ -591,6 +666,13 @@ static inline struct adiv5_ap *dap_ap(struct adiv5_dap *dap, uint8_t ap_num)
 /* Lookup CoreSight component */
 int dap_lookup_cs_component(struct adiv5_ap *ap,
 			uint32_t dbgbase, uint8_t type, uint32_t *addr, int32_t *idx);
+/* Look up CoreSight component in ROM Table */
+int dap_romtable_lookup_cs_component(
+	struct adiv5_dap *dap,
+	uintmax_t rombase, uint8_t l_devtype,
+	uint16_t l_jep106, uint16_t l_partnum,
+	int32_t *l_index,
+	uint32_t *found_base);
 
 struct target;
 

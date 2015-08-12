@@ -2244,9 +2244,24 @@ static int aarch64_examine_first(struct target *target)
 		retval = dap_get_debugbase(swjdp, 1, &dbgbase, &apid);
 		if (retval != ERROR_OK)
 			return retval;
-		/* Lookup 0x15 -- Processor DAP */
-		retval = dap_lookup_cs_component(swjdp, 1, dbgbase, 0x15,
-				&armv8->debug_base, &coreidx);
+
+		dbgbase &= ~0x3;
+		LOG_DEBUG("dbgbase=%x", dbgbase);
+
+
+		/* Alamy: ***** WARNING *****
+		 *	Need to verify it's ROM Table (but it is)
+		 *	One should scan all APs (So far we know it's in AP1)
+		 */
+		dap_ap_select(swjdp, 1);	/* Alamy(***** WARNING *****): Why it's in DAP1 ? */
+		/* devtype(0x5,0x1) = Debug Logic - Processor */
+		/* ARM Cortex-A57: PID=0x00000004002BBD07 --> 0x4BB, 0xD07 */
+		/* ARM Cortex-A53: PID=0x00000004003BBD03 --> 0x4BB, 0xD03 */
+		retval = dap_romtable_lookup_cs_component(swjdp,
+				dbgbase, 0x15,
+				JEP106_ARM, PID_PART_CORTEX_A53,
+				&coreidx,
+				&armv8->debug_base);
 		if (retval != ERROR_OK)
 			return retval;
 		LOG_DEBUG("Detected core %" PRId32 " dbgbase: %08" PRIx32,
