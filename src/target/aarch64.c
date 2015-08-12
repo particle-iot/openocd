@@ -2186,14 +2186,26 @@ static int aarch64_handle_target_request(void *priv)
 	return ERROR_OK;
 }
 
+/*
+   Experience version to examine Juno r1 platform.
+   - Juno r1 has two TAPs
+     TAP0 - Cortex-M3 Versatile Express: System Power management ?
+
+     TAP1 - ARMv8
+         AP0 (IDR=0x14770004): Rev=1, JEP106(cont,code)=(4,3b), class=MEM-AP, ID(var,type)=(0,AXI-AP)
+         AP1 (IDR=0x44770002): Rev=4, JEP106(cont,code)=(4,3b), class=MEM-AP, ID(var,type)=(0,APB-AP)
+
+   - Skip dbgbase stuff (target CPU determination).
+
+*/
 static int aarch64_examine_first(struct target *target)
 {
 	struct aarch64_common *aarch64 = target_to_aarch64(target);
 	struct armv8_common *armv8 = &aarch64->armv8_common;
 	struct adiv5_dap *swjdp = armv8->arm.dap;
-	int i;
 	int retval = ERROR_OK;
 	uint32_t pfr, debug, ctypr, ttypr, cpuid;
+	int i;
 
 	/* We do one extra read to ensure DAP is configured,
 	 * we call ahbap_debugport_init(swjdp) instead
@@ -2223,7 +2235,7 @@ static int aarch64_examine_first(struct target *target)
 	}
 #endif
 
-
+	/* Assign armv8->debug_base */
 	if (!target->dbgbase_set) {
 		uint32_t dbgbase;
 		/* Get ROM Table base */
@@ -2241,6 +2253,12 @@ static int aarch64_examine_first(struct target *target)
 			  coreidx, armv8->debug_base);
 	} else
 		armv8->debug_base = target->dbgbase;
+
+	LOG_DEBUG("target(%p), debug_ap=%d, dbgbase=0x%x, coreidx=%d",
+		target,
+		armv8->debug_ap,
+		armv8->debug_base,
+		target->coreid);
 
 	retval = mem_ap_sel_write_atomic_u32(swjdp, armv8->debug_ap,
 			armv8->debug_base + 0x300, 0);
