@@ -2207,12 +2207,18 @@ static int aarch64_examine_first(struct target *target)
 	uint32_t pfr, debug, ctypr, ttypr, cpuid;
 	int i;
 
+#if 0	/* Alamy */
 	/* We do one extra read to ensure DAP is configured,
 	 * we call ahbap_debugport_init(swjdp) instead
 	 */
 	retval = ahbap_debugport_init(swjdp);
 	if (retval != ERROR_OK)
 		return retval;
+#else
+	retval = debugport_init(swjdp);
+	if (retval != ERROR_OK)
+		return retval;
+#endif
 
 #if 0
 	/* Alamy: This code is not perfect to detect every platform */
