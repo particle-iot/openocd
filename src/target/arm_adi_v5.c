@@ -734,6 +734,316 @@ int mem_ap_init(struct adiv5_ap *ap)
 	return ERROR_OK;
 }
 
+/* Three power domains are modeled:
+ *   Always-on power domain: Must be on for the debugger to connect to the device.
+ *   System power domain   : This includes system components.
+ *   Debug power domain    : This includes all of the debug subsystem.
+ *
+ * DP registers reside in the always-on power domain. Therefore, they can always
+ * be driven, enabling powerup requests to be made to a system power controller.
+ *
+ * When CSYSPWRUPREQ is asserted, CDBGPWRUPREQ must also be asserted.
+ *   Request of {CSYSPWRUPREQ,CDBGPWRUPREQ} = {1,0} is UNPREDICTABLE.
+ */
+static int dap_power_on(struct adiv5_dap *dap, uint32_t pwr_req)
+{
+	int retval;
+	uint32_t pwr_ack = 0;
+
+LOG_DEBUG("pwr_req = 0x%x", pwr_req);
+
+	/* When CSYSPWRUPREQ is asserted, CDBGPWRUPREQ must also be asserted */
+	if (pwr_req & CSYSPWRUPREQ)	pwr_req |= CDBGPWRUPREQ;
+	if (pwr_req & CORUNDETECT)	pwr_req |= CDBGPWRUPREQ; /* (same) */
+
+	/* Set ACK mask bits for comparison later */
+	if (pwr_req & CDBGPWRUPREQ)	pwr_ack |= CDBGPWRUPACK;
+	if (pwr_req & CSYSPWRUPREQ)	pwr_ack |= CSYSPWRUPACK;
+
+
+	/* The sequence is important
+	 *   1. Clear Error bits (optional)
+	 *   2. Reset Debug domain
+	 *   3. Enable Power
+	 */
+
+//LOG_DEBUG("----- Trace line -----");
+	/* Init:Power Off, No lane masking, Normal AP transfer mode,
+		OverRun detection off, Clear any error (W1C) */
+	/* WARNING: do not call dap_dp_reg_set_bits() to clear error bits.
+	 * See the description in dap_dp_reg_set_bits() */
+	retval = dap_queue_dp_write(dap, DP_CTRL_STAT,
+			SSTICKYERR | SSTICKYCMP | SSTICKYORUN);
+	/* Clear any error detection (W1C) */
+//	retval = dap_dp_reg_set_bits(dap, DP_CTRL_STAT,
+//			SSTICKYERR | SSTICKYCMP | SSTICKYORUN);
+	if (retval != ERROR_OK) return retval;
+	/* If RESET is requested, do it first */
+	/* IHI0031C: 2.4.5 Debug reset control */
+	if (pwr_req & CDBGRSTREQ) {
+		/* Pull signal High */
+		retval = dap_dp_reg_set_bits(dap, DP_CTRL_STAT, CDBGRSTREQ);
+		if (retval != ERROR_OK) return retval;
+
+		retval = dap_dp_poll_register(dap, DP_CTRL_STAT,
+				CDBGRSTACK, CDBGRSTACK,
+				DAP_POWER_DOMAIN_TIMEOUT);
+		if (retval == ERROR_WAIT) {
+			/* It might be okay, just pull it low */
+			LOG_WARNING("CDBGRSTACK not responding (not implemented?)");
+		} else if (retval != ERROR_OK)
+			return retval;
+
+		/* Pull signal Low */
+		retval = dap_dp_reg_clear_bits(dap, DP_CTRL_STAT, CDBGRSTREQ | (0x3 << 2) );
+		if (retval != ERROR_OK) return retval;
+
+		retval = dap_dp_poll_register(dap, DP_CTRL_STAT,
+				CDBGRSTACK, 0,
+				DAP_POWER_DOMAIN_TIMEOUT);
+		if (retval == ERROR_WAIT) {
+			/* This is an Error, STOP here! (return) */
+			LOG_ERROR("CDBGSTACK staying HIGH");
+		}
+		if (retval != ERROR_OK) return retval;
+
+		/* Clear RESET bit so it won't be turned on later */
+		pwr_req &= ~CDBGRSTREQ;
+	}
+
+
+LOG_DEBUG("----- Trace line ----- pwr_req=0x%x", pwr_req);
+	/* Enable the power domain requested */
+	retval = dap_dp_reg_set_bits(dap, DP_CTRL_STAT, pwr_req);
+	if (retval != ERROR_OK) return retval;
+	retval = dap_dp_poll_register(dap, DP_CTRL_STAT,
+			pwr_ack, pwr_ack, DAP_POWER_DOMAIN_TIMEOUT);
+	if (retval == ERROR_WAIT)
+		LOG_ERROR("Fail to enable Debug Domain Power");
+	if (retval != ERROR_OK) return retval;
+LOG_DEBUG("----- Trace line -----");
+
+
+	/* dap->dp_ctrl_stat will be used to reset CTRL/STAT register
+	   once error is detected in jtagdp_transaction_endcheck()
+
+	   How about the code above which might also hit sticky error ?
+	   It's true that the code does not handle this case, but since we are
+	   in power-on stage, just assume/hope that everything will be fine.
+	 */
+	dap->dp_ctrl_stat = pwr_req;
+
+	return ERROR_OK;
+}
+
+static int dap_power_off(struct adiv5_dap *dap, uint32_t pwr_req)
+{
+	int retval;
+	uint32_t pwr_ack = 0;
+
+	/* Power domains dependency: see dap_power_on() */
+	if (pwr_req & CDBGPWRUPREQ)	pwr_req |= CSYSPWRUPREQ;
+
+	/* Set ACK mask bits for comparison later */
+	if (pwr_req & CDBGPWRUPREQ)	pwr_ack |= CDBGPWRUPACK;
+	if (pwr_req & CSYSPWRUPREQ)	pwr_ack |= CSYSPWRUPACK;
+
+	/* Clear any error detection (W1C) */
+	retval = dap_dp_reg_set_bits(dap, DP_CTRL_STAT,
+			SSTICKYERR | SSTICKYCMP | SSTICKYORUN);
+	if (retval != ERROR_OK) return retval;
+
+	/* Deassert the power domain requested */
+	retval = dap_dp_reg_clear_bits(dap, DP_CTRL_STAT, pwr_req);
+	if (retval != ERROR_OK) return retval;
+	retval = dap_dp_poll_register(dap, DP_CTRL_STAT,
+			pwr_ack, 0, DAP_POWER_DOMAIN_TIMEOUT);
+	if (retval != ERROR_OK) return retval;
+
+	return ERROR_OK;
+}
+
+
+/**
+ * Initialize a DAP.  This sets up the power domains, prepares the DP
+ * for further use, and arranges to use AP #0 for all AP operations
+ * until dap_ap-select() changes that policy.
+ *
+ * @param dap The DAP being initialized.
+ *
+ * @todo Rename this.  We also need an initialization scheme which account
+ * for SWD transports not just JTAG; that will need to address differences
+ * in layering.  (JTAG is useful without any debug target; but not SWD.)
+ * And this may not even use an AHB-AP ... e.g. DAP-Lite uses an APB-AP.
+ */
+int debugport_init(struct adiv5_dap *dap)
+{
+	/* check that we support packed transfers */
+//	uint32_t csw, cfg;
+	uint32_t dp_ctrl_stat;
+	int retval;
+
+	LOG_DEBUG(">>>>> Enter");
+
+	/* JTAG-DP or SWJ-DP, in JTAG mode
+	 * ... for SWD mode this is patched as part
+	 * of link switchover
+	 */
+	if (!dap->ops)
+		dap->ops = &jtag_dp_ops;
+
+#if 0
+	retval = dap_dp_read_atomic(dap, DP_CTRL_STAT, &dp_ctrl_stat);
+	if (retval != ERROR_OK)
+		return retval;
+	LOG_DEBUG("DP_CTRL_STAT=0x%x. DbgPwrAck is %s, SysPwrAck is %s",
+		dp_ctrl_stat,
+		(dp_ctrl_stat & CDBGPWRUPACK) ? "On" : "Off",
+		(dp_ctrl_stat & CSYSPWRUPACK) ? "On" : "Off");
+#endif
+
+	/* Turn on all power domains after reset */
+	/*   With debug power on we can activate OVERRUN checking */
+	/*   CDBGRSTREQ has problem on Juno r1 for 2nd TAP */
+//	dap_power_on(dap, CDBGRSTREQ | CSYSPWRUPREQ | CDBGPWRUPREQ);
+	dap_power_on(dap, CSYSPWRUPREQ | CDBGPWRUPREQ | CORUNDETECT);
+
+#if 0
+	/* Transfer mode: Normal operation (bits[3:2]=0b00) */
+	retval = dap_dp_reg_clear_bits(dap, DP_CTRL_STAT, (0x3 << 2));
+	if (retval != ERROR_OK) return retval;
+#endif
+
+	retval = dap_dp_read_atomic(dap, DP_CTRL_STAT, &dp_ctrl_stat);
+	if (retval != ERROR_OK) return retval;
+	LOG_DEBUG("DP_CTRL_STAT=0x%08x. DbgPwrAck is %s, SysPwrAck is %s",
+		dp_ctrl_stat,
+		(dp_ctrl_stat & CDBGPWRUPACK) ? "On" : "Off",
+		(dp_ctrl_stat & CSYSPWRUPACK) ? "On" : "Off");
+
+//	retval = dap_queue_dp_read(dap, DP_CTRL_STAT, &dp_ctrl_stat);
+
+//#define SSTICKYORUN     (1UL << 1)
+/* 3:2 - transaction mode (e.g. pushed compare) */
+//#define SSTICKYCMP      (1UL << 4)
+//#define SSTICKYERR      (1UL << 5)
+
+#if 0
+	/* Maximum AP number is 255 since the SELECT.APSEL is 8-bit */
+	for (int ap = 0; ap <= 255; ap++) {
+		/* read the IDR register of the Access Port */
+		uint32_t id_val;
+		dap_ap_select(dap, ap);
+		retval = dap_queue_ap_read(dap, AP_REG_IDR, &id_val);
+		if (retval != ERROR_OK)
+			continue;
+		retval = dap_run(dap);	/* do the business */
+		if (retval != ERROR_OK)
+			continue;
+
+		/* An IDR value of zero indicates that there is no AP present */
+		if (id_val == 0x0)
+			continue;
+
+		/* Bit definition of AP_REG_IDR (0xFC)
+		 *
+		 * Revision                     bits[31:28]
+		 * JEP106 continuation code     bits[27:24], 4-bits ( 0x4 for ARM)
+		 * JEP106 identity code         bits[23:17], 7-bits (0x3B for ARM)
+		 * Class                        bits[16:13] (0:JTAG-AP, 0b1000:MEM-AP)
+		 * (reserved, SBZ)              bits[12: 8]
+		 * AP identification            bits[ 7: 0]
+		 *   Variant bits[7:4]
+		 *   Type    bits[3:0] (0x0:JTAG, 0x1:AHB, 0x2:APB, 0x4:AXI)
+		 */
+		enum ap_class class;
+		enum ap_type type;
+
+		class = (id_val & IDR_CLASS_MASK) >> IDR_CLASS_SHIFT;
+		type = (id_val & IDR_ID_TYPE_MASK) >> IDR_ID_TYPE_SHIFT;
+		LOG_DEBUG("AP found at 0x%02x (IDR=0x%08x): Rev=%x, JEP106(cont,code)=(%x,%x), class=%s, ID(var,type)=(%x,%s)",
+			ap, id_val,
+			(id_val & IDR_REV_MASK) >> IDR_REV_SHIFT,
+			(id_val & IDR_JEP106_CONT_MASK) >> IDR_JEP106_CONT_SHIFT,
+			(id_val & IDR_JEP106_ID_MASK) >> IDR_JEP106_ID_SHIFT,
+			(class == AP_CLASS_MEM) ? "MEM-AP" :
+				(class == AP_CLASS_JTAG) ? "JTAG-AP" : "Unknown",
+			(id_val & IDR_ID_VART_MASK) >> IDR_ID_VART_SHIFT,
+			(type == AP_TYPE_JTAG_AP) ? "JTAG-AP" :
+				(type == AP_TYPE_AHB_AP) ? "AHB-AP" :
+				(type == AP_TYPE_APB_AP) ? "APB-AP" :
+				(type == AP_TYPE_AXI_AP) ? "AXI-AP" : "Unknown");
+
+		switch (class) {
+		case AP_CLASS_MEM:	/* Alamy: disable it for now */
+			retval = dp_scan_mem_ap(dap, ap);
+
+			break;
+
+		case AP_CLASS_JTAG:
+			/* dp_scan_jtag_ap(dap, ap); */
+			break;
+
+		default:
+			LOG_ERROR("Unknown AP class type");
+			break;
+		} /* End of switch(type) */
+
+	} /* End of for(ap) */
+
+	if (retval != ERROR_OK)
+		return retval;
+#endif	// Scan components
+
+	/* Detect Packet transfer (CSW) */
+#if 0
+	if (csw & CSW_ADDRINC_PACKED)
+		dap->packed_transfers = true;
+	else
+		dap->packed_transfers = false;
+#endif
+
+	/* Packed transfers on TI BE-32 processors do not work correctly in
+	 * many cases. */
+	if (dap->ti_be_32_quirks)
+		dap->packed_transfers = false;
+
+	LOG_DEBUG("MEM_AP Packed Transfers: %s",
+			dap->packed_transfers ? "enabled" : "disabled");
+
+	/* The ARM ADI spec leaves implementation-defined whether unaligned
+	 * memory accesses work, only work partially, or cause a sticky error.
+	 * On TI BE-32 processors, reads seem to return garbage in some bytes
+	 * and unaligned writes seem to cause a sticky error.
+	 * TODO: it would be nice to have a way to detect whether unaligned
+	 * operations are supported on other processors. */
+	dap->unaligned_access_bad = dap->ti_be_32_quirks;
+
+#if 0
+	/* Display CFG info */
+	LOG_DEBUG("MEM_AP CFG: large data %d, long address %d, big-endian %d",
+			!!(cfg & 0x04), !!(cfg & 0x02), !!(cfg & 0x01));
+#endif
+
+	return ERROR_OK;
+}
+
+int debugport_deinit(struct adiv5_dap *dap)
+{
+	int retval;
+
+	retval = dap_queue_dp_read(dap, DP_CTRL_STAT, &(dap->dp_ctrl_stat));
+	if (retval != ERROR_OK)
+		return retval;
+	LOG_DEBUG("DP_CTRL_STAT=0x%x", dap->dp_ctrl_stat);
+
+	/* Turn off all power domains */
+	dap_power_off(dap, CSYSPWRUPREQ | CDBGPWRUPREQ);
+
+
+	return ERROR_OK;
+}
+
 /* CID interpretation -- see ARM IHI 0029B section 3
  * and ARM IHI 0031A table 13-3.
  */
