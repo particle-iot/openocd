@@ -1733,6 +1733,29 @@ static bool is_dap_cid_ok(uint32_t cid3, uint32_t cid2, uint32_t cid1, uint32_t 
 }
 
 /*
+ * It's hard to predict if ARM is going to use 'bit' or 'value' to define
+ * MEM-AP type (AHB,APB,AXI,...) in the future.
+ * Unlikely to combine two buses together, and 3 out of 4 bits had been used.
+ * The implementation assumes it's 'value'.
+ */
+static const char *ap_type_description[5] = {
+	"JTAG-AP",		/* 0 */
+	"AHB-AP",
+	"APB-AP",
+	"Unknown",
+	"AXI-AP"		/* 4 */
+};
+
+const char *ap_type_to_string(uint8_t ap_type)
+{
+	/* Unknown detection */
+	if (ap_type > 4)
+		ap_type = 3;
+
+	return ap_type_description[ap_type];
+}
+
+/*
  * This function checks the ID for each access port to find the requested Access Port type
  */
 int dap_find_ap(struct adiv5_dap *dap, enum ap_type type_to_find, struct adiv5_ap **ap_out)
@@ -1796,10 +1819,7 @@ int dap_find_ap(struct adiv5_dap *dap, enum ap_type type_to_find, struct adiv5_a
 			}
 
 			LOG_DEBUG("Found %s at AP index: %d (IDR=0x%08" PRIX32 ")",
-				(type_to_find == AP_TYPE_AHB_AP)  ? "AHB-AP"  :
-				(type_to_find == AP_TYPE_APB_AP)  ? "APB-AP"  :
-				(type_to_find == AP_TYPE_AXI_AP)  ? "AXI-AP"  :
-				(type_to_find == AP_TYPE_JTAG_AP) ? "JTAG-AP" : "Unknown",
+				ap_type_to_string(type_to_find),
 				ap_num, id_val);
 
 			*ap_out = &dap->ap[ap_num];
@@ -1807,11 +1827,8 @@ int dap_find_ap(struct adiv5_dap *dap, enum ap_type type_to_find, struct adiv5_a
 		}	/* End of if (idr_*) */
 	}	/* End of for(ap_num) */
 
-	LOG_DEBUG("No %s found",
-				(type_to_find == AP_TYPE_AHB_AP)  ? "AHB-AP"  :
-				(type_to_find == AP_TYPE_APB_AP)  ? "APB-AP"  :
-				(type_to_find == AP_TYPE_AXI_AP)  ? "AXI-AP"  :
-				(type_to_find == AP_TYPE_JTAG_AP) ? "JTAG-AP" : "Unknown");
+	LOG_DEBUG("No %s found", ap_type_to_string(type_to_find));
+
 	return ERROR_FAIL;
 }
 
