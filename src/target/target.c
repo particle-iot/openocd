@@ -1746,14 +1746,15 @@ int target_alloc_working_area_try(struct target *target, uint32_t size, struct w
 
 		/* Set up initial working area on first call */
 		struct working_area *new_wa = malloc(sizeof(*new_wa));
-		if (new_wa) {
-			new_wa->next = NULL;
-			new_wa->size = target->working_area_size & ~3UL; /* 4-byte align */
-			new_wa->address = target->working_area;
-			new_wa->backup = NULL;
-			new_wa->user = NULL;
-			new_wa->free = true;
-		}
+		if (new_wa == NULL)
+			return ERROR_FAIL;
+
+		new_wa->next = NULL;
+		new_wa->size = target->working_area_size & ~3UL; /* 4-byte align */
+		new_wa->address = target->working_area;
+		new_wa->backup = NULL;
+		new_wa->user = NULL;
+		new_wa->free = true;
 
 		target->working_areas = new_wa;
 	}
