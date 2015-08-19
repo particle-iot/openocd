@@ -51,7 +51,7 @@ struct command_context {
 	Jim_Interp *interp;
 	enum command_mode mode;
 	struct command *commands;
-	int current_target;
+	struct target *current_target;
 	command_output_handler_t output_handler;
 	void *output_handler_priv;
 };

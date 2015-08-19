@@ -129,7 +129,6 @@ struct target {
 	struct target_type *type;			/* target type definition (name, access functions) */
 	struct target_type_64 *type64;		/* target type for aarch64 */
 	const char *cmd_name;				/* tcl Name of target */
-	int target_number;					/* DO NOT USE!  field to be removed in 2010 */
 	struct jtag_tap *tap;				/* where on the jtag chain is this */
 	int32_t coreid;						/* which device on the TAP? */
 
@@ -387,7 +386,6 @@ int target_call_timer_callbacks(void);
  */
 int target_call_timer_callbacks_now(void);
 
-struct target *get_target_by_num(int num);
 struct target *get_current_target(struct command_context *cmd_ctx);
 struct target *get_target(const char *id);
 

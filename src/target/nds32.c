@@ -1662,7 +1662,7 @@ int nds32_init_arch_info(struct target *target, struct nds32 *nds32)
 	nds32->syscall_break.set = 0;
 	nds32->syscall_break.orig_instr = NULL;
 	nds32->syscall_break.next = NULL;
-	nds32->syscall_break.unique_id = 0x515CAll + target->target_number;
+	nds32->syscall_break.unique_id = 0x515CAll + (uint32_t)target;
 	nds32->syscall_break.linked_BRP = 0;
 
 	nds32_reg_init();
@@ -2274,9 +2274,9 @@ static int nds32_callback_event_handler(struct target *target,
 		enum target_event event, void *priv)
 {
 	int retval = ERROR_OK;
-	int target_number = *(int *)priv;
+	const char *name = (char *)priv;
 
-	if (target_number != target->target_number)
+	if (name != target_name(target))
 		return ERROR_OK;
 
 	struct nds32 *nds32 = target_to_nds32(target);
@@ -2302,7 +2302,7 @@ int nds32_init(struct nds32 *nds32)
 
 	/* register event callback */
 	target_register_event_callback(nds32_callback_event_handler,
-			&(nds32->target->target_number));
+			(void *)target_name(nds32->target));
 
 	return ERROR_OK;
 }

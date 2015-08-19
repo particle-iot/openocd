@@ -159,7 +159,7 @@ static int tcl_new_connection(struct connection *connection)
 
 	connection->priv = tclc;
 
-	struct target *target = get_target_by_num(connection->cmd_ctx->current_target);
+	struct target *target = connection->cmd_ctx->current_target;
 	if (target != NULL)
 		tclc->tc_laststate = target->state;
 

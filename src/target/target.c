@@ -310,23 +310,6 @@ const char *target_reset_mode_name(enum target_reset_mode reset_mode)
 	return cp;
 }
 
-/* determine the number of the new target */
-static int new_target_number(void)
-{
-	struct target *t;
-	int x;
-
-	/* number is 0 based */
-	x = -1;
-	t = all_targets;
-	while (t) {
-		if (x < t->target_number)
-			x = t->target_number;
-		t = t->next;
-	}
-	return x + 1;
-}
-
 /* read a uint64_t from a buffer in target memory endianness */
 uint64_t target_buffer_get_u64(struct target *target, const uint8_t *buffer)
 {
@@ -472,41 +455,12 @@ struct target *get_target(const char *id)
 			return target;
 	}
 
-	/* It's OK to remove this fallback sometime after August 2010 or so */
-
-	/* no match, try as number */
-	unsigned num;
-	if (parse_uint(id, &num) != ERROR_OK)
-		return NULL;
-
-	for (target = all_targets; target; target = target->next) {
-		if (target->target_number == (int)num) {
-			LOG_WARNING("use '%s' as target identifier, not '%u'",
-					target_name(target), num);
-			return target;
-		}
-	}
-
-	return NULL;
-}
-
-/* returns a pointer to the n-th configured target */
-struct target *get_target_by_num(int num)
-{
-	struct target *target = all_targets;
-
-	while (target) {
-		if (target->target_number == num)
-			return target;
-		target = target->next;
-	}
-
 	return NULL;
 }
 
 struct target *get_current_target(struct command_context *cmd_ctx)
 {
-	struct target *target = get_target_by_num(cmd_ctx->current_target);
+	struct target *target = cmd_ctx->current_target;
 
 	if (target == NULL) {
 		LOG_ERROR("BUG: current_target out of bounds");
@@ -2418,7 +2372,7 @@ static int find_target(struct command_context *cmd_ctx, const char *name)
 		return ERROR_FAIL;
 	}
 
-	cmd_ctx->current_target = target->target_number;
+	cmd_ctx->current_target = target;
 	return ERROR_OK;
 }
 
@@ -2436,8 +2390,9 @@ COMMAND_HANDLER(handle_targets_command)
 	}
 
 	struct target *target = all_targets;
-	command_print(CMD_CTX, "    TargetName         Type       Endian TapName            State       ");
-	command_print(CMD_CTX, "--  ------------------ ---------- ------ ------------------ ------------");
+	command_print(CMD_CTX, "  TargetName         Type       Endian TapName            State       ");
+	command_print(CMD_CTX, "  ------------------ ---------- ------ ------------------ ------------");
+
 	while (target) {
 		const char *state;
 		char marker = ' ';
@@ -2447,13 +2402,12 @@ COMMAND_HANDLER(handle_targets_command)
 		else
 			state = "tap-disabled";
 
-		if (CMD_CTX->current_target == target->target_number)
+		if (CMD_CTX->current_target == target)
 			marker = '*';
 
 		/* keep columns lined up to match the headers above */
 		command_print(CMD_CTX,
-				"%2d%c %-18s %-10s %-6s %-18s %s",
-				target->target_number,
+				"%c %-18s %-10s %-6s %-18s %s",
 				marker,
 				target_name(target),
 				target_type_name(target),
@@ -4330,8 +4284,7 @@ void target_handle_event(struct target *target, enum target_event e)
 
 	for (teap = target->event_action; teap != NULL; teap = teap->next) {
 		if (teap->event == e) {
-			LOG_DEBUG("target: (%d) %s (%s) event: %d (%s) action: %s",
-					   target->target_number,
+			LOG_DEBUG("target: %s (%s) event: %d (%s) action: %s",
 					   target_name(target),
 					   target_type_name(target),
 					   e,
@@ -5092,8 +5045,7 @@ static int jim_target_event_list(Jim_Interp *interp, int argc, Jim_Obj *const *a
 
 	struct target *target = Jim_CmdPrivData(interp);
 	struct target_event_action *teap = target->event_action;
-	command_print(cmd_ctx, "Event actions for target (%d) %s\n",
-				   target->target_number,
+	command_print(cmd_ctx, "Event actions for target %s\n",
 				   target_name(target));
 	command_print(cmd_ctx, "%-25s | Body", "Event");
 	command_print(cmd_ctx, "------------------------- | "
@@ -5347,9 +5299,7 @@ static int target_create(Jim_GetOptInfo *goi)
 
 	/* Create it */
 	target = calloc(1, sizeof(struct target));
-	/* set target number */
-	target->target_number = new_target_number();
-	cmd_ctx->current_target = target->target_number;
+	cmd_ctx->current_target = target;
 
 	/* allocate memory for each unique target type */
 	target->type = calloc(1, sizeof(struct target_type));

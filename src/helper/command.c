@@ -1276,7 +1276,7 @@ struct command_context *command_init(const char *startup_tcl, Jim_Interp *interp
 
 	context->mode = COMMAND_EXEC;
 	context->commands = NULL;
-	context->current_target = 0;
+	context->current_target = NULL;
 	context->output_handler = NULL;
 	context->output_handler_priv = NULL;
 
