@@ -49,6 +49,7 @@
 
 #include "target.h"
 #include "target_type.h"
+#include "target_type64.h"
 #include "target_request.h"
 #include "breakpoints.h"
 #include "register.h"
@@ -90,7 +91,6 @@ extern struct target_type dragonite_target;
 extern struct target_type xscale_target;
 extern struct target_type cortexm_target;
 extern struct target_type cortexa_target;
-extern struct target_type aarch64_target;
 extern struct target_type cortexr4_target;
 extern struct target_type arm11_target;
 extern struct target_type mips_m4k_target;
@@ -121,7 +121,6 @@ static struct target_type *target_types[] = {
 	&xscale_target,
 	&cortexm_target,
 	&cortexa_target,
-	&aarch64_target,
 	&cortexr4_target,
 	&arm11_target,
 	&mips_m4k_target,
@@ -480,7 +479,7 @@ int target_poll(struct target *target)
 		return ERROR_FAIL;
 	}
 
-	retval = target->type->poll(target);
+	retval = TYPE_FUNC_CALL(poll, target);
 	if (retval != ERROR_OK)
 		return retval;
 
@@ -510,7 +509,7 @@ int target_halt(struct target *target)
 		return ERROR_FAIL;
 	}
 
-	retval = target->type->halt(target);
+	retval = TYPE_FUNC_CALL(halt, target);
 	if (retval != ERROR_OK)
 		return retval;
 
@@ -566,7 +565,7 @@ int target_resume(struct target *target, int current, uintmax_t address, int han
 	 * we poll. The CPU can even halt at the current PC as a result of
 	 * a software breakpoint being inserted by (a bug?) the application.
 	 */
-	retval = target->type->resume(target, current, address, handle_breakpoints, debug_execution);
+	retval = TYPE_FUNC_CALL(resume, target, current, address, handle_breakpoints, debug_execution);
 	if (retval != ERROR_OK)
 		return retval;
 
@@ -614,7 +613,7 @@ static int target_process_reset(struct command_context *cmd_ctx, enum target_res
 	retval = target_call_timer_callbacks_now();
 
 	for (target = all_targets; target; target = target->next) {
-		target->type->check_reset(target);
+		TYPE_FUNC_CALL(check_reset, target);
 		target->running_alg = false;
 	}
 
@@ -650,7 +649,7 @@ int target_examine_one(struct target *target)
 {
 	target_call_event_callbacks(target, TARGET_EVENT_EXAMINE_START);
 
-	int retval = target->type->examine(target);
+	int retval = TYPE_FUNC_CALL(examine, target);
 	if (retval != ERROR_OK)
 		return retval;
 
@@ -699,7 +698,7 @@ int target_examine(void)
 
 const char *target_type_name(struct target *target)
 {
-	return target->type->name;
+	return TYPE_VAR_GET(name);
 }
 
 static int target_soft_reset_halt(struct target *target)
@@ -708,12 +707,12 @@ static int target_soft_reset_halt(struct target *target)
 		LOG_ERROR("Target not examined yet");
 		return ERROR_FAIL;
 	}
-	if (!target->type->soft_reset_halt) {
+	if (!TYPE_FUNC_VALIDATE(soft_reset_halt)) {
 		LOG_ERROR("Target %s does not support soft_reset_halt",
 				target_name(target));
 		return ERROR_FAIL;
 	}
-	return target->type->soft_reset_halt(target);
+	return TYPE_FUNC_CALL(soft_reset_halt, target);
 }
 
 /**
@@ -739,14 +738,14 @@ int target_run_algorithm(struct target *target,
 		LOG_ERROR("Target not examined yet");
 		goto done;
 	}
-	if (!target->type->run_algorithm) {
+	if (!TYPE_FUNC_VALIDATE(run_algorithm)) {
 		LOG_ERROR("Target type '%s' does not support %s",
 				target_type_name(target), __func__);
 		goto done;
 	}
 
 	target->running_alg = true;
-	retval = target->type->run_algorithm(target,
+	retval = TYPE_FUNC_CALL(run_algorithm, target,
 			num_mem_params, mem_params,
 			num_reg_params, reg_param,
 			entry_point, exit_point, timeout_ms, arch_info);
@@ -775,7 +774,7 @@ int target_start_algorithm(struct target *target,
 		LOG_ERROR("Target not examined yet");
 		goto done;
 	}
-	if (!target->type->start_algorithm) {
+	if (!TYPE_FUNC_VALIDATE(start_algorithm)) {
 		LOG_ERROR("Target type '%s' does not support %s",
 				target_type_name(target), __func__);
 		goto done;
@@ -786,7 +785,7 @@ int target_start_algorithm(struct target *target,
 	}
 
 	target->running_alg = true;
-	retval = target->type->start_algorithm(target,
+	retval = TYPE_FUNC_CALL(start_algorithm, target,
 			num_mem_params, mem_params,
 			num_reg_params, reg_params,
 			entry_point, exit_point, arch_info);
@@ -809,7 +808,7 @@ int target_wait_algorithm(struct target *target,
 {
 	int retval = ERROR_FAIL;
 
-	if (!target->type->wait_algorithm) {
+	if (!TYPE_FUNC_VALIDATE(wait_algorithm)) {
 		LOG_ERROR("Target type '%s' does not support %s",
 				target_type_name(target), __func__);
 		goto done;
@@ -819,7 +818,7 @@ int target_wait_algorithm(struct target *target,
 		goto done;
 	}
 
-	retval = target->type->wait_algorithm(target,
+	retval = TYPE_FUNC_CALL(wait_algorithm, target,
 			num_mem_params, mem_params,
 			num_reg_params, reg_params,
 			exit_point, timeout_ms, arch_info);
@@ -983,12 +982,11 @@ int target_read_memory(struct target *target,
 		LOG_ERROR("Target not examined yet");
 		return ERROR_FAIL;
 	}
-	if (!target->type->read_memory) {
+	if (!TYPE_FUNC_VALIDATE(read_memory)) {
 		LOG_ERROR("Target %s doesn't support read_memory", target_name(target));
 		return ERROR_FAIL;
 	}
-	/* Alamy: Wrapper for target->type64->read_memory() ? */
-	return target->type->read_memory(target, address, size, count, buffer);
+	return TYPE_FUNC_CALL(read_memory, target, address, size, count, buffer);
 }
 
 int target_read_phys_memory(struct target *target,
@@ -998,12 +996,11 @@ int target_read_phys_memory(struct target *target,
 		LOG_ERROR("Target not examined yet");
 		return ERROR_FAIL;
 	}
-	if (!target->type->read_phys_memory) {
+	if (!TYPE_FUNC_VALIDATE(read_phys_memory)) {
 		LOG_ERROR("Target %s doesn't support read_phys_memory", target_name(target));
 		return ERROR_FAIL;
 	}
-	/* Alamy: Wrapper for target->type64->read_phys_memory() ? */
-	return target->type->read_phys_memory(target, address, size, count, buffer);
+	return TYPE_FUNC_CALL(read_phys_memory, target, address, size, count, buffer);
 }
 
 int target_write_memory(struct target *target,
@@ -1013,12 +1010,11 @@ int target_write_memory(struct target *target,
 		LOG_ERROR("Target not examined yet");
 		return ERROR_FAIL;
 	}
-	if (!target->type->write_memory) {
+	if (!TYPE_FUNC_VALIDATE(write_memory)) {
 		LOG_ERROR("Target %s doesn't support write_memory", target_name(target));
 		return ERROR_FAIL;
 	}
-	/* Alamy: Wrapper for target->type64->write_memory() ? */
-	return target->type->write_memory(target, address, size, count, buffer);
+	return TYPE_FUNC_CALL(write_memory, target, address, size, count, buffer);
 }
 
 int target_write_phys_memory(struct target *target,
@@ -1028,12 +1024,11 @@ int target_write_phys_memory(struct target *target,
 		LOG_ERROR("Target not examined yet");
 		return ERROR_FAIL;
 	}
-	if (!target->type->write_phys_memory) {
+	if (!TYPE_FUNC_VALIDATE(write_phys_memory)) {
 		LOG_ERROR("Target %s doesn't support write_phys_memory", target_name(target));
 		return ERROR_FAIL;
 	}
-	/* Alamy: Wrapper for target->type64->write_phys_memory() */
-	return target->type->write_phys_memory(target, address, size, count, buffer);
+	return TYPE_FUNC_CALL(write_phys_memory, target, address, size, count, buffer);
 }
 
 int target_add_breakpoint(struct target *target,
@@ -1043,7 +1038,7 @@ int target_add_breakpoint(struct target *target,
 		LOG_WARNING("target %s is not halted", target_name(target));
 		return ERROR_TARGET_NOT_HALTED;
 	}
-	return target->type->add_breakpoint(target, breakpoint);
+	return TYPE_FUNC_CALL(add_breakpoint, target, breakpoint);
 }
 
 int target_add_context_breakpoint(struct target *target,
@@ -1053,7 +1048,7 @@ int target_add_context_breakpoint(struct target *target,
 		LOG_WARNING("target %s is not halted", target_name(target));
 		return ERROR_TARGET_NOT_HALTED;
 	}
-	return target->type->add_context_breakpoint(target, breakpoint);
+	return TYPE_FUNC_CALL(add_context_breakpoint, target, breakpoint);
 }
 
 int target_add_hybrid_breakpoint(struct target *target,
@@ -1063,13 +1058,13 @@ int target_add_hybrid_breakpoint(struct target *target,
 		LOG_WARNING("target %s is not halted", target_name(target));
 		return ERROR_TARGET_NOT_HALTED;
 	}
-	return target->type->add_hybrid_breakpoint(target, breakpoint);
+	return TYPE_FUNC_CALL(add_hybrid_breakpoint, target, breakpoint);
 }
 
 int target_remove_breakpoint(struct target *target,
 		struct breakpoint *breakpoint)
 {
-	return target->type->remove_breakpoint(target, breakpoint);
+	return TYPE_FUNC_CALL(remove_breakpoint, target, breakpoint);
 }
 
 int target_add_watchpoint(struct target *target,
@@ -1079,12 +1074,12 @@ int target_add_watchpoint(struct target *target,
 		LOG_WARNING("target %s is not halted", target_name(target));
 		return ERROR_TARGET_NOT_HALTED;
 	}
-	return target->type->add_watchpoint(target, watchpoint);
+	return TYPE_FUNC_CALL(add_watchpoint, target, watchpoint);
 }
 int target_remove_watchpoint(struct target *target,
 		struct watchpoint *watchpoint)
 {
-	return target->type->remove_watchpoint(target, watchpoint);
+	return TYPE_FUNC_CALL(remove_watchpoint, target, watchpoint);
 }
 int target_hit_watchpoint(struct target *target,
 		struct watchpoint **hit_watchpoint)
@@ -1094,27 +1089,26 @@ int target_hit_watchpoint(struct target *target,
 		return ERROR_TARGET_NOT_HALTED;
 	}
 
-	if (target->type->hit_watchpoint == NULL) {
+	if (!TYPE_FUNC_VALIDATE(hit_watchpoint)) {
 		/* For backward compatible, if hit_watchpoint is not implemented,
 		 * return ERROR_FAIL such that gdb_server will not take the nonsense
 		 * information. */
 		return ERROR_FAIL;
 	}
 
-	return target->type->hit_watchpoint(target, hit_watchpoint);
+	return TYPE_FUNC_CALL(hit_watchpoint, target, hit_watchpoint);
 }
 
 int target_get_gdb_reg_list(struct target *target,
 		struct reg **reg_list[], int *reg_list_size,
 		enum target_register_class reg_class)
 {
-	return target->type->get_gdb_reg_list(target, reg_list, reg_list_size, reg_class);
+	return TYPE_FUNC_CALL(get_gdb_reg_list, target, reg_list, reg_list_size, reg_class);
 }
 int target_step(struct target *target,
 		int current, uintmax_t address, int handle_breakpoints)
 {
-	/* Alamy: Wrapper for target->type64->step() ? */
-	return target->type->step(target, current, address, handle_breakpoints);
+	return TYPE_FUNC_CALL(step, target, current, address, handle_breakpoints);
 }
 
 int target_get_gdb_fileio_info(struct target *target, struct gdb_fileio_info *fileio_info)
@@ -1123,7 +1117,7 @@ int target_get_gdb_fileio_info(struct target *target, struct gdb_fileio_info *fi
 		LOG_WARNING("target %s is not halted", target->cmd_name);
 		return ERROR_TARGET_NOT_HALTED;
 	}
-	return target->type->get_gdb_fileio_info(target, fileio_info);
+	return TYPE_FUNC_CALL(get_gdb_fileio_info, target, fileio_info);
 }
 
 int target_gdb_fileio_end(struct target *target, int retcode, int fileio_errno, bool ctrl_c)
@@ -1132,7 +1126,7 @@ int target_gdb_fileio_end(struct target *target, int retcode, int fileio_errno, 
 		LOG_WARNING("target %s is not halted", target->cmd_name);
 		return ERROR_TARGET_NOT_HALTED;
 	}
-	return target->type->gdb_fileio_end(target, retcode, fileio_errno, ctrl_c);
+	return TYPE_FUNC_CALL(gdb_fileio_end, target, retcode, fileio_errno, ctrl_c);
 }
 
 int target_profiling(struct target *target, uintmax_t *samples,
@@ -1142,14 +1136,12 @@ int target_profiling(struct target *target, uintmax_t *samples,
 		LOG_WARNING("target %s is not halted", target->cmd_name);
 		return ERROR_TARGET_NOT_HALTED;
 	}
-	return (is_aarch64(target))
-		? ERROR_FAIL	/* Alamy: Wrapper for 32/64-bit state */
-/*
-		? target->type64->profiling(target, samples, max_num_samples,
-			num_samples, seconds)
-*/
-		: target->type->profiling(target, (uint32_t *)samples, max_num_samples,
-			num_samples, seconds);
+	/* TODO: find a way to use TYPE_FUNC_CALL macro */
+	return is_aarch64(target)
+		? target->type64->profiling(target, samples,
+							max_num_samples, num_samples, seconds)
+		: target->type->profiling(target, (uint32_t *)samples,
+							max_num_samples, num_samples, seconds);
 }
 
 /**
@@ -1163,6 +1155,8 @@ static void target_reset_examined(struct target *target)
 
 static int handle_target(void *priv);
 
+extern int target_init_one_64(struct command_context *cmd_ctx,
+		struct target *target);
 static int target_init_one(struct command_context *cmd_ctx,
 		struct target *target)
 {
@@ -1205,20 +1199,20 @@ static int target_init_one(struct command_context *cmd_ctx,
 		type->virt2phys = identity_virt2phys;
 	}
 
-	if (target->type->read_buffer == NULL)
-		target->type->read_buffer = target_read_buffer_default;
+	if (type->read_buffer == NULL)
+		type->read_buffer = target_read_buffer_default;
 
-	if (target->type->write_buffer == NULL)
-		target->type->write_buffer = target_write_buffer_default;
+	if (type->write_buffer == NULL)
+		type->write_buffer = target_write_buffer_default;
 
-	if (target->type->get_gdb_fileio_info == NULL)
-		target->type->get_gdb_fileio_info = target_get_gdb_fileio_info_default;
+	if (type->get_gdb_fileio_info == NULL)
+		type->get_gdb_fileio_info = target_get_gdb_fileio_info_default;
 
-	if (target->type->gdb_fileio_end == NULL)
-		target->type->gdb_fileio_end = target_gdb_fileio_end_default;
+	if (type->gdb_fileio_end == NULL)
+		type->gdb_fileio_end = target_gdb_fileio_end_default;
 
-	if (target->type->profiling == NULL)
-		target->type->profiling = target_profiling_default;
+	if (type->profiling == NULL)
+		type->profiling = target_profiling_default;
 
 	return ERROR_OK;
 }
@@ -1229,7 +1223,9 @@ static int target_init(struct command_context *cmd_ctx)
 	int retval;
 
 	for (target = all_targets; target; target = target->next) {
-		retval = target_init_one(cmd_ctx, target);
+		retval = is_aarch64(target)
+			? target_init_one_64(cmd_ctx, target)
+			: target_init_one(cmd_ctx, target);
 		if (ERROR_OK != retval)
 			return retval;
 	}
@@ -1670,7 +1666,7 @@ int target_alloc_working_area_try(struct target *target, uint32_t size, struct w
 		int retval;
 		int enabled;
 
-		retval = target->type->mmu(target, &enabled);
+		retval = TYPE_FUNC_CALL(mmu, target, &enabled);
 		if (retval != ERROR_OK)
 			return retval;
 
@@ -1847,8 +1843,7 @@ void target_quit(void)
 
 	for (struct target *target = all_targets;
 	     target; target = target->next) {
-		if (target->type->deinit_target)
-			target->type->deinit_target(target);
+		TYPE_FUNC_AVAIL_CALL(deinit_target, target);
 	}
 }
 
@@ -1918,7 +1913,7 @@ int target_arch_state(struct target *target)
 	if (target->state != TARGET_HALTED)
 		return ERROR_OK;
 
-	retval = target->type->arch_state(target);
+	retval = TYPE_FUNC_CALL(arch_state, target);
 	return retval;
 }
 
@@ -2013,12 +2008,7 @@ int target_write_buffer(struct target *target, uintmax_t address, uint32_t size,
 		return ERROR_FAIL;
 	}
 
-	return (is_aarch64(target))
-		? ERROR_FAIL	/* Alamy: Wrapper for 32/64-bit state */
-/*
-		? target->type64->write_buffer(target, address, size, buffer)
-*/
-		: target->type->write_buffer(target, address, size, buffer);
+	return TYPE_FUNC_CALL(write_buffer, target, address, size, buffer);
 }
 
 static int target_write_buffer_default(struct target *target, uint32_t address, uint32_t count, const uint8_t *buffer)
@@ -2079,8 +2069,7 @@ int target_read_buffer(struct target *target, uintmax_t address, uint32_t size, 
 		return ERROR_FAIL;
 	}
 
-	/* Alamy: Wrapper for target->type64->read_buffer() ? */
-	return target->type->read_buffer(target, address, size, buffer);
+	return TYPE_FUNC_CALL(read_buffer, target, address, size, buffer);
 }
 
 static int target_read_buffer_default(struct target *target, uint32_t address, uint32_t count, uint8_t *buffer)
@@ -2128,7 +2117,7 @@ int target_checksum_memory(struct target *target, uintmax_t address, uint32_t si
 		return ERROR_FAIL;
 	}
 
-	retval = target->type->checksum_memory(target, address, size, &checksum);
+	retval = TYPE_FUNC_CALL(checksum_memory, target, address, size, &checksum);
 	if (retval != ERROR_OK) {
 		buffer = malloc(size);
 		if (buffer == NULL) {
@@ -2166,10 +2155,10 @@ int target_blank_check_memory(struct target *target, uintmax_t address, uint32_t
 		return ERROR_FAIL;
 	}
 
-	if (target->type->blank_check_memory == 0)
+	if (!TYPE_FUNC_VALIDATE(blank_check_memory))
 		return ERROR_TARGET_RESOURCE_NOT_AVAILABLE;
 
-	retval = target->type->blank_check_memory(target, address, size, blank);
+	retval = TYPE_FUNC_CALL(blank_check_memory, target, address, size, blank);
 
 	return retval;
 }
@@ -2891,8 +2880,7 @@ COMMAND_HANDLER(handle_step_command)
 
 	struct target *target = get_current_target(CMD_CTX);
 
-	/* Alamy: Wrapper for target->type64->step() ? */
-	return target->type->step(target, current_pc, addr, 1);
+	return TYPE_FUNC_CALL(step, target, current_pc, addr, 1);
 }
 
 static void handle_md_output(struct command_context *cmd_ctx,
@@ -3485,7 +3473,7 @@ static int handle_bp_command_set(struct command_context *cmd_ctx,
 			return retval;
 		}
 	} else if (addr == 0) {
-		if (target->type->add_context_breakpoint == NULL) {
+		if (!TYPE_FUNC_VALIDATE(add_context_breakpoint)) {
 			LOG_WARNING("Context breakpoint not available");
 			return ERROR_OK;
 		}
@@ -3498,7 +3486,7 @@ static int handle_bp_command_set(struct command_context *cmd_ctx,
 			return retval;
 		}
 	} else {
-		if (target->type->add_hybrid_breakpoint == NULL) {
+		if (!TYPE_FUNC_VALIDATE(add_hybrid_breakpoint)) {
 			LOG_WARNING("Hybrid breakpoint not available");
 			return ERROR_OK;
 		}
@@ -3673,13 +3661,10 @@ COMMAND_HANDLER(handle_virt2phys_command)
 	uint32_t pa32;
 
 	struct target *target = get_current_target(CMD_CTX);
-	/* Alamy: Wrapper for target->type64->virt2phys() ? */
+	/* TODO: think a way to use TYPE_FUNC_xxx macro */
 	int retval = ERROR_FAIL;
 	if (is_aarch64(target)) {
-		retval = ERROR_FAIL;
-/*
 		retval = target->type64->virt2phys(target, va, &pa);
-*/
 	} else {
 		retval = target->type->virt2phys(target, va, &pa32);
 		pa = pa32;
@@ -4353,10 +4338,10 @@ static int target_configure(Jim_GetOptInfo *goi, struct target *target)
 		Jim_SetEmptyResult(goi->interp);
 		/* Jim_GetOpt_Debug(goi); */
 
-		if (target->type->target_jim_configure) {
+		if (TYPE_FUNC_VALIDATE(target_jim_configure)) {
 			/* target defines a configure function */
 			/* target gets first dibs on parameters */
-			e = (*(target->type->target_jim_configure))(target, goi);
+			e = TYPE_FUNC_CALL(target_jim_configure, target, goi);
 			if (e == JIM_OK) {
 				/* more? */
 				continue;
@@ -4894,7 +4879,7 @@ static int jim_target_examine(Jim_Interp *interp, int argc, Jim_Obj *const *argv
 	if (!target->tap->enabled)
 		return jim_target_tap_disabled(interp);
 
-	int e = target->type->examine(target);
+	int e = TYPE_FUNC_CALL(examine, target);
 	if (e != ERROR_OK)
 		return JIM_ERR;
 	return JIM_OK;
@@ -4928,7 +4913,7 @@ static int jim_target_poll(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
 	if (!(target_was_examined(target)))
 		e = ERROR_TARGET_NOT_EXAMINED;
 	else
-		e = target->type->poll(target);
+		e = TYPE_FUNC_CALL(poll, target);
 	if (e != ERROR_OK)
 		return JIM_ERR;
 	return JIM_OK;
@@ -4964,7 +4949,7 @@ static int jim_target_reset(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
 		LOG_ERROR("Target not examined yet");
 		return ERROR_TARGET_NOT_EXAMINED;
 	}
-	if (!target->type->assert_reset || !target->type->deassert_reset) {
+	if (!TYPE_FUNC_VALIDATE(assert_reset) || !TYPE_FUNC_VALIDATE(deassert_reset)) {
 		Jim_SetResultFormatted(interp,
 				"No target-specific reset for %s",
 				target_name(target));
@@ -4977,9 +4962,9 @@ static int jim_target_reset(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
 
 	/* do the assert */
 	if (n->value == NVP_ASSERT)
-		e = target->type->assert_reset(target);
+		e = TYPE_FUNC_CALL(assert_reset, target);
 	else
-		e = target->type->deassert_reset(target);
+		e = TYPE_FUNC_CALL(deassert_reset, target);
 	return (e == ERROR_OK) ? JIM_OK : JIM_ERR;
 }
 
@@ -4992,7 +4977,7 @@ static int jim_target_halt(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
 	struct target *target = Jim_CmdPrivData(interp);
 	if (!target->tap->enabled)
 		return jim_target_tap_disabled(interp);
-	int e = target->type->halt(target);
+	int e = TYPE_FUNC_CALL(halt, target);
 	return (e == ERROR_OK) ? JIM_OK : JIM_ERR;
 }
 
@@ -5220,6 +5205,46 @@ static const struct command_registration target_instance_command_handlers[] = {
 	COMMAND_REGISTRATION_DONE
 };
 
+/* Looking for target in target type table */
+extern struct target_type_64 *scan_target_type_64(Jim_GetOptInfo *goi, const char *cp);
+static struct target_type *scan_target_type_32(Jim_GetOptInfo *goi, const char *cp)
+{
+	int x;
+
+	for (x = 0 ; target_types[x] ; x++) {
+		if (0 == strcmp(cp, target_types[x]->name)) {
+			/* found */
+			return target_types[x];
+		}
+
+		/* check for deprecated name */
+		if (target_types[x]->deprecated_name) {
+			if (0 == strcmp(cp, target_types[x]->deprecated_name)) {
+				/* found */
+				LOG_WARNING("target name is deprecated use: \'%s\'", target_types[x]->name);
+				return target_types[x];
+			}
+		}
+	}
+
+	Jim_SetResultFormatted(goi->interp, "Unknown target type %s, try one of ", cp);
+	for (x = 0 ; target_types[x] ; x++) {
+		if (target_types[x + 1]) {
+			Jim_AppendStrings(goi->interp,
+							   Jim_GetResult(goi->interp),
+							   target_types[x]->name,
+							   ", ", NULL);
+		} else {
+			Jim_AppendStrings(goi->interp,
+							   Jim_GetResult(goi->interp),
+							   " or ",
+							   target_types[x]->name, NULL);
+		}
+	}
+
+	return NULL;
+}
+
 static int target_create(Jim_GetOptInfo *goi)
 {
 	Jim_Obj *new_cmd;
@@ -5227,7 +5252,6 @@ static int target_create(Jim_GetOptInfo *goi)
 	const char *cp;
 	char *cp2;
 	int e;
-	int x;
 	struct target *target;
 	struct command_context *cmd_ctx;
 
@@ -5263,49 +5287,45 @@ static int target_create(Jim_GetOptInfo *goi)
 		}
 		LOG_INFO("The selected transport took over low-level target control. The results might differ compared to plain JTAG/SWD");
 	}
-	/* now does target type exist */
-	for (x = 0 ; target_types[x] ; x++) {
-		if (0 == strcmp(cp, target_types[x]->name)) {
-			/* found */
-			break;
-		}
 
-		/* check for deprecated name */
-		if (target_types[x]->deprecated_name) {
-			if (0 == strcmp(cp, target_types[x]->deprecated_name)) {
-				/* found */
-				LOG_WARNING("target name is deprecated use: \'%s\'", target_types[x]->name);
-				break;
-			}
-		}
-	}
-	if (target_types[x] == NULL) {
-		Jim_SetResultFormatted(goi->interp, "Unknown target type %s, try one of ", cp);
-		for (x = 0 ; target_types[x] ; x++) {
-			if (target_types[x + 1]) {
-				Jim_AppendStrings(goi->interp,
-								   Jim_GetResult(goi->interp),
-								   target_types[x]->name,
-								   ", ", NULL);
-			} else {
-				Jim_AppendStrings(goi->interp,
-								   Jim_GetResult(goi->interp),
-								   " or ",
-								   target_types[x]->name, NULL);
-			}
-		}
+	/* now does target type exist */
+	/* TODO: Possibility of existing in both 32-bit and 64-bit tables ? */
+	struct target_type_64 *target_type_64 = scan_target_type_64(goi, cp);
+	struct target_type    *target_type_32 = scan_target_type_32(goi, cp);
+	if ((target_type_64 == NULL) && (target_type_32 == NULL))
 		return JIM_ERR;
-	}
 
 	/* Create it */
 	target = calloc(1, sizeof(struct target));
+	if (target == NULL) {
+		LOG_ERROR("Unable to allocate memory to create 'target' object");
+		return JIM_ERR;
+	}
 	cmd_ctx->current_target = target;
 
 	/* allocate memory for each unique target type */
-	target->type = calloc(1, sizeof(struct target_type));
-	/* target->type64 = calloc(1, sizeof(struct target_type64)); */	/* Alamy */
+	if (target_type_64) {
+		target->type64	= calloc(1, sizeof(struct target_type_64));
+		if (target->type64 == NULL) {
+			LOG_ERROR("Unable to allocate memory for type64");
+			free(target);
+			return JIM_ERR;
+		}
+		memcpy(target->type64, target_type_64, sizeof(struct target_type_64));
+	}
+	if (target_type_32) {
+		target->type	= calloc(1, sizeof(struct target_type));
+		if (target->type == NULL) {
+			LOG_ERROR("Unable to allocate memory for type");
+			free(target->type64);
+			free(target);
+			return JIM_ERR;
+		}
+		memcpy(target->type, target_type_32, sizeof(struct target_type));
+	}
 
-	memcpy(target->type, target_types[x], sizeof(struct target_type));
+	/* 32/64 bits */
+	target->is_aarch64 = (target_type_64 ? true : false);
 
 	/* will be set by "-endian" */
 	target->endianness = TARGET_ENDIAN_UNKNOWN;
@@ -5358,6 +5378,7 @@ static int target_create(Jim_GetOptInfo *goi)
 	}
 
 	if (e != JIM_OK) {
+		free(target->type64);
 		free(target->type);
 		free(target);
 		return e;
@@ -5372,13 +5393,12 @@ static int target_create(Jim_GetOptInfo *goi)
 	target->cmd_name = strdup(cp);
 
 	/* create the target specific commands */
-	if (target->type->commands) {
-		e = register_commands(cmd_ctx, NULL, target->type->commands);
+	if (TYPE_FUNC_VALIDATE(commands)) {
+		e = register_commands(cmd_ctx, NULL, TYPE_VAR_GET(commands));
 		if (ERROR_OK != e)
 			LOG_ERROR("unable to register '%s' commands", cp);
 	}
-	if (target->type->target_create)
-		(*(target->type->target_create))(target, goi->interp);
+	TYPE_FUNC_AVAIL_CALL(target_create, target, goi->interp);
 
 	/* append to end of list */
 	{
@@ -5395,7 +5415,7 @@ static int target_create(Jim_GetOptInfo *goi)
 			.chain = target_instance_command_handlers,
 		},
 		{
-			.chain = target->type->commands,
+			.chain = TYPE_VAR_GET(commands),
 		},
 		COMMAND_REGISTRATION_DONE
 	};
