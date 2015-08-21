@@ -1130,6 +1130,9 @@ static int aarch64_debug_entry(struct target *target)
 
 	retval = arm_dpm_read_current_registers_64(&armv8->dpm);
 
+	/* Alamy: Is it good to be here ? */
+	target->is_aarch64 = (armv8->arm.core_state == ARM_STATE_AARCH64);
+
 	if (armv8->post_debug_entry) {
 		retval = armv8->post_debug_entry(target);
 		if (retval != ERROR_OK)
