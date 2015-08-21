@@ -27,6 +27,7 @@
 #include "register.h"
 #include "breakpoints.h"
 #include "target_type.h"
+#include "target_type64.h"
 #include "arm_opcodes.h"
 
 
@@ -609,7 +610,8 @@ int arm_dpm_write_dirty_registers(struct arm_dpm *dpm, bool bpwp)
 	 * we should be able to assume we handle them; but until then,
 	 * cope with the hand-crafted breakpoint code.
 	 */
-	if (arm->target->type->add_breakpoint == dpm_add_breakpoint) {
+	struct target *target = arm->target;	/* for TYPE_FUNC_xxx */
+	if (TYPE_FUNC_IS(add_breakpoint, dpm_add_breakpoint, dpm_add_breakpoint)) {
 		for (unsigned i = 0; i < dpm->nbp; i++) {
 			struct dpm_bp *dbp = dpm->dbp + i;
 			struct breakpoint *bp = dbp->bp;
@@ -1129,14 +1131,14 @@ int arm_dpm_setup(struct arm_dpm *dpm)
 	arm->mcr = dpm_mcr;
 
 	/* breakpoint setup -- optional until it works everywhere */
-	if (!target->type->add_breakpoint) {
-		target->type->add_breakpoint = dpm_add_breakpoint;
-		target->type->remove_breakpoint = dpm_remove_breakpoint;
+	if (!TYPE_FUNC_VALIDATE(add_breakpoint)) {
+		TYPE_FUNC_SET(add_breakpoint,	 dpm_add_breakpoint,	dpm_add_breakpoint);
+		TYPE_FUNC_SET(remove_breakpoint, dpm_remove_breakpoint, dpm_remove_breakpoint);
 	}
 
 	/* watchpoint setup */
-	target->type->add_watchpoint = dpm_add_watchpoint;
-	target->type->remove_watchpoint = dpm_remove_watchpoint;
+	TYPE_FUNC_SET(add_watchpoint,	 dpm_add_watchpoint,	dpm_add_watchpoint);
+	TYPE_FUNC_SET(remove_watchpoint, dpm_remove_watchpoint, dpm_remove_watchpoint);
 
 
 	if (dpm->arm_reg_current == 0)

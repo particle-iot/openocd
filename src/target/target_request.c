@@ -34,6 +34,7 @@
 #include "target.h"
 #include "target_request.h"
 #include "target_type.h"
+#include "target_type64.h"
 #include "trace.h"
 
 static bool got_message;
@@ -52,7 +53,7 @@ static int target_asciimsg(struct target *target, uint32_t length)
 	char *msg = malloc(DIV_ROUND_UP(length + 1, 4) * 4);
 	struct debug_msg_receiver *c = target->dbgmsg;
 
-	target->type->target_request_data(target, DIV_ROUND_UP(length, 4), (uint8_t *)msg);
+	TYPE_FUNC_CALL(target_request_data, target, DIV_ROUND_UP(length, 4), (uint8_t *)msg);
 	msg[length] = 0;
 
 	LOG_DEBUG("%s", msg);
@@ -82,7 +83,7 @@ static int target_hexmsg(struct target *target, int size, uint32_t length)
 
 	LOG_DEBUG("size: %i, length: %i", (int)size, (int)length);
 
-	target->type->target_request_data(target, DIV_ROUND_UP(length * size, 4), (uint8_t *)data);
+	TYPE_FUNC_CALL(target_request_data, target, DIV_ROUND_UP(length * size, 4), (uint8_t *)data);
 
 	line_len = 0;
 	for (i = 0; i < length; i++) {
@@ -122,7 +123,7 @@ int target_request(struct target *target, uint32_t request)
 {
 	target_req_cmd_t target_req_cmd = request & 0xff;
 
-	assert(target->type->target_request_data);
+	TYPE_FUNC_ASSERT(target_request_data);
 
 	/* Record that we got a target message for back-off algorithm */
 	got_message = true;
@@ -258,7 +259,7 @@ COMMAND_HANDLER(handle_target_request_debugmsgs_command)
 
 	int receiving = 0;
 
-	if (target->type->target_request_data == NULL) {
+	if (!TYPE_FUNC_VALIDATE(target_request_data)) {
 		LOG_ERROR("Target %s does not support target requests", target_name(target));
 		return ERROR_OK;
 	}
