@@ -389,6 +389,51 @@ int target_call_timer_callbacks_now(void);
 struct target *get_current_target(struct command_context *cmd_ctx);
 struct target *get_target(const char *id);
 
+/* TODO: This 32-/64-bit wrapping should be solved by OOP in the future */
+#define TYPE_FUNC_ASSERT(func, ...) \
+	is_aarch64(target) \
+	? assert(target->type64->func) \
+	: assert(target->type->func)
+
+#define TYPE_FUNC_VALIDATE(func) \
+	((is_aarch64(target) && target->type64->func) \
+	|| (!is_aarch64(target) && target->type->func))
+
+#define TYPE_FUNC_CALL(func, ...) \
+	is_aarch64(target) \
+	? target->type64->func(__VA_ARGS__) \
+	: target->type->func(__VA_ARGS__)
+
+#define TYPE_FUNC_AVAIL_CALL(func, ...) \
+	if (is_aarch64(target)) { \
+		if (target->type64->func) \
+			target->type64->func(__VA_ARGS__); \
+	} else { \
+		if (target->type->func) \
+			target->type->func(__VA_ARGS__); \
+	}
+
+#define TYPE_VAR_GET(v) \
+	is_aarch64(target) \
+	? target->type64->v \
+	: target->type->v
+
+#define TYPE_VAR_SET(v, v32, v64) \
+	if (is_aarch64(target)) \
+		target->type64->v = v64; \
+	else \
+		target->type->v = v32;
+
+#define TYPE_VAR_IS(v, v32, v64) \
+	is_aarch64(target) \
+	? (target->type64->v == v32) \
+	: (target->type->v == v64)
+
+#define TYPE_FUNC_GET	TYPE_VAR_GET
+#define TYPE_FUNC_SET	TYPE_VAR_SET
+#define TYPE_FUNC_IS	TYPE_VAR_IS
+
+
 /**
  * Get the target type name.
  *
