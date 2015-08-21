@@ -123,7 +123,7 @@ static int aarch64_init_debug_access(struct target *target)
 	int retval;
 	uint32_t dummy;
 
-	LOG_DEBUG(" ");
+	LOG_DEBUG("%s", target_name(target));
 
 	/* Unlocking the debug registers for modification
 	 * The debugport might be uninitialised so try twice */
@@ -753,7 +753,7 @@ static int aarch64_poll(struct target *target)
 	if (DSCR_RUN_MODE(dscr) == (DSCR_CORE_HALTED | DSCR_CORE_RESTARTED)) {
 		if (prev_target_state != TARGET_HALTED) {
 			/* We have a halting debug event */
-			LOG_DEBUG("Target halted");
+			LOG_DEBUG("Target %s halted", target_name(target));
 			target->state = TARGET_HALTED;
 			if ((prev_target_state == TARGET_RUNNING)
 				|| (prev_target_state == TARGET_UNKNOWN)
