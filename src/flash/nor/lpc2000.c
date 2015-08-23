@@ -105,6 +105,8 @@
  * - 11Uxx
  * - 131x
  * - 134x
+ * - 151x
+ * - 154x
  * - 175x
  * - 176x
  * - 177x
@@ -216,6 +218,13 @@
 #define LPC1345        0x28010541
 #define LPC1346        0x08018542
 #define LPC1347        0x08020543
+
+#define LPC1517        0x00001517
+#define LPC1518        0x00001518
+#define LPC1519        0x00001519
+#define LPC1547        0x00001547
+#define LPC1548        0x00001548
+#define LPC1549        0x00001549
 
 #define LPC1751_1      0x25001110
 #define LPC1751_2      0x25001118
@@ -1320,6 +1329,22 @@ static int lpc2000_auto_probe_flash(struct flash_bank *bank)
 		case LPC1345:
 			lpc2000_info->variant = lpc1100;
 			bank->size = 32 * 1024;
+			break;
+
+		case LPC1517:
+		case LPC1547:
+			lpc2000_info->variant = lpc1500;
+			bank->size = 64 * 1024;
+			break;
+		case LPC1518:
+		case LPC1548:
+			lpc2000_info->variant = lpc1500;
+			bank->size = 128 * 1024;
+			break;
+		case LPC1519:
+		case LPC1549:
+			lpc2000_info->variant = lpc1500;
+			bank->size = 256 * 1024;
 			break;
 
 		case LPC1751_1:
