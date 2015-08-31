@@ -25,6 +25,320 @@
 #include "armv4_5_cache.h"
 #include "arm_dpm.h"
 
+
+/* ------------------------------ ARMv8 ------------------------------
+ * DDI0487A.f (ID032515)	ARM Architecture Reference Manual
+ *							ARMv8, for ARMv8-A architecture profile
+ */
+
+/* Component offset to armv8.debug_base */
+/* These component base could be detected by
+ * dap_romtable_lookup_cs_component() with some modification
+ * i.e: lookup the component after the CORE was found
+ */
+#define	ARMV8_CORE_BASE_OFST	(0x00000)
+#define	ARMV8_CTI_BASE_OFST		(0x10000)
+#define	ARMV8_PMU_BASE_OFST		(0x20000)
+#define	ARMV8_ETM_BASE_OFST		(0x30000)
+
+
+#define ARMV8_REG_EDESR			(0x020)		/* External Debug Event Status Register */
+#define ARMV8_REG_EDECR			(0x024)		/* External Debug Execution Control Register */
+#define ARMV8_REG_EDWAR			(0x030)		/* External Debug Watchpoint Address Register */
+#define ARMV8_REG_EDWAR_LO		(0x030)		/*   LO word of EDWAR: bit[31:00] */
+#define ARMV8_REG_EDWAR_HI		(0x034)		/*   HI word of EDWAR: bit[63:32] */
+#define ARMV8_REG_DBGDTRRX_EL0	(0x080)		/* Debug Data Transfer Register (Receive) */
+#define ARMV8_REG_EDITR			(0x084)		/* External Debug Instruction Transfer Regisgter */
+#define ARMV8_REG_EDSCR			(0x088)		/* External Debug Status and Control Register */
+#define ARMV8_REG_DBGDTRTX_EL0	(0x08C)		/* Debug Data Transfer Register (Transmit) */
+#define ARMV8_REG_EDRCR			(0x090)		/* External Debug Reserve Control Register */
+#define ARMV8_REG_EDACR			(0x094)		/* External Debug Auxiliary Control Register */
+#define ARMV8_REG_EDECCR		(0x098)		/* External Debug Exception Catch Control Register */
+#define ARMV8_REG_EDPCSR_LO		(0x0A0)		/* External Debug Program Counter Sample Register (LO) */
+#define ARMV8_REG_EDCIDSR		(0x0A4)		/* External Debug Context ID Sample Register */
+#define ARMV8_REG_EDVIDSR		(0x0A8)		/* External Debug Virtual Context Sample Register */
+#define ARMV8_REG_EDPCSR_HI		(0x0AC)		/* External Debug Program Counter Sample Register (HI) */
+#define ARMV8_REG_OSLAR_EL1		(0x300)		/* OS Lock Access Register */
+#define ARMV8_REG_EDPRCR		(0x310)		/* External Debug Power/Reset Control Register */
+#define ARMV8_REG_EDPRSR		(0x314)		/* External Debug Processor Status Register */
+
+#define ARMV8_REG_DBGBVR_EL1(n)		(0x400 + 0x10*(n))	/* Debug Breakpoint Value Register <0..n> */
+#define ARMV8_REG_DBGBVR_EL1_LO(n)	(0x400 + 0x10*(n))	/*   LO word of DBGBVR<n>_EL1 */
+#define ARMV8_REG_DBGBVR_EL1_HI(n)	(0x404 + 0x10*(n))	/*   HI word of DBGBVR<n>_EL1 */
+#define ARMV8_REG_DBGBCR_EL1(n)		(0x408 + 0x10*(n))	/* Debug Breakpoint Control Register <0..n> */
+#define ARMV8_REG_DBGBVR0_EL1	(0x400)		/* Debug Breakpoint Value Register 0 */
+#define ARMV8_REG_DBGBVR0_EL1_LO	(0x400)	/*   LO word of DBGBVR0_EL1 */
+#define ARMV8_REG_DBGBVR0_EL1_HI	(0x404)	/*   HI word of DBGBVR0_EL1 */
+#define ARMV8_REG_DBGBCR0_EL1	(0x408)		/* Debug Breakpoint Control Register 0 */
+#define ARMV8_REG_DBGBVR1_EL1	(0x410)		/* Debug Breakpoint Value Register 1 */
+#define ARMV8_REG_DBGBVR1_EL1_LO	(0x410)	/*   LO word of DBGBVR1_EL1 */
+#define ARMV8_REG_DBGBVR1_EL1_HI	(0x414)	/*   HI word of DBGBVR1_EL1 */
+#define ARMV8_REG_DBGBCR1_EL1	(0x418)		/* Debug Breakpoint Control Register 1 */
+#define ARMV8_REG_DBGBVR2_EL1	(0x420)		/* Debug Breakpoint Value Register 2 */
+#define ARMV8_REG_DBGBVR2_EL1_LO	(0x420)	/*   LO word of DBGBVR2_EL1 */
+#define ARMV8_REG_DBGBVR2_EL1_HI	(0x424)	/*   HI word of DBGBVR2_EL1 */
+#define ARMV8_REG_DBGBCR2_EL1	(0x428)		/* Debug Breakpoint Control Register 2 */
+#define ARMV8_REG_DBGBVR3_EL1	(0x430)		/* Debug Breakpoint Value Register 3 */
+#define ARMV8_REG_DBGBVR3_EL1_LO	(0x430)	/*   LO word of DBGBVR3_EL1 */
+#define ARMV8_REG_DBGBVR3_EL1_HI	(0x434)	/*   HI word of DBGBVR3_EL1 */
+#define ARMV8_REG_DBGBCR3_EL1	(0x438)		/* Debug Breakpoint Control Register 3 */
+#define ARMV8_REG_DBGBVR4_EL1	(0x440)		/* Debug Breakpoint Value Register 4 */
+#define ARMV8_REG_DBGBVR4_EL1_LO	(0x440)	/*   LO word of DBGBVR4_EL1 */
+#define ARMV8_REG_DBGBVR4_EL1_HI	(0x444)	/*   HI word of DBGBVR4_EL1 */
+#define ARMV8_REG_DBGBCR4_EL1	(0x448)		/* Debug Breakpoint Control Register 4 */
+#define ARMV8_REG_DBGBVR5_EL1	(0x450)		/* Debug Breakpoint Value Register 5 */
+#define ARMV8_REG_DBGBVR5_EL1_LO	(0x450)	/*   LO word of DBGBVR5_EL1 */
+#define ARMV8_REG_DBGBVR5_EL1_HI	(0x454)	/*   HI word of DBGBVR5_EL1 */
+#define ARMV8_REG_DBGBCR5_EL1	(0x458)		/* Debug Breakpoint Control Register 5 */
+
+#define ARMV8_REG_DBGWVR_EL1(n)		(0x800 + 0x10*(n))	/* Debug Watchpoint Value Register <0..n> */
+#define ARMV8_REG_DBGWVR_EL1_LO(n)	(0x800 + 0x10*(n))	/*   LO word of DBGWVR<n>_EL1 */
+#define ARMV8_REG_DBGWVR_EL1_HI(n)	(0x804 + 0x10*(n))	/*   HI word of DBGWVR<n>_EL1 */
+#define ARMV8_REG_DBGWCR_EL1(n)		(0x808 + 0x10*(n))	/* Debug Watchpoint Control Register <0..n> */
+#define ARMV8_REG_DBGWVR0_EL1	(0x800)		/* Debug Watchpoint Value Register 0 */
+#define ARMV8_REG_DBGWVR0_EL1_LO	(0x800)	/*   LO word of DBGWVR0_EL1 */
+#define ARMV8_REG_DBGWVR0_EL1_HI	(0x804)	/*   HI word of DBGWVR0_EL1 */
+#define ARMV8_REG_DBGWCR0_EL1	(0x808)		/* Debug Watchpoint Control Register 0 */
+#define ARMV8_REG_DBGWVR1_EL1	(0x810)		/* Debug Watchpoint Value Register 1 */
+#define ARMV8_REG_DBGWVR1_EL1_LO	(0x810)	/*   LO word of DBGWVR1_EL1 */
+#define ARMV8_REG_DBGWVR1_EL1_HI	(0x814)	/*   HI word of DBGWVR1_EL1 */
+#define ARMV8_REG_DBGWCR1_EL1	(0x818)		/* Debug Watchpoint Control Register 1 */
+#define ARMV8_REG_DBGWVR2_EL1	(0x820)		/* Debug Watchpoint Value Register 2 */
+#define ARMV8_REG_DBGWVR2_EL1_LO	(0x820)	/*   LO word of DBGWVR2_EL1 */
+#define ARMV8_REG_DBGWVR2_EL1_HI	(0x824)	/*   HI word of DBGWVR2_EL1 */
+#define ARMV8_REG_DBGWCR2_EL1	(0x828)		/* Debug Watchpoint Control Register 2 */
+#define ARMV8_REG_DBGWVR3_EL1	(0x830)		/* Debug Watchpoint Value Register 3 */
+#define ARMV8_REG_DBGWVR3_EL1_LO	(0x830)	/*   LO word of DBGWVR3_EL1 */
+#define ARMV8_REG_DBGWVR3_EL1_HI	(0x834)	/*   HI word of DBGWVR3_EL1 */
+#define ARMV8_REG_DBGWCR3_EL1	(0x838)		/* Debug Watchpoint Control Register 3 */
+
+#define ARMV8_REG_MIDR_EL1			(0xD00)		/* Main ID Register */
+
+#define ARMV8_REG_ID_AA64PFR_EL1(n)	(0xD20 + 0x20*(n))		/* AArch64 Processor Feature Register <0..n> */
+#define ARMV8_REG_ID_AA64PFR_EL1_LO(n)	(0xD20 + 0x20*(n))	/*   LO word of ID_AA64PFR<n>_EL1 */
+#define ARMV8_REG_ID_AA64PFR_EL1_HI(n)	(0xD24 + 0x20*(n))	/*   LI word of ID_AA64PFR<n>_EL1 */
+#define ARMV8_REG_ID_AA64DFR_EL1(n)	(0xD28 + 0x20*(n))		/* AArch64 Debug Feature Register <0..n> */
+#define ARMV8_REG_ID_AA64ISAR_EL1(n)(0xD30 + 0x20*(n))		/* AArch64 Instruction Set Attribute Register <0..n> */
+#define ARMV8_REG_ID_AA64ISAR_EL1_LO(n)	(0xD30 + 0x20*(n))	/*   LO word of ID_AA64ISAR<n>_EL1 */
+#define ARMV8_REG_ID_AA64ISAR_EL1_HI(n)	(0xD34 + 0x20*(n))	/*   LI word of ID_AA64ISAR<n>_EL1 */
+#define ARMV8_REG_ID_AA64MMFR_EL1(n)(0xD38 + 0x20*(n))		/* AArch64 Memory Model Feature Register <0..n> */
+#define ARMV8_REG_ID_AA64MMFR_EL1_LO(n)	(0xD38 + 0x20*(n))	/*   LO word of ID_AA64MMFR<n>_EL1 */
+#define ARMV8_REG_ID_AA64MMFR_EL1_HI(n)	(0xD3C + 0x20*(n))	/*   HI word of ID_AA64MMFR<n>_EL1 */
+#define ARMV8_REG_ID_AA64PFR0_EL1	(0xD20)		/* AArch64 Processor Feature Register 0 */
+#define ARMV8_REG_ID_AA64PFR0_EL1_LO	(0xD20)	/*   LO word of ID_AA64PFR0_EL1 */
+#define ARMV8_REG_ID_AA64PFR0_EL1_HI	(0xD24)	/*   LI word of ID_AA64PFR0_EL1 */
+#define ARMV8_REG_ID_AA64DFR0_EL1	(0xD28)		/* AArch64 Debug Feature Register 0 */
+#define ARMV8_REG_ID_AA64DFR0_EL1_LO	(0xD28)	/*   LO word of ID_AA64DFR0_EL1 */
+#define ARMV8_REG_ID_AA64DFR0_EL1_HI	(0xD2C)	/*   HI word of ID_AA64DFR0_EL1 */
+#define ARMV8_REG_ID_AA64ISAR0_EL1	(0xD30)		/* AArch64 Instruction Set Attribute Register 0 */
+#define ARMV8_REG_ID_AA64ISAR0_EL1_LO	(0xD30)	/*   LO word of ID_AA64ISAR0_EL1 */
+#define ARMV8_REG_ID_AA64ISAR0_EL1_HI	(0xD34)	/*   LI word of ID_AA64ISAR0_EL1 */
+#define ARMV8_REG_ID_AA64MMFR0_EL1	(0xD38)		/* AArch64 Memory Model Feature Register 0 */
+#define ARMV8_REG_ID_AA64MMFR0_EL1_LO	(0xD38)	/*   LO word of ID_AA64MMFR0_EL1 */
+#define ARMV8_REG_ID_AA64MMFR0_EL1_HI	(0xD3C)	/*   HI word of ID_AA64MMFR0_EL1 */
+#define ARMV8_REG_ID_AA64PFR1_EL1	(0xD40)		/* AArch64 Processor Feature Register 1 */
+#define ARMV8_REG_ID_AA64PFR1_EL1_LO	(0xD40)	/*   LO word of ID_AA64PFR1_EL1 */
+#define ARMV8_REG_ID_AA64PFR1_EL1_HI	(0xD44)	/*   LI word of ID_AA64PFR1_EL1 */
+#define ARMV8_REG_ID_AA64DFR1_EL1	(0xD48)		/* AArch64 Debug Feature Register 1 */
+#define ARMV8_REG_ID_AA64DFR1_EL1_LO	(0xD48)	/*   LO word of ID_AA64DFR1_EL1 */
+#define ARMV8_REG_ID_AA64DFR1_EL1_HI	(0xD4C)	/*   HI word of ID_AA64DFR1_EL1 */
+#define ARMV8_REG_ID_AA64ISAR1_EL1	(0xD50)		/* AArch64 Instruction Set Attribute Register 1 */
+#define ARMV8_REG_ID_AA64ISAR1_EL1_LO	(0xD50)	/*   LO word of ID_AA64ISAR1_EL1 */
+#define ARMV8_REG_ID_AA64ISAR1_EL1_HI	(0xD54)	/*   LI word of ID_AA64ISAR1_EL1 */
+#define ARMV8_REG_ID_AA64MMFR1_EL1	(0xD58)		/* AArch64 Memory Model Feature Register 1 */
+#define ARMV8_REG_ID_AA64MMFR1_EL1_LO	(0xD58)	/*   LO word of ID_AA64MMFR1_EL1 */
+#define ARMV8_REG_ID_AA64MMFR1_EL1_HI	(0xD5C)	/*   HI word of ID_AA64MMFR1_EL1 */
+
+#define ARMV8_REG_EDITCTRL			(0xF00)		/* External Debug Integration Mode Control Register */
+#define ARMV8_REG_DBGCLAIMSET_EL1	(0xFA0)		/* Debug Claim Tag Set register */
+#define ARMV8_REG_DBGCLAIMCLR_EL1	(0xFA4)		/* Debug Claim Tag Clear register */
+#define ARMV8_REG_EDDEVAFF0			(0xFA8)		/* Multiprocessor Affinity register ?? */
+#define ARMV8_REG_EDDEVAFF1			(0xFAC)		/* External Debug Device Affinity register */
+#define ARMV8_REG_EDLAR				(0xFB0)		/* External Debug Lock Access Register */
+#define ARMV8_REG_EDLSR				(0xFB4)		/* External Debug Lock Status Register */
+#define ARMV8_REG_DBGAUTHSTATUS_EL1	(0xFB8)		/* Debug Authentication Status register */
+#define ARMV8_REG_EDDEVARCH			(0xFBC)		/* External Debug Device Architecture register */
+#define ARMV8_REG_EDDEVID2			(0xFC0)		/* External Debug Device ID register 2 */
+#define ARMV8_REG_EDDEVID1			(0xFC4)		/* External Debug Device ID register 1 */
+#define ARMV8_REG_EDDEVID			(0xFC8)		/* External Debug Device ID register 0 */
+#define ARMV8_REG_EDDEVTYPE			(0xFCC)		/* External Debug Device Type register */
+#define ARMV8_REG_EDPIDR4			(0xFD0)		/* Peripheral Identification Register 4 */
+#define ARMV8_REG_EDPIDR5			(0xFD4)		/* Peripheral Identification Register 5 */
+#define ARMV8_REG_EDPIDR6			(0xFD8)		/* Peripheral Identification Register 6 */
+#define ARMV8_REG_EDPIDR7			(0xFDC)		/* Peripheral Identification Register 7 */
+#define ARMV8_REG_EDPIDR0			(0xFE0)		/* Peripheral Identification Register 0 */
+#define ARMV8_REG_EDPIDR1			(0xFE4)		/* Peripheral Identification Register 1 */
+#define ARMV8_REG_EDPIDR2			(0xFE8)		/* Peripheral Identification Register 2 */
+#define ARMV8_REG_EDPIDR3			(0xFEC)		/* Peripheral Identification Register 3 */
+#define ARMV8_REG_EDCIDR0			(0xFF0)		/* Component Identification Register 0 */
+#define ARMV8_REG_EDCIDR1			(0xFF4)		/* Component Identification Register 1 */
+#define ARMV8_REG_EDCIDR2			(0xFF8)		/* Component Identification Register 2 */
+#define ARMV8_REG_EDCIDR3			(0xFFC)		/* Component Identification Register 3 */
+
+
+/* Fields of EDESR (0x020) */
+#define ARMV8_EDESR_SS				(1 <<  2)	/* Halting step debug event pending */
+#define ARMV8_EDESR_RC				(1 <<  1)	/* Reset catch debug event pending */
+#define ARMV8_EDESR_OSUC			(1 <<  0)	/* OS unlock debug event pending */
+
+
+/* Fields of EDECR (0x024) */
+#define ARMV8_EDECR_SS				(1 <<  2)	/* Halting step enable */
+#define ARMV8_EDECR_RCE				(1 <<  1)	/* Reset catch enable */
+#define ARMV8_EDECR_OSUCE			(1 <<  0)	/* OS unlock catch enable */
+
+
+/* Fields of EDSCR (0x088) */
+#define ARMV8_EDSCR_RES31			(1 << 31)	/* Reserved, RES0 */
+#define	ARMV8_EDSCR_RXFULL			(1 << 30)	/* ro: DTRRX full */
+#define ARMV8_EDSCR_TXFULL			(1 << 29)	/* ro: DTRTX full */
+#define ARMV8_EDSCR_ITO				(1 << 28)	/* ro: EDITR overrun */
+#define ARMV8_EDSCR_RXO				(1 << 27)	/* ro: DTRRX overrun */
+#define ARMV8_EDSCR_TXU				(1 << 26)	/* ro: DTRTX underrun */
+#define ARMV8_EDSCR_PIPEADV			(1 << 25)	/* ro: Pipeline advance */
+#define ARMV8_EDSCR_ITE				(1 << 24)	/* ro: ITR empty */
+#define ARMV8_EDSCR_INTDIS_SHIFT	(22)		/* Interrupt disable */
+#define ARMV8_EDSCR_INTDIS_MASK		(0b11 << ARMV8_EDSCR_INTDIS_SHIFT)
+#define ARMV8_EDSCR_INTDIS_NONE				(0b00)
+#define ARMV8_EDSCR_INTDIS_NSEL1			(0b01)
+#define ARMV8_EDSCR_INTDIS_NSEL12_EXTSEL1	(0b10)
+#define ARMV8_EDSCR_INTDIS_NSEL12_EXTALL	(0b11)
+#define ARMV8_EDSCR_TDA				(1 << 21)	/* Trap debug registers access */
+#define ARMV8_EDSCR_MA				(1 << 20)	/* Memory access mode */
+#define ARMV8_EDSCR_RES19			(1 << 19)	/* Reserved, RES0 */
+#define ARMV8_EDSCR_NS				(1 << 18)	/* ro: Non-secure status */
+#define ARMV8_EDSCR_RES17			(1 << 17)	/* Reserved, RES0 */
+#define ARMV8_EDSCR_SDD				(1 << 16)	/* ro: Secure debug disabled */
+#define ARMV8_EDSCR_RES15			(1 << 15)	/* Reserved, RES0 */
+#define ARMV8_EDSCR_HDE				(1 << 14)	/* Halting debug enable */
+#define ARMV8_EDSCR_RW_SHIFT		(10)		/* ro: Exception level Execution state status */
+#define ARMV8_EDSCR_RW_MASK			(0b1111 << ARMV8_EDSCR_RW_SHIFT)
+#define ARMV8_EDSCR_RW_AA64_ALL		(0b1111)	/* All using AArch64 */
+#define ARMV8_EDSCR_RW_AA32_EL0		(0b1110)	/* 0b1110 */
+#define ARMV8_EDSCR_RW_AA32_EL01	(0b1100)	/* Note: 0b110x */
+#define ARMV8_EDSCR_RW_AA32_EL012	(0b1000)	/* Note: 0b10xx */
+#define ARMV8_EDSCR_RW_AA32_ALL		(0b0000)	/* Note: 0b0xxx */
+#define ARMV8_EDSCR_EL_SHIFT		(8)			/* ro: Exception level */
+#define ARMV8_EDSCR_EL_MASK			(0b11 << ARMV8_EDSCR_EL_SHIFT)
+#define ARMV8_EDSCR_A				(1 <<  7)	/* ro: System Error interrupt pending */
+#define ARMV8_EDSCR_ERR				(1 <<  6)
+#define ARMV8_EDSCR_STATUS_SHIFT	(0)
+#define ARMV8_EDSCR_STATUS_MASK		(0b111111 << ARMV8_EDSCR_STATUS_SHIFT)
+#define ARMV8_EDSCR_STATUS_NDBG		(0b000010)	/* Non-debug */
+#define ARMV8_EDSCR_STATUS_RESTART	(0b000001)	/* Restarting */
+#define ARMV8_EDSCR_STATUS_BP		(0b000111)	/* Halt: Breakpoint */
+#define ARMV8_EDSCR_STATUS_EDBGRQ	(0b010011)	/* Halt: External debug request */
+#define ARMV8_EDSCR_STATUS_STEP_NORM	(0b011011)	/* Halt: Step, normal */
+#define ARMV8_EDSCR_STATUS_STEP_EXCL	(0b011111)	/* Halt: Step, exclusive */
+#define ARMV8_EDSCR_STATUS_OS_UL	(0b100011)	/* Halt: OS unlock catch */
+#define ARMV8_EDSCR_STATUS_RESET	(0b100111)	/* Halt: Reset catch */
+#define ARMV8_EDSCR_STATUS_WP		(0b101011)	/* Halt: Watchpoint */
+#define ARMV8_EDSCR_STATUS_HLT		(0b101111)	/* Halt: HLT instruction */
+#define ARMV8_EDSCR_STATUS_SW_ACC	(0b110011)	/* Halt: Software access to debug register */
+#define ARMV8_EDSCR_STATUS_EXCPT	(0b110111)	/* Halt: Exception catch */
+#define ARMV8_EDSCR_STATUS_STEP_NOSYND	(0b111011)	/* Halt: Step, no syndrome */
+
+#define	EDSCR_RW(edscr)	\
+	(((edscr) & ARMV8_EDSCR_RW_MASK) >> ARMV8_EDSCR_RW_SHIFT)
+#define	EDSCR_STATUS(edscr)	\
+	(((edscr) & ARMV8_EDSCR_STATUS_MASK) >> ARMV8_EDSCR_STATUS_SHIFT)
+#define	EDSCR_EL(edscr)	\
+	(((edscr) & ARMV8_EDSCR_EL_MASK) >> ARMV8_EDSCR_EL_SHIFT)
+
+/* H2.2.8 Halted() */
+#define	PE_STATUS_HALTED(s) \
+	(((s) != ARMV8_EDSCR_STATUS_NDBG) && ((s) != ARMV8_EDSCR_STATUS_RESTART))
+/* H9.2.39 EDPRSR.HALT when (EDPRSR.PU == 0b1) */
+//#define	PE_STATUS_HALTED(s)			((s) != ARMV8_EDSCR_STATUS_NDBG)
+
+
+/* Fields of EDRCR (0x090) */
+#define ARMV8_EDRCR_CSE				(1 << 2)	/* Clear Sticky Error */
+#define ARMV8_EDRCR_CSPA			(1 << 3)	/* Clear Sticky Pipeline Advance */
+#define ARMV8_EDRCR_CBRRQ			(1 << 4)	/* Allow imprecise entry to Debug state */
+
+
+/* Fields of EDPRCR (0x310) */
+#define ARMV8_EDPRCR_COREPURQ		(1 << 3)	/* Core powerup request */
+#define ARMV8_EDPRCR_CWRR			(1 << 1)	/* wo: Warm reset request */
+#define ARMV8_EDPRCR_CORENPDRQ		(1 << 0)	/* Core no powerdown request */
+
+
+/* Fields of EDPRSR (0x314) */
+#define ARMV8_EDPRSR_SDR			(1 << 11)	/* Sticky debug restart */
+#define ARMV8_EDPRSR_SPMAD			(1 << 10)	/* Sticky EPMAD error */
+#define ARMV8_EDPRSR_EPMAD			(1 <<  9)	/* External Performance Monitors access disable status */
+#define ARMV8_EDPRSR_SDAD			(1 <<  8)	/* Sticky EDAD error */
+#define ARMV8_EDPRSR_EDAD			(1 <<  7)	/* External debug access disable status */
+#define ARMV8_EDPRSR_DLK			(1 <<  6)	/* OS Double Lock status */
+#define ARMV8_EDPRSR_OSLK			(1 <<  5)	/* OS lock status */
+#define ARMV8_EDPRSR_HALTED			(1 <<  4)	/* Halted status */
+#define ARMV8_EDPRSR_SR				(1 <<  3)	/* Sticky core reset status */
+#define ARMV8_EDPRSR_R				(1 <<  2)	/* Core reset status */
+#define ARMV8_EDPRSR_SPD			(1 <<  1)	/* Sticky core powerdown status */
+#define ARMV8_EDPRSR_PU				(1 <<  0)	/* Core powerup status (access debug registers) */
+
+/* Fields of PSTATE (D1.6.4 SPSRs) */
+#define ARMV8_PSTATE_N				(1 << 31)
+#define ARMV8_PSTATE_Z				(1 << 30)
+#define ARMV8_PSTATE_C				(1 << 29)
+#define ARMV8_PSTATE_V				(1 << 28)
+#define ARMV8_PSTATE_Q				(1 << 27)	/* AArch32 only */
+#define ARMV8_PSTATE_IT10_SHIFT		(1 << 25)
+#define ARMV8_PSTATE_IT10_MASK		(0b11 << ARMV8_PSTATE_IT10_SHIFT)
+#define ARMV8_PSTATE_SS				(1 << 21)	/* Software Step */
+#define ARMV8_PSTATE_IL				(1 << 20)
+#define ARMV8_PSTATE_GE_SHIFT		(1 << 16)
+#define ARMV8_PSTATE_GE_MASK		(0b1111 << ARMV8_PSTATE_GE_SHIFT)
+#define ARMV8_PSTATE_IT72_SHIFT		(1 << 10)
+#define ARMV8_PSTATE_IT72_MASK		(0b111111 << ARMV8_PSTATE_IT72_SHIFT)
+#define ARMV8_PSTATE_D				(1 <<  9)	/* AArch64 only */
+#define ARMV8_PSTATE_E				(1 <<  9)	/* AArch32 only */
+#define ARMV8_PSTATE_A				(1 <<  8)
+#define ARMV8_PSTATE_I				(1 <<  7)
+#define ARMV8_PSTATE_F				(1 <<  6)
+#define ARMV8_PSTATE_T				(1 <<  5)	/* AArch32 only */
+#define ARMV8_PSTATE_nRW			(1 <<  4)	/* MODE[4] encodes the value of PSTATE.nRW */
+#define ARMV8_PSTATE_MODE_SHIFT		(0)
+#define ARMV8_PSTATE_MODE_MASK		(0b11111 << ARMV8_PSTATE_MODE_SHIFT)
+
+
+
+#define ARMV8_REG_CTI_CONTROL		(0x000)		/* CTI Control register */
+#define ARMV8_REG_CTI_INTACK		(0x010)		/* CTI Output Trigger Acknowledge register */
+#define ARMV8_REG_CTI_APPSET		(0x014)		/* CTI Application Trigger Set register */
+#define ARMV8_REG_CTI_APPCLEAR		(0x018)		/* CTI Application Trigger Clear register */
+#define ARMV8_REG_CTI_APPPULSE		(0x01C)		/* CTI Application Pulse register */
+#define ARMV8_REG_CTI_INEN(n)		(0x020 + 0x4*(n))
+#define ARMV8_REG_CTI_INEN0			(0x020)		/* CTI Input Trigger to */
+#define ARMV8_REG_CTI_INEN1			(0x024)		/*     Output Channel */
+#define ARMV8_REG_CTI_INEN2			(0x028)		/*     Enable registers */
+#define ARMV8_REG_CTI_INEN3			(0x02C)
+#define ARMV8_REG_CTI_INEN4			(0x030)
+#define ARMV8_REG_CTI_INEN5			(0x034)
+#define ARMV8_REG_CTI_INEN6			(0x038)
+#define ARMV8_REG_CTI_INEN7			(0x03C)
+#define ARMV8_REG_CTI_OUTEN(n)		(0x0A0 + 0x4*(n))
+#define ARMV8_REG_CTI_OUTEN0		(0x0A0)		/* CTI Input Channel to */
+#define ARMV8_REG_CTI_OUTEN1		(0x0A4)		/*     Output Trigger */
+#define ARMV8_REG_CTI_OUTEN2		(0x0A8)		/*     Enable registers */
+#define ARMV8_REG_CTI_OUTEN3		(0x0AC)
+#define ARMV8_REG_CTI_OUTEN4		(0x0B0)
+#define ARMV8_REG_CTI_OUTEN5		(0x0B4)
+#define ARMV8_REG_CTI_OUTEN6		(0x0B8)
+#define ARMV8_REG_CTI_OUTEN7		(0x0BC)
+
+#define ARMV8_REG_CTI_TRIGINSTATUS	(0x130)		/* CTI Trigger In Status register */
+#define ARMV8_REG_CTI_TRIGOUTSTATUS	(0x134)		/* CTI Trigger Out Status register */
+#define ARMV8_REG_CTI_CHINSTATUS	(0x138)		/* CTI Channel In Status register */
+#define ARMV8_REG_CTI_CHOUTSTATUS	(0x13C)		/* CTI Channel Out Status register */
+#define ARMV8_REG_CTI_GATE			(0x140)		/* CTI Channel Gate Enable register */
+#define ARMV8_REG_CTI_ASICCTL		(0x144)		/* CTI External Multiplexer Control register */
+
+/* ARM CoreSight component has 0xF00..0xFFF implemented */
+
+
+
 enum {
 	ARMV8_R0,
 	ARMV8_R1,
@@ -159,6 +473,7 @@ target_to_armv8(struct target *target)
 {
 	return container_of(target->arch_info, struct armv8_common, arm);
 }
+
 
 /* register offsets from armv8.debug_base */
 
