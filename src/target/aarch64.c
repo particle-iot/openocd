@@ -159,24 +159,24 @@ static int aarch64_init_debug_access(struct target *target)
  * happen to know that no instruction is pending.
  */
 static int aarch64_exec_opcode(struct target *target,
-	uint32_t opcode, uint32_t *dscr_p)
+	uint32_t opcode, uint32_t *edscr_p)
 {
-	uint32_t dscr;
+	uint32_t edscr;
 	int retval;
 	struct armv8_common *armv8 = target_to_armv8(target);
 	struct adiv5_dap *swjdp = armv8->arm.dap;
 
-	dscr = dscr_p ? *dscr_p : 0;
+	edscr = edscr_p ? *edscr_p : 0;
 
 	LOG_DEBUG("exec opcode 0x%08" PRIx32, opcode);
 
 	/* Wait for InstrCompl bit to be set */
 	long long then = timeval_ms();
-	while ((dscr & DSCR_INSTR_COMP) == 0) {
+	while ((edscr & ARMV8_EDSCR_ITE) == 0) {
 		retval = mem_ap_sel_read_atomic_u32(swjdp, armv8->debug_ap,
-				armv8->debug_base + CPUDBG_DSCR, &dscr);
+				armv8->debug_base + ARMV8_REG_EDSCR, &edscr);
 		if (retval != ERROR_OK) {
-			LOG_ERROR("Could not read DSCR register, opcode = 0x%08" PRIx32, opcode);
+			LOG_ERROR("Could not read EDSCR register, opcode = 0x%08" PRIx32, opcode);
 			return retval;
 		}
 		if (timeval_ms() > then + 1000) {
@@ -193,19 +193,19 @@ static int aarch64_exec_opcode(struct target *target,
 	then = timeval_ms();
 	do {
 		retval = mem_ap_sel_read_atomic_u32(swjdp, armv8->debug_ap,
-				armv8->debug_base + CPUDBG_DSCR, &dscr);
+				armv8->debug_base + ARMV8_REG_EDSCR, &edscr);
 		if (retval != ERROR_OK) {
-			LOG_ERROR("Could not read DSCR register");
+			LOG_ERROR("Could not read EDSCR register");
 			return retval;
 		}
 		if (timeval_ms() > then + 1000) {
 			LOG_ERROR("Timeout waiting for aarch64_exec_opcode");
 			return ERROR_FAIL;
 		}
-	} while ((dscr & DSCR_INSTR_COMP) == 0);	/* Wait for InstrCompl bit to be set */
+	} while ((edscr & ARMV8_EDSCR_ITE) == 0);	/* Wait for InstrCompl bit to be set */
 
-	if (dscr_p)
-		*dscr_p = dscr;
+	if (edscr_p)
+		*edscr_p = edscr;
 
 	return retval;
 }
@@ -376,7 +376,7 @@ static int aarch64_dpm_prepare(struct arm_dpm *dpm)
 
 		/* Clear sticky error */
 		retval = mem_ap_sel_write_u32(swjdp, a8->armv8_common.debug_ap,
-			a8->armv8_common.debug_base + ARMV8_REG_EDRCR_OFST,
+			a8->armv8_common.debug_base + ARMV8_REG_EDRCR,
 			ARMV8_EDRCR_CSE);
 		if (retval != ERROR_OK)
 			return retval;
@@ -727,11 +727,12 @@ static int update_halt_gdb(struct target *target)
 static int aarch64_poll(struct target *target)
 {
 	int retval = ERROR_OK;
-	uint32_t dscr;
+	uint32_t edscr;
 	struct aarch64_common *aarch64 = target_to_aarch64(target);
 	struct armv8_common *armv8 = &aarch64->armv8_common;
 	struct adiv5_dap *swjdp = armv8->arm.dap;
 	enum target_state prev_target_state = target->state;
+
 	/*  toggle to another core is done by gdb as follow */
 	/*  maint packet J core_id */
 	/*  continue */
@@ -744,13 +745,32 @@ static int aarch64_poll(struct target *target)
 		target_call_event_callbacks(target, TARGET_EVENT_HALTED);
 		return retval;
 	}
+
+	/*
+	 * Read EDSCR to determine running/halted state
+	 * If the core is halted and was previously not halted,
+	 *     then enter debug state & read core registers etc.
+	 * If the core has resumed (restarted) and was previously halted,
+	 *     then note that it is now running
+	 */
 	retval = mem_ap_sel_read_atomic_u32(swjdp, armv8->debug_ap,
-			armv8->debug_base + CPUDBG_DSCR, &dscr);
+			armv8->debug_base + ARMV8_REG_EDSCR, &edscr);
 	if (retval != ERROR_OK)
 		return retval;
-	aarch64->cpudbg_dscr = dscr;
+	aarch64->cpudbg_edscr = edscr;
 
-	if (DSCR_RUN_MODE(dscr) == (DSCR_CORE_HALTED | DSCR_CORE_RESTARTED)) {
+	LOG_DEBUG("%s EDSCR=0x%08x", target_name(target), edscr);
+
+#if 1
+	if (!is_pe_status_valid(edscr)) {
+		LOG_DEBUG("Unknown %s state. EDSCR = 0x%08" PRIx32,
+			target_name(target), edscr);
+		target->state = TARGET_UNKNOWN;
+		return retval;
+	}
+#endif
+
+	if (PE_STATUS_HALTED(EDSCR_STATUS(edscr))) {
 		if (prev_target_state != TARGET_HALTED) {
 			/* We have a halting debug event */
 			LOG_DEBUG("Target %s halted", target_name(target));
@@ -785,12 +805,16 @@ static int aarch64_poll(struct target *target)
 					TARGET_EVENT_DEBUG_HALTED);
 			}
 		}
-	} else if (DSCR_RUN_MODE(dscr) == DSCR_CORE_RESTARTED)
+	} else {
 		target->state = TARGET_RUNNING;
+	}
+#if 0
 	else {
-		LOG_DEBUG("Unknown target state dscr = 0x%08" PRIx32, dscr);
+		LOG_DEBUG("Unknown %s state. EDSCR = 0x%08" PRIx32,
+			target_name(target), edscr);
 		target->state = TARGET_UNKNOWN;
 	}
+#endif
 
 	return retval;
 }
@@ -802,6 +826,7 @@ static int aarch64_halt(struct target *target)
 	struct armv8_common *armv8 = target_to_armv8(target);
 	struct adiv5_dap *swjdp = armv8->arm.dap;
 
+	LOG_DEBUG("WARNING(Alamy): Review this function");
 	retval = mem_ap_sel_read_atomic_u32(swjdp, armv8->debug_ap,
 			armv8->debug_base + 0x10000 + 0, &dscr);
 	retval = mem_ap_sel_write_atomic_u32(swjdp, armv8->debug_ap,
@@ -884,6 +909,7 @@ static int aarch64_internal_restore(struct target *target, int current,
 	int retval;
 	uint64_t resume_pc;
 
+	LOG_DEBUG("WARNING(Alamy): Review this function");
 	if (!debug_execution)
 		target_free_all_working_areas(target);
 
@@ -969,6 +995,7 @@ static int aarch64_internal_restart(struct target *target)
 	 * disable IRQs by default, with optional override...
 	 */
 
+	LOG_DEBUG("WARNING(Alamy): Review this function");
 	retval = mem_ap_sel_read_atomic_u32(swjdp, armv8->debug_ap,
 			armv8->debug_base + CPUDBG_DSCR, &dscr);
 	if (retval != ERROR_OK)
@@ -1082,18 +1109,19 @@ static int aarch64_resume(struct target *target, int current,
 
 static int aarch64_debug_entry(struct target *target)
 {
-	uint32_t dscr;
+	uint32_t edscr;
 	int retval = ERROR_OK;
 	struct aarch64_common *aarch64 = target_to_aarch64(target);
 	struct armv8_common *armv8 = target_to_armv8(target);
 	struct adiv5_dap *swjdp = armv8->arm.dap;
 	uint32_t tmp;
 
-	LOG_DEBUG("dscr = 0x%08" PRIx32, aarch64->cpudbg_dscr);
+	LOG_DEBUG("WARNING(Alamy): Review this function");
+	LOG_DEBUG("EDSCR = 0x%08" PRIx32, aarch64->cpudbg_edscr);
 
 	/* REVISIT surely we should not re-read DSCR !! */
 	retval = mem_ap_sel_read_atomic_u32(swjdp, armv8->debug_ap,
-			armv8->debug_base + CPUDBG_DSCR, &dscr);
+			armv8->debug_base + ARMV8_REG_EDSCR, &edscr);
 	if (retval != ERROR_OK)
 		return retval;
 
@@ -1103,14 +1131,17 @@ static int aarch64_debug_entry(struct target *target)
 	 */
 
 	/* Enable the ITR execution once we are in debug mode */
-	dscr |= DSCR_ITR_EN;
+	/* Alamy: Is this correct ? */
+#if 0
+	edscr |= DSCR_ITR_EN;
 	retval = mem_ap_sel_write_atomic_u32(swjdp, armv8->debug_ap,
-			armv8->debug_base + CPUDBG_DSCR, dscr);
+			armv8->debug_base + ARMV8_REG_EDSCR, edscr);
 	if (retval != ERROR_OK)
 		return retval;
+#endif
 
 	/* Examine debug reason */
-	arm_dpm_report_dscr(&armv8->dpm, aarch64->cpudbg_dscr);
+	arm_dpm_report_dscr(&armv8->dpm, aarch64->cpudbg_edscr);
 	mem_ap_sel_read_atomic_u32(swjdp, armv8->debug_ap,
 				   armv8->debug_base + CPUDBG_DESR, &tmp);
 	if ((tmp & 0x7) == 0x4)
@@ -1182,6 +1213,7 @@ static int aarch64_step(struct target *target, int current, uint64_t address,
 	int retval;
 	uint32_t tmp;
 
+	LOG_DEBUG("WARNING(Alamy): Review this function");
 	if (target->state != TARGET_HALTED) {
 		LOG_WARNING("target not halted");
 		return ERROR_TARGET_NOT_HALTED;
@@ -1346,6 +1378,7 @@ static int aarch64_set_context_breakpoint(struct target *target,
 	struct armv8_common *armv8 = &aarch64->armv8_common;
 	struct aarch64_brp *brp_list = aarch64->brp_list;
 
+	LOG_DEBUG("WARNING(Alamy): Review this function");
 	if (breakpoint->set) {
 		LOG_WARNING("breakpoint already set");
 		return retval;
@@ -1398,6 +1431,7 @@ static int aarch64_set_hybrid_breakpoint(struct target *target, struct breakpoin
 	struct armv8_common *armv8 = &aarch64->armv8_common;
 	struct aarch64_brp *brp_list = aarch64->brp_list;
 
+	LOG_DEBUG("WARNING(Alamy): Review this function");
 	if (breakpoint->set) {
 		LOG_WARNING("breakpoint already set");
 		return retval;
@@ -1474,6 +1508,7 @@ static int aarch64_unset_breakpoint(struct target *target, struct breakpoint *br
 	struct armv8_common *armv8 = &aarch64->armv8_common;
 	struct aarch64_brp *brp_list = aarch64->brp_list;
 
+	LOG_DEBUG("WARNING(Alamy): Review this function");
 	if (!breakpoint->set) {
 		LOG_WARNING("breakpoint not set");
 		return ERROR_OK;
@@ -1707,6 +1742,7 @@ static int aarch64_write_apb_ab_memory(struct target *target,
 	uint8_t *tmp_buff = NULL;
 	uint32_t i = 0;
 
+	LOG_DEBUG("WARNING(Alamy): Review this function");
 	LOG_DEBUG("Writing APB-AP memory address 0x%" PRIx64 " size %"  PRIu32 " count%"  PRIu32,
 			  address, size, count);
 	if (target->state != TARGET_HALTED) {
@@ -1857,6 +1893,7 @@ static int aarch64_read_apb_ab_memory(struct target *target,
 	uint8_t *tmp_buff = NULL;
 	uint32_t i = 0;
 
+	LOG_DEBUG("WARNING(Alamy): Review this function");
 	LOG_DEBUG("Reading APB-AP memory address 0x%" PRIx64 " size %"  PRIu32 " count%"  PRIu32,
 			  address, size, count);
 	if (target->state != TARGET_HALTED) {
@@ -1974,6 +2011,7 @@ static int aarch64_read_memory(struct target *target, uint64_t address,
 	struct adiv5_dap *swjdp = armv8->arm.dap;
 	uint8_t apsel = swjdp->apsel;
 
+	LOG_DEBUG("WARNING(Alamy): Review this function");
 	/* aarch64 handles unaligned memory access */
 	LOG_DEBUG("Reading memory at address 0x%.16" PRIX64 "; size %" PRId32
 		  "; count %" PRId32, address, size, count);
@@ -2025,6 +2063,7 @@ static int aarch64_write_phys_memory(struct target *target,
 	int retval = ERROR_COMMAND_SYNTAX_ERROR;
 	uint8_t apsel = swjdp->apsel;
 
+	LOG_DEBUG("WARNING(Alamy): Review this function");
 	LOG_DEBUG("Writing memory to real address 0x%.16" PRIX64 "; size %" PRId32
 		"; count %" PRId32, address, size, count);
 
@@ -2114,6 +2153,7 @@ static int aarch64_write_memory(struct target *target, uint64_t address,
 	struct adiv5_dap *swjdp = armv8->arm.dap;
 	uint8_t apsel = swjdp->apsel;
 
+	LOG_DEBUG("WARNING(Alamy): Review this function");
 	/* aarch64 handles unaligned memory access */
 	LOG_DEBUG("Writing memory at address 0x%.16" PRIX64 "; size %" PRId32
 		  "; count %" PRId32, address, size, count);
@@ -2210,6 +2250,7 @@ static int aarch64_examine_first(struct target *target)
 	uint32_t pfr, debug, ctypr, ttypr, cpuid;
 	int i;
 
+	LOG_DEBUG("WARNING(Alamy): Review this function");
 #if 0	/* Alamy */
 	/* We do one extra read to ensure DAP is configured,
 	 * we call ahbap_debugport_init(swjdp) instead
@@ -2521,7 +2562,7 @@ COMMAND_HANDLER(aarch64_handle_dbginit_command)
 {
 	struct target *target = get_current_target(CMD_CTX);
 	if (!target_was_examined(target)) {
-		LOG_ERROR("target not examined yet");
+		LOG_ERROR("target %s not examined yet", target_name(target));
 		return ERROR_FAIL;
 	}
 
