@@ -49,7 +49,7 @@ struct aarch64_common {
 	struct arm_jtag jtag_info;
 
 	/* Context information */
-	uint32_t cpudbg_dscr;
+	uint32_t cpudbg_edscr;
 
 	uint32_t system_control_reg;
 	uint32_t system_control_reg_curr;
@@ -75,5 +75,46 @@ target_to_aarch64(struct target *target)
 {
 	return container_of(target->arch_info, struct aarch64_common, armv8_common.arm);
 }
+
+/*
+ * DDI0487A_f_armv8_arm.pdf
+ * H9.2.41 EDSCR, External Debug Status and Control Register
+ *
+ * Valid PE status values are:
+ *	bit[5:4]	bit[3:0]
+ *	00			0001  0010  0111
+ *	01			0011,       1011, 1111
+ *	10			0011, 0111, 1011, 1111
+ *	11			0011, 0111, 1011
+ */
+static inline bool is_pe_status_valid(uint32_t edscr)
+{
+	uint16_t status = (edscr & 0b111111);
+	uint16_t status_bit54 = (status & 0b110000) >> 4;	/* bits[5:4] */
+	uint16_t status_bit30 = (status & 0b001111);		/* bits[3:0] */
+	uint16_t status_bit10 = (status & 0b000011);		/* bits[1:0] */
+
+	if (status_bit54 == 0b00) {
+		/* 3 special cases */
+		if ((status_bit30 == 0b0010) || (status == 0b0001) || (status == 0b0111))
+			return true;
+		else
+			return false;
+	} else if (status_bit10 == 0b11) {
+		/* Mostly valid, except 0b010011 & 0b111111 */
+		if ((status == 0b010111) || (status == 0b111111))
+			return false;
+		else
+			return true;
+	} else {
+		/* All other values are reserved: invalid */
+		return false;
+	}
+
+	return false;
+}
+
+
+#define	IS_PE_STATUS_HALTED(status)
 
 #endif /* AARCH64_H */
