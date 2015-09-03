@@ -1147,11 +1147,11 @@ int arm_dpm_setup(struct arm_dpm *dpm)
 	/* FIXME add vector catch support */
 
 	if (arm->core_state == ARM_STATE_AARCH64) {
-		dpm->nbp = 1 + ((dpm->didr >> 24) & 0xf);
-		dpm->nwp = 1 + ((dpm->didr >> 28) & 0xf);
-	} else {
 		dpm->nbp = 1 + ((dpm->didr >> 12) & 0xf);
 		dpm->nwp = 1 + ((dpm->didr >> 20) & 0xf);
+	} else {
+		dpm->nbp = 1 + ((dpm->didr >> 24) & 0xf);
+		dpm->nwp = 1 + ((dpm->didr >> 28) & 0xf);
 	}
 
 	dpm->dbp = calloc(dpm->nbp, sizeof *dpm->dbp);
