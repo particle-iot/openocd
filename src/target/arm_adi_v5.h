@@ -156,6 +156,37 @@
 #define IDR_REV_SHIFT           (28)
 #define IDR_REV_MASK            (0xF << IDR_REV_SHIFT)
 
+
+/*
+ * CoreSight Component register addresses
+ */
+#define CS_REG_ITCTRL			(0xF00)	/* Integration Mode Control register */
+#define CS_REG_CLAIMSET			(0xFA0)	/* Claim Tag Set register */
+#define CS_REG_CLAIMCLR			(0xFA4)	/* Claim Tag Clear register */
+#define CS_REG_DEVAFF0			(0xFA8)	/* Device Affinity register 0 */
+#define CS_REG_DEVAFF1			(0xFAC)	/* Device Affinity register 1 */
+#define CS_REG_LAR			(0xFB0)	/* Lock Access Register */
+#define CS_REG_LSR			(0xFB4)	/* Lock Status Register */
+#define CS_REG_AUTHSTATUS		(0xFB8)	/* Authentication Status register */
+#define CS_REG_DEVARCH			(0xFBC)	/* Device Architecture register */
+#define CS_REG_DEVID2			(0xFC0)	/* Device ID register 2 */
+#define CS_REG_DEVID1			(0xFC4)	/* Device ID register 1 */
+#define CS_REG_DEVID			(0xFC8)	/* Device ID register */
+#define CS_REG_DEVTYPE			(0xFCC)	/* Device Type Identifier register */
+#define CS_REG_PIDR4			(0xFD0)	/* Peripheral Identification Registers */
+#define CS_REG_PIDR5			(0xFD4)	/*   PIDR0-PIDR7 */
+#define CS_REG_PIDR6			(0xFD8)
+#define CS_REG_PIDR7			(0xFDC)
+#define CS_REG_PIDR0			(0xFE0)
+#define CS_REG_PIDR1			(0xFE4)
+#define CS_REG_PIDR2			(0xFE8)
+#define CS_REG_PIDR3			(0xFEC)
+#define CS_REG_CIDR0			(0xFF0)	/* Component Identification Registers */
+#define CS_REG_CIDR1			(0xFF4)	/*   CIDR0-CIDR3 */
+#define CS_REG_CIDR2			(0xFF8)
+#define CS_REG_CIDR3			(0xFFC)
+
+
 typedef enum cid_class {	/* CID[15:12] */
 	CC_VERIFICATION		= 0x0,	/* Generic verification component */
 	CC_ROM			= 0x1,	/* ROM Table */
