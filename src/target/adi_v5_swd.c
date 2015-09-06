@@ -97,17 +97,53 @@ static int swd_run_inner(struct adiv5_dap *dap)
 	return retval;
 }
 
+static void swd_dap_display(enum log_levels level, const char *msg,
+	const char *name, uint32_t idcode)
+{
+	log_printf_lf(level, __FILE__, __LINE__, __func__,
+		"SWD tap: %s %16.16s: 0x%08" PRIx32,
+		name, msg,
+		idcode);
+}
+
+static bool swd_match_tap(const struct jtag_tap *tap)
+{
+	if (tap->expected_ids_cnt == 0)
+		return true;
+
+	uint32_t mask = ~0;
+	uint32_t idcode = tap->idcode & mask;
+
+	/* Loop over the expected identification codes and test for a match */
+	for (unsigned ii = 0; ii < tap->expected_ids_cnt; ii++) {
+		uint32_t expected = tap->expected_ids[ii] & mask;
+
+		if (idcode == expected)
+			return true;
+
+		/* Treat "-expected-id 0" as a "don't-warn" wildcard */
+		if (tap->expected_ids[ii] == 0)
+			return true;
+	}
+
+	/* If none of the expected IDs matched, warn */
+	swd_dap_display(LOG_LVL_WARNING, "UNEXPECTED",
+		tap->dotted_name, tap->idcode);
+	for (unsigned ii = 0; ii < tap->expected_ids_cnt; ii++) {
+		char msg[32];
+
+		snprintf(msg, sizeof(msg), "expected %u of %u",
+			ii + 1, tap->expected_ids_cnt);
+		swd_dap_display(LOG_LVL_ERROR, msg,
+			tap->dotted_name, tap->expected_ids[ii]);
+	}
+	return false;
+}
+
 static int swd_connect(struct adiv5_dap *dap)
 {
 	uint32_t idcode;
 	int status;
-
-	/* FIXME validate transport config ... is the
-	 * configured DAP present (check IDCODE)?
-	 * Is *only* one DAP configured?
-	 *
-	 * MUST READ IDCODE
-	 */
 
 	/* Note, debugport_init() does setup too */
 	jtag_interface->swd->switch_seq(dap, JTAG_TO_SWD);
@@ -124,6 +160,10 @@ static int swd_connect(struct adiv5_dap *dap)
 	if (status == ERROR_OK) {
 		LOG_INFO("SWD IDCODE %#8.8" PRIx32, idcode);
 		dap->jtag_info->tap->idcode = idcode;
+		if (!swd_match_tap(dap->jtag_info->tap)) {
+			dap->do_reconnect = true;
+			return ERROR_JTAG_INIT_SOFT_FAIL;
+		}
 		dap->do_reconnect = false;
 	} else
 		dap->do_reconnect = true;
