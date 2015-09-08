@@ -1463,7 +1463,7 @@ int target_call_event_callbacks(struct target *target, enum target_event event)
 		target_call_event_callbacks(target, TARGET_EVENT_GDB_HALT);
 	}
 
-	LOG_DEBUG("target event %i (%s)", event,
+	LOG_DEBUG("target %s event %i (%s)", target_name(target), event,
 			Jim_Nvp_value2name_simple(nvp_target_event, event)->name);
 
 	target_handle_event(target, event);
@@ -2592,9 +2592,9 @@ COMMAND_HANDLER(handle_reg_command)
 	unsigned count = 0;
 	char *value;
 
-	LOG_DEBUG("-");
-
 	target = get_current_target(CMD_CTX);
+
+	LOG_DEBUG("%s", target_name(target));
 
 	/* list all available registers for the current target */
 	if (CMD_ARGC == 0) {
