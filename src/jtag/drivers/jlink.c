@@ -218,6 +218,8 @@ static int jlink_get_status(void);
 static int jlink_swd_run_queue(struct adiv5_dap *dap);
 static void jlink_swd_queue_cmd(struct adiv5_dap *dap, uint8_t cmd, uint32_t *dst, uint32_t data);
 static int jlink_swd_switch_seq(struct adiv5_dap *dap, enum swd_special_seq seq);
+static void jlink_stableclocks(int num_cycles);
+
 
 /* J-Link tap buffer functions */
 static void jlink_tap_init(void);
@@ -374,10 +376,25 @@ static void jlink_execute_command(struct jtag_command *cmd)
 		case JTAG_SLEEP:
 			jlink_execute_sleep(cmd);
 			break;
-		default:
+      case JTAG_STABLECLOCKS:
+         jlink_stableclocks(cmd->cmd.stableclocks->num_cycles);
+		   break;
+      default:
 			LOG_ERROR("BUG: unknown JTAG command type encountered");
 			exit(-1);
 	}
+}
+
+static void jlink_stableclocks(int num_cycles)
+{
+   int i;
+   int tms = (tap_get_state() == TAP_RESET ? 1 : 0); 
+   jlink_tap_ensure_space(0, num_cycles);
+   for(i=0; i<num_cycles; i++) 
+   {
+      jlink_tap_append_step(tms, 0);
+   }
+
 }
 
 static int jlink_execute_queue(void)
