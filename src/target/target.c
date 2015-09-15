@@ -2614,7 +2614,7 @@ COMMAND_HANDLER(handle_reg_command)
 					value = buf_to_str(reg->value,
 							reg->size, 16);
 					command_print(CMD_CTX,
-							"(%i) %s (/%" PRIu32 "): 0x%s%s",
+							"(%2i) %4s (/%2" PRIu32 "): 0x%s%s",
 							count, reg->name,
 							reg->size, value,
 							reg->dirty
@@ -2622,7 +2622,7 @@ COMMAND_HANDLER(handle_reg_command)
 								: "");
 					free(value);
 				} else {
-					command_print(CMD_CTX, "(%i) %s (/%" PRIu32 ")",
+					command_print(CMD_CTX, "(%2i) %4s (/%2" PRIu32 "): (invalid)",
 							  count, reg->name,
 							  reg->size) ;
 				}
