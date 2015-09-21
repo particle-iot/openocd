@@ -13,8 +13,8 @@
  *   GNU General Public License for more details.                          *
  ***************************************************************************/
 
-#ifndef _OR1K_TAP_H_
-#define _OR1K_TAP_H_
+#ifndef OPENOCD_TARGET_OPENRISC_OR1K_TAP_H
+#define OPENOCD_TARGET_OPENRISC_OR1K_TAP_H
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -36,4 +36,4 @@ struct or1k_tap_ip {
 	const char *name;
 };
 
-#endif
+#endif /* OPENOCD_TARGET_OPENRISC_OR1K_TAP_H */

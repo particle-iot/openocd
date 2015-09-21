@@ -14,15 +14,13 @@
 *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
 *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
 *   GNU General Public License for more details.                          *
-*                                                                         *
-*   You should have received a copy of the GNU General Public License     *
-*   along with this program; if not, write to the                         *
-*   Free Software Foundation, Inc.,                                       *
-*   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.           *
+ *                                                                         *
+ *   You should have received a copy of the GNU General Public License     *
+ *   along with this program.  If not, see <http://www.gnu.org/licenses/>. *
 ***************************************************************************/
 
-#ifndef JTAG_H
-#define JTAG_H
+#ifndef OPENOCD_JTAG_JTAG_H
+#define OPENOCD_JTAG_JTAG_H
 
 #include <helper/binarybuffer.h>
 #include <helper/log.h>
@@ -648,4 +646,4 @@ bool transport_is_jtag(void);
 
 int jim_jtag_newtap(Jim_Interp *interp, int argc, Jim_Obj *const *argv);
 
-#endif /* JTAG_H */
+#endif /* OPENOCD_JTAG_JTAG_H */

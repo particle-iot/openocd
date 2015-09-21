@@ -17,8 +17,7 @@
  * General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St - Fifth Floor, Boston, MA 02110-1301 USA.
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  * Contact Information:
  * Intel Corporation
@@ -29,8 +28,9 @@
  * This is the interface to the probemode operations for Lakemont 1 (LMT1).
  */
 
-#ifndef LAKEMONT_H
-#define LAKEMONT_H
+#ifndef OPENOCD_TARGET_LAKEMONT_H
+#define OPENOCD_TARGET_LAKEMONT_H
+
 #include <jtag/jtag.h>
 #include <helper/types.h>
 
@@ -101,4 +101,4 @@ int lakemont_step(struct target *t, int current,
 int lakemont_reset_assert(struct target *t);
 int lakemont_reset_deassert(struct target *t);
 
-#endif /* LAKEMONT_H */
+#endif /* OPENOCD_TARGET_LAKEMONT_H */
