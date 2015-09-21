@@ -25,7 +25,6 @@ COMMAND_HANDLER(handle_foo_command)
 	if (CMD_ARGC < 1 || CMD_ARGC > 2)
 		return ERROR_COMMAND_SYNTAX_ERROR;
 
-
 	uint32_t address;
 	COMMAND_PARSE_NUMBER(u32, CMD_ARGV[0], address);
 
