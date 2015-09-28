@@ -117,8 +117,8 @@ static int adi_jtag_dp_scan(struct adiv5_dap *dap,
 	if ((instr == JTAG_DP_APACC)
 			&& ((reg_addr == AP_REG_DRW)
 				|| ((reg_addr & 0xF0) == AP_REG_BD0))
-			&& (dap->memaccess_tck != 0))
-		jtag_add_runtest(dap->memaccess_tck,
+			&& (dap->ap[dap->ap_current >> 24].memaccess_tck != 0))
+		jtag_add_runtest(dap->ap[dap->ap_current >> 24].memaccess_tck,
 				TAP_IDLE);
 
 	return ERROR_OK;
@@ -280,14 +280,14 @@ static int jtagdp_transaction_endcheck(struct adiv5_dap *dap)
 			 * MEM-AP access; but not if autoincrementing.
 			 * *Real* CSW and TAR values are always shown.
 			 */
-			if (dap->ap_tar_value != (uint32_t) -1)
+			if (dap->ap[dap->ap_current >> 24].tar_value != (uint32_t) -1)
 				LOG_DEBUG("MEM-AP Cached values: "
 					"ap_bank 0x%" PRIx32
 					", ap_csw 0x%" PRIx32
 					", ap_tar 0x%" PRIx32,
 					dap->ap_bank_value,
-					dap->ap_csw_value,
-					dap->ap_tar_value);
+					dap->ap[dap->ap_current >> 24].csw_value,
+					dap->ap[dap->ap_current >> 24].tar_value);
 
 			if (ctrlstat & SSTICKYORUN)
 				LOG_ERROR("JTAG-DP OVERRUN - check clock, "
