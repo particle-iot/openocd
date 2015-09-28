@@ -2323,6 +2323,36 @@ COMMAND_HANDLER(handle_cortex_m_reset_config_command)
 	return ERROR_OK;
 }
 
+COMMAND_HANDLER(handle_cortex_m_access_port_command)
+{
+	struct target *target = get_current_target(CMD_CTX);
+	struct cortex_m_common *cortex_m = target_to_cm(target);
+	int retval;
+	uint32_t apsel;
+
+	retval = cortex_m_verify_pointer(CMD_CTX, cortex_m);
+	if (retval != ERROR_OK)
+		return retval;
+
+	switch (CMD_ARGC) {
+	case 0:
+		apsel = cortex_m->armv7m.debug_ap;
+		break;
+	case 1:
+		COMMAND_PARSE_NUMBER(u32, CMD_ARGV[0], apsel);
+		if (apsel >= 256)
+			return ERROR_COMMAND_SYNTAX_ERROR;
+		cortex_m->armv7m.debug_ap = apsel;
+		break;
+	default:
+		return ERROR_COMMAND_SYNTAX_ERROR;
+	}
+
+	command_print(CMD_CTX, "ap %" PRIi32 " selected", apsel);
+
+	return ERROR_OK;
+}
+
 static const struct command_registration cortex_m_exec_command_handlers[] = {
 	{
 		.name = "maskisr",
@@ -2344,6 +2374,13 @@ static const struct command_registration cortex_m_exec_command_handlers[] = {
 		.mode = COMMAND_ANY,
 		.help = "configure software reset handling",
 		.usage = "['srst'|'sysresetreq'|'vectreset']",
+	},
+	{
+		.name = "access_port",
+		.handler = handle_cortex_m_access_port_command,
+		.mode = COMMAND_ANY,
+		.help = "set the AP",
+		.usage = "ap_number",
 	},
 	COMMAND_REGISTRATION_DONE
 };
