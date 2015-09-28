@@ -692,7 +692,7 @@ int mem_ap_read_cid(
 
 	/* Verification: Some PIDR/CIDR have fixed values */
 	if (is_cid_valid(CID)) {
-		mem_ap_interpret_cid(CID);
+//		mem_ap_interpret_cid(CID);
 	} else {
 		/* non-fatal error, just logging */
 		LOG_ERROR("PID/CID invalid (non-fatal)");
@@ -777,11 +777,11 @@ int mem_ap_read_pid_cid(
 	CID <<= 8;	CID |= (CIDR[1] & 0xFF);
 	CID <<= 8;	CID |= (CIDR[0] & 0xFF);
 
-	LOG_DEBUG("PID=0x%.*" PRIX64 ", CID=%08X", 16, PID, CID);
+//	LOG_DEBUG("PID=0x%.*" PRIX64 ", CID=%08X", 16, PID, CID);
 
 	/* Verification: Some PIDR/CIDR have fixed values */
 	if (is_pid_cid_valid(PID, CID)) {
-		mem_ap_interpret_pid_cid(PID, CID);
+//		mem_ap_interpret_pid_cid(PID, CID);
 	} else {
 		/* non-fatal error, just logging */
 		LOG_ERROR("PID/CID invalid (non-fatal)");
@@ -1938,9 +1938,11 @@ int dap_romtable_lookup_cs_component(
 		if (retval != ERROR_OK)
 			continue;
 
+/*
 		LOG_DEBUG("---- Entry[0x%03X/0x%" PRIXMAX "] = 0x%08x %s",
 			entry_offset, rombase, romentry,
 			(romentry==0x0 ? "(end of table)" : ""));
+*/
 
 		if (romentry == 0x0)	/* Table end marker */
 			break;
@@ -1967,9 +1969,11 @@ int dap_romtable_lookup_cs_component(
 		if (! entry.format)	/* Not a 32-bit ROM entry format */
 			continue;
 
+/*
 		LOG_DEBUG("ofst=0x%08x, pwrID=0x%x(valid=%d)",
 			entry.addr_ofst,
 			entry.power_domain_id, entry.power_domain_id_valid);
+*/
 
 
 		/* 10.2.1 Component descriptions and the component base address */
@@ -1984,7 +1988,7 @@ int dap_romtable_lookup_cs_component(
 
 		/* find the 1st 4KB address (true component base address ) */
 		component_base -= 0x1000 * (get_pid_4k_count(entry.PID) - 1);
-		LOG_DEBUG("base(1st 4KB)=0x%.16" PRIxMAX, component_base);
+//		LOG_DEBUG("base(1st 4KB)=0x%.16" PRIxMAX, component_base);
 
 		switch (get_cid_class(entry.CID))
 		{
