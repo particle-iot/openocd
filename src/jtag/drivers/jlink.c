@@ -1728,7 +1728,7 @@ skip:
 static void jlink_swd_queue_cmd(struct adiv5_dap *dap, uint8_t cmd, uint32_t *dst, uint32_t data)
 {
 	uint8_t data_parity_trn[DIV_ROUND_UP(32 + 1, 8)];
-	if (tap_length + 46 + 8 + dap->memaccess_tck >= sizeof(tdi_buffer) * 8 ||
+	if (tap_length + 46 + 8 + dap->ap[dap->ap_current >> 24].memaccess_tck >= sizeof(tdi_buffer) * 8 ||
 	    pending_scan_results_length == MAX_PENDING_SCAN_RESULTS) {
 		/* Not enough room in the queue. Run the queue. */
 		queued_retval = jlink_swd_run_queue(dap);
@@ -1764,7 +1764,7 @@ static void jlink_swd_queue_cmd(struct adiv5_dap *dap, uint8_t cmd, uint32_t *ds
 
 	/* Insert idle cycles after AP accesses to avoid WAIT */
 	if (cmd & SWD_CMD_APnDP)
-		jlink_queue_data_out(NULL, dap->memaccess_tck);
+		jlink_queue_data_out(NULL, dap->ap[dap->ap_current >> 24].memaccess_tck);
 }
 
 /*****************************************************************************/
