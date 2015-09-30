@@ -1,0 +1,8 @@
+Verified+1: jenkins
+Code-Review+1: Andreas Färber <afaerber@suse.de>
+Code-Review+2: Spencer Oliver <spen@spen-soft.co.uk>
+Submitted-by: Spencer Oliver <spen@spen-soft.co.uk>
+Submitted-at: Wed, 30 Sep 2015 22:47:27 +0100
+Reviewed-on: http://openocd.zylin.com/2953
+Project: openocd
+Branch: refs/heads/master
