@@ -456,7 +456,7 @@ static int aarch64_instr_write_data_r0(struct arm_dpm *dpm,
 	return retval;
 }
 
-static int aarch64_instr_write_data_r0_64(struct arm_dpm *dpm,
+static int aarch64_instr_write_data_x0(struct arm_dpm *dpm,
 	uint32_t opcode, uint64_t data)
 {
 	struct aarch64_common *a8 = dpm_to_a8(dpm);
@@ -556,7 +556,7 @@ static int aarch64_instr_read_data_r0(struct arm_dpm *dpm,
 	return aarch64_read_dcc(a8, data, &dscr);
 }
 
-static int aarch64_instr_read_data_r0_64(struct arm_dpm *dpm,
+static int aarch64_instr_read_data_x0(struct arm_dpm *dpm,
 	uint32_t opcode, uint64_t *data)
 {
 	struct aarch64_common *a8 = dpm_to_a8(dpm);
@@ -656,13 +656,13 @@ static int aarch64_dpm_setup(struct aarch64_common *a8, uint32_t debug)
 	dpm->instr_write_data_dcc = aarch64_instr_write_data_dcc;
 	dpm->instr_write_data_dcc_64 = aarch64_instr_write_data_dcc_64;
 	dpm->instr_write_data_r0 = aarch64_instr_write_data_r0;
-	dpm->instr_write_data_r0_64 = aarch64_instr_write_data_r0_64;
+	dpm->instr_write_data_x0 = aarch64_instr_write_data_x0;
 	dpm->instr_cpsr_sync = aarch64_instr_cpsr_sync;
 
 	dpm->instr_read_data_dcc = aarch64_instr_read_data_dcc;
 	dpm->instr_read_data_dcc_64 = aarch64_instr_read_data_dcc_64;
 	dpm->instr_read_data_r0 = aarch64_instr_read_data_r0;
-	dpm->instr_read_data_r0_64 = aarch64_instr_read_data_r0_64;
+	dpm->instr_read_data_x0 = aarch64_instr_read_data_x0;
 
 	dpm->bpwp_enable = aarch64_bpwp_enable;
 	dpm->bpwp_disable = aarch64_bpwp_disable;

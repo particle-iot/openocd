@@ -206,15 +206,15 @@ static int dpm_read_reg64(struct arm_dpm *dpm, struct reg *r, unsigned regnum)
 			break;
 		case 31: /* SP */
 			i = 0x910003e0;
-			retval = dpm->instr_read_data_r0_64(dpm, i, &value);
+			retval = dpm->instr_read_data_x0(dpm, i, &value);
 			break;
 		case 32: /* PC */
 			i = 0xd53b4520;
-			retval = dpm->instr_read_data_r0_64(dpm, i, &value);
+			retval = dpm->instr_read_data_x0(dpm, i, &value);
 			break;
 		case 33: /* CPSR */
 			i = 0xd53b4500;
-			retval = dpm->instr_read_data_r0_64(dpm, i, &value);
+			retval = dpm->instr_read_data_x0(dpm, i, &value);
 			break;
 
 		default:
@@ -294,7 +294,7 @@ static int dpm_write_reg64(struct arm_dpm *dpm, struct reg *r, unsigned regnum)
 			break;
 		case 32: /* PC */
 			i = 0xd51b4520;
-			retval = dpm->instr_write_data_r0_64(dpm, i, value);
+			retval = dpm->instr_write_data_x0(dpm, i, value);
 			break;
 		default:
 			LOG_DEBUG("register %s (%16.16llx) not defined", r->name,
