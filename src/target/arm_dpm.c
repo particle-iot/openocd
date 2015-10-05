@@ -319,13 +319,19 @@ static int dpm_write_reg(struct arm_dpm *dpm, struct reg *r, unsigned regnum)
 		return dpm_write_reg32(dpm, r, regnum);
 }
 
-static int arm_dpm_read_current_registers_i(struct arm_dpm *dpm)
+/**
+ * Read basic registers of the the current context:  R0 to R15, and CPSR;
+ * sets the core mode (such as USR or IRQ) and state (such as ARM or Thumb).
+ * In normal operation this is called on entry to halting debug state,
+ * possibly after some other operations supporting restore of debug state
+ * or making sure the CPU is fully idle (drain write buffer, etc).
+ */
+int arm_dpm_read_current_registers(struct arm_dpm *dpm)
 {
 	struct arm *arm = dpm->arm;
-	uint32_t cpsr, instr, core_regs;
+	uint32_t cpsr;
 	int retval;
 	struct reg *r;
-	enum arm_state core_state = arm->core_state;
 
 	retval = dpm->prepare(dpm);
 	if (retval != ERROR_OK)
@@ -340,25 +346,16 @@ static int arm_dpm_read_current_registers_i(struct arm_dpm *dpm)
 	}
 	r->dirty = true;
 
-	if (core_state == ARM_STATE_AARCH64)
-		instr = 0xd53b4500;  /* mrs x0, dspsr_el0 */
-	else
-		instr = ARMV4_5_MRS(0, 0);
-	retval = dpm->instr_read_data_r0(dpm, instr, &cpsr);
+	retval = dpm->instr_read_data_r0(dpm, ARMV4_5_MRS(0, 0), &cpsr);
 	if (retval != ERROR_OK)
 		goto fail;
 
 	/* update core mode and state, plus shadow mapping for R8..R14 */
 	arm_set_cpsr(arm, cpsr);
-	if (core_state == ARM_STATE_AARCH64)
-		/* arm_set_cpsr changes core_state, restore it for now */
-		arm->core_state = ARM_STATE_AARCH64;
-
-	core_regs = arm->core_cache->num_regs;
 
 	/* REVISIT we can probably avoid reading R1..R14, saving time... */
-	for (unsigned i = 1; i < core_regs; i++) {
-		r = dpm->arm_reg_current(arm, i);
+	for (unsigned i = 1; i < arm->core_cache->num_regs; i++) {
+		r = arm_reg_current(arm, i);
 		if (r->valid)
 			continue;
 
@@ -379,21 +376,70 @@ fail:
 	return retval;
 }
 
-/**
- * Read basic registers of the the current context:  R0 to R15, and CPSR;
- * sets the core mode (such as USR or IRQ) and state (such as ARM or Thumb).
- * In normal operation this is called on entry to halting debug state,
- * possibly after some other operations supporting restore of debug state
- * or making sure the CPU is fully idle (drain write buffer, etc).
- */
-int arm_dpm_read_current_registers(struct arm_dpm *dpm)
-{
-	return arm_dpm_read_current_registers_i(dpm);
-}
-
 int arm_dpm_read_current_registers_64(struct arm_dpm *dpm)
 {
-	return arm_dpm_read_current_registers_i(dpm);
+	struct arm *arm = dpm->arm;
+//	uint32_t cpsr, instr;
+	int retval;
+	struct reg *r;
+//	enum arm_state core_state = arm->core_state;
+
+	retval = dpm->prepare(dpm);
+	if (retval != ERROR_OK)
+		return retval;
+
+	/* read X0 first (it's used for scratch), then CPSR */
+	r = arm->core_cache->reg_list + 0;
+	if (!r->valid) {
+		retval = dpm_read_reg(dpm, r, 0);
+		if (retval != ERROR_OK)
+			goto fail;
+	}
+	r->dirty = true;
+
+	LOG_DEBUG("Alamy: CPSR is AArch32 mode register, use PSTATE elements");
+#if 0
+	/* Alamy: CPSR is AArch32 mode register.
+		In AArch64, use PSTATE elements to get processor state */
+LOG_DEBUG("is_aarch64 is %d. core_state is %d", is_aarch64(arm->target), core_state);
+	if (core_state == ARM_STATE_AARCH64)
+//		instr = 0xd53b4500;  /* mrs x0, dspsr_el0 */
+		instr = ARMV8_MRS_DSPSR(0);		// Alamy: from Vichy's armv8_dpm.c
+	else
+		instr = ARMV4_5_MRS(0, 0);
+	retval = dpm->instr_read_data_r0(dpm, instr, &cpsr);
+	if (retval != ERROR_OK)
+		goto fail;
+
+LOG_DEBUG("instr64 = 0x%08x, CPSR = 0x%08x", instr, cpsr);
+	/* update core mode and state, plus shadow mapping for R8..R14 */
+	arm_set_cpsr(arm, cpsr);
+	if (core_state == ARM_STATE_AARCH64)
+		/* arm_set_cpsr changes core_state, restore it for now */
+		arm->core_state = ARM_STATE_AARCH64;
+#endif
+
+	/* REVISIT we can probably avoid reading R1..R14, saving time... */
+	for (unsigned i = 1; i < arm->core_cache->num_regs; i++) {
+		r = armv8_reg_current(arm, i);
+		if (r->valid)
+			continue;
+
+		retval = dpm_read_reg(dpm, r, i);
+		if (retval != ERROR_OK)
+			goto fail;
+	}
+
+	/* NOTE: SPSR ignored (if it's even relevant). */
+
+	/* REVISIT the debugger can trigger various exceptions.  See the
+	 * ARMv7A architecture spec, section C5.7, for more info about
+	 * what defenses are needed; v6 debug has the most issues.
+	 */
+
+fail:
+	/* (void) */ dpm->finish(dpm);
+	return retval;
 }
 
 /* Avoid needless I/O ... leave breakpoints and watchpoints alone
@@ -1139,10 +1185,6 @@ int arm_dpm_setup(struct arm_dpm *dpm)
 	/* watchpoint setup */
 	TYPE_FUNC_SET(add_watchpoint,	 dpm_add_watchpoint,	dpm_add_watchpoint);
 	TYPE_FUNC_SET(remove_watchpoint, dpm_remove_watchpoint, dpm_remove_watchpoint);
-
-
-	if (dpm->arm_reg_current == 0)
-		dpm->arm_reg_current = arm_reg_current;
 
 	/* FIXME add vector catch support */
 

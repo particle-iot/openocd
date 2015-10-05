@@ -105,9 +105,6 @@ struct arm_dpm {
 	int (*instr_read_data_x0)(struct arm_dpm *,
 			uint32_t opcode, uint64_t *data);
 
-	struct reg *(*arm_reg_current)(struct arm *arm,
-			unsigned regnum);
-
 	/* BREAKPOINT/WATCHPOINT SUPPORT */
 
 	/**

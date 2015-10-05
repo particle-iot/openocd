@@ -671,8 +671,6 @@ static int aarch64_dpm_setup(struct aarch64_common *a8, uint32_t debug)
 	if (retval != ERROR_OK)
 		return retval;
 
-	dpm->arm_reg_current = armv8_reg_current;
-
 	retval = arm_dpm_initialize(dpm);
 
 	return retval;
