@@ -35,6 +35,7 @@ extern struct rtos_type ChibiOS_rtos;
 extern struct rtos_type embKernel_rtos;
 extern struct rtos_type mqx_rtos;
 extern struct rtos_type uCOS_III_rtos;
+extern struct rtos_type riot_rtos;
 
 static struct rtos_type *rtos_types[] = {
 	&ThreadX_rtos,
@@ -45,6 +46,7 @@ static struct rtos_type *rtos_types[] = {
 	&embKernel_rtos,
 	&mqx_rtos,
 	&uCOS_III_rtos,
+	&riot_rtos,
 	NULL
 };
 
@@ -513,7 +515,7 @@ int rtos_generic_stack_read(struct target *target,
 		}
 	}
 	free(stack_data);
-/*	LOG_OUTPUT("Output register string: %s\r\n", *hex_reg_list); */
+/*	LOG_OUTPUT("Output register string: %s\r\n", *hex_reg_list);*/
 	return ERROR_OK;
 }
 
