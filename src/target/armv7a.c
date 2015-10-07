@@ -169,7 +169,7 @@ static int armv7a_read_ttbcr(struct target *target)
 		 * ARM Architecture Reference Manual (ARMv7-A and ARMv7-Redition),
 		 * document # ARM DDI 0406C
 		 */
-		armv7a->armv7a_mmu.ttbr0_mask  = 1 << (14 - ((ttbcr & 0x7)));
+		armv7a->armv7a_mmu.ttbr0_mask  = (1ULL << (32 - ((ttbcr & 0x7)))) - 1;
 	} else {
 		/*  ARM DDI 0344H , ARM DDI 0407F */
 		armv7a->armv7a_mmu.ttbr0_mask  = 7 << (32 - ((ttbcr & 0x7)));
