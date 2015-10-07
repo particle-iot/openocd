@@ -136,9 +136,6 @@ struct arm_dpm {
 	/** Address of the instruction which triggered a watchpoint. */
 	uint32_t wp_pc;
 
-	/** Recent value of DSCR. */
-	uint32_t dscr;
-
 	/* FIXME -- read/write DCSR methods and symbols */
 };
 

@@ -1110,8 +1110,6 @@ void arm_dpm_report_dscr(struct arm_dpm *dpm, uint32_t dscr)
 {
 	struct target *target = dpm->arm->target;
 
-	dpm->dscr = dscr;
-
 	/* Examine debug reason */
 	switch (DSCR_ENTRY(dscr)) {
 		case 6:	/* Data abort (v6 only) */
