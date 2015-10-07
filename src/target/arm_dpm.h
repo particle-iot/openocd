@@ -207,6 +207,7 @@ void arm_dpm_report_wfar(struct arm_dpm *, uint32_t wfar);
 
 
 void arm_dpm_report_dscr(struct arm_dpm *dpm, uint32_t dcsr);
+enum target_debug_reason armv8_edscr_debug_reason(uint32_t edscr);
 
 
 #endif /* __ARM_DPM_H */

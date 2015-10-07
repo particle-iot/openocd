@@ -1139,11 +1139,7 @@ static int aarch64_debug_entry(struct target *target)
 #endif
 
 	/* Examine debug reason */
-	arm_dpm_report_dscr(&armv8->dpm, aarch64->cpudbg_edscr);
-	mem_ap_sel_read_atomic_u32(swjdp, armv8->debug_ap,
-				   armv8->debug_base + CPUDBG_DESR, &tmp);
-	if ((tmp & 0x7) == 0x4)
-		target->debug_reason = DBG_REASON_SINGLESTEP;
+	target->debug_reason = armv8_edscr_debug_reason(aarch64->cpudbg_edscr);
 
 	/* save address of instruction that triggered the watchpoint? */
 	if (target->debug_reason == DBG_REASON_WATCHPOINT) {

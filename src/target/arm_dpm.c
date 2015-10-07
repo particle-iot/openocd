@@ -22,6 +22,7 @@
 #endif
 
 #include "arm.h"
+#include "armv8.h"
 #include "arm_dpm.h"
 #include <jtag/jtag.h>
 #include "register.h"
@@ -1132,6 +1133,63 @@ void arm_dpm_report_dscr(struct arm_dpm *dpm, uint32_t dscr)
 			target->debug_reason = DBG_REASON_UNDEFINED;
 			break;
 	}
+}
+
+enum target_debug_reason armv8_edscr_debug_reason(uint32_t edscr)
+{
+	enum target_debug_reason reason = DBG_REASON_UNDEFINED;
+
+	switch (EDSCR_STATUS(edscr)) {
+	case ARMV8_EDSCR_STATUS_NDBG:		/* Non-debug */
+	case ARMV8_EDSCR_STATUS_RESTART:	/* Restarting */
+		reason = DBG_REASON_NOTHALTED;
+		break;
+
+	case ARMV8_EDSCR_STATUS_EDBGRQ:		/* External debug request */
+		reason = DBG_REASON_DBGRQ;
+		break;
+
+	case ARMV8_EDSCR_STATUS_BP:			/* Breakpoint */
+		reason = DBG_REASON_BREAKPOINT;
+		break;
+
+	case ARMV8_EDSCR_STATUS_WP:			/* Watchpoint */
+		reason = DBG_REASON_WATCHPOINT;
+		break;
+
+	case ARMV8_EDSCR_STATUS_HALT_NORM:	/* Step, normal */
+	case ARMV8_EDSCR_STATUS_HALT_EXCL:	/* Step, exclusive */
+	case ARMV8_EDSCR_STATUS_HALT_NOSYND:/* Step, no syndrome */
+		reason = DBG_REASON_SINGLESTEP;
+		break;
+
+	case ARMV8_EDSCR_STATUS_OS_UL:		/* OS unlock catch */
+		reason = DBG_REASON_OSUL;
+		break;
+
+	case ARMV8_EDSCR_STATUS_RESET:		/* Reset catch */
+		reason = DBG_REASON_RESET;
+		break;
+
+	case ARMV8_EDSCR_STATUS_HLT:		/* HLT instruction */
+		reason = DBG_REASON_HLT;
+		break;
+
+	case ARMV8_EDSCR_STATUS_SW_ACC:		/* Software access to debug register */
+		reason = DBG_REASON_SWACC;
+		break;
+
+	case ARMV8_EDSCR_STATUS_EXCP:		/* Exception catch */
+		reason = DBG_REASON_EXCP;
+		break;
+
+	default:
+		/* We don't really need this as the value had been pre-assigned */
+		reason = DBG_REASON_UNDEFINED;
+		break;
+	}	// end of switch()
+
+	return reason;
 }
 
 /*----------------------------------------------------------------------*/

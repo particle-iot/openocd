@@ -78,6 +78,10 @@ enum target_reset_mode {
 	RESET_INIT = 3,		/* reset and halt target out of reset, then run init script */
 };
 
+/*
+ * Mapping of DSCR.STATUS, bits[5:0]
+ * See arm_dpm.c::arm_dpm_report_dscr()
+ */
 enum target_debug_reason {
 	DBG_REASON_DBGRQ = 0,
 	DBG_REASON_BREAKPOINT = 1,
@@ -86,7 +90,12 @@ enum target_debug_reason {
 	DBG_REASON_SINGLESTEP = 4,
 	DBG_REASON_NOTHALTED = 5,
 	DBG_REASON_EXIT = 6,
-	DBG_REASON_UNDEFINED = 7,
+	DBG_REASON_OSUL = 7,			/* ARMv8: OS Unlock catch */
+	DBG_REASON_RESET = 8,			/* ARMv8: Reset catch */
+	DBG_REASON_HLT = 9,				/* ARMv8: HLT instruction */
+	DBG_REASON_SWACC = 10,			/* ARMv8: Software access to debug register */
+	DBG_REASON_EXCP = 11,			/* ARMv8: Exception catch */
+	DBG_REASON_UNDEFINED = 12,
 };
 
 enum target_endianness {
