@@ -728,11 +728,26 @@ struct reg_cache *armv8_build_reg_cache(struct target *target)
 	return cache;
 }
 
-struct reg *armv8_reg_current(struct arm *arm, unsigned regnum)
+/*
+ * Returns handle to the register currently mapped to a given number.
+ *
+ * \param arm This core's state and registers are used.
+ * \param regnum From <AARCH64_X0..AARCH64_REG_NUM) corresponding to
+ *   X0..X30: General Registers
+ *   SP     : Stack pointer
+ *   PC     : Program counter
+ *   PSTATE : Processor state (SPSR)
+ *
+ * WARNING: This function does NOT consider AArch32 state ... yet.
+ */
+struct reg *armv8_get_reg_by_num(struct arm *arm, unsigned regnum)
 {
 	struct reg *r;
 
-	if (regnum > 33)
+	/* reg_list is allocated in armv8_build_reg_cache()
+	 * make sure we don't have a violation accessing to the array
+	 */
+	if (regnum >= arm->core_cache->num_regs)
 		return NULL;
 
 	r = arm->core_cache->reg_list + regnum;
@@ -761,7 +776,7 @@ int armv8_get_gdb_reg_list(struct target *target,
 		*reg_list = malloc(sizeof(struct reg *) * (*reg_list_size));
 
 		for (i = 0; i < *reg_list_size; i++)
-				(*reg_list)[i] = armv8_reg_current(arm, i);
+				(*reg_list)[i] = armv8_get_reg_by_num(arm, i);
 
 		return ERROR_OK;
 		break;

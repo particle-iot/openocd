@@ -1751,10 +1751,10 @@ static int aarch64_write_apb_ab_memory(struct target *target,
 	 * It will be restored automatically when exiting
 	 * debug mode
 	 */
-	reg = armv8_reg_current(arm, 1);
+	reg = armv8_get_reg_by_num(arm, 1);
 	reg->dirty = true;
 
-	reg = armv8_reg_current(arm, 0);
+	reg = armv8_get_reg_by_num(arm, 0);
 	reg->dirty = true;
 
 	/*  clear any abort  */
@@ -1900,10 +1900,10 @@ static int aarch64_read_apb_ab_memory(struct target *target,
 	 * It will be restored automatically when exiting
 	 * debug mode
 	 */
-	reg = armv8_reg_current(arm, 1);
+	reg = armv8_get_reg_by_num(arm, 1);
 	reg->dirty = true;
 
-	reg = armv8_reg_current(arm, 0);
+	reg = armv8_get_reg_by_num(arm, 0);
 	reg->dirty = true;
 
 	/*  clear any abort  */

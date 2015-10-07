@@ -390,7 +390,7 @@ int arm_dpm_read_current_registers_64(struct arm_dpm *dpm)
 		return retval;
 
 	/* read X0 first (it's used for scratch), then CPSR */
-	r = arm->core_cache->reg_list + 0;
+	r = armv8_get_reg_by_num(arm, 0);
 	if (!r->valid) {
 		retval = dpm_read_reg(dpm, r, 0);
 		if (retval != ERROR_OK)
@@ -422,7 +422,7 @@ LOG_DEBUG("instr64 = 0x%08x, CPSR = 0x%08x", instr, cpsr);
 
 	/* REVISIT we can probably avoid reading R1..R14, saving time... */
 	for (unsigned i = 1; i < arm->core_cache->num_regs; i++) {
-		r = armv8_reg_current(arm, i);
+		r = armv8_get_reg_by_num(arm, i);
 		if (r->valid)
 			continue;
 

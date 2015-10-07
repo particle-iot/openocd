@@ -242,7 +242,8 @@ int arm_blank_check_memory(struct target *target,
 
 void arm_set_cpsr(struct arm *arm, uint32_t cpsr);
 struct reg *arm_reg_current(struct arm *arm, unsigned regnum);
-struct reg *armv8_reg_current(struct arm *arm, unsigned regnum);
+struct reg *armv8_get_reg_by_num(struct arm *arm, unsigned regnum);
+#define	armv8_reg_current	armv8_get_reg_by_num	/* depreciated */
 
 extern struct reg arm_gdb_dummy_fp_reg;
 extern struct reg arm_gdb_dummy_fps_reg;
