@@ -584,6 +584,7 @@ int armv8_arch_state(struct target *target)
 	return ERROR_OK;
 }
 
+#if 0
 static const struct {
 	unsigned id;
 	const char *name;
@@ -629,8 +630,69 @@ static const struct {
 
 	{ ARMV8_xPSR, "CPSR", 64, REG_TYPE_INT, "general", "org.gnu.gdb.aarch64.core" },
 };
+#endif
 
-#define ARMV8_NUM_REGS ARRAY_SIZE(armv8_regs)
+static const struct {
+	unsigned id;
+	const char *name;
+//	unsigned bits;
+	enum reg_type type;
+	const char *group;
+	const char *feature;
+} armv8_regs[] = {
+	/* ARMv8 has AArch64 & AArch32 modes
+	 * Here we only define AArch64 registers, must find a way for AArch32 registers
+	 */
+	{ AARCH64_X0,   "X0", REG_TYPE_UINT64, "general", "org.gnu.gdb.aarch64.core" },
+	{ AARCH64_X1,   "X1", REG_TYPE_UINT64, "general", "org.gnu.gdb.aarch64.core" },
+	{ AARCH64_X2,   "X2", REG_TYPE_UINT64, "general", "org.gnu.gdb.aarch64.core" },
+	{ AARCH64_X3,   "X3", REG_TYPE_UINT64, "general", "org.gnu.gdb.aarch64.core" },
+	{ AARCH64_X4,   "X4", REG_TYPE_UINT64, "general", "org.gnu.gdb.aarch64.core" },
+	{ AARCH64_X5,   "X5", REG_TYPE_UINT64, "general", "org.gnu.gdb.aarch64.core" },
+	{ AARCH64_X6,   "X6", REG_TYPE_UINT64, "general", "org.gnu.gdb.aarch64.core" },
+	{ AARCH64_X7,   "X7", REG_TYPE_UINT64, "general", "org.gnu.gdb.aarch64.core" },
+	{ AARCH64_X8,   "X8", REG_TYPE_UINT64, "general", "org.gnu.gdb.aarch64.core" },
+	{ AARCH64_X9,   "X9", REG_TYPE_UINT64, "general", "org.gnu.gdb.aarch64.core" },
+	{ AARCH64_X10, "X10", REG_TYPE_UINT64, "general", "org.gnu.gdb.aarch64.core" },
+	{ AARCH64_X11, "X11", REG_TYPE_UINT64, "general", "org.gnu.gdb.aarch64.core" },
+	{ AARCH64_X12, "X12", REG_TYPE_UINT64, "general", "org.gnu.gdb.aarch64.core" },
+	{ AARCH64_X13, "X13", REG_TYPE_UINT64, "general", "org.gnu.gdb.aarch64.core" },
+	{ AARCH64_X14, "X14", REG_TYPE_UINT64, "general", "org.gnu.gdb.aarch64.core" },
+	{ AARCH64_X15, "X15", REG_TYPE_UINT64, "general", "org.gnu.gdb.aarch64.core" },
+	{ AARCH64_X16, "X16", REG_TYPE_UINT64, "general", "org.gnu.gdb.aarch64.core" },
+	{ AARCH64_X17, "X17", REG_TYPE_UINT64, "general", "org.gnu.gdb.aarch64.core" },
+	{ AARCH64_X18, "X18", REG_TYPE_UINT64, "general", "org.gnu.gdb.aarch64.core" },
+	{ AARCH64_X19, "X19", REG_TYPE_UINT64, "general", "org.gnu.gdb.aarch64.core" },
+	{ AARCH64_X20, "X20", REG_TYPE_UINT64, "general", "org.gnu.gdb.aarch64.core" },
+	{ AARCH64_X21, "X21", REG_TYPE_UINT64, "general", "org.gnu.gdb.aarch64.core" },
+	{ AARCH64_X22, "X22", REG_TYPE_UINT64, "general", "org.gnu.gdb.aarch64.core" },
+	{ AARCH64_X23, "X23", REG_TYPE_UINT64, "general", "org.gnu.gdb.aarch64.core" },
+	{ AARCH64_X24, "X24", REG_TYPE_UINT64, "general", "org.gnu.gdb.aarch64.core" },
+	{ AARCH64_X25, "X25", REG_TYPE_UINT64, "general", "org.gnu.gdb.aarch64.core" },
+	{ AARCH64_X26, "X26", REG_TYPE_UINT64, "general", "org.gnu.gdb.aarch64.core" },
+	{ AARCH64_X27, "X27", REG_TYPE_UINT64, "general", "org.gnu.gdb.aarch64.core" },
+	{ AARCH64_X28, "X28", REG_TYPE_UINT64, "general", "org.gnu.gdb.aarch64.core" },
+	{ AARCH64_X29, "X29", REG_TYPE_UINT64, "general", "org.gnu.gdb.aarch64.core" },
+	{ AARCH64_X30, "X30", REG_TYPE_UINT64, "general", "org.gnu.gdb.aarch64.core" },
+
+	/* Special registers */
+	/*
+		Zero register:			XZR(64-bit) / WZR(32-bit)
+		Program counter:		PC
+		Stack pointer:			SP_EL0		SP_EL1		SP_EL2		SP_EL3
+		Program Status register:			SPSR_EL1	SPSR_EL2	SPSR_EL3
+		Exception Link register				ELR_EL1		ELR_EL2		ELR_EL3
+	*/
+
+	{ AARCH64_SP,  "SP", REG_TYPE_DATA_PTR, "general", "org.gnu.gdb.aarch64.core" },
+	{ AARCH64_PC,  "PC", REG_TYPE_CODE_PTR, "general", "org.gnu.gdb.aarch64.core" },
+
+	/* ***** WARNING: it's 32-bit register, but there is problem to call
+	 * dpm_read_reg32() */
+	{ AARCH64_PSTATE, "SPSR", REG_TYPE_UINT64, "general", "org.gnu.gdb.aarch64.core" },
+};
+
+#define ARMV8_NUM_REGS	ARRAY_SIZE(armv8_regs)
 
 
 static int armv8_get_core_reg(struct reg *reg)
@@ -721,8 +783,8 @@ struct reg_cache *armv8_build_reg_cache(struct target *target)
 			LOG_ERROR("unable to allocate reg type list");
 	}
 
-	arm->cpsr = reg_list + ARMV8_xPSR;
-	arm->pc = reg_list + ARMV8_PC;
+	arm->pc   = reg_list + AARCH64_PC;
+	arm->spsr = reg_list + AARCH64_PSTATE,
 	arm->core_cache = cache;
 
 	return cache;

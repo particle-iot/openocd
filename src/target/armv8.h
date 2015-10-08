@@ -338,7 +338,7 @@
 /* ARM CoreSight component has 0xF00..0xFFF implemented */
 
 
-
+#if 0
 enum {
 	ARMV8_R0,
 	ARMV8_R1,
@@ -378,6 +378,7 @@ enum {
 
 	ARMV8_LAST_REG,
 };
+#endif
 
 enum {
 	/* AArch32: 13 32-bit general purpose registers, and a 32-bit PC, SP,
