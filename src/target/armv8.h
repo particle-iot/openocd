@@ -474,6 +474,56 @@ target_to_armv8(struct target *target)
 	return container_of(target->arch_info, struct armv8_common, arm);
 }
 
+static inline enum arm_state armv8_edscr_to_core_state(uint32_t edscr)
+{
+	uint8_t	edscr_rw = EDSCR_RW(edscr);
+	uint8_t edscr_el = EDSCR_EL(edscr);
+
+	/* In Debug state, each bit gives the current Execution state of each EL */
+	if ((edscr_rw >> edscr_el) & 0b1)
+		return ARM_STATE_AARCH64;
+	else
+		return ARM_STATE_ARM;	/* AARCH32 */
+}
+
+/*
+ * DDI0487A_f_armv8_arm.pdf
+ * H9.2.41 EDSCR, External Debug Status and Control Register
+ *
+ * Valid PE status values are:
+ *	bit[5:4]	bit[3:0]
+ *	00			0001  0010  0111
+ *	01			0011,       1011, 1111
+ *	10			0011, 0111, 1011, 1111
+ *	11			0011, 0111, 1011
+ */
+static inline bool armv8_is_pe_status_valid(uint32_t edscr)
+{
+	uint16_t status = (edscr & 0b111111);
+	uint16_t status_bit54 = (status & 0b110000) >> 4;	/* bits[5:4] */
+	uint16_t status_bit30 = (status & 0b001111);		/* bits[3:0] */
+	uint16_t status_bit10 = (status & 0b000011);		/* bits[1:0] */
+
+	if (status_bit54 == 0b00) {
+		/* 3 special cases */
+		if ((status_bit30 == 0b0010) || (status == 0b0001) || (status == 0b0111))
+			return true;
+		else
+			return false;
+	} else if (status_bit10 == 0b11) {
+		/* Mostly valid, except 0b010011 & 0b111111 */
+		if ((status == 0b010111) || (status == 0b111111))
+			return false;
+		else
+			return true;
+	} else {
+		/* All other values are reserved: invalid */
+		return false;
+	}
+
+	return false;
+}
+
 
 /* register offsets from armv8.debug_base */
 
