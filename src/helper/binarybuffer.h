@@ -76,16 +76,16 @@ static inline void buf_set_u64(uint8_t *_buffer,
 {
 	uint8_t *buffer = _buffer;
 
-	if ((num == 32) && (first == 0)) {
-		buffer[3] = (value >> 24) & 0xff;
-		buffer[2] = (value >> 16) & 0xff;
-		buffer[1] = (value >> 8) & 0xff;
-		buffer[0] = (value >> 0) & 0xff;
-	} else if ((num == 64) && (first == 0)) {
+	if ((num == 64) && (first == 0)) {
 		buffer[7] = (value >> 56) & 0xff;
 		buffer[6] = (value >> 48) & 0xff;
 		buffer[5] = (value >> 40) & 0xff;
 		buffer[4] = (value >> 32) & 0xff;
+		buffer[3] = (value >> 24) & 0xff;
+		buffer[2] = (value >> 16) & 0xff;
+		buffer[1] = (value >> 8) & 0xff;
+		buffer[0] = (value >> 0) & 0xff;
+	} else if ((num == 32) && (first == 0)) {
 		buffer[3] = (value >> 24) & 0xff;
 		buffer[2] = (value >> 16) & 0xff;
 		buffer[1] = (value >> 8) & 0xff;
@@ -145,13 +145,9 @@ static inline uint64_t buf_get_u64(const uint8_t *_buffer,
 {
 	const uint8_t *buffer = _buffer;
 
-	if ((num == 32) && (first == 0)) {
-		return 0 + ((((uint32_t)buffer[3]) << 24) |   /* Note - zero plus is to avoid a checkpatch bug */
-				(((uint32_t)buffer[2]) << 16) |
-				(((uint32_t)buffer[1]) << 8)  |
-				(((uint32_t)buffer[0]) << 0));
-	} else if ((num == 64) && (first == 0)) {
-		return 0 + ((((uint64_t)buffer[7]) << 56) |   /* Note - zero plus is to avoid a checkpatch bug */
+	if ((num == 64) && (first == 0)) {
+		/* Note - zero plus is to avoid a checkpatch bug */
+		return 0 + ((((uint64_t)buffer[7]) << 56) |
 				(((uint64_t)buffer[6]) << 48) |
 				(((uint64_t)buffer[5]) << 40) |
 				(((uint64_t)buffer[4]) << 32) |
@@ -159,6 +155,12 @@ static inline uint64_t buf_get_u64(const uint8_t *_buffer,
 				(((uint64_t)buffer[2]) << 16) |
 				(((uint64_t)buffer[1]) << 8)  |
 				(((uint64_t)buffer[0]) << 0));
+	} else if ((num == 32) && (first == 0)) {
+		/* Note - zero plus is to avoid a checkpatch bug */
+		return 0 + ((((uint32_t)buffer[3]) << 24) |
+				(((uint32_t)buffer[2]) << 16) |
+				(((uint32_t)buffer[1]) << 8)  |
+				(((uint32_t)buffer[0]) << 0));
 	} else {
 		uint64_t result = 0;
 		for (unsigned i = first; i < first + num; i++) {
