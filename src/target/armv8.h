@@ -379,6 +379,81 @@ enum {
 	ARMV8_LAST_REG,
 };
 
+enum {
+	/* AArch32: 13 32-bit general purpose registers, and a 32-bit PC, SP,
+	   and link register (LR). Some of these registers have multiple banked
+	   instances for use in different processor modes */
+	AARCH32_R0 = 0,
+	AARCH32_R1,
+	AARCH32_R2,
+	AARCH32_R3,
+	AARCH32_R4,
+	AARCH32_R5,
+	AARCH32_R6,
+	AARCH32_R7,
+	AARCH32_R8,
+	AARCH32_R9,
+	AARCH32_R10,
+	AARCH32_R11,
+	AARCH32_R12,
+
+	AARCH32_SP,
+	AARCH32_PC,
+	AARCH32_LR,
+
+	/* A1.3.1 AArch64 (DDI0487A)
+	   31 64-bit general purpose registers, with a 64-bit Program
+	   Counter (PC), Stack Pointer (SPs), and Exception Link Registers (ELRs)
+	 */
+	AARCH64_X0 = 0,
+	AARCH64_X1,
+	AARCH64_X2,
+	AARCH64_X3,
+	AARCH64_X4,
+	AARCH64_X5,
+	AARCH64_X6,
+	AARCH64_X7,
+	AARCH64_X8,
+	AARCH64_X9,
+	AARCH64_X10,
+	AARCH64_X11,
+	AARCH64_X12,
+	AARCH64_X13,
+	AARCH64_X14,
+	AARCH64_X15,
+	AARCH64_X16,
+	AARCH64_X17,
+	AARCH64_X18,
+	AARCH64_X19,
+	AARCH64_X20,
+	AARCH64_X21,
+	AARCH64_X22,
+	AARCH64_X23,
+	AARCH64_X24,
+	AARCH64_X25,
+	AARCH64_X26,
+	AARCH64_X27,
+	AARCH64_X28,
+	AARCH64_X29,
+	AARCH64_X30,	/* PLR (Procedure Link Register) */
+
+	/* SP and PC are not general purpose registers */
+	/*
+				EL0			EL1			EL2			EL3
+		---------------------------------------------------
+		SP		SP_EL0		  SP_EL1	  SP_EL2	  SP_EL3
+		ELR					 ELR_EL1	 ELR_EL2	 ELR_EL3	(PC)
+		SPSR				SPSR_EL1	SPSR_EL2	SPSR_EL3	(PSTATE / CPSR)
+
+		SP   = Stack Pointer
+		ELR  = Exception Link Register
+		SPSR = Saved/Current Process Status Register
+	*/
+	AARCH64_SP,
+	AARCH64_PC,
+	AARCH64_PSTATE,
+};
+
 
 #define ARMV8_COMMON_MAGIC 0x0A450AAA
 
