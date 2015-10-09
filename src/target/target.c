@@ -2585,12 +2585,38 @@ static int handle_target(void *priv)
 	return retval;
 }
 
+static void handle_reg_display_one_register(struct command_context *cmd_ctx,
+		struct reg *reg)
+{
+	char *value;
+
+	if (!reg)
+		return;
+
+	/* only print cached values if they are valid */
+	if (reg->valid) {
+		value = buf_to_str(reg->value, reg->size, 16);
+		if (!value)
+			return;
+
+		command_print(cmd_ctx,
+				"%4s (/%2" PRIu32 "): 0x%s%s",
+				reg->name,
+				reg->size, value,
+				reg->dirty ? " (dirty)" : "");
+		free(value);
+	} else {
+		command_print(cmd_ctx, "%4s (/%2" PRIu32 "): (invalid)",
+				reg->name,
+				reg->size);
+	}
+}
+
 COMMAND_HANDLER(handle_reg_command)
 {
 	struct target *target;
 	struct reg *reg = NULL;
 	unsigned count = 0;
-	char *value;
 
 	target = get_current_target(CMD_CTX);
 
@@ -2609,23 +2635,8 @@ COMMAND_HANDLER(handle_reg_command)
 			for (i = 0, reg = cache->reg_list;
 					i < cache->num_regs;
 					i++, reg++, count++) {
-				/* only print cached values if they are valid */
-				if (reg->valid) {
-					value = buf_to_str(reg->value,
-							reg->size, 16);
-					command_print(CMD_CTX,
-							"(%2i) %4s (/%2" PRIu32 "): 0x%s%s",
-							count, reg->name,
-							reg->size, value,
-							reg->dirty
-								? " (dirty)"
-								: "");
-					free(value);
-				} else {
-					command_print(CMD_CTX, "(%2i) %4s (/%2" PRIu32 "): (invalid)",
-							  count, reg->name,
-							  reg->size) ;
-				}
+				command_print_sameline(CMD_CTX, "(%2i) ", count);
+				handle_reg_display_one_register(CMD_CTX, reg);
 			}
 			cache = cache->next;
 		}
@@ -2678,9 +2689,7 @@ COMMAND_HANDLER(handle_reg_command)
 
 		if (reg->valid == 0)
 			reg->type->get(reg);
-		value = buf_to_str(reg->value, reg->size, 16);
-		command_print(CMD_CTX, "%s (/%i): 0x%s", reg->name, (int)(reg->size), value);
-		free(value);
+		handle_reg_display_one_register(CMD_CTX, reg);
 		return ERROR_OK;
 	}
 
@@ -2692,10 +2701,7 @@ COMMAND_HANDLER(handle_reg_command)
 		str_to_buf(CMD_ARGV[1], strlen(CMD_ARGV[1]), buf, reg->size, 0);
 
 		reg->type->set(reg, buf);
-
-		value = buf_to_str(reg->value, reg->size, 16);
-		command_print(CMD_CTX, "%s (/%i): 0x%s", reg->name, (int)(reg->size), value);
-		free(value);
+		handle_reg_display_one_register(CMD_CTX, reg);
 
 		free(buf);
 
