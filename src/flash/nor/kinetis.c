@@ -93,6 +93,13 @@
 #define SIM_SOPT1	0x40047000
 #define SIM_FCFG1	0x4004804c
 #define SIM_FCFG2	0x40048050
+#define SMC_PMCTRL	0x4007E001
+#define SMC_PMSTAT	0x4007E003
+
+/* Values */
+#define PM_STAT_RUN		0x01
+#define PM_STAT_VLPR		0x04
+#define PM_CTRL_RUNM_RUN	0x00
 
 /* Commands */
 #define FTFx_CMD_BLOCKSTAT  0x00
@@ -858,6 +865,47 @@ static int kinetis_ftfx_command(struct target *target, uint8_t fcmd, uint32_t fa
 }
 
 
+static int kinetis_check_run_mode(struct target *target)
+{
+	int result, i;
+	uint8_t pmctrl, pmstat;
+
+	if (target->state != TARGET_HALTED) {
+		LOG_ERROR("Target not halted");
+		return ERROR_TARGET_NOT_HALTED;
+	}
+
+	result = target_read_u8(target, SMC_PMSTAT, &pmstat);
+	if (result != ERROR_OK)
+		return result;
+
+	if (pmstat == PM_STAT_RUN)
+		return ERROR_OK;
+
+	if (pmstat == PM_STAT_VLPR) {
+		/* It is safe to switch from VLPR to RUN mode without changing clock */
+		LOG_INFO("Switching from VLPR to RUN mode.");
+		pmctrl = PM_CTRL_RUNM_RUN;
+		result = target_write_u8(target, SMC_PMCTRL, pmctrl);
+		if (result != ERROR_OK)
+			return result;
+
+		for (i = 100; i; i--) {
+			result = target_read_u8(target, SMC_PMSTAT, &pmstat);
+			if (result != ERROR_OK)
+				return result;
+
+			if (pmstat == PM_STAT_RUN)
+				return ERROR_OK;
+		}
+	}
+
+	LOG_ERROR("Flash operation not possible in current run mode: SMC_PMSTAT: 0x%x", pmstat);
+	LOG_ERROR("Issue a 'reset init' command.");
+	return ERROR_TARGET_NOT_HALTED;
+}
+
+
 static void kinetis_invalidate_flash_cache(struct flash_bank *bank)
 {
 	struct kinetis_flash_bank *kinfo = bank->driver_priv;
@@ -876,10 +924,9 @@ static int kinetis_erase(struct flash_bank *bank, int first, int last)
 	int result, i;
 	struct kinetis_flash_bank *kinfo = bank->driver_priv;
 
-	if (bank->target->state != TARGET_HALTED) {
-		LOG_ERROR("Target not halted");
-		return ERROR_TARGET_NOT_HALTED;
-	}
+	result = kinetis_check_run_mode(bank->target);
+	if (result != ERROR_OK)
+		return result;
 
 	if ((first > bank->num_sectors) || (last > bank->num_sectors))
 		return ERROR_FLASH_OPERATION_FAILED;
@@ -952,10 +999,9 @@ static int kinetis_write(struct flash_bank *bank, const uint8_t *buffer,
 	struct kinetis_flash_bank *kinfo = bank->driver_priv;
 	uint8_t *new_buffer = NULL;
 
-	if (bank->target->state != TARGET_HALTED) {
-		LOG_ERROR("Target not halted");
-		return ERROR_TARGET_NOT_HALTED;
-	}
+	result = kinetis_check_run_mode(bank->target);
+	if (result != ERROR_OK)
+		return result;
 
 	if (!(kinfo->flash_support & FS_PROGRAM_SECTOR)) {
 		/* fallback to longword write */
@@ -1557,14 +1603,14 @@ static int kinetis_info(struct flash_bank *bank, char *buf, int buf_size)
 static int kinetis_blank_check(struct flash_bank *bank)
 {
 	struct kinetis_flash_bank *kinfo = bank->driver_priv;
+	int result;
 
-	if (bank->target->state != TARGET_HALTED) {
-		LOG_ERROR("Target not halted");
-		return ERROR_TARGET_NOT_HALTED;
-	}
+	/* suprisingly blank check does not work in VLPR and HSRUN modes */
+	result = kinetis_check_run_mode(bank->target);
+	if (result != ERROR_OK)
+		return result;
 
 	if (kinfo->flash_class == FC_PFLASH || kinfo->flash_class == FC_FLEX_NVM) {
-		int result;
 		bool block_dirty = false;
 		uint8_t ftfx_fstat;
 
@@ -1726,10 +1772,9 @@ COMMAND_HANDLER(kinetis_nvm_partition)
 	LOG_INFO("DEPART 0x%" PRIx8 ", EEPROM size code 0x%" PRIx8,
 		 flex_nvm_partition_code, ee_size_code);
 
-	if (target->state != TARGET_HALTED) {
-		LOG_ERROR("Target not halted");
-		return ERROR_TARGET_NOT_HALTED;
-	}
+	result = kinetis_check_run_mode(target);
+	if (result != ERROR_OK)
+		return result;
 
 	result = kinetis_ftfx_command(target, FTFx_CMD_PGMPART, load_flex_ram,
 				      ee_size_code, flex_nvm_partition_code, 0, 0,
