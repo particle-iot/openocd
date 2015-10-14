@@ -169,6 +169,10 @@ struct arm {
 			uint32_t CRn, uint32_t CRm,
 			uint32_t value);
 
+	/* ARMv8 specific instruction: MRS/MSR */
+	int (*mrs)(struct target *target, uint32_t itr, uint64_t *value);	/* R */
+	int (*msr)(struct target *target, uint32_t itr, uint64_t value);	/* W */
+
 	void *arch_info;
 
 	/** For targets conforming to ARM Debug Interface v5,

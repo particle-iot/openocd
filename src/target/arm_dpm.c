@@ -102,6 +102,55 @@ static int dpm_mcr(struct target *target, int cpnum,
 	return retval;
 }
 
+/* ARMv8 specific function
+ *   MRS: Read register value through general purpose register
+ *   MSR: Write value to register through general purpose register
+ * Note:
+ * - 64-bit general registers are accessed by
+ *		read_current_registers_64()
+ *		write_dirty_registers_64()
+ * - Although most registers are 32-bit in AArch64 mode,
+ *   MRS/MSR deals with 64-bit data. 32-bit value could just ignore
+ *   upper 32-bit data in 64-bit value.
+ * - 32-bit safe
+ *   Read: It's safe to read 64-bit data in aarch64_read_dcc_64()
+ *     H9.2.6 DBGDTRRX_EL0
+ *     Reads of this register return the last value written to DTRRX
+ *     and do not change RXfull
+ *   Write: (Alamy: ***** WARNING: examine *****)
+ *
+ *
+ */
+static int dpm_mrs(struct target *target, uint32_t itr, uint64_t *value)
+{
+	struct arm *arm = target_to_arm(target);
+	struct arm_dpm *dpm = arm->dpm;
+	int retval;
+
+	retval = dpm->prepare(dpm);
+	if (retval != ERROR_OK)	return retval;
+
+	retval = dpm->instr_read_data_x0(dpm, itr, value);
+
+	/* (void) */ dpm->finish(dpm);
+	return retval;
+}
+
+static int dpm_msr(struct target *target, uint32_t itr, uint64_t value)
+{
+	struct arm *arm = target_to_arm(target);
+	struct arm_dpm *dpm = arm->dpm;
+	int retval;
+
+	retval = dpm->prepare(dpm);
+	if (retval != ERROR_OK)	return retval;
+
+	retval = dpm->instr_write_data_x0(dpm, itr, value);
+
+	/* (void) */ dpm->finish(dpm);
+	return retval;
+}
+
 /*----------------------------------------------------------------------*/
 
 /*
@@ -1231,6 +1280,10 @@ int arm_dpm_setup(struct arm_dpm *dpm)
 	/* coprocessor access setup */
 	arm->mrc = dpm_mrc;
 	arm->mcr = dpm_mcr;
+	if (is_aarch64(target)) {
+		arm->mrs = dpm_mrs;
+		arm->msr = dpm_msr;
+	}
 
 	/* breakpoint setup -- optional until it works everywhere */
 	if (!TYPE_FUNC_VALIDATE(add_breakpoint)) {
