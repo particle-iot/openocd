@@ -265,6 +265,34 @@ int mem_ap_write_atomic_u32(struct adiv5_ap *ap, uint32_t address,
 	return dap_run(ap->dap);
 }
 
+int mem_ap_set_bits_u32(
+	struct adiv5_dap *dap, uint32_t addr, uint32_t bit_mask)
+{
+	int rc;
+	uint32_t value;	/* ***** WARNING: clear to zero ? */
+
+	rc = mem_ap_read_u32(dap, addr, &value);
+	if (rc != ERROR_OK)	return rc;
+
+	value |= bit_mask;
+
+	return mem_ap_write_atomic_u32(dap, addr, value);
+}
+
+int mem_ap_clear_bits_u32(
+	struct adiv5_dap *dap, uint32_t addr, uint32_t bit_mask)
+{
+	int rc;
+	uint32_t value;	/* ***** WARNING: clear to zero ? */
+
+	rc = mem_ap_read_u32(dap, addr, &value);
+	if (rc != ERROR_OK)	return rc;
+
+	value &= ~bit_mask;
+
+	return mem_ap_write_atomic_u32(dap, addr, value);
+}
+
 /**
  * Synchronous write of a block of memory, using a specific access size.
  *

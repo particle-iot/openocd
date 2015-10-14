@@ -709,6 +709,12 @@ int mem_ap_read_atomic_u32(struct adiv5_ap *ap,
 int mem_ap_write_atomic_u32(struct adiv5_ap *ap,
 		uint32_t address, uint32_t value);
 
+/* Synchronous MEM-AP memory mapped single word bits operation */
+int mem_ap_set_bits_u32(struct adiv5_dap *swjdp,
+		uint32_t address, uint32_t bit_mask);
+int mem_ap_clear_bits_u32(struct adiv5_dap *swjdp,
+		uint32_t address, uint32_t bit_mask);
+
 /* Synchronous MEM-AP memory mapped bus block transfers. */
 int mem_ap_read_buf(struct adiv5_ap *ap,
 		uint8_t *buffer, uint32_t size, uint32_t count, uint32_t address);
