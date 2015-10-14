@@ -535,6 +535,7 @@ struct armv8_common {
 	struct armv8_mmu_common armv8_mmu;
 
 	/* Direct processor core register read and writes */
+	/* Alamy(2015-1009): I found that there is no use of these functions in ARMv8 */
 	int (*load_core_reg_u64)(struct target *target, uint32_t num, uint64_t *value);
 	int (*store_core_reg_u64)(struct target *target, uint32_t num, uint64_t value);
 

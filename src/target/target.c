@@ -2687,6 +2687,10 @@ COMMAND_HANDLER(handle_reg_command)
 		if ((CMD_ARGC == 2) && (strcmp(CMD_ARGV[1], "force") == 0))
 			reg->valid = 0;
 
+		/* Might never happen:
+		 * When halted, register value is valid (except modified later)
+		 * When not halted, the function (i.e.: armv8_get_core_reg) won't read register
+		 */
 		if (reg->valid == 0)
 			reg->type->get(reg);
 		handle_reg_display_one_register(CMD_CTX, reg);
