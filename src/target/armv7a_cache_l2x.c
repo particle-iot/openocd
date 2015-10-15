@@ -108,7 +108,7 @@ static int armv7a_l2x_cache_inval_virt(struct target *target, uint32_t virt,
 	struct armv7a_l2x_cache *l2x_cache = (struct armv7a_l2x_cache *)
 		(armv7a->armv7a_mmu.armv7a_cache.outer_cache);
 	/* FIXME: different controllers have different linelen */
-	uint32_t i, linelen = 1024 * 8;
+	uint32_t i, linelen = 32;
 	int retval;
 
 	retval = arm7a_l2x_sanity_check(target);
@@ -144,7 +144,7 @@ static int armv7a_l2x_cache_clean_virt(struct target *target, uint32_t virt,
 	struct armv7a_l2x_cache *l2x_cache = (struct armv7a_l2x_cache *)
 		(armv7a->armv7a_mmu.armv7a_cache.outer_cache);
 	/* FIXME: different controllers have different linelen */
-	uint32_t i, linelen = 1024 * 8;
+	uint32_t i, linelen = 32;
 	int retval;
 
 	retval = arm7a_l2x_sanity_check(target);
