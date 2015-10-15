@@ -67,6 +67,8 @@ struct armv7a_cache_common {
 	int ctype;
 	struct armv7a_cachesize d_u_size;	/* data cache */
 	struct armv7a_cachesize i_size;		/* instruction cache */
+	uint32_t dminline;			/* minimum d-cache linelen */
+	uint32_t iminline;			/* minimum i-cache linelen */
 	int i_cache_enabled;
 	int d_u_cache_enabled;
 	int auto_cache_enabled;			/* openocd automatic

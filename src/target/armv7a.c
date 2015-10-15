@@ -564,15 +564,28 @@ int armv7a_identify_cache(struct target *target)
 	int retval = ERROR_FAIL;
 	struct armv7a_common *armv7a = target_to_armv7a(target);
 	struct arm_dpm *dpm = armv7a->arm.dpm;
-	uint32_t cache_selected, clidr;
+	uint32_t cache_selected, clidr, ctr;
 	uint32_t cache_i_reg, cache_d_reg;
 	struct armv7a_cache_common *cache = &(armv7a->armv7a_mmu.armv7a_cache);
 	if (!armv7a->is_armv7r)
 		armv7a_read_ttbcr(target);
 	retval = dpm->prepare(dpm);
-
 	if (retval != ERROR_OK)
 		goto done;
+
+	/* retrieve CTR
+	 * mrc p15, 0, r0, c0, c0, 1		@ read ctr */
+	retval = dpm->instr_read_data_r0(dpm,
+			ARMV4_5_MRC(15, 0, 0, 0, 0, 1),
+			&ctr);
+	if (retval != ERROR_OK)
+		goto done;
+
+	cache->iminline = 4UL << (ctr & 0xf);
+	cache->dminline = 4UL << ((ctr & 0xf0000) >> 16);
+	LOG_DEBUG("ctr %" PRIx32 " ctr.iminline %" PRId32 " ctr.dminline %" PRId32,
+		 ctr, cache->iminline, cache->dminline);
+
 	/*  retrieve CLIDR
 	 *  mrc	p15, 1, r0, c0, c0, 1		@ read clidr */
 	retval = dpm->instr_read_data_r0(dpm,

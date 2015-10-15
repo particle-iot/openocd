@@ -139,7 +139,7 @@ static int armv7a_l1_d_cache_inval_virt(struct target *target, uint32_t virt,
 	struct armv7a_common *armv7a = target_to_armv7a(target);
 	struct arm_dpm *dpm = armv7a->arm.dpm;
 	struct armv7a_cache_common *armv7a_cache = &armv7a->armv7a_mmu.armv7a_cache;
-	uint32_t i, linelen = armv7a_cache->d_u_size.linelen;
+	uint32_t i, linelen = armv7a_cache->dminline;
 	int retval;
 
 	retval = armv7a_l1_d_cache_sanity_check(target);
@@ -174,7 +174,7 @@ int armv7a_l1_d_cache_clean_virt(struct target *target, uint32_t virt,
 	struct armv7a_common *armv7a = target_to_armv7a(target);
 	struct arm_dpm *dpm = armv7a->arm.dpm;
 	struct armv7a_cache_common *armv7a_cache = &armv7a->armv7a_mmu.armv7a_cache;
-	uint32_t i, linelen = armv7a_cache->d_u_size.linelen;
+	uint32_t i, linelen = armv7a_cache->dminline;
 	int retval;
 
 	retval = armv7a_l1_d_cache_sanity_check(target);
@@ -239,7 +239,7 @@ static int armv7a_l1_i_cache_inval_virt(struct target *target, uint32_t virt,
 	struct arm_dpm *dpm = armv7a->arm.dpm;
 	struct armv7a_cache_common *armv7a_cache =
 				&armv7a->armv7a_mmu.armv7a_cache;
-	uint32_t i, linelen = armv7a_cache->i_size.linelen;
+	uint32_t i, linelen = armv7a_cache->iminline;
 	int retval;
 
 	retval = armv7a_l1_i_cache_sanity_check(target);
