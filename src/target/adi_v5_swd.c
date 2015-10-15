@@ -109,6 +109,16 @@ static int swd_connect(struct adiv5_dap *dap)
 	 * MUST READ IDCODE
 	 */
 
+	/* Check if we should reset srst already when connecting. */
+	enum reset_types jtag_reset_config = jtag_get_reset_config();
+
+	if (jtag_reset_config & RESET_CNCT_UNDER_SRST) {
+		if (jtag_reset_config & RESET_SRST_NO_GATING)
+			swd_add_reset(1);
+		else
+			LOG_WARNING("\'srst_nogate\' reset_config option is required");
+	}
+
 	/* Note, debugport_init() does setup too */
 	jtag_interface->swd->switch_seq(dap, JTAG_TO_SWD);
 
