@@ -207,10 +207,9 @@ int armv7a_l1_d_cache_clean_virt(struct target *target, uint32_t virt,
 	for (i = 0; i < size; i += linelen) {
 		uint32_t offs = virt + i;
 
-		/* FIXME: do we need DCCVAC or DCCVAU */
-		/* FIXME: in both cases it is not enough for i-cache */
+		/* DCCMVAU - Data Cache Clean by MVA to PoU */
 		retval = dpm->instr_write_data_r0(dpm,
-				ARMV4_5_MCR(15, 0, 0, 7, 10, 1), offs);
+				ARMV4_5_MCR(15, 0, 0, 7, 11, 1), offs);
 		if (retval != ERROR_OK)
 			goto done;
 	}
@@ -344,34 +343,6 @@ int armv7a_cache_auto_flush_on_write(struct target *target, uint32_t virt,
 		return ERROR_OK;
 
 	armv7a_l1_d_cache_clean_virt(target, virt, size);
-	armv7a_l2x_cache_flush_virt(target, virt, size);
-
-	if (target->smp) {
-		struct target_list *head;
-		struct target *curr;
-		head = target->head;
-		while (head != (struct target_list *)NULL) {
-			curr = head->target;
-			if (curr->state == TARGET_HALTED) {
-				retval = armv7a_l1_i_cache_inval_all(curr);
-				if (retval != ERROR_OK)
-					return retval;
-				retval = armv7a_l1_d_cache_inval_virt(target,
-						virt, size);
-				if (retval != ERROR_OK)
-					return retval;
-			}
-			head = head->next;
-		}
-	} else {
-		retval = armv7a_l1_i_cache_inval_all(target);
-		if (retval != ERROR_OK)
-			return retval;
-		retval = armv7a_l1_d_cache_inval_virt(target, virt, size);
-		if (retval != ERROR_OK)
-			return retval;
-	}
-
 	return retval;
 }
 
