@@ -417,6 +417,9 @@ static int samd_issue_nvmctrl_command(struct target *target, uint16_t cmd)
 	if (res != ERROR_OK)
 		return res;
 
+	/* Clear MANW bit */
+	tmp &= ~(1<<7);
+
 	/* Set cache disable. */
 	res = target_write_u16(target, SAMD_NVMCTRL + SAMD_NVMCTRL_CTRLB,
 			tmp | (1<<18));
