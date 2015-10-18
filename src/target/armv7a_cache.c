@@ -306,11 +306,20 @@ int armv7a_l1_i_cache_inval_all(struct target *target)
 	if (retval != ERROR_OK)
 		goto done;
 
-	retval = dpm->instr_write_data_r0(dpm,
-			ARMV4_5_MCR(15, 0, 0, 7, 5, 0), 0);
+	if (target->smp) {
+		/* ICIALLUIS */
+		retval = dpm->instr_write_data_r0(dpm,
+				ARMV4_5_MCR(15, 0, 0, 7, 1, 0), 0);
+	} else {
+		/* ICIALLU */
+		retval = dpm->instr_write_data_r0(dpm,
+				ARMV4_5_MCR(15, 0, 0, 7, 5, 0), 0);
+	}
+
 	if (retval != ERROR_OK)
 		goto done;
 
+	dpm->finish(dpm);
 	return retval;
 
 done:
