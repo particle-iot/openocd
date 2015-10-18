@@ -1475,6 +1475,10 @@ static int cortex_a_set_breakpoint(struct target *target,
 				breakpoint->length, 1, code);
 		if (retval != ERROR_OK)
 			return retval;
+
+		/* update i-cache at breakpoint location */
+		armv7a_di_cache_clean_inval_virt(target, breakpoint->address, breakpoint->length);
+
 		breakpoint->set = 0x11;	/* Any nice value but 0 */
 	}
 
@@ -1708,6 +1712,9 @@ static int cortex_a_unset_breakpoint(struct target *target, struct breakpoint *b
 			if (retval != ERROR_OK)
 				return retval;
 		}
+
+		/* update i-cache at breakpoint location */
+		armv7a_di_cache_clean_inval_virt(target, breakpoint->address, breakpoint->length);
 	}
 	breakpoint->set = 0;
 
