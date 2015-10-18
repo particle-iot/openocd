@@ -322,6 +322,72 @@ done:
 	return retval;
 }
 
+/* I-Cache Invalidate of virtual address range
+ * DDI0406C says in chapter G.5.2
+ * DCCMVAU to clean D-Cache to PoU, to make the change visible to the I-Cache
+ * ICIMVAU to invalidate the I-Cache to PoU
+ * BPIMVA to invalidate the changed location in the branch predictor
+ *
+ * This will work if the program change was written through the CPU, i.e. using
+ * the APB-AP, since it's then in the D-Cache. If the change was written through
+ * the AHB-AP, we will need a different sequence.
+ *
+ * AHB memory writes are like DMA, so we need to:
+ * - Invalidate the D-Cache location before writing the change
+ * - write the change
+ * - Invalidate the location in I-Cache
+ * - Invalidate the Branch Predictor
+ */
+int armv7a_di_cache_clean_inval_virt(struct target *target, uint32_t virt,
+					uint32_t size)
+{
+	struct armv7a_common *armv7a = target_to_armv7a(target);
+	struct arm_dpm *dpm = armv7a->arm.dpm;
+	struct armv7a_cache_common *armv7a_cache =
+				&armv7a->armv7a_mmu.armv7a_cache;
+	uint32_t linelen = armv7a_cache->iminline;
+	uint32_t va_line, va_end;
+	int retval;
+
+	retval = armv7a_l1_i_cache_sanity_check(target);
+	if (retval != ERROR_OK)
+		return retval;
+
+	retval = dpm->prepare(dpm);
+	if (retval != ERROR_OK)
+		goto done;
+
+	va_line = virt & (-linelen);
+	va_end = virt + size;
+
+	while (va_line < va_end) {
+		/* DCCMVAU */
+		retval = dpm->instr_write_data_r0(dpm,
+				ARMV4_5_MCR(15, 0, 0, 7, 11, 1), va_line);
+		if (retval != ERROR_OK)
+			goto done;
+		/* ICIMVAU - Invalidate instruction cache by VA to PoU. */
+		retval = dpm->instr_write_data_r0(dpm,
+				ARMV4_5_MCR(15, 0, 0, 7, 5, 1), va_line);
+		if (retval != ERROR_OK)
+			goto done;
+		/* BPIMVA */
+		retval = dpm->instr_write_data_r0(dpm,
+				ARMV4_5_MCR(15, 0, 0, 7, 5, 7), va_line);
+		if (retval != ERROR_OK)
+			goto done;
+		va_line += linelen;
+	}
+	dpm->finish(dpm);
+	return retval;
+
+done:
+	LOG_ERROR("i-cache invalidate failed");
+	dpm->finish(dpm);
+
+	return retval;
+}
+
 
 /*
  * We assume that target core was chosen correctly. It means if same data
