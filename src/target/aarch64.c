@@ -28,6 +28,7 @@
 #include "target_type.h"
 #include "target_type64.h"
 #include "arm_opcodes.h"
+#include "armv8_opcodes.h"
 #include <helper/time_support.h>
 
 static int aarch64_poll(struct target *target);
@@ -1872,99 +1873,122 @@ error_free_buff_w:
 	return ERROR_FAIL;
 }
 
+/* read memory through APB-AP */
 static int aarch64_read_apb_ab_memory(struct target *target,
 	uint64_t address, uint32_t size,
 	uint32_t count, uint8_t *buffer)
 {
-	/* read memory through APB-AP */
-
 	int retval = ERROR_COMMAND_SYNTAX_ERROR;
 	struct armv8_common *armv8 = target_to_armv8(target);
 	struct adiv5_dap *swjdp = armv8->arm.dap;
 	struct arm *arm = &armv8->arm;
+	struct arm_dpm *dpm = &armv8->dpm;	/* or arm->dpm */
 	struct reg *reg;
-	uint32_t dscr, val;
-	uint8_t *tmp_buff = NULL;
-	uint32_t i = 0;
+	uint32_t itr, bytes;
+	uint64_t value;
 
-	LOG_DEBUG("WARNING(Alamy): Review this function");
-	LOG_DEBUG("Reading APB-AP memory address 0x%" PRIx64 " size %"  PRIu32 " count%"  PRIu32,
+	LOG_DEBUG("Reading APB-AP memory address 0x%" PRIx64 " size %" PRIu32 " count %" PRIu32,
 			  address, size, count);
 	if (target->state != TARGET_HALTED) {
 		LOG_WARNING("target not halted");
 		return ERROR_TARGET_NOT_HALTED;
 	}
 
-	/* Mark register X0, X1 as dirty, as it will be used
+	/* Support 4-byte accessing only (for now?) */
+	if (((address & 0x3) != 0) || (size != 4)) {
+		LOG_WARNING("Unaligned access at 0x%.16" PRIx64, address);
+		return ERROR_TARGET_UNALIGNED_ACCESS;
+	}
+
+	/* Mark register X0 and X1 as dirty, as they will be used
 	 * for transferring the data.
 	 * It will be restored automatically when exiting
 	 * debug mode
 	 */
-	reg = armv8_get_reg_by_num(arm, 1);
+	reg = armv8_get_reg_by_num(arm, AARCH64_X1);
 	reg->dirty = true;
 
-	reg = armv8_get_reg_by_num(arm, 0);
+	reg = armv8_get_reg_by_num(arm, AARCH64_X0);
 	reg->dirty = true;
-
-	/*  clear any abort  */
-	retval = mem_ap_sel_write_atomic_u32(swjdp, armv8->debug_ap,
-		armv8->debug_base + CPUDBG_DRCR, 1<<2);
-	if (retval != ERROR_OK)
-		goto error_free_buff_r;
-
-	retval = mem_ap_sel_read_atomic_u32(swjdp, armv8->debug_ap,
-			armv8->debug_base + CPUDBG_DSCR, &dscr);
-	if (retval != ERROR_OK)
-		goto error_unset_dtr_r;
-
-	if (size > 4) {
-		LOG_WARNING("reading size >4 bytes not yet supported");
-		goto error_unset_dtr_r;
-	}
-
-	while (i < count * size) {
-
-		retval = aarch64_instr_write_data_dcc_64(arm->dpm, 0xd5330400, address+4);
-		if (retval != ERROR_OK)
-			goto error_unset_dtr_r;
-		retval = mem_ap_sel_read_atomic_u32(swjdp, armv8->debug_ap,
-			armv8->debug_base + CPUDBG_DSCR, &dscr);
-
-		dscr = DSCR_INSTR_COMP;
-		retval = aarch64_exec_opcode(target, 0xb85fc000, &dscr);
-		if (retval != ERROR_OK)
-			goto error_unset_dtr_r;
-		retval = mem_ap_sel_read_atomic_u32(swjdp, armv8->debug_ap,
-			armv8->debug_base + CPUDBG_DSCR, &dscr);
-
-		retval = aarch64_instr_read_data_dcc(arm->dpm, 0xd5130400, &val);
-		if (retval != ERROR_OK)
-			goto error_unset_dtr_r;
-		memcpy(&buffer[i], &val, size);
-		i += 4;
-		address += 4;
-	}
 
 	/* Clear any sticky error */
-	mem_ap_sel_write_atomic_u32(swjdp, armv8->debug_ap,
-		armv8->debug_base + CPUDBG_DRCR, 1<<2);
+	retval = mem_ap_sel_write_atomic_u32(swjdp, armv8->debug_ap,
+		armv8->debug_base + ARMV8_REG_EDRCR, ARMV8_EDRCR_CSE);
+	if (retval != ERROR_OK) {
+		LOG_WARNING("Fail to clear sticky error");
+		/* We could keep going, this is not a critical problem */
+	}
+
+
+	/* Basic 4-byte alignment reading loop */
+	/* while() {
+	 *	x1 = addr
+	 *	ldr w0, [x1]
+	 *	value = w0
+	 * }
+	 */
+
+	/* Coding consideration:
+	 * *) We could load addr to X0, then "mov X1, X0" with dpm->arm->msr()
+	 *   dpm->arm->msr(target, opcode <mov X1, X0>, address);
+	 * Here we load 'address' into X1 directly, but we need
+	 * dpm->prepare & dpm->finish to encapsulate the operations ourself.
+	 * *) Use X1 as address base and take the advantage of 'LDR' instruction
+	 *   to increase the address after loading, only one function call is
+	 *   needed in the loop.
+	 * *) Load as many bytes as possible (ldr x0)
+	 *
+	 * Note:
+	 *   It still works without dpm->prepare/finish as they don't do much
+	 * at the moment, but it's a bad coding style. Others would not know
+	 * what/how to follow. (Oct-19, 2015)
+	 */
+
+	retval = dpm->prepare(dpm);
+	if (retval != ERROR_OK)
+		return retval;
+
+	/* x1 = addr: addr -> DCC -> X1 */
+	retval = aarch64_instr_write_data_dcc_64(dpm,
+			A64_OPCODE_MRS_DBGDTR_EL0(AARCH64_X1),	/* mrs x1, dbgdtr_el0 */
+			address);
+	if (retval != ERROR_OK)
+		return retval;
+
+	while (count) {
+		/* ldr x0/w0, [x1] */
+		if (count > 1) {
+			itr = 0xf8408420;	/* ldr	x0, [x1],#8 */
+			bytes = 8;			/* two words */
+		} else {
+			itr = 0xb8404420;	/* ldr	w0, [x1],#4 */
+			bytes = 4;			/* one word */
+		}
+
+		/* value = X0 */
+		retval = aarch64_instr_read_data_x0(dpm, itr, &value);
+		if (retval != ERROR_OK)
+			break;
+
+		if (count > 1)
+			buf_set_u64(buffer, 0, 64, value);
+		else
+			buf_set_u32(buffer, 0, 32, (uint32_t)value);
+
+		buffer += bytes;
+		count  -= bytes >> 2;
+
+	}	/* End of while(count--) */
+
+	/* (void) */ dpm->finish(dpm);
+
+
+	/* Clear any sticky error */
+	/* (void) */ mem_ap_sel_write_atomic_u32(swjdp, armv8->debug_ap,
+		armv8->debug_base + ARMV8_REG_EDRCR, ARMV8_EDRCR_CSE);
 
 	/* Done */
-	return ERROR_OK;
-
-error_unset_dtr_r:
-	LOG_WARNING("DSCR = 0x%" PRIx32, dscr);
-	/* Todo: Unset DTR mode */
-
-error_free_buff_r:
-	LOG_ERROR("error");
-	free(tmp_buff);
-
-	/* Clear any sticky error */
-	mem_ap_sel_write_atomic_u32(swjdp, armv8->debug_ap,
-		armv8->debug_base + CPUDBG_DRCR, 1<<2);
-
-	return ERROR_FAIL;
+	return retval;
 }
 
 static int aarch64_read_phys_memory(struct target *target,
