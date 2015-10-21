@@ -90,12 +90,14 @@ enum target_debug_reason {
 	DBG_REASON_SINGLESTEP = 4,
 	DBG_REASON_NOTHALTED = 5,
 	DBG_REASON_EXIT = 6,
-	DBG_REASON_OSUL = 7,			/* ARMv8: OS Unlock catch */
-	DBG_REASON_RESET = 8,			/* ARMv8: Reset catch */
-	DBG_REASON_HLT = 9,				/* ARMv8: HLT instruction */
-	DBG_REASON_SWACC = 10,			/* ARMv8: Software access to debug register */
-	DBG_REASON_EXCP = 11,			/* ARMv8: Exception catch */
-	DBG_REASON_UNDEFINED = 12,
+	DBG_REASON_SINGLESTEP_EXCL = 7,	/* ARMv8: Step, exclusive */
+	DBG_REASON_SINGLESTEP_NOSYND = 8,/*ARMv8: Step, no syndrome */
+	DBG_REASON_OSUL = 9,			/* ARMv8: OS Unlock catch */
+	DBG_REASON_RESET = 10,			/* ARMv8: Reset catch */
+	DBG_REASON_HLT = 11,			/* ARMv8: HLT instruction */
+	DBG_REASON_SWACC = 12,			/* ARMv8: Software access to debug register */
+	DBG_REASON_EXCPT = 13,			/* ARMv8: Exception catch */
+	DBG_REASON_UNDEFINED = 14,
 };
 
 enum target_endianness {

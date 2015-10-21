@@ -243,6 +243,13 @@ static const Jim_Nvp nvp_target_debug_reason[] = {
 	{ .name = "single-step"              , .value = DBG_REASON_SINGLESTEP },
 	{ .name = "target-not-halted"        , .value = DBG_REASON_NOTHALTED  },
 	{ .name = "program-exit"             , .value = DBG_REASON_EXIT },
+	{ .name = "single-step(exclusive)"   , .value = DBG_REASON_SINGLESTEP_EXCL },
+	{ .name = "single-step(no-syndrome)" , .value = DBG_REASON_SINGLESTEP_NOSYND },
+	{ .name = "OS-unlock-catch"          , .value = DBG_REASON_OSUL },
+	{ .name = "reset-catch"              , .value = DBG_REASON_RESET },
+	{ .name = "HLT-instruction"          , .value = DBG_REASON_HLT },
+	{ .name = "software-access"          , .value = DBG_REASON_SWACC },
+	{ .name = "exception-catch"          , .value = DBG_REASON_EXCPT },
 	{ .name = "undefined"                , .value = DBG_REASON_UNDEFINED },
 	{ .name = NULL, .value = -1 },
 };
