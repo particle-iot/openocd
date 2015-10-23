@@ -1156,9 +1156,6 @@ static int aarch64_debug_entry(struct target *target)
 
 	retval = arm_dpm_read_current_registers_64(&armv8->dpm);
 
-	/* Alamy: Is it good to be here ? */
-	target->is_aarch64 = (armv8->arm.core_state == ARM_STATE_AARCH64);
-
 	if (armv8->post_debug_entry) {
 		retval = armv8->post_debug_entry(target);
 		if (retval != ERROR_OK)
@@ -1173,8 +1170,20 @@ static int aarch64_post_debug_entry(struct target *target)
 	struct aarch64_common *aarch64 = target_to_aarch64(target);
 	struct armv8_common *armv8 = &aarch64->armv8_common;
 	struct armv8_mmu_common *armv8_mmu = &armv8->armv8_mmu;
+	uint64_t pstate;
 	uint32_t sctlr_el1 = 0;
 	int retval;
+
+	/* PSTATE.nRW: 0) AArch64, 1) AArch32 */
+	struct reg *reg = armv8_get_reg_by_num(&(armv8->arm), AARCH64_PSTATE);
+	pstate = buf_get_u64(reg->value, 0, 64);
+	armv8->arm.core_state = (pstate & ARMV8_PSTATE_nRW)
+		? ARM_STATE_AARCH32
+		: ARM_STATE_AARCH64;
+
+	/* Alamy: Get rid of 'is_aarch64' */
+	target->is_aarch64 = (armv8->arm.core_state == ARM_STATE_AARCH64);
+
 
 	mem_ap_sel_write_atomic_u32(armv8->arm.dap, armv8->debug_ap,
 				    armv8->debug_base + CPUDBG_DRCR, 1<<2);

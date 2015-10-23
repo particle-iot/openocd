@@ -76,6 +76,7 @@ bool is_arm_mode(unsigned psr_mode);
 /** The PSR "T" and "J" bits define the mode of "classic ARM" cores. */
 enum arm_state {
 	ARM_STATE_ARM,
+	ARM_STATE_AARCH32 = ARM_STATE_ARM,
 	ARM_STATE_THUMB,
 	ARM_STATE_JAZELLE,
 	ARM_STATE_THUMB_EE,
