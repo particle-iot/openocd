@@ -2665,6 +2665,25 @@ static int cortex_a_read_memory_ahb(struct target *target, uint32_t address,
 	return retval;
 }
 
+static int cortex_a_read_phys_memory_ahb(struct target *target, uint32_t address,
+	uint32_t size, uint32_t count, uint8_t *buffer)
+{
+	int retval;
+	struct armv7a_common *armv7a = target_to_armv7a(target);
+	struct adiv5_dap *swjdp = armv7a->arm.dap;
+	uint8_t apsel = swjdp->apsel;
+
+	if (!armv7a->memory_ap_available || (apsel != armv7a->memory_ap))
+		return target_read_phys_memory(target, address, size, count, buffer);
+
+	if (!count || !buffer)
+		return ERROR_COMMAND_SYNTAX_ERROR;
+
+	retval = mem_ap_sel_read_buf(swjdp, armv7a->memory_ap, buffer, size, count, address);
+
+	return retval;
+}
+
 static int cortex_a_write_phys_memory(struct target *target,
 	uint32_t address, uint32_t size,
 	uint32_t count, const uint8_t *buffer)
@@ -3092,7 +3111,7 @@ static int cortex_a_init_arch_info(struct target *target,
 
 	armv7a->pre_restore_context = NULL;
 
-	armv7a->armv7a_mmu.read_physical_memory = cortex_a_read_phys_memory;
+	armv7a->armv7a_mmu.read_physical_memory = cortex_a_read_phys_memory_ahb;
 
 
 /*	arm7_9->handle_target_request = cortex_a_handle_target_request; */
