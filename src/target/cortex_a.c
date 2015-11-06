@@ -3082,6 +3082,16 @@ static int cortex_r4_target_create(struct target *target, Jim_Interp *interp)
 	return cortex_a_init_arch_info(target, cortex_a, target->tap);
 }
 
+static void cortex_a_deinit_target(struct target *target)
+{
+	struct cortex_a_common *cortex_a = target_to_cortex_a(target);
+	struct arm_dpm *dpm = &cortex_a->armv7a_common.dpm;
+
+	free(cortex_a->brp_list);
+	free(dpm->dbp);
+	free(dpm->dwp);
+	free(cortex_a);
+}
 
 static int cortex_a_mmu(struct target *target, int *enabled)
 {
@@ -3288,6 +3298,7 @@ struct target_type cortexa_target = {
 	.target_create = cortex_a_target_create,
 	.init_target = cortex_a_init_target,
 	.examine = cortex_a_examine,
+	.deinit_target = cortex_a_deinit_target,
 
 	.read_phys_memory = cortex_a_read_phys_memory,
 	.write_phys_memory = cortex_a_write_phys_memory,
@@ -3365,4 +3376,5 @@ struct target_type cortexr4_target = {
 	.target_create = cortex_r4_target_create,
 	.init_target = cortex_a_init_target,
 	.examine = cortex_a_examine,
+	.deinit_target = cortex_a_deinit_target,
 };
