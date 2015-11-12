@@ -318,7 +318,7 @@ static int do_semihosting(struct target *target)
 		else {
 			uint32_t a = target_buffer_get_u32(target, params+0);
 			uint32_t l = target_buffer_get_u32(target, params+4);
-			char *arg = "foobar";
+			char *arg = arm->semihosting_cmdline[0] ? arm->semihosting_cmdline : "foobar";
 			uint32_t s = strlen(arg) + 1;
 			if (l < s)
 				result = -1;
