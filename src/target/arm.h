@@ -147,6 +147,10 @@ struct arm {
 
 	int (*setup_semihosting)(struct target *target, int enable);
 
+	/** Semihosting command line. */
+#define ARM_SEMIHOSTING_PATH_MAX 4096
+	char semihosting_cmdline[ARM_SEMIHOSTING_PATH_MAX];
+
 	/** Backpointer to the target. */
 	struct target *target;
 
