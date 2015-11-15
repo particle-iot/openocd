@@ -79,8 +79,10 @@ struct cortex_a_common {
 	uint32_t cp15_control_reg;
 	/* latest cp15 register value written and cpsr processor mode */
 	uint32_t cp15_control_reg_curr;
-	enum arm_mode curr_mode;
+	/* DACR */
+	uint32_t cp15_dacr_reg;
 
+	enum arm_mode curr_mode;
 
 	/* Breakpoint register pairs */
 	int brp_num_context;

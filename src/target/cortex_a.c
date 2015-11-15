@@ -976,6 +976,7 @@ static int cortex_a_halt(struct target *target)
 static int cortex_a_internal_restore(struct target *target, int current,
 	uint32_t *address, int handle_breakpoints, int debug_execution)
 {
+	struct cortex_a_common *cortex_a = target_to_cortex_a(target);
 	struct armv7a_common *armv7a = target_to_armv7a(target);
 	struct arm *arm = &armv7a->arm;
 	int retval;
@@ -1034,6 +1035,13 @@ static int cortex_a_internal_restore(struct target *target, int current,
 	buf_set_u32(arm->pc->value, 0, 32, resume_pc);
 	arm->pc->dirty = 1;
 	arm->pc->valid = 1;
+
+	/* switch to SVC mode to restore DACR */
+	dpm_modeswitch(&armv7a->dpm, ARM_MODE_SVC);
+	/* restore DACR content */
+	retval = armv7a->arm.mcr(target, 15,
+				 0, 0,
+				 3, 0, cortex_a->cp15_dacr_reg);
 	/* restore dpm_mode at system halt */
 	dpm_modeswitch(&armv7a->dpm, ARM_MODE_ANY);
 	/* called it now before restoring context because it uses cpu
@@ -1332,6 +1340,20 @@ static int cortex_a_post_debug_entry(struct target *target)
 		(cortex_a->cp15_control_reg & 0x1000U) ? 1 : 0;
 	cortex_a->curr_mode = armv7a->arm.core_mode;
 
+	/* switch to SVC mode to modify DACR */
+	dpm_modeswitch(&armv7a->dpm, ARM_MODE_SVC);
+	armv7a->arm.mrc(target, 15,
+			0, 0, 3, 0,
+			&cortex_a->cp15_dacr_reg);
+
+	LOG_DEBUG("cp15_dacr_reg: %8.8" PRIx32,
+			cortex_a->cp15_dacr_reg);
+
+	/* overwrite DACR to all-master */
+	armv7a->arm.mcr(target, 15,
+			0, 0, 3, 0,
+			0xFFFFFFFF);
+	dpm_modeswitch(&armv7a->dpm, ARM_MODE_ANY);
 	return ERROR_OK;
 }
 
