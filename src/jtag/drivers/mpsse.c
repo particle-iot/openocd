@@ -880,21 +880,36 @@ int mpsse_flush(struct mpsse_ctx *ctx)
 			ctx->usb_read_timeout);
 		retval = libusb_submit_transfer(read_transfer);
 	}
+	if (retval != LIBUSB_SUCCESS)
+		goto error_check;
 
 	/* Polling loop, more or less taken from libftdi */
 	while (!write_result.done || !read_result.done) {
-		retval = libusb_handle_events(ctx->usb_ctx);
+		struct timeval timeout_usb;
+
+		timeout_usb.tv_sec = 1;
+		timeout_usb.tv_usec = 0;
+
+		retval = libusb_handle_events_timeout_completed(ctx->usb_ctx, &timeout_usb, NULL);
 		keep_alive();
-		if (retval != LIBUSB_SUCCESS && retval != LIBUSB_ERROR_INTERRUPTED) {
+		if (retval == LIBUSB_ERROR_NO_DEVICE ||
+				retval == LIBUSB_ERROR_INTERRUPTED)
+			break;
+
+		if (retval != LIBUSB_SUCCESS) {
 			libusb_cancel_transfer(write_transfer);
 			if (read_transfer)
 				libusb_cancel_transfer(read_transfer);
-			while (!write_result.done || !read_result.done)
-				if (libusb_handle_events(ctx->usb_ctx) != LIBUSB_SUCCESS)
+			while (!write_result.done || !read_result.done) {
+				retval = libusb_handle_events_timeout_completed(ctx->usb_ctx,
+								&timeout_usb, NULL);
+				if (retval != LIBUSB_SUCCESS)
 					break;
+			}
 		}
 	}
 
+error_check:
 	if (retval != LIBUSB_SUCCESS) {
 		LOG_ERROR("libusb_handle_events() failed with %s", libusb_error_name(retval));
 		retval = ERROR_FAIL;
