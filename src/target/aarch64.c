@@ -2539,6 +2539,17 @@ static int aarch64_target_create(struct target *target, Jim_Interp *interp)
 	return aarch64_init_arch_info(target, aarch64, target->tap);
 }
 
+static void aarch64_deinit_target(struct target *target)
+{
+	struct aarch64_common *aarch64 = target_to_aarch64(target);
+	struct arm_dpm *dpm = &aarch64->armv8_common.dpm;
+
+	free(aarch64->brp_list);
+	free(dpm->dbp);
+	free(dpm->dwp);
+	free(aarch64);
+}
+
 static int aarch64_mmu(struct target *target, int *enabled)
 {
 	if (target->state != TARGET_HALTED) {
@@ -2745,6 +2756,7 @@ struct target_type_64 aarch64_target = {
 	.commands = aarch64_command_handlers,
 	.target_create = aarch64_target_create,
 	.init_target = aarch64_init_target,
+	.deinit_target = aarch64_deinit_target,
 	.examine = aarch64_examine,
 
 	.read_phys_memory = aarch64_read_phys_memory,
