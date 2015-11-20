@@ -635,14 +635,8 @@ static int stm32l4_probe(struct flash_bank *bank)
 
 	LOG_INFO("flash size = %dkbytes", flash_size_in_kb);
 
-	/* did we assign flash size? */
-	assert((flash_size_in_kb != 0xffff) && flash_size_in_kb);
-
 	/* calculate numbers of pages */
 	int num_pages = flash_size_in_kb / 2;
-
-	/* check that calculation result makes sense */
-	assert(num_pages > 0);
 
 	if (bank->sectors) {
 		free(bank->sectors);
