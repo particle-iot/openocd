@@ -623,6 +623,10 @@ static int stm32l4_probe(struct flash_bank *bank)
 
 	/* get flash size from target. */
 	retval = target_read_u16(target, FLASH_SIZE_REG, &flash_size_in_kb);
+	if (flash_size_in_kb == 0) {
+		LOG_WARNING("Cannot read flash size register. Try connect under reset.");
+		return ERROR_FAIL;
+	}
 
 	/* get options to for DUAL BANK. */
 	retval = target_read_u32(target, STM32_FLASH_OPTR, &options);
