@@ -1153,6 +1153,12 @@ static int gdb_get_registers_packet(struct connection *connection,
 	if (retval != ERROR_OK)
 		return gdb_error(connection, retval);
 
+#ifdef _BUILD_TARGET_ARMV8_
+	/* Hacking: read the commit message for detail */
+	if (is_aarch64(target))
+		reg_list_size = 34;
+#endif
+
 	for (i = 0; i < reg_list_size; i++)
 		reg_packet_size += DIV_ROUND_UP(reg_list[i]->size, 8) * 2;
 
