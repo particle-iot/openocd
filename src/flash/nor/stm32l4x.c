@@ -599,7 +599,7 @@ static int stm32l4_probe(struct flash_bank *bank)
 	struct target *target = bank->target;
 	struct stm32l4_flash_bank *stm32l4_info = bank->driver_priv;
 	int i;
-	uint16_t flash_size_in_kb = 0xffff;
+	uint16_t flash_size_in_kb;
 	uint32_t device_id;
 	uint32_t options;
 	uint32_t base_address = 0x08000000;
@@ -623,6 +623,11 @@ static int stm32l4_probe(struct flash_bank *bank)
 
 	/* get flash size from target. */
 	retval = target_read_u16(target, FLASH_SIZE_REG, &flash_size_in_kb);
+	if (flash_size_in_kb == 0) {
+		LOG_WARNING(
+			"Cannot read flash size register. Try connect under reset.");
+		return ERROR_FAIL;
+	}
 
 	/* get options to for DUAL BANK. */
 	retval = target_read_u32(target, STM32_FLASH_OPTR, &options);
@@ -635,14 +640,8 @@ static int stm32l4_probe(struct flash_bank *bank)
 
 	LOG_INFO("flash size = %dkbytes", flash_size_in_kb);
 
-	/* did we assign flash size? */
-	assert((flash_size_in_kb != 0xffff) && flash_size_in_kb);
-
 	/* calculate numbers of pages */
 	int num_pages = flash_size_in_kb / 2;
-
-	/* check that calculation result makes sense */
-	assert(num_pages > 0);
 
 	if (bank->sectors) {
 		free(bank->sectors);
