@@ -1384,10 +1384,47 @@ void process_jim_events(struct command_context *cmd_ctx)
 		} \
 		return ERROR_OK; \
 	}
+#define DEFINE_PARSE_NUM_TYPE_BASE(name, type, base, func, min, max) \
+	int parse ## name ## _base ## base(const char *str, type * ul) \
+	{ \
+		if (!*str) { \
+			LOG_ERROR("Invalid command argument"); \
+			return ERROR_COMMAND_ARGUMENT_INVALID; \
+		} \
+		char *end; \
+		*ul = func(str, &end, base); \
+		if (*end) { \
+			LOG_ERROR("Invalid command argument"); \
+			return ERROR_COMMAND_ARGUMENT_INVALID; \
+		} \
+		if ((max == *ul) && (ERANGE == errno)) { \
+			LOG_ERROR("Argument overflow");	\
+			return ERROR_COMMAND_ARGUMENT_OVERFLOW;	\
+		} \
+		if (min && (min == *ul) && (ERANGE == errno)) { \
+			LOG_ERROR("Argument underflow"); \
+			return ERROR_COMMAND_ARGUMENT_UNDERFLOW; \
+		} \
+		return ERROR_OK; \
+	}
+#define DEFINE_PARSE_NUM_TYPE_BIN(name, type, func, min, max) \
+	DEFINE_PARSE_NUM_TYPE_BASE(name, type,  2, func, min, max)
+#define DEFINE_PARSE_NUM_TYPE_OCT(name, type, func, min, max) \
+	DEFINE_PARSE_NUM_TYPE_BASE(name, type,  8, func, min, max)
+#define DEFINE_PARSE_NUM_TYPE_DEC(name, type, func, min, max) \
+	DEFINE_PARSE_NUM_TYPE_BASE(name, type, 10, func, min, max)
+#define DEFINE_PARSE_NUM_TYPE_HEX(name, type, func, min, max) \
+	DEFINE_PARSE_NUM_TYPE_BASE(name, type, 16, func, min, max)
+
 DEFINE_PARSE_NUM_TYPE(_ulong, unsigned long, strtoul, 0, ULONG_MAX)
 DEFINE_PARSE_NUM_TYPE(_ullong, unsigned long long, strtoull, 0, ULLONG_MAX)
 DEFINE_PARSE_NUM_TYPE(_long, long, strtol, LONG_MIN, LONG_MAX)
 DEFINE_PARSE_NUM_TYPE(_llong, long long, strtoll, LLONG_MIN, LLONG_MAX)
+
+DEFINE_PARSE_NUM_TYPE_HEX(_ulong, unsigned long, strtoul, 0, ULONG_MAX)
+DEFINE_PARSE_NUM_TYPE_HEX(_ullong, unsigned long long, strtoull, 0, ULLONG_MAX)
+DEFINE_PARSE_NUM_TYPE_HEX(_long, long, strtol, LONG_MIN, LONG_MAX)
+DEFINE_PARSE_NUM_TYPE_HEX(_llong, long long, strtoll, LLONG_MIN, LLONG_MAX)
 
 #define DEFINE_PARSE_WRAPPER(name, type, min, max, functype, funcname) \
 	int parse ## name(const char *str, type * ul) \
@@ -1403,24 +1440,76 @@ DEFINE_PARSE_NUM_TYPE(_llong, long long, strtoll, LLONG_MIN, LLONG_MAX)
 		*ul = n; \
 		return ERROR_OK; \
 	}
+#define DEFINE_PARSE_WRAPPER_BASE(name, type, base, min, max, functype, funcname) \
+	int parse ## name ## _base ## base(const char *str, type * ul) \
+	{ \
+		functype n; \
+		int retval = parse ## funcname ## _base ## base(str, &n); \
+		if (ERROR_OK != retval)	\
+			return retval; \
+		if (n > max) \
+			return ERROR_COMMAND_ARGUMENT_OVERFLOW;	\
+		if (min) \
+			return ERROR_COMMAND_ARGUMENT_UNDERFLOW; \
+		*ul = n; \
+		return ERROR_OK; \
+	}
+#define DEFINE_PARSE_WRAPPER_BIN(name, type, min, max, functype, funcname) \
+	DEFINE_PARSE_WRAPPER_BASE(name, type,  2, min, max, functype, funcname)
+#define DEFINE_PARSE_WRAPPER_OCT(name, type, min, max, functype, funcname) \
+	DEFINE_PARSE_WRAPPER_BASE(name, type,  8, min, max, functype, funcname)
+#define DEFINE_PARSE_WRAPPER_DEC(name, type, min, max, functype, funcname) \
+	DEFINE_PARSE_WRAPPER_BASE(name, type, 10, min, max, functype, funcname)
+#define DEFINE_PARSE_WRAPPER_HEX(name, type, min, max, functype, funcname) \
+	DEFINE_PARSE_WRAPPER_BASE(name, type, 16, min, max, functype, funcname)
 
 #define DEFINE_PARSE_ULONGLONG(name, type, min, max) \
 	DEFINE_PARSE_WRAPPER(name, type, min, max, unsigned long long, _ullong)
-DEFINE_PARSE_ULONGLONG(_uint, unsigned, 0, UINT_MAX)
+#define DEFINE_PARSE_ULONGLONG_BIN(name, type, min, max) \
+	DEFINE_PARSE_WRAPPER_BIN(name, type, min, max, unsigned long long, _ullong)
+#define DEFINE_PARSE_ULONGLONG_OCT(name, type, min, max) \
+	DEFINE_PARSE_WRAPPER_OCT(name, type, min, max, unsigned long long, _ullong)
+#define DEFINE_PARSE_ULONGLONG_DEC(name, type, min, max) \
+	DEFINE_PARSE_WRAPPER_DEC(name, type, min, max, unsigned long long, _ullong)
+#define DEFINE_PARSE_ULONGLONG_HEX(name, type, min, max) \
+	DEFINE_PARSE_WRAPPER_HEX(name, type, min, max, unsigned long long, _ullong)
 DEFINE_PARSE_ULONGLONG(_umax, uintmax_t, 0, UINTMAX_MAX)
-DEFINE_PARSE_ULONGLONG(_u64,  uint64_t, 0, UINT64_MAX)
-DEFINE_PARSE_ULONGLONG(_u32,  uint32_t, 0, UINT32_MAX)
-DEFINE_PARSE_ULONGLONG(_u16,  uint16_t, 0, UINT16_MAX)
-DEFINE_PARSE_ULONGLONG(_u8,   uint8_t,  0, UINT8_MAX)
+DEFINE_PARSE_ULONGLONG(_uint, unsigned,  0, UINT_MAX)
+DEFINE_PARSE_ULONGLONG(_u64,  uint64_t,  0, UINT64_MAX)
+DEFINE_PARSE_ULONGLONG(_u32,  uint32_t,  0, UINT32_MAX)
+DEFINE_PARSE_ULONGLONG(_u16,  uint16_t,  0, UINT16_MAX)
+DEFINE_PARSE_ULONGLONG(_u8,   uint8_t,   0, UINT8_MAX)
+
+DEFINE_PARSE_ULONGLONG_HEX(_umax, uintmax_t, 0, UINTMAX_MAX)
+DEFINE_PARSE_ULONGLONG_HEX(_uint, unsigned,  0, UINT_MAX)
+DEFINE_PARSE_ULONGLONG_HEX(_u64,  uint64_t,  0, UINT64_MAX)
+DEFINE_PARSE_ULONGLONG_HEX(_u32,  uint32_t,  0, UINT32_MAX)
+DEFINE_PARSE_ULONGLONG_HEX(_u16,  uint16_t,  0, UINT16_MAX)
+DEFINE_PARSE_ULONGLONG_HEX(_u8,   uint8_t,   0, UINT8_MAX)
 
 #define DEFINE_PARSE_LONGLONG(name, type, min, max) \
 	DEFINE_PARSE_WRAPPER(name, type, min, max, long long, _llong)
-DEFINE_PARSE_LONGLONG(_int, int,     n < INT_MIN,   INT_MAX)
+#define DEFINE_PARSE_LONGLONG_BIN(name, type, min, max) \
+	DEFINE_PARSE_WRAPPER_BIN(name, type, min, max, long long, _llong)
+#define DEFINE_PARSE_LONGLONG_OCT(name, type, min, max) \
+	DEFINE_PARSE_WRAPPER_OCT(name, type, min, max, long long, _llong)
+#define DEFINE_PARSE_LONGLONG_DEC(name, type, min, max) \
+	DEFINE_PARSE_WRAPPER_DEC(name, type, min, max, long long, _llong)
+#define DEFINE_PARSE_LONGLONG_HEX(name, type, min, max) \
+	DEFINE_PARSE_WRAPPER_HEX(name, type, min, max, long long, _llong)
 DEFINE_PARSE_LONGLONG(_smax,intmax_t,n < INTMAX_MIN,INTMAX_MAX)
+DEFINE_PARSE_LONGLONG(_int, int,     n < INT_MIN,   INT_MAX)
 DEFINE_PARSE_LONGLONG(_s64, int64_t, n < INT64_MIN, INT64_MAX)
 DEFINE_PARSE_LONGLONG(_s32, int32_t, n < INT32_MIN, INT32_MAX)
 DEFINE_PARSE_LONGLONG(_s16, int16_t, n < INT16_MIN, INT16_MAX)
 DEFINE_PARSE_LONGLONG(_s8,  int8_t,  n < INT8_MIN,  INT8_MAX)
+
+DEFINE_PARSE_LONGLONG_HEX(_smax,intmax_t,n < INTMAX_MIN,INTMAX_MAX)
+DEFINE_PARSE_LONGLONG_HEX(_int, int,     n < INT_MIN,   INT_MAX)
+DEFINE_PARSE_LONGLONG_HEX(_s64, int64_t, n < INT64_MIN, INT64_MAX)
+DEFINE_PARSE_LONGLONG_HEX(_s32, int32_t, n < INT32_MIN, INT32_MAX)
+DEFINE_PARSE_LONGLONG_HEX(_s16, int16_t, n < INT16_MIN, INT16_MAX)
+DEFINE_PARSE_LONGLONG_HEX(_s8,  int8_t,  n < INT8_MIN,  INT8_MAX)
 
 static int command_parse_bool(const char *in, bool *out,
 	const char *on, const char *off)

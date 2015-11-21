@@ -351,6 +351,16 @@ int parse_llong(const char *str, long long *ul);
 
 #define DECLARE_PARSE_WRAPPER(name, type) \
 		int parse ## name(const char *str, type * ul)
+#define DECLARE_PARSE_WRAPPER_BASE(name, type, base) \
+		int parse ## name ## _base ## base(const char *str, type * ul)
+#define DECLARE_PARSE_WRAPPER_BIN(name, type) \
+		DECLARE_PARSE_WRAPPER_BASE(name, type, 2)
+#define DECLARE_PARSE_WRAPPER_OCT(name, type) \
+		DECLARE_PARSE_WRAPPER_BASE(name, type, 8)
+#define DECLARE_PARSE_WRAPPER_DEC(name, type) \
+		DECLARE_PARSE_WRAPPER_BASE(name, type, 10)
+#define DECLARE_PARSE_WRAPPER_HEX(name, type) \
+		DECLARE_PARSE_WRAPPER_BASE(name, type, 16)
 
 DECLARE_PARSE_WRAPPER(_uint, unsigned);
 DECLARE_PARSE_WRAPPER(_umax, uintmax_t);
@@ -365,6 +375,20 @@ DECLARE_PARSE_WRAPPER(_s64, int64_t);
 DECLARE_PARSE_WRAPPER(_s32, int32_t);
 DECLARE_PARSE_WRAPPER(_s16, int16_t);
 DECLARE_PARSE_WRAPPER(_s8, int8_t);
+
+DECLARE_PARSE_WRAPPER_HEX(_uint, unsigned);
+DECLARE_PARSE_WRAPPER_HEX(_umax, uintmax_t);
+DECLARE_PARSE_WRAPPER_HEX(_u64, uint64_t);
+DECLARE_PARSE_WRAPPER_HEX(_u32, uint32_t);
+DECLARE_PARSE_WRAPPER_HEX(_u16, uint16_t);
+DECLARE_PARSE_WRAPPER_HEX(_u8, uint8_t);
+
+DECLARE_PARSE_WRAPPER_HEX(_int, int);
+DECLARE_PARSE_WRAPPER_HEX(_smax, intmax_t);
+DECLARE_PARSE_WRAPPER_HEX(_s64, int64_t);
+DECLARE_PARSE_WRAPPER_HEX(_s32, int32_t);
+DECLARE_PARSE_WRAPPER_HEX(_s16, int16_t);
+DECLARE_PARSE_WRAPPER_HEX(_s8, int8_t);
 
 /**
  * @brief parses the string @a in into @a out as a @a type, or prints
@@ -386,6 +410,29 @@ DECLARE_PARSE_WRAPPER(_s8, int8_t);
 			return retval_macro_tmp; \
 		} \
 	} while (0)
+#define COMMAND_PARSE_NUMBER_BASE(type, base, in, out) \
+	do { \
+		int retval_macro_tmp = parse_ ## type ## _base ## base(in, &(out)); \
+		if (ERROR_OK != retval_macro_tmp) { \
+			command_print(CMD_CTX, stringify(out) \
+				" option value ('%s') is not valid", in); \
+			return retval_macro_tmp; \
+		} \
+	} while (0)
+#define COMMAND_PARSE_NUMBER_BIN(type, in, out) \
+	COMMAND_PARSE_NUMBER_BASE(type,  2, in, out)
+#define COMMAND_PARSE_NUMBER_OCT(type, in, out) \
+	COMMAND_PARSE_NUMBER_BASE(type,  8, in, out)
+#define COMMAND_PARSE_NUMBER_DEC(type, in, out) \
+	COMMAND_PARSE_NUMBER_BASE(type, 10, in, out)
+#define COMMAND_PARSE_NUMBER_HEX(type, in, out) \
+	COMMAND_PARSE_NUMBER_BASE(type, 16, in, out)
+
+/* Alias */
+#define COMMAND_PARSE_NUMBER_BASE2	COMMAND_PARSE_NUMBER_BIN
+#define COMMAND_PARSE_NUMBER_BASE8	COMMAND_PARSE_NUMBER_OCT
+#define COMMAND_PARSE_NUMBER_BASE10	COMMAND_PARSE_NUMBER_DEC
+#define COMMAND_PARSE_NUMBER_BASE16	COMMAND_PARSE_NUMBER_HEX
 
 /**
  * Parse the string @c as a binary parameter, storing the boolean value
