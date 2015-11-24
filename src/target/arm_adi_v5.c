@@ -699,14 +699,19 @@ int ahbap_debugport_init(struct adiv5_dap *dap)
 		retval = dap_dp_poll_register(dap, DP_CTRL_STAT,
 					      CSYSPWRUPACK, CSYSPWRUPACK,
 					      DAP_POWER_DOMAIN_TIMEOUT);
-		if (retval != ERROR_OK)
-			continue;
+		if (retval != ERROR_OK) {
+			LOG_DEBUG("DAP: CSYSPWRUPREQ failed. Trying to continue");
+			dap->dp_ctrl_stat &= ~CSYSPWRUPREQ;
+			retval = dap_queue_dp_write(dap, DP_CTRL_STAT, dap->dp_ctrl_stat | SSTICKYERR);
+			if (retval != ERROR_OK)
+				continue;
+		}
 
 		retval = dap_queue_dp_read(dap, DP_CTRL_STAT, NULL);
 		if (retval != ERROR_OK)
 			continue;
 		/* With debug power on we can activate OVERRUN checking */
-		dap->dp_ctrl_stat = CDBGPWRUPREQ | CSYSPWRUPREQ | CORUNDETECT;
+		dap->dp_ctrl_stat |= CORUNDETECT;
 		retval = dap_queue_dp_write(dap, DP_CTRL_STAT, dap->dp_ctrl_stat);
 		if (retval != ERROR_OK)
 			continue;
