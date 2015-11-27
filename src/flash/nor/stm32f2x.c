@@ -167,12 +167,14 @@ struct stm32x_options {
 	uint8_t RDP;
 	uint8_t user_options;
 	uint32_t protection;
+	uint32_t boot_addr;
 };
 
 struct stm32x_flash_bank {
 	struct stm32x_options option_bytes;
 	int probed;
 	bool has_large_mem;		/* stm32f42x/stm32f43x family */
+	bool has_boot_addr;     /* stm32f7xxx */
 	uint32_t user_bank_size;
 };
 
@@ -323,18 +325,26 @@ static int stm32x_read_options(struct flash_bank *bank)
 	if (retval != ERROR_OK)
 		return retval;
 
-	stm32x_info->option_bytes.user_options = optiondata & 0xec;
+    /* caution: f2 implements 5 bits (WDG_SW only)
+     * whereas f7 6 bits (IWDG_SW and WWDG_SW) in user_options */
+	stm32x_info->option_bytes.user_options = optiondata & 0xfc;
 	stm32x_info->option_bytes.RDP = (optiondata >> 8) & 0xff;
 	stm32x_info->option_bytes.protection = (optiondata >> 16) & 0xfff;
 
 	if (stm32x_info->has_large_mem) {
-
 		retval = target_read_u32(target, STM32_FLASH_OPTCR1, &optiondata);
 		if (retval != ERROR_OK)
 			return retval;
 
 		/* append protection bits */
 		stm32x_info->option_bytes.protection |= (optiondata >> 4) & 0x00fff000;
+	}
+
+	if (stm32x_info->has_boot_addr) {
+		retval = target_read_u32(target, STM32_FLASH_OPTCR1,
+			&stm32x_info->option_bytes.boot_addr);
+		if (retval != ERROR_OK)
+			return retval;
 	}
 
 	if (stm32x_info->option_bytes.RDP != 0xAA)
@@ -366,10 +376,15 @@ static int stm32x_write_options(struct flash_bank *bank)
 		return retval;
 
 	if (stm32x_info->has_large_mem) {
-
 		uint32_t optiondata2 = 0;
 		optiondata2 |= (stm32x_info->option_bytes.protection & 0x00fff000) << 4;
 		retval = target_write_u32(target, STM32_FLASH_OPTCR1, optiondata2);
+		if (retval != ERROR_OK)
+			return retval;
+	}
+
+	if (stm32x_info->has_boot_addr) {
+		retval = target_write_u32(target, STM32_FLASH_OPTCR1, stm32x_info->option_bytes.boot_addr);
 		if (retval != ERROR_OK)
 			return retval;
 	}
@@ -776,6 +791,7 @@ static int stm32x_probe(struct flash_bank *bank)
 
 	stm32x_info->probed = 0;
 	stm32x_info->has_large_mem = false;
+	stm32x_info->has_boot_addr = false;
 
 	/* read stm32 device id register */
 	int retval = stm32x_get_device_id(bank, &device_id);
@@ -805,6 +821,7 @@ static int stm32x_probe(struct flash_bank *bank)
 		max_flash_size_in_kb = 1024;
 		max_sector_size_in_kb = 256;
 		flash_size_reg = 0x1FF0F442;
+		stm32x_info->has_boot_addr = true;
 		break;
 	default:
 		LOG_WARNING("Cannot identify target as a STM32 family.");
@@ -1179,6 +1196,93 @@ COMMAND_HANDLER(stm32x_handle_mass_erase_command)
 	return retval;
 }
 
+COMMAND_HANDLER(stm32f2x_handle_options_read_command)
+{
+	int retval;
+	struct flash_bank *bank;
+	struct stm32x_flash_bank *stm32x_info = NULL;
+
+	if (CMD_ARGC != 1) {
+		command_print(CMD_CTX, "stm32f2x options_read <bank>");
+		return ERROR_COMMAND_SYNTAX_ERROR;
+	}
+
+	retval = CALL_COMMAND_HANDLER(flash_command_get_bank, 0, &bank);
+	if (ERROR_OK != retval)
+		return retval;
+
+	retval = stm32x_read_options(bank);
+	if (ERROR_OK != retval)
+		return retval;
+
+	stm32x_info = bank->driver_priv;
+	if (stm32x_info->has_boot_addr) {
+		uint32_t boot_addr = stm32x_info->option_bytes.boot_addr;
+
+		command_print(CMD_CTX, "stm32f2x user_options 0x%02X, "
+			"boot_add0 0x%04X, boot_add1 0x%04X",
+			stm32x_info->option_bytes.user_options,
+			boot_addr & 0xffff, (boot_addr & 0xffff0000) >> 16);
+	} else {
+		command_print(CMD_CTX, "stm32f2x user_options 0x%02X",
+			stm32x_info->option_bytes.user_options);
+
+	}
+
+	return retval;
+}
+
+COMMAND_HANDLER(stm32f2x_handle_options_write_command)
+{
+	int retval;
+	struct flash_bank *bank;
+	struct stm32x_flash_bank *stm32x_info = NULL;
+	uint8_t user_options;
+	uint16_t boot_addr0, boot_addr1;
+
+	if (CMD_ARGC < 1) {
+		command_print(CMD_CTX, "stm32f2x options_write <bank> ...");
+		return ERROR_COMMAND_SYNTAX_ERROR;
+	}
+
+	retval = CALL_COMMAND_HANDLER(flash_command_get_bank, 0, &bank);
+	if (ERROR_OK != retval)
+		return retval;
+
+	retval = stm32x_read_options(bank);
+	if (ERROR_OK != retval)
+		return retval;
+
+	stm32x_info = bank->driver_priv;
+	if (!stm32x_info->has_boot_addr) {
+		if (CMD_ARGC != 2) {
+			command_print(CMD_CTX, "stm32f2x options_write <bank> <user_options>");
+			return ERROR_COMMAND_SYNTAX_ERROR;
+		}
+	} else {
+		if (CMD_ARGC != 4) {
+			command_print(CMD_CTX, "stm32f2x options_write <bank> <user_options> <boot_addr0> <boot_addr1>");
+			return ERROR_COMMAND_SYNTAX_ERROR;
+		}
+		COMMAND_PARSE_NUMBER(u16, CMD_ARGV[2], boot_addr0);
+		COMMAND_PARSE_NUMBER(u16, CMD_ARGV[3], boot_addr1);
+		stm32x_info->option_bytes.boot_addr = boot_addr0 | (((uint32_t) boot_addr1) << 16);
+	}
+
+	COMMAND_PARSE_NUMBER(u8, CMD_ARGV[1], user_options);
+	stm32x_info->option_bytes.user_options = user_options;
+
+	if (stm32x_write_options(bank) != ERROR_OK) {
+		command_print(CMD_CTX, "stm32f2x failed to write options");
+		return ERROR_OK;
+	}
+
+	command_print(CMD_CTX, "stm32f2x write options complete.\n"
+				"INFO: a reset or power cycle is required "
+				"for the new settings to take effect.");
+	return retval;
+}
+
 static const struct command_registration stm32x_exec_command_handlers[] = {
 	{
 		.name = "lock",
@@ -1200,6 +1304,20 @@ static const struct command_registration stm32x_exec_command_handlers[] = {
 		.mode = COMMAND_EXEC,
 		.usage = "bank_id",
 		.help = "Erase entire flash device.",
+	},
+	{
+		.name = "options_read",
+		.handler = stm32f2x_handle_options_read_command,
+		.mode = COMMAND_EXEC,
+		.usage = "bank_id",
+		.help = "Read and display device option bytes.",
+	},
+	{
+		.name = "options_write",
+		.handler = stm32f2x_handle_options_write_command,
+		.mode = COMMAND_EXEC,
+		.usage = "bank_id option_byte [ boot_add0 boot_add1]",
+		.help = "Write option bytes",
 	},
 	COMMAND_REGISTRATION_DONE
 };

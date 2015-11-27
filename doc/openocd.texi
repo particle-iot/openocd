@@ -5641,10 +5641,9 @@ The @var{num} parameter is a value shown by @command{flash banks}.
 @end deffn
 
 @deffn {Flash Driver} stm32f2x
-All members of the STM32F2 and STM32F4 microcontroller families from ST Microelectronics
-include internal flash and use ARM Cortex-M3/M4 cores.
-The driver automatically recognizes a number of these chips using
-the chip identification register, and autoconfigures itself.
+All members of the STM32F2, STM32F4 and STM32F7 microcontroller families from ST Microelectronics
+include internal flash and use ARM Cortex-M3/M4/M7 cores. The driver automatically recognizes a
+number of these chips using the chip identification register, and autoconfigures itself.
 
 Note that some devices have been found that have a flash size register that contains
 an invalid value, to workaround this issue you can override the probed value used by
@@ -5664,6 +5663,18 @@ The @var{num} parameter is a value shown by @command{flash banks}.
 @deffn Command {stm32f2x unlock} num
 Unlocks the entire stm32 device.
 The @var{num} parameter is a value shown by @command{flash banks}.
+@end deffn
+
+@deffn Command {stm32f2x options_read} num
+Reads and diplays user option byte and (when implemented) boot_addr0 and boot_addr1.
+The @var{num} parameter is a value shown by @command{flash banks}.
+@end deffn
+
+@deffn Command {stm32f2x options_write} num user_option boot_addr0 boot_addr1
+Writes user option byte and (when implemented) boot_addr0 and boot_addr1 in raw format.
+Warning: The meaning of the various bits depends on the device, always check datasheet!
+The @var{num} parameter is a value shown by @command{flash banks}, user_option a
+byte (bits 7-0 of FLASH_OPTCR), boot_addr0 and boot_addr1 two halfwords (of FLASH_OPTCR1).
 @end deffn
 @end deffn
 
