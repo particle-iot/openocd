@@ -664,77 +664,136 @@ int ahbap_debugport_init(struct adiv5_dap *dap)
 	dap->ap_current = !0;
 	dap_ap_select(dap, 0);
 	dap->last_read = NULL;
-
 	for (size_t i = 0; i < 10; i++) {
+		LOG_DEBUG("attempt to setup DP #%d", (int)i);
 		/* DP initialization */
 
 		dap->dp_bank_value = 0;
 
 		retval = dap_queue_dp_read(dap, DP_CTRL_STAT, NULL);
-		if (retval != ERROR_OK)
+		if (retval != ERROR_OK) {
+			LOG_DEBUG("Failed to read CTRL/STAT");
 			continue;
+		}
 
 		retval = dap_queue_dp_write(dap, DP_CTRL_STAT, SSTICKYERR);
-		if (retval != ERROR_OK)
+		if (retval != ERROR_OK) {
+			LOG_DEBUG("Failed to clear SSTICKYERR");
 			continue;
+		}
 
 		retval = dap_queue_dp_read(dap, DP_CTRL_STAT, NULL);
-		if (retval != ERROR_OK)
+		if (retval != ERROR_OK) {
+			LOG_DEBUG("Failed to read CTRL/STAT");
 			continue;
-
-		dap->dp_ctrl_stat = CDBGPWRUPREQ | CSYSPWRUPREQ;
+		}
+		/*
+		 * to be sure, clean CSYSPWRUPREQ
+		 * and CDBGPWRUPREQ
+		 */
+		dap->dp_ctrl_stat &= ~CSYSPWRUPREQ;
+		/*
+		 * ... and CDBGPWRUPREQ
+		 */
+		dap->dp_ctrl_stat &= ~CDBGPWRUPREQ;
+		/*
+		 * now we can:
+		 * 1) request CSYSPWR
+		 * 2) if it fails clear sticky error
+		 * 3) continue
+		 */
+		dap->dp_ctrl_stat |= CSYSPWRUPREQ;
 		retval = dap_queue_dp_write(dap, DP_CTRL_STAT, dap->dp_ctrl_stat);
-		if (retval != ERROR_OK)
+		if (retval != ERROR_OK) {
+			LOG_DEBUG("DAP: write request for CSYSPWRUP failed");
 			continue;
-
-		/* Check that we have debug power domains activated */
-		LOG_DEBUG("DAP: wait CDBGPWRUPACK");
-		retval = dap_dp_poll_register(dap, DP_CTRL_STAT,
-					      CDBGPWRUPACK, CDBGPWRUPACK,
-					      DAP_POWER_DOMAIN_TIMEOUT);
-		if (retval != ERROR_OK)
-			continue;
-
-		LOG_DEBUG("DAP: wait CSYSPWRUPACK");
+		}
+		LOG_DEBUG("DAP: waiting for CSYSPWRUPACK");
 		retval = dap_dp_poll_register(dap, DP_CTRL_STAT,
 					      CSYSPWRUPACK, CSYSPWRUPACK,
 					      DAP_POWER_DOMAIN_TIMEOUT);
-		if (retval != ERROR_OK)
+		if (retval != ERROR_OK) {
+			LOG_DEBUG("DAP: polling CSYSPWRUPACK failed, clearing CSYSPWRREQ and SSTICKYERR");
+			dap->dp_ctrl_stat &= ~CSYSPWRUPREQ;
+			dap->dp_ctrl_stat |= SSTICKYERR;
+			retval = dap_queue_dp_write(dap, DP_CTRL_STAT, dap->dp_ctrl_stat);
+			if (retval != ERROR_OK) {
+				LOG_DEBUG("DAP: clearing CSYSPWRREQ and SSTICKYERR failed");
+			}
+		}
+
+		dap->dp_ctrl_stat |= CDBGPWRUPREQ;
+		retval = dap_queue_dp_write(dap, DP_CTRL_STAT, dap->dp_ctrl_stat);
+		if (retval != ERROR_OK) {
+			LOG_DEBUG("DAP: write request for CDBGPWRUP failed");
 			continue;
+		}
+
+		/* Check that we have debug power domains activated */
+		LOG_DEBUG("DAP: waiting for CDBGPWRUPACK");
+		retval = dap_dp_poll_register(dap, DP_CTRL_STAT,
+					      CDBGPWRUPACK, CDBGPWRUPACK,
+					      DAP_POWER_DOMAIN_TIMEOUT);
+		if (retval != ERROR_OK) {
+			LOG_DEBUG("DAP: polling CDBGPWRUPACK failed");
+			continue;
+		}
+
+		// clear sticky error
+		retval = dap_queue_dp_write(dap, DP_CTRL_STAT, SSTICKYERR);
+		if (retval != ERROR_OK) {
+			LOG_DEBUG("DAP: clearing SSTICKYERR failed");
+			continue;
+		}
 
 		retval = dap_queue_dp_read(dap, DP_CTRL_STAT, NULL);
-		if (retval != ERROR_OK)
+		if (retval != ERROR_OK) {
+			LOG_DEBUG("DAP: reading CTRL/STAT failed");
 			continue;
+		}
 		/* With debug power on we can activate OVERRUN checking */
-		dap->dp_ctrl_stat = CDBGPWRUPREQ | CSYSPWRUPREQ | CORUNDETECT;
+		dap->dp_ctrl_stat |= CORUNDETECT;
 		retval = dap_queue_dp_write(dap, DP_CTRL_STAT, dap->dp_ctrl_stat);
-		if (retval != ERROR_OK)
+		if (retval != ERROR_OK) {
+			LOG_DEBUG("DAP: activation of OVERRUN check failed");
 			continue;
+		}
 		retval = dap_queue_dp_read(dap, DP_CTRL_STAT, NULL);
-		if (retval != ERROR_OK)
+		if (retval != ERROR_OK) {
+			LOG_DEBUG("DAP: reading CTRL/STAT failed");
 			continue;
+		}
 
 		retval = dap_setup_accessport(dap, CSW_8BIT | CSW_ADDRINC_PACKED, 0);
-		if (retval != ERROR_OK)
+		if (retval != ERROR_OK) {
+			LOG_DEBUG("DAP: failed to setup AP");
 			continue;
+		}
 
 		retval = dap_queue_ap_read(dap, AP_REG_CSW, &csw);
-		if (retval != ERROR_OK)
+		if (retval != ERROR_OK) {
+			LOG_DEBUG("Failed to read CSW reg.");
 			continue;
+		}
 
 		retval = dap_queue_ap_read(dap, AP_REG_CFG, &cfg);
-		if (retval != ERROR_OK)
-			continue;
+		if (retval != ERROR_OK) {
+			LOG_DEBUG("Failed to read CFG reg.");
+		}
 
 		retval = dap_run(dap);
-		if (retval != ERROR_OK)
+		if (retval != ERROR_OK) {
+			LOG_DEBUG("DAP: dap queue execution failed");
 			continue;
-
-		break;
+		} else {
+			break;
+		}
 	}
 
-	if (retval != ERROR_OK)
-		return retval;
+	if (retval != ERROR_OK) {
+			LOG_DEBUG("DAP: initialization loop failed");
+			return retval;
+		}
 
 	if (csw & CSW_ADDRINC_PACKED)
 		dap->packed_transfers = true;
@@ -792,13 +851,19 @@ int dap_find_ap(struct adiv5_dap *dap, enum ap_type type_to_find, uint8_t *ap_nu
 
 		/* read the IDR register of the Access Port */
 		uint32_t id_val = 0;
+		int retval = ERROR_OK;
 		dap_ap_select(dap, ap);
 
-		int retval = dap_queue_ap_read(dap, AP_REG_IDR, &id_val);
-		if (retval != ERROR_OK)
+		retval = dap_queue_ap_read(dap, AP_REG_IDR, &id_val);
+		if (retval != ERROR_OK) {
+			LOG_DEBUG("Failed to read AP IDR using dap_queue_ap_read");
 			return retval;
+		}
 
 		retval = dap_run(dap);
+		if (retval != ERROR_OK) {
+			LOG_DEBUG("Execution of read/write queue failed");
+		}
 
 		/* IDR bits:
 		 * 31-28 : Revision

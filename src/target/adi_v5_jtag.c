@@ -222,8 +222,10 @@ static int jtagdp_transaction_endcheck(struct adiv5_dap *dap)
 	if (retval != ERROR_OK)
 		return retval;
 	retval = jtag_execute_queue();
-	if (retval != ERROR_OK)
+	if (retval != ERROR_OK) {
+		LOG_DEBUG("JTAG queue execution failed");
 		return retval;
+	}
 
 	dap->ack = dap->ack & 0x7;
 
@@ -247,19 +249,22 @@ static int jtagdp_transaction_endcheck(struct adiv5_dap *dap)
 					return ERROR_JTAG_DEVICE_ERROR;
 				}
 			} else {
-				LOG_WARNING("Invalid ACK %#x "
-						"in JTAG-DP transaction",
+				LOG_WARNING("Invalid ACK %#x",
 						dap->ack);
 				return ERROR_JTAG_DEVICE_ERROR;
 			}
 
 			retval = adi_jtag_scan_inout_check_u32(dap, JTAG_DP_DPACC,
 					DP_CTRL_STAT, DPAP_READ, 0, &ctrlstat);
-			if (retval != ERROR_OK)
+			if (retval != ERROR_OK) {
+				LOG_ERROR("Failed read read CTRL/STAT register using adi_jtag_scan_inout_check_u32");
 				return retval;
+			}
 			retval = jtag_execute_queue();
-			if (retval != ERROR_OK)
+			if (retval != ERROR_OK) {
+				LOG_DEBUG("JTAG queue execution failed");
 				return retval;
+			}
 			dap->ack = dap->ack & 0x7;
 		}
 	}
@@ -268,10 +273,10 @@ static int jtagdp_transaction_endcheck(struct adiv5_dap *dap)
 
 	/* Check for STICKYERR and STICKYORUN */
 	if (ctrlstat & (SSTICKYORUN | SSTICKYERR)) {
-		LOG_DEBUG("jtag-dp: CTRL/STAT error, 0x%" PRIx32, ctrlstat);
+		LOG_DEBUG("CTRL/STAT error 0x%8.8" PRIx32, ctrlstat);
 		/* Check power to debug regions */
-		if ((ctrlstat & 0xf0000000) != 0xf0000000) {
-			LOG_ERROR("Debug regions are unpowered, an unexpected reset might have happened");
+		if ((ctrlstat & 0x30000000) != 0x30000000) {
+			LOG_ERROR("CDBGPWRxxx signals are off, debug regions are not powered");
 			return ERROR_JTAG_DEVICE_ERROR;
 		} else {
 			uint32_t mem_ap_csw, mem_ap_tar;
@@ -290,50 +295,65 @@ static int jtagdp_transaction_endcheck(struct adiv5_dap *dap)
 					dap->ap_tar_value);
 
 			if (ctrlstat & SSTICKYORUN)
-				LOG_ERROR("JTAG-DP OVERRUN - check clock, "
+				LOG_DEBUG("SSTICKYORUN - check clock, "
 					"memaccess, or reduce jtag speed");
 
 			if (ctrlstat & SSTICKYERR)
-				LOG_ERROR("JTAG-DP STICKY ERROR");
+				LOG_DEBUG("SSTICKYERR detected");
 
 			/* Clear Sticky Error Bits */
 			retval = adi_jtag_scan_inout_check_u32(dap, JTAG_DP_DPACC,
 					DP_CTRL_STAT, DPAP_WRITE,
 					dap->dp_ctrl_stat | SSTICKYORUN
 						| SSTICKYERR, NULL);
-			if (retval != ERROR_OK)
+			if (retval != ERROR_OK) {
+				LOG_DEBUG("Failed to clear Sticky Error Bits");
 				return retval;
+			}
 			retval = adi_jtag_scan_inout_check_u32(dap, JTAG_DP_DPACC,
 					DP_CTRL_STAT, DPAP_READ, 0, &ctrlstat);
-			if (retval != ERROR_OK)
+			if (retval != ERROR_OK) {
+				LOG_DEBUG("Failed to read using adi_jtag_scan_inout_check_u32 CTRL/STAT register");
 				return retval;
+			}
 			retval = jtag_execute_queue();
-			if (retval != ERROR_OK)
+			if (retval != ERROR_OK) {
+				LOG_DEBUG("Failed to execute JTAG queue");
 				return retval;
-
-			LOG_DEBUG("jtag-dp: CTRL/STAT 0x%" PRIx32, ctrlstat);
+			} else {
+				LOG_DEBUG("CTRL/STAT 0x%8.8" PRIx32, ctrlstat);
+			}
 
 			retval = dap_queue_ap_read(dap,
 					AP_REG_CSW, &mem_ap_csw);
-			if (retval != ERROR_OK)
+			if (retval != ERROR_OK) {
+				LOG_DEBUG("Failed to queue read of MEM-AP CSW register");
 				return retval;
+			}
 
 			retval = dap_queue_ap_read(dap,
 					AP_REG_TAR, &mem_ap_tar);
-			if (retval != ERROR_OK)
+			if (retval != ERROR_OK) {
+				LOG_DEBUG("Failed to queue read of MEM-AP TAR register");
 				return retval;
+			}
 
 			retval = jtag_execute_queue();
-			if (retval != ERROR_OK)
+			if (retval != ERROR_OK) {
+				LOG_DEBUG("Failed to execute JTAG queue");
 				return retval;
-			LOG_ERROR("MEM_AP_CSW 0x%" PRIx32 ", MEM_AP_TAR 0x%"
+			}
+			LOG_DEBUG("MEM_AP_CSW 0x%" PRIx32 ", MEM_AP_TAR 0x%"
 					PRIx32, mem_ap_csw, mem_ap_tar);
 
 		}
 		retval = jtag_execute_queue();
-		if (retval != ERROR_OK)
+		if (retval != ERROR_OK) {
+			LOG_DEBUG("Failed to execute JTAG queue");
 			return retval;
-		return ERROR_JTAG_DEVICE_ERROR;
+		} else {
+			return ERROR_JTAG_DEVICE_ERROR;
+		}
 	}
 
 	return ERROR_OK;

@@ -2562,6 +2562,7 @@ static int handle_target(void *priv)
 			/* polling may fail silently until the target has been examined */
 			retval = target_poll(target);
 			if (retval != ERROR_OK) {
+				LOG_ERROR("Target polling failed");
 				/* 100ms polling interval. Increase interval between polling up to 5000ms */
 				if (target->backoff.times * polling_interval < 5000) {
 					target->backoff.times *= 2;

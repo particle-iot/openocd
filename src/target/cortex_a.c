@@ -172,9 +172,31 @@ static int cortex_a8_init_debug_access(struct target *target)
 	struct armv7a_common *armv7a = target_to_armv7a(target);
 	struct adiv5_dap *swjdp = armv7a->arm.dap;
 	int retval;
+	uint32_t dbg_osreg;
 
 	LOG_DEBUG(" ");
 
+	retval = mem_ap_sel_read_atomic_u32(swjdp, armv7a->debug_ap,
+						    armv7a->debug_base + CPUDBG_OSLSR,
+						    &dbg_osreg);
+	if (retval != ERROR_OK) {
+		LOG_DEBUG("Failed to read DBGOSLSR");
+		return retval;
+	} else {
+		LOG_DEBUG("DBGOSLSR  0x%" PRIx32, dbg_osreg);
+	}
+
+	if (dbg_osreg & CPUDBG_OSLAR_LK_MASK)
+	/* Unlocking the DEBUG OS registers for modification */
+	retval = mem_ap_sel_write_atomic_u32(swjdp, armv7a->debug_ap,
+							     armv7a->debug_base + CPUDBG_OSLAR,
+							     0);
+	if (retval != ERROR_OK) {
+		LOG_DEBUG("Failed to unlock OS Lock");
+		return retval;
+	} else {
+		LOG_DEBUG("OS Lock unlocked");
+	}
 	/* Unlocking the debug registers for modification
 	 * The debugport might be uninitialised so try twice */
 	retval = mem_ap_sel_write_atomic_u32(swjdp, armv7a->debug_ap,
@@ -187,7 +209,6 @@ static int cortex_a8_init_debug_access(struct target *target)
 			LOG_USER(
 				"Locking debug access failed on first, but succeeded on second try.");
 	}
-
 	return retval;
 }
 
@@ -213,16 +234,22 @@ static int cortex_a_init_debug_access(struct target *target)
 		retval = mem_ap_sel_read_atomic_u32(swjdp, armv7a->debug_ap,
 						    armv7a->debug_base + CPUDBG_OSLSR,
 						    &dbg_osreg);
-		if (retval != ERROR_OK)
+		if (retval != ERROR_OK) {
+			LOG_DEBUG("Failed to read OS Lock Status Register");
 			return retval;
-
-		LOG_DEBUG("DBGOSLSR  0x%" PRIx32, dbg_osreg);
-
-		if (dbg_osreg & CPUDBG_OSLAR_LK_MASK)
-			/* Unlocking the DEBUG OS registers for modification */
-			retval = mem_ap_sel_write_atomic_u32(swjdp, armv7a->debug_ap,
+		} else {
+			LOG_DEBUG("DBGOSLSR  0x%" PRIx32, dbg_osreg);
+			if (dbg_osreg & CPUDBG_OSLAR_LK_MASK) {
+				/* Unlocking the DEBUG OS registers for modification */
+				retval = mem_ap_sel_write_atomic_u32(swjdp, armv7a->debug_ap,
 							     armv7a->debug_base + CPUDBG_OSLAR,
 							     0);
+				if (retval != ERROR_OK) {
+					LOG_DEBUG("Failed to write to OS Lock Access Register");
+					return retval;
+				}
+			}
+		}
 		break;
 
 	case CORTEX_A5_PARTNUM:
@@ -232,16 +259,20 @@ static int cortex_a_init_debug_access(struct target *target)
 		retval = cortex_a8_init_debug_access(target);
 	}
 
-	if (retval != ERROR_OK)
+	if (retval != ERROR_OK) {
+		LOG_DEBUG("Unlocking OS Lock Failed");
 		return retval;
+	}
 	/* Clear Sticky Power Down status Bit in PRSR to enable access to
 	   the registers in the Core Power Domain */
 	retval = mem_ap_sel_read_atomic_u32(swjdp, armv7a->debug_ap,
 			armv7a->debug_base + CPUDBG_PRSR, &dbg_osreg);
 	LOG_DEBUG("target->coreid %" PRId32 " DBGPRSR  0x%" PRIx32, target->coreid, dbg_osreg);
 
-	if (retval != ERROR_OK)
+	if (retval != ERROR_OK) {
+		LOG_DEBUG("Failed to read Debug Power Request Status Register");
 		return retval;
+	}
 
 	/* Enabling of instruction execution in debug mode is done in debug_entry code */
 
@@ -501,6 +532,8 @@ static int cortex_a_dap_write_memap_register_u32(struct target *target,
 	struct adiv5_dap *swjdp = armv7a->arm.dap;
 
 	retval = mem_ap_sel_write_atomic_u32(swjdp, armv7a->debug_ap, address, value);
+	if (retval != ERROR_OK)
+		LOG_DEBUG("Failed to write 0x%08" PRIx32 " to 0x%08" PRIx32 , address, value);
 
 	return retval;
 }
@@ -738,10 +771,14 @@ static int cortex_a_bpwp_enable(struct arm_dpm *dpm, unsigned index_t,
 
 	retval = cortex_a_dap_write_memap_register_u32(dpm->arm->target,
 			vr, addr);
-	if (retval != ERROR_OK)
+	if (retval != ERROR_OK) {
+		LOG_DEBUG("A: failed to enable bpwp, vr %08x", (unsigned)vr);
 		return retval;
+	}
 	retval = cortex_a_dap_write_memap_register_u32(dpm->arm->target,
 			cr, control);
+	if (retval != ERROR_OK)
+		LOG_DEBUG("A: failed to enable bpwp, cr %08x", (unsigned)cr);
 	return retval;
 }
 
@@ -749,6 +786,7 @@ static int cortex_a_bpwp_disable(struct arm_dpm *dpm, unsigned index_t)
 {
 	struct cortex_a_common *a = dpm_to_a(dpm);
 	uint32_t cr;
+	int retval;
 
 	switch (index_t) {
 		case 0 ... 15:
@@ -763,10 +801,14 @@ static int cortex_a_bpwp_disable(struct arm_dpm *dpm, unsigned index_t)
 	}
 	cr += 4 * index_t;
 
-	LOG_DEBUG("A: bpwp disable, cr %08x", (unsigned) cr);
-
 	/* clear control register */
-	return cortex_a_dap_write_memap_register_u32(dpm->arm->target, cr, 0);
+	LOG_DEBUG("A: bpwp disable, cr %08x", (unsigned)cr);
+	retval = cortex_a_dap_write_memap_register_u32(dpm->arm->target, cr, 0);
+	if (retval != ERROR_OK) {
+		LOG_DEBUG("A: bpwp disable failed");
+		return retval;
+	}
+	return retval;
 }
 
 static int cortex_a_dpm_setup(struct cortex_a_common *a, uint32_t didr)
@@ -791,10 +833,20 @@ static int cortex_a_dpm_setup(struct cortex_a_common *a, uint32_t didr)
 	dpm->bpwp_disable = cortex_a_bpwp_disable;
 
 	retval = arm_dpm_setup(dpm);
-	if (retval == ERROR_OK)
+	if (retval != ERROR_OK) {
+		LOG_DEBUG("Failed to setup dpm");
+		return retval;
+	} else {
+		LOG_DEBUG("dpm setup proceeded, initializing...");
 		retval = arm_dpm_initialize(dpm);
-
-	return retval;
+		if (retval != ERROR_OK) {
+			LOG_DEBUG("dpm initialization failed");
+			return retval;
+		} else {
+			LOG_DEBUG("dpm initialized");
+			return ERROR_OK;
+		}
+	}
 }
 static struct target *get_cortex_a(struct target *target, int32_t coreid)
 {
@@ -864,8 +916,10 @@ static int cortex_a_poll(struct target *target)
 	}
 	retval = mem_ap_sel_read_atomic_u32(swjdp, armv7a->debug_ap,
 			armv7a->debug_base + CPUDBG_DSCR, &dscr);
-	if (retval != ERROR_OK)
+	if (retval != ERROR_OK) {
+		LOG_DEBUG("Failed to read DSCR");
 		return retval;
+	}
 	cortex_a->cpudbg_dscr = dscr;
 
 	if (DSCR_RUN_MODE(dscr) == (DSCR_CORE_HALTED | DSCR_CORE_RESTARTED)) {
@@ -877,12 +931,16 @@ static int cortex_a_poll(struct target *target)
 				|| (prev_target_state == TARGET_UNKNOWN)
 				|| (prev_target_state == TARGET_RESET)) {
 				retval = cortex_a_debug_entry(target);
-				if (retval != ERROR_OK)
+				if (retval != ERROR_OK) {
+					LOG_DEBUG("cortex_a_debug_entry call failed");
 					return retval;
+				}
 				if (target->smp) {
 					retval = update_halt_gdb(target);
-					if (retval != ERROR_OK)
+					if (retval != ERROR_OK) {
+						LOG_DEBUG("update_halt_gdb call failed");
 						return retval;
+					}
 				}
 				target_call_event_callbacks(target,
 					TARGET_EVENT_HALTED);
@@ -891,12 +949,16 @@ static int cortex_a_poll(struct target *target)
 				LOG_DEBUG(" ");
 
 				retval = cortex_a_debug_entry(target);
-				if (retval != ERROR_OK)
+				if (retval != ERROR_OK) {
+					LOG_DEBUG("cortex_a_debug_entry call failed");
 					return retval;
+				}
 				if (target->smp) {
 					retval = update_halt_gdb(target);
-					if (retval != ERROR_OK)
+					if (retval != ERROR_OK) {
+						LOG_DEBUG("update_halt_gdb call failed");
 						return retval;
+					}
 				}
 
 				target_call_event_callbacks(target,
@@ -926,32 +988,40 @@ static int cortex_a_halt(struct target *target)
 	 */
 	retval = mem_ap_sel_write_atomic_u32(swjdp, armv7a->debug_ap,
 			armv7a->debug_base + CPUDBG_DRCR, DRCR_HALT);
-	if (retval != ERROR_OK)
+	if (retval != ERROR_OK) {
+		LOG_DEBUG("Failed to write to DRCR");
 		return retval;
+	}
 
 	/*
 	 * enter halting debug mode
 	 */
 	retval = mem_ap_sel_read_atomic_u32(swjdp, armv7a->debug_ap,
 			armv7a->debug_base + CPUDBG_DSCR, &dscr);
-	if (retval != ERROR_OK)
+	if (retval != ERROR_OK) {
+		LOG_DEBUG("Failed to read DSCR");
 		return retval;
+	}
 
 	retval = mem_ap_sel_write_atomic_u32(swjdp, armv7a->debug_ap,
 			armv7a->debug_base + CPUDBG_DSCR, dscr | DSCR_HALT_DBG_MODE);
-	if (retval != ERROR_OK)
+	if (retval != ERROR_OK) {
+		LOG_DEBUG("Failed to write to DSCR");
 		return retval;
+	}
 
 	long long then = timeval_ms();
 	for (;; ) {
 		retval = mem_ap_sel_read_atomic_u32(swjdp, armv7a->debug_ap,
 				armv7a->debug_base + CPUDBG_DSCR, &dscr);
-		if (retval != ERROR_OK)
+		if (retval != ERROR_OK) {
+			LOG_DEBUG("Failed to read DSCR");
 			return retval;
+		}
 		if ((dscr & DSCR_CORE_HALTED) != 0)
 			break;
 		if (timeval_ms() > then + 1000) {
-			LOG_ERROR("Timeout waiting for halt");
+			LOG_DEBUG("Timeout waiting for halt");
 			return ERROR_FAIL;
 		}
 	}
@@ -1027,11 +1097,15 @@ static int cortex_a_internal_restore(struct target *target, int current,
 	/* called it now before restoring context because it uses cpu
 	 * register r0 for restoring cp15 control register */
 	retval = cortex_a_restore_cp15_control_reg(target);
-	if (retval != ERROR_OK)
+	if (retval != ERROR_OK) {
+		LOG_DEBUG("Failed to restore CP15 control register");
 		return retval;
+	}
 	retval = cortex_a_restore_context(target, handle_breakpoints);
-	if (retval != ERROR_OK)
+	if (retval != ERROR_OK) {
+		LOG_DEBUG("Failed to restore context");
 		return retval;
+	}
 	target->debug_reason = DBG_REASON_NOTHALTED;
 	target->state = TARGET_RUNNING;
 
@@ -1185,8 +1259,10 @@ static int cortex_a_debug_entry(struct target *target)
 	/* REVISIT surely we should not re-read DSCR !! */
 	retval = mem_ap_sel_read_atomic_u32(swjdp, armv7a->debug_ap,
 			armv7a->debug_base + CPUDBG_DSCR, &dscr);
-	if (retval != ERROR_OK)
+	if (retval != ERROR_OK) {
+		LOG_DEBUG("Failed to re-read DSCR");
 		return retval;
+	}
 
 	/* REVISIT see A TRM 12.11.4 steps 2..3 -- make sure that any
 	 * imprecise data aborts get discarded by issuing a Data
@@ -1197,8 +1273,10 @@ static int cortex_a_debug_entry(struct target *target)
 	dscr |= DSCR_ITR_EN;
 	retval = mem_ap_sel_write_atomic_u32(swjdp, armv7a->debug_ap,
 			armv7a->debug_base + CPUDBG_DSCR, dscr);
-	if (retval != ERROR_OK)
+	if (retval != ERROR_OK) {
+		LOG_DEBUG("Failed to write to DSCR");
 		return retval;
+	}
 
 	/* Examine debug reason */
 	arm_dpm_report_dscr(&armv7a->dpm, cortex_a->cpudbg_dscr);
@@ -1210,8 +1288,10 @@ static int cortex_a_debug_entry(struct target *target)
 		retval = mem_ap_sel_read_atomic_u32(swjdp, armv7a->debug_ap,
 				armv7a->debug_base + CPUDBG_WFAR,
 				&wfar);
-		if (retval != ERROR_OK)
+		if (retval != ERROR_OK) {
+			LOG_DEBUG("Failed to read WFAR");
 			return retval;
+		}
 		arm_dpm_report_wfar(&armv7a->dpm, wfar);
 	}
 
@@ -2877,8 +2957,10 @@ static int cortex_a_examine_first(struct target *target)
 	 * we call ahbap_debugport_init(swjdp) instead
 	 */
 	retval = ahbap_debugport_init(swjdp);
-	if (retval != ERROR_OK)
+	if (retval != ERROR_OK) {
+		LOG_ERROR("Failed to init AHB-AP");
 		return retval;
+	}
 
 	/* Search for the APB-AB - it is needed for access to debug registers */
 	retval = dap_find_ap(swjdp, AP_TYPE_APB_AP, &armv7a->debug_ap);
@@ -2905,8 +2987,10 @@ static int cortex_a_examine_first(struct target *target)
 		LOG_DEBUG("%s's dbgbase is not set, trying to detect using the ROM table",
 			  target->cmd_name);
 		retval = dap_get_debugbase(swjdp, 1, &dbgbase, &apid);
-		if (retval != ERROR_OK)
+		if (retval != ERROR_OK) {
+			LOG_DEBUG("Failed to get debugbase offset");
 			return retval;
+		}
 		/* Lookup 0x15 -- Processor DAP */
 		retval = dap_lookup_cs_component(swjdp, 1, dbgbase, 0x15,
 				&armv7a->debug_base, &coreidx);
@@ -2920,10 +3004,20 @@ static int cortex_a_examine_first(struct target *target)
 	} else
 		armv7a->debug_base = target->dbgbase;
 
-	retval = mem_ap_sel_read_atomic_u32(swjdp, armv7a->debug_ap,
-			armv7a->debug_base + CPUDBG_CPUID, &cpuid);
-	if (retval != ERROR_OK)
+	/*
+	 *  Unlocking the debug registers 
+	 *  we should do it for all not only for
+	 *  A7 and A15
+	 */
+	retval = mem_ap_sel_write_atomic_u32(swjdp, armv7a->debug_ap,
+			   armv7a->debug_base + CPUDBG_OSLAR, 0);
+	if (retval != ERROR_OK) {
+		LOG_DEBUG("Failed to unlock OS Lock register");
 		return retval;
+	}
+
+
+
 
 	retval = mem_ap_sel_read_atomic_u32(swjdp, armv7a->debug_ap,
 			armv7a->debug_base + CPUDBG_CPUID, &cpuid);
@@ -2963,30 +3057,6 @@ static int cortex_a_examine_first(struct target *target)
 	cortex_a->ttypr = ttypr;
 	cortex_a->didr = didr;
 
-	/* Unlocking the debug registers */
-	if ((cpuid & CORTEX_A_MIDR_PARTNUM_MASK) >> CORTEX_A_MIDR_PARTNUM_SHIFT ==
-		CORTEX_A15_PARTNUM) {
-
-		retval = mem_ap_sel_write_atomic_u32(swjdp, armv7a->debug_ap,
-						     armv7a->debug_base + CPUDBG_OSLAR,
-						     0);
-
-		if (retval != ERROR_OK)
-			return retval;
-
-	}
-	/* Unlocking the debug registers */
-	if ((cpuid & CORTEX_A_MIDR_PARTNUM_MASK) >> CORTEX_A_MIDR_PARTNUM_SHIFT ==
-		CORTEX_A7_PARTNUM) {
-
-		retval = mem_ap_sel_write_atomic_u32(swjdp, armv7a->debug_ap,
-						     armv7a->debug_base + CPUDBG_OSLAR,
-						     0);
-
-		if (retval != ERROR_OK)
-			return retval;
-
-	}
 	retval = mem_ap_sel_read_atomic_u32(swjdp, armv7a->debug_ap,
 					    armv7a->debug_base + CPUDBG_PRSR, &dbg_osreg);
 
