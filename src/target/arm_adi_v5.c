@@ -926,6 +926,65 @@ int dap_lookup_cs_component(struct adiv5_dap *dap, int ap,
 	return ERROR_OK;
 }
 
+/* DDI 0314H indicates a JEP106 of 0xBB
+ * ("0x3B" plus 8th MSB indicating JEDEC assigned)
+ * for part numbers defined in that document.
+ * Much of the legacy part numbers below are
+ * likely assuming this JEP106 id code.
+ * "ANYJ" is a wildcard to preserve legacy behavior.
+ */
+
+#define ANYJ 0x100
+
+static const struct {
+	uint32_t part_num;
+	uint32_t JEP106_id;
+	const char *type;
+	const char *full;
+} dap_partnums[] = {
+	{ 0x000, 0xE5, "SHARC+/Blackfin+",	"(see Type)", }, /* all Analog Devices part_num are zero */
+	{ 0x000, ANYJ, "Cortex-M3 NVIC",	"(Interrupt Controller)", },
+	{ 0x001, ANYJ, "Cortex-M3 ITM",		"(Instrumentation Trace Module)", },
+	{ 0x002, ANYJ, "Cortex-M3 DWT",		"(Data Watchpoint and Trace)", },
+	{ 0x003, ANYJ, "Cortex-M3 FBP",		"(Flash Patch and Breakpoint)", },
+	{ 0x008, ANYJ, "Cortex-M0 SCS",		"(System Control Space)", },
+	{ 0x00a, ANYJ, "Cortex-M0 DWT",		"(Data Watchpoint and Trace)", },
+	{ 0x00b, ANYJ, "Cortex-M0 BPU",		"(Breakpoint Unit)", },
+	{ 0x00c, ANYJ, "Cortex-M4 SCS",		"(System Control Space)", },
+	{ 0x00d, ANYJ, "CoreSight ETM11",	"(Embedded Trace)", },
+	/* legacy comment: 0x113: what? */
+	{ 0x120, ANYJ, "TI SDTI",		"(System Debug Trace Interface)", }, /* from OMAP3 memmap */
+	{ 0x343, ANYJ, "TI DAPCTL",		"", }, /* from OMAP3 memmap */
+	{ 0x906, ANYJ, "Coresight CTI",		"(Cross Trigger)", },
+	{ 0x907, ANYJ, "Coresight ETB",		"(Trace Buffer)", },
+	{ 0x908, ANYJ, "Coresight CSTF",	"(Trace Funnel)", },
+	{ 0x910, ANYJ, "CoreSight ETM9",	"(Embedded Trace)", },
+	{ 0x912, ANYJ, "Coresight TPIU",	"(Trace Port Interface Unit)", },
+	{ 0x913, ANYJ, "Coresight ITM",		"(Instrumentation Trace Macrocell)", },
+	{ 0x914, ANYJ, "Coresight SWO",		"(Single Wire Output)", },
+	{ 0x917, ANYJ, "Coresight HTM",		"(AHB Trace Macrocell)", },
+	{ 0x920, ANYJ, "CoreSight ETM11",	"(Embedded Trace)", },
+	{ 0x921, ANYJ, "Cortex-A8 ETM",		"(Embedded Trace)", },
+	{ 0x922, ANYJ, "Cortex-A8 CTI",		"(Cross Trigger)", },
+	{ 0x923, ANYJ, "Cortex-M3 TPIU",	"(Trace Port Interface Unit)", },
+	{ 0x924, ANYJ, "Cortex-M3 ETM",		"(Embedded Trace)", },
+	{ 0x925, ANYJ, "Cortex-M4 ETM",		"(Embedded Trace)", },
+	{ 0x930, ANYJ, "Cortex-R4 ETM",		"(Embedded Trace)", },
+	{ 0x950, ANYJ, "CoreSight Component",	"(unidentified Cortex-A9 component)", },
+	{ 0x955, 0xBB, "CoreSight Component",	"(unidentified Cortex-A5 component)", },
+	{ 0x961, ANYJ, "CoreSight TMC",		"(Trace Memory Controller)", },
+	{ 0x962, ANYJ, "CoreSight STM",		"(System Trace Macrocell)", },
+	{ 0x9a0, ANYJ, "CoreSight PMU",		"(Performance Monitoring Unit)", },
+	{ 0x9a1, ANYJ, "Cortex-M4 TPUI",	"(Trace Port Interface Unit)", },
+	{ 0x9a5, ANYJ, "Cortex-A5 ETM",		"(Embedded Trace)", },
+	{ 0x9a7, ANYJ, "Cortex-A7 PMU",		"(Performance Monitoring Unit)", },
+	{ 0xc05, ANYJ, "Cortex-A5 Debug",	"(Debug Unit)", },
+	{ 0xc07, ANYJ, "Cortex-A7 Debug",	"(Debug Unit)", },
+	{ 0xc08, ANYJ, "Cortex-A8 Debug",	"(Debug Unit)", },
+	{ 0xc09, ANYJ, "Cortex-A9 Debug",	"(Debug Unit)", },
+	{ 0x4af, ANYJ, "Cortex-A15 Debug",	"(Debug Unit)", },
+};
+
 static int dap_rom_display(struct command_context *cmd_ctx,
 				struct adiv5_dap *dap, int ap, uint32_t dbgbase, int depth)
 {
@@ -992,7 +1051,7 @@ static int dap_rom_display(struct command_context *cmd_ctx,
 			uint32_t c_cid0, c_cid1, c_cid2, c_cid3;
 			uint32_t c_pid0, c_pid1, c_pid2, c_pid3, c_pid4;
 			uint32_t component_base;
-			uint32_t part_num;
+			uint32_t part_num, JEP106_id;
 			const char *type, *full;
 
 			component_base = (dbgbase & 0xFFFFF000) + (romentry & 0xFFFFF000);
@@ -1223,158 +1282,31 @@ static int dap_rom_display(struct command_context *cmd_ctx,
 			 */
 			part_num = (c_pid0 & 0xff);
 			part_num |= (c_pid1 & 0x0f) << 8;
-			switch (part_num) {
-			case 0x000:
-				type = "Cortex-M3 NVIC";
-				full = "(Interrupt Controller)";
-				break;
-			case 0x001:
-				type = "Cortex-M3 ITM";
-				full = "(Instrumentation Trace Module)";
-				break;
-			case 0x002:
-				type = "Cortex-M3 DWT";
-				full = "(Data Watchpoint and Trace)";
-				break;
-			case 0x003:
-				type = "Cortex-M3 FBP";
-				full = "(Flash Patch and Breakpoint)";
-				break;
-			case 0x008:
-				type = "Cortex-M0 SCS";
-				full = "(System Control Space)";
-				break;
-			case 0x00a:
-				type = "Cortex-M0 DWT";
-				full = "(Data Watchpoint and Trace)";
-				break;
-			case 0x00b:
-				type = "Cortex-M0 BPU";
-				full = "(Breakpoint Unit)";
-				break;
-			case 0x00c:
-				type = "Cortex-M4 SCS";
-				full = "(System Control Space)";
-				break;
-			case 0x00d:
-				type = "CoreSight ETM11";
-				full = "(Embedded Trace)";
-				break;
-			/* case 0x113: what? */
-			case 0x120:		/* from OMAP3 memmap */
-				type = "TI SDTI";
-				full = "(System Debug Trace Interface)";
-				break;
-			case 0x343:		/* from OMAP3 memmap */
-				type = "TI DAPCTL";
-				full = "";
-				break;
-			case 0x906:
-				type = "Coresight CTI";
-				full = "(Cross Trigger)";
-				break;
-			case 0x907:
-				type = "Coresight ETB";
-				full = "(Trace Buffer)";
-				break;
-			case 0x908:
-				type = "Coresight CSTF";
-				full = "(Trace Funnel)";
-				break;
-			case 0x910:
-				type = "CoreSight ETM9";
-				full = "(Embedded Trace)";
-				break;
-			case 0x912:
-				type = "Coresight TPIU";
-				full = "(Trace Port Interface Unit)";
-				break;
-			case 0x913:
-				type = "Coresight ITM";
-				full = "(Instrumentation Trace Macrocell)";
-				break;
-			case 0x914:
-				type = "Coresight SWO";
-				full = "(Single Wire Output)";
-				break;
-			case 0x917:
-				type = "Coresight HTM";
-				full = "(AHB Trace Macrocell)";
-				break;
-			case 0x920:
-				type = "CoreSight ETM11";
-				full = "(Embedded Trace)";
-				break;
-			case 0x921:
-				type = "Cortex-A8 ETM";
-				full = "(Embedded Trace)";
-				break;
-			case 0x922:
-				type = "Cortex-A8 CTI";
-				full = "(Cross Trigger)";
-				break;
-			case 0x923:
-				type = "Cortex-M3 TPIU";
-				full = "(Trace Port Interface Unit)";
-				break;
-			case 0x924:
-				type = "Cortex-M3 ETM";
-				full = "(Embedded Trace)";
-				break;
-			case 0x925:
-				type = "Cortex-M4 ETM";
-				full = "(Embedded Trace)";
-				break;
-			case 0x930:
-				type = "Cortex-R4 ETM";
-				full = "(Embedded Trace)";
-				break;
-			case 0x950:
-				type = "CoreSight Component";
-				full = "(unidentified Cortex-A9 component)";
-				break;
-			case 0x961:
-				type = "CoreSight TMC";
-				full = "(Trace Memory Controller)";
-				break;
-			case 0x962:
-				type = "CoreSight STM";
-				full = "(System Trace Macrocell)";
-				break;
-			case 0x9a0:
-				type = "CoreSight PMU";
-				full = "(Performance Monitoring Unit)";
-				break;
-			case 0x9a1:
-				type = "Cortex-M4 TPUI";
-				full = "(Trace Port Interface Unit)";
-				break;
-			case 0x9a5:
-				type = "Cortex-A5 ETM";
-				full = "(Embedded Trace)";
-				break;
-			case 0xc05:
-				type = "Cortex-A5 Debug";
-				full = "(Debug Unit)";
-				break;
-			case 0xc08:
-				type = "Cortex-A8 Debug";
-				full = "(Debug Unit)";
-				break;
-			case 0xc09:
-				type = "Cortex-A9 Debug";
-				full = "(Debug Unit)";
-				break;
-			case 0x4af:
-				type = "Cortex-A15 Debug";
-				full = "(Debug Unit)";
-				break;
-			default:
-				LOG_DEBUG("Unrecognized Part number 0x%" PRIx32, part_num);
-				type = "-*- unrecognized -*-";
-				full = "";
-				break;
+			JEP106_id = (c_pid1 & 0xf0) >> 4;
+			JEP106_id |= (c_pid2 & 0x0f) << 4;
+
+			/* default values to be overwritten upon finding a match */
+			type = "-*- unrecognized -*-";
+			full = "";
+
+			/* search dap_partnums[] array for a match */
+			unsigned entry;
+			for (entry = 0; entry < (sizeof(dap_partnums) / sizeof(*dap_partnums)); entry++) {
+
+				if ((dap_partnums[entry].JEP106_id != JEP106_id) && (dap_partnums[entry].JEP106_id != ANYJ))
+					continue;
+
+				if (dap_partnums[entry].part_num != part_num)
+					continue;
+
+				type = dap_partnums[entry].type;
+				full = dap_partnums[entry].full;
+				goto dap_partnum_match;
 			}
+
+			LOG_DEBUG("Unrecognized Part number 0x%" PRIx32, part_num);
+
+dap_partnum_match:
 			command_print(cmd_ctx, "\t\tPart is %s %s",
 					type, full);
 
