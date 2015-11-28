@@ -926,6 +926,76 @@ int dap_lookup_cs_component(struct adiv5_dap *dap, int ap,
 	return ERROR_OK;
 }
 
+/* as used in this code, JEP106_id is encoded as:
+ * bits 11:8 : JEP106 Bank (0 = Bank 1, 1 = Bank 2, 2 = Bank 3, etc.)
+ * bit 7     : odd parity calculated for bits 6:0
+ * bits 6:0  : JEP106 Identity Code (manufacturer)
+ * JEP106 is a standard available from jedec.org
+ * bits 7:0 correspond to the values shown in JEP106
+ */
+
+/* The legacy code only used the part number field to identify CoreSight peripherals.
+ * This meant that the same part number from two different manufacturers looked the same.
+ * It is desirable for all future additions to identify with both part number and JEP106.
+ * "ANYJE" is a wildcard (any JEP106) only to preserve legacy behavior for legacy entries.
+ * "NOJEP" denotes when a JEP106 id was not encoded into the ROM table
+ */
+
+#define ANYJE 0x1000
+#define NOJEP 0x1001
+
+static const struct {
+	uint32_t part_num;
+	uint32_t JEP106_id;
+	const char *type;
+	const char *full;
+} dap_partnums[] = {
+	{ 0x000, NOJEP, "not reported",		"", },
+	{ 0x000, 0x0E5, "SHARC+/Blackfin+",	"(see Type)", },
+	{ 0x000, 0x43B, "Cortex-M3 SCS",	"(System Control Space)", },
+	{ 0x000, ANYJE, "Cortex-M3 NVIC",	"(Interrupt Controller)", },
+	{ 0x001, ANYJE, "Cortex-M3 ITM",	"(Instrumentation Trace Module)", },
+	{ 0x002, ANYJE, "Cortex-M3 DWT",	"(Data Watchpoint and Trace)", },
+	{ 0x003, ANYJE, "Cortex-M3 FBP",	"(Flash Patch and Breakpoint)", },
+	{ 0x008, ANYJE, "Cortex-M0 SCS",	"(System Control Space)", },
+	{ 0x00a, ANYJE, "Cortex-M0 DWT",	"(Data Watchpoint and Trace)", },
+	{ 0x00b, ANYJE, "Cortex-M0 BPU",	"(Breakpoint Unit)", },
+	{ 0x00c, ANYJE, "Cortex-M4 SCS",	"(System Control Space)", },
+	{ 0x00d, ANYJE, "CoreSight ETM11",	"(Embedded Trace)", },
+	/* legacy comment: 0x113: what? */
+	{ 0x120, ANYJE, "TI SDTI",		"(System Debug Trace Interface)", }, /* from OMAP3 memmap */
+	{ 0x343, ANYJE, "TI DAPCTL",		"", }, /* from OMAP3 memmap */
+	{ 0x906, ANYJE, "Coresight CTI",	"(Cross Trigger)", },
+	{ 0x907, ANYJE, "Coresight ETB",	"(Trace Buffer)", },
+	{ 0x908, ANYJE, "Coresight CSTF",	"(Trace Funnel)", },
+	{ 0x910, ANYJE, "CoreSight ETM9",	"(Embedded Trace)", },
+	{ 0x912, ANYJE, "Coresight TPIU",	"(Trace Port Interface Unit)", },
+	{ 0x913, ANYJE, "Coresight ITM",	"(Instrumentation Trace Macrocell)", },
+	{ 0x914, ANYJE, "Coresight SWO",	"(Single Wire Output)", },
+	{ 0x917, ANYJE, "Coresight HTM",	"(AHB Trace Macrocell)", },
+	{ 0x920, ANYJE, "CoreSight ETM11",	"(Embedded Trace)", },
+	{ 0x921, ANYJE, "Cortex-A8 ETM",	"(Embedded Trace)", },
+	{ 0x922, ANYJE, "Cortex-A8 CTI",	"(Cross Trigger)", },
+	{ 0x923, ANYJE, "Cortex-M3 TPIU",	"(Trace Port Interface Unit)", },
+	{ 0x924, ANYJE, "Cortex-M3 ETM",	"(Embedded Trace)", },
+	{ 0x925, ANYJE, "Cortex-M4 ETM",	"(Embedded Trace)", },
+	{ 0x930, ANYJE, "Cortex-R4 ETM",	"(Embedded Trace)", },
+	{ 0x950, ANYJE, "CoreSight Component",	"(unidentified Cortex-A9 component)", },
+	{ 0x955, 0x43B, "CoreSight Component",	"(unidentified Cortex-A5 component)", },
+	{ 0x961, ANYJE, "CoreSight TMC",	"(Trace Memory Controller)", },
+	{ 0x962, ANYJE, "CoreSight STM",	"(System Trace Macrocell)", },
+	{ 0x9a0, ANYJE, "CoreSight PMU",	"(Performance Monitoring Unit)", },
+	{ 0x9a1, ANYJE, "Cortex-M4 TPUI",	"(Trace Port Interface Unit)", },
+	{ 0x9a5, ANYJE, "Cortex-A5 ETM",	"(Embedded Trace)", },
+	{ 0x9a7, ANYJE, "Cortex-A7 PMU",	"(Performance Monitoring Unit)", },
+	{ 0xc05, ANYJE, "Cortex-A5 Debug",	"(Debug Unit)", },
+	{ 0xc07, ANYJE, "Cortex-A7 Debug",	"(Debug Unit)", },
+	{ 0xc08, ANYJE, "Cortex-A8 Debug",	"(Debug Unit)", },
+	{ 0xc09, ANYJE, "Cortex-A9 Debug",	"(Debug Unit)", },
+	{ 0xc0f, 0x43B, "Cortex-A15 Debug",	"(Debug Unit)", },
+	{ 0x4af, ANYJE, "Cortex-A15 Debug",	"(Debug Unit)", },
+};
+
 static int dap_rom_display(struct command_context *cmd_ctx,
 				struct adiv5_dap *dap, int ap, uint32_t dbgbase, int depth)
 {
@@ -992,7 +1062,7 @@ static int dap_rom_display(struct command_context *cmd_ctx,
 			uint32_t c_cid0, c_cid1, c_cid2, c_cid3;
 			uint32_t c_pid0, c_pid1, c_pid2, c_pid3, c_pid4;
 			uint32_t component_base;
-			uint32_t part_num;
+			uint32_t part_num, JEP106_id;
 			const char *type, *full;
 
 			component_base = (dbgbase & 0xFFFFF000) + (romentry & 0xFFFFF000);
@@ -1223,160 +1293,49 @@ static int dap_rom_display(struct command_context *cmd_ctx,
 			 */
 			part_num = (c_pid0 & 0xff);
 			part_num |= (c_pid1 & 0x0f) << 8;
-			switch (part_num) {
-			case 0x000:
-				type = "Cortex-M3 NVIC";
-				full = "(Interrupt Controller)";
-				break;
-			case 0x001:
-				type = "Cortex-M3 ITM";
-				full = "(Instrumentation Trace Module)";
-				break;
-			case 0x002:
-				type = "Cortex-M3 DWT";
-				full = "(Data Watchpoint and Trace)";
-				break;
-			case 0x003:
-				type = "Cortex-M3 FBP";
-				full = "(Flash Patch and Breakpoint)";
-				break;
-			case 0x008:
-				type = "Cortex-M0 SCS";
-				full = "(System Control Space)";
-				break;
-			case 0x00a:
-				type = "Cortex-M0 DWT";
-				full = "(Data Watchpoint and Trace)";
-				break;
-			case 0x00b:
-				type = "Cortex-M0 BPU";
-				full = "(Breakpoint Unit)";
-				break;
-			case 0x00c:
-				type = "Cortex-M4 SCS";
-				full = "(System Control Space)";
-				break;
-			case 0x00d:
-				type = "CoreSight ETM11";
-				full = "(Embedded Trace)";
-				break;
-			/* case 0x113: what? */
-			case 0x120:		/* from OMAP3 memmap */
-				type = "TI SDTI";
-				full = "(System Debug Trace Interface)";
-				break;
-			case 0x343:		/* from OMAP3 memmap */
-				type = "TI DAPCTL";
-				full = "";
-				break;
-			case 0x906:
-				type = "Coresight CTI";
-				full = "(Cross Trigger)";
-				break;
-			case 0x907:
-				type = "Coresight ETB";
-				full = "(Trace Buffer)";
-				break;
-			case 0x908:
-				type = "Coresight CSTF";
-				full = "(Trace Funnel)";
-				break;
-			case 0x910:
-				type = "CoreSight ETM9";
-				full = "(Embedded Trace)";
-				break;
-			case 0x912:
-				type = "Coresight TPIU";
-				full = "(Trace Port Interface Unit)";
-				break;
-			case 0x913:
-				type = "Coresight ITM";
-				full = "(Instrumentation Trace Macrocell)";
-				break;
-			case 0x914:
-				type = "Coresight SWO";
-				full = "(Single Wire Output)";
-				break;
-			case 0x917:
-				type = "Coresight HTM";
-				full = "(AHB Trace Macrocell)";
-				break;
-			case 0x920:
-				type = "CoreSight ETM11";
-				full = "(Embedded Trace)";
-				break;
-			case 0x921:
-				type = "Cortex-A8 ETM";
-				full = "(Embedded Trace)";
-				break;
-			case 0x922:
-				type = "Cortex-A8 CTI";
-				full = "(Cross Trigger)";
-				break;
-			case 0x923:
-				type = "Cortex-M3 TPIU";
-				full = "(Trace Port Interface Unit)";
-				break;
-			case 0x924:
-				type = "Cortex-M3 ETM";
-				full = "(Embedded Trace)";
-				break;
-			case 0x925:
-				type = "Cortex-M4 ETM";
-				full = "(Embedded Trace)";
-				break;
-			case 0x930:
-				type = "Cortex-R4 ETM";
-				full = "(Embedded Trace)";
-				break;
-			case 0x950:
-				type = "CoreSight Component";
-				full = "(unidentified Cortex-A9 component)";
-				break;
-			case 0x961:
-				type = "CoreSight TMC";
-				full = "(Trace Memory Controller)";
-				break;
-			case 0x962:
-				type = "CoreSight STM";
-				full = "(System Trace Macrocell)";
-				break;
-			case 0x9a0:
-				type = "CoreSight PMU";
-				full = "(Performance Monitoring Unit)";
-				break;
-			case 0x9a1:
-				type = "Cortex-M4 TPUI";
-				full = "(Trace Port Interface Unit)";
-				break;
-			case 0x9a5:
-				type = "Cortex-A5 ETM";
-				full = "(Embedded Trace)";
-				break;
-			case 0xc05:
-				type = "Cortex-A5 Debug";
-				full = "(Debug Unit)";
-				break;
-			case 0xc08:
-				type = "Cortex-A8 Debug";
-				full = "(Debug Unit)";
-				break;
-			case 0xc09:
-				type = "Cortex-A9 Debug";
-				full = "(Debug Unit)";
-				break;
-			case 0x4af:
-				type = "Cortex-A15 Debug";
-				full = "(Debug Unit)";
-				break;
-			default:
-				LOG_DEBUG("Unrecognized Part number 0x%" PRIx32, part_num);
-				type = "-*- unrecognized -*-";
-				full = "";
+			if (c_pid2 & 0x08) {
+				JEP106_id = (c_pid1 & 0xf0) >> 4;
+				JEP106_id |= (c_pid2 & 0x0f) << 4;
+				JEP106_id |= (c_pid4 & 0x0f) << 8;
+				/* bit 7 is odd parity for bits 6:0 */
+				JEP106_id ^= (JEP106_id & 0x40) << 1;
+				JEP106_id ^= (JEP106_id & 0x20) << 2;
+				JEP106_id ^= (JEP106_id & 0x10) << 3;
+				JEP106_id ^= (JEP106_id & 0x08) << 4;
+				JEP106_id ^= (JEP106_id & 0x04) << 5;
+				JEP106_id ^= (JEP106_id & 0x02) << 6;
+				JEP106_id ^= (JEP106_id & 0x01) << 7;
+			} else {
+				/* JEP106 id not provided */
+				JEP106_id = NOJEP;
+			}
+
+			/* default values to be overwritten upon finding a match */
+			type = NULL;
+			full = "";
+
+			/* search dap_partnums[] array for a match */
+			unsigned entry;
+			for (entry = 0; entry < ARRAY_SIZE(dap_partnums); entry++) {
+
+				if ((dap_partnums[entry].JEP106_id != JEP106_id) && (dap_partnums[entry].JEP106_id != ANYJE))
+					continue;
+
+				if (dap_partnums[entry].part_num != part_num)
+					continue;
+
+				type = dap_partnums[entry].type;
+				full = dap_partnums[entry].full;
 				break;
 			}
-			command_print(cmd_ctx, "\t\tPart is %s %s",
-					type, full);
+
+			if (type) {
+				command_print(cmd_ctx, "\t\tPart is %s %s",
+						type, full);
+			} else {
+				command_print(cmd_ctx, "\t\tUnrecognized (Part 0x%" PRIx16 ", JEP106 0x%" PRIx16 ")",
+						part_num, JEP106_id);
+			}
 
 			/* ROM Table? */
 			if (((c_cid1 >> 4) & 0x0f) == 1) {
