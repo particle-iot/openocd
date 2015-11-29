@@ -172,8 +172,26 @@ static int cortex_a8_init_debug_access(struct target *target)
 	struct armv7a_common *armv7a = target_to_armv7a(target);
 	struct adiv5_dap *swjdp = armv7a->arm.dap;
 	int retval;
+	uint32_t dbg_osreg;
 
 	LOG_DEBUG(" ");
+
+	retval = mem_ap_sel_read_atomic_u32(swjdp, armv7a->debug_ap,
+						    armv7a->debug_base + CPUDBG_OSLSR,
+						    &dbg_osreg);
+	if (retval != ERROR_OK)
+		return retval;
+	LOG_DEBUG("DBGOSLSR  0x%" PRIx32, dbg_osreg);
+
+	if (dbg_osreg & CPUDBG_OSLAR_LK_MASK)
+		/* Unlocking the DEBUG OS registers for modification */
+		retval = mem_ap_sel_write_atomic_u32(swjdp, armv7a->debug_ap,
+							     armv7a->debug_base + CPUDBG_OSLAR,
+							     0);
+
+	if (retval != ERROR_OK)
+		return retval;
+
 
 	/* Unlocking the debug registers for modification
 	 * The debugport might be uninitialised so try twice */
@@ -2920,8 +2938,8 @@ static int cortex_a_examine_first(struct target *target)
 	} else
 		armv7a->debug_base = target->dbgbase;
 
-	retval = mem_ap_sel_read_atomic_u32(swjdp, armv7a->debug_ap,
-			armv7a->debug_base + CPUDBG_CPUID, &cpuid);
+	retval = mem_ap_sel_write_atomic_u32(swjdp, armv7a->debug_ap,
+			   armv7a->debug_base + CPUDBG_OSLAR, 0);
 	if (retval != ERROR_OK)
 		return retval;
 
@@ -2963,30 +2981,6 @@ static int cortex_a_examine_first(struct target *target)
 	cortex_a->ttypr = ttypr;
 	cortex_a->didr = didr;
 
-	/* Unlocking the debug registers */
-	if ((cpuid & CORTEX_A_MIDR_PARTNUM_MASK) >> CORTEX_A_MIDR_PARTNUM_SHIFT ==
-		CORTEX_A15_PARTNUM) {
-
-		retval = mem_ap_sel_write_atomic_u32(swjdp, armv7a->debug_ap,
-						     armv7a->debug_base + CPUDBG_OSLAR,
-						     0);
-
-		if (retval != ERROR_OK)
-			return retval;
-
-	}
-	/* Unlocking the debug registers */
-	if ((cpuid & CORTEX_A_MIDR_PARTNUM_MASK) >> CORTEX_A_MIDR_PARTNUM_SHIFT ==
-		CORTEX_A7_PARTNUM) {
-
-		retval = mem_ap_sel_write_atomic_u32(swjdp, armv7a->debug_ap,
-						     armv7a->debug_base + CPUDBG_OSLAR,
-						     0);
-
-		if (retval != ERROR_OK)
-			return retval;
-
-	}
 	retval = mem_ap_sel_read_atomic_u32(swjdp, armv7a->debug_ap,
 					    armv7a->debug_base + CPUDBG_PRSR, &dbg_osreg);
 
