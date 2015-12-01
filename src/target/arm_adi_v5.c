@@ -265,13 +265,24 @@ int mem_ap_write_atomic_u32(struct adiv5_ap *ap, uint32_t address,
 	return dap_run(ap->dap);
 }
 
+/**
+ * Set/Clear bits on a u32 value at 'addr'
+ *
+ * CAUTION:
+ * Use 'atomic' read (mem_ap_read_atomic_u32) instead of
+ * 'queued' read (mem_ap_read_u32), which queues the command until dap_run()
+ * in the mem_ap_write_atomic_u32().
+ * In the case of 'queued' read, the 'value' had not be initiated
+ * when modifing it (value |= bit_mask).
+ */
 int mem_ap_set_bits_u32(
 	struct adiv5_dap *dap, uint32_t addr, uint32_t bit_mask)
 {
 	int rc;
-	uint32_t value;	/* ***** WARNING: clear to zero ? */
+	uint32_t value;
 
-	rc = mem_ap_read_u32(dap, addr, &value);
+	/* CAUTION: Use 'atomic' read */
+	rc = mem_ap_read_atomic_u32(dap, addr, &value);
 	if (rc != ERROR_OK)	return rc;
 
 	value |= bit_mask;
@@ -283,9 +294,9 @@ int mem_ap_clear_bits_u32(
 	struct adiv5_dap *dap, uint32_t addr, uint32_t bit_mask)
 {
 	int rc;
-	uint32_t value;	/* ***** WARNING: clear to zero ? */
+	uint32_t value;
 
-	rc = mem_ap_read_u32(dap, addr, &value);
+	rc = mem_ap_read_atomic_u32(dap, addr, &value);
 	if (rc != ERROR_OK)	return rc;
 
 	value &= ~bit_mask;
