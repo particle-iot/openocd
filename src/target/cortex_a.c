@@ -854,6 +854,7 @@ static int cortex_a_halt_smp(struct target *target)
 	head = target->head;
 	while (head != (struct target_list *)NULL) {
 		curr = head->target;
+LOG_DEBUG("target = %s", target_name(target));
 		if ((curr != target) && (curr->state != TARGET_HALTED))
 			retval += cortex_a_halt(curr);
 		head = head->next;
@@ -864,7 +865,10 @@ static int cortex_a_halt_smp(struct target *target)
 static int update_halt_gdb(struct target *target)
 {
 	int retval = 0;
+LOG_DEBUG("target=%s, service=%p, core[0]=%d", target_name(target),
+	target->gdb_service, target->gdb_service->core[0]);
 	if (target->gdb_service && target->gdb_service->core[0] == -1) {
+LOG_DEBUG("Debug tag");
 		target->gdb_service->target = target;
 		target->gdb_service->core[0] = target->coreid;
 		retval += cortex_a_halt_smp(target);
