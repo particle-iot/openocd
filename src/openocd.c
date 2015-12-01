@@ -166,7 +166,7 @@ COMMAND_HANDLER(handle_init_command)
 		return ERROR_FAIL;
 	command_context_mode(CMD_CTX, COMMAND_EXEC);
 
-	/* initialize telnet subsystem */
+	/* initialize GDB subsystem */
 	gdb_target_add_all(all_targets);
 
 	target_register_event_callback(log_target_callback_event_handler, CMD_CTX);
