@@ -31,6 +31,11 @@
 #include "armv8_opcodes.h"
 #include <helper/time_support.h>
 
+
+//#define	_DEBUG_OPCODE_
+//#define	_DEBUG_DCC_IO_
+
+
 static int aarch64_poll(struct target *target);
 static int aarch64_debug_entry(struct target *target);
 static int aarch64_restore_context(struct target *target, bool bpwp);
@@ -265,14 +270,33 @@ static int aarch64_write_dcc(struct aarch64_common *a8, uint32_t data)
 
 static int aarch64_write_dcc_64(struct aarch64_common *a8, uint64_t data)
 {
-	int ret;
-	LOG_DEBUG("write DCC(lo) 0x%08" PRIx32, (unsigned)data);
-	LOG_DEBUG("write DCC(hi) 0x%08" PRIx32, (unsigned)(data >> 32));
-	ret = mem_ap_sel_write_u32(a8->armv8_common.arm.dap,
-		a8->armv8_common.debug_ap, a8->armv8_common.debug_base + CPUDBG_DTRRX, data);
-	ret += mem_ap_sel_write_u32(a8->armv8_common.arm.dap,
-		a8->armv8_common.debug_ap, a8->armv8_common.debug_base + CPUDBG_DTRTX, data >> 32);
-	return ret;
+	struct armv8_common *armv8 = &(a8->armv8_common);
+	struct adiv5_dap *swjdp = armv8->arm.dap;
+
+	uint32_t lword, hword;		/* Low/High word of 64-bit data */
+	int retval;
+
+	hword = data >> 32;
+	lword = (uint32_t)data;
+
+#ifdef	_DEBUG_DCC_IO_
+	LOG_DEBUG("write DCC(lo) 0x%08" PRIx32, lword);
+	LOG_DEBUG("write DCC(hi) 0x%08" PRIx32, hword);
+#endif
+
+	/* Wait for RXfull == 0 */
+
+	/* H4.4.3 Accessing 64-bit data
+	 * Although the limitation doesn't apply in Debug state, when send a
+	 * 64-bit value to the target, it's still better for the external debugger
+	 * to write to DBGDTRTX_EL0 before writing DBGDTRRX_EL0.
+	 */
+	retval = mem_ap_write_u32(swjdp,
+		armv8->debug_base + ARMV8_REG_DBGDTRTX_EL0, hword);
+	retval += mem_ap_write_atomic_u32(swjdp,
+		armv8->debug_base + ARMV8_REG_DBGDTRRX_EL0, lword);
+
+	return retval;
 }
 
 static int aarch64_read_dcc(struct aarch64_common *a8, uint32_t *data,
@@ -312,48 +336,69 @@ static int aarch64_read_dcc(struct aarch64_common *a8, uint32_t *data,
 	return retval;
 }
 
-static int aarch64_read_dcc_64(struct aarch64_common *a8, uint64_t *data,
-	uint32_t *dscr_p)
+static int aarch64_read_dcc_64(struct aarch64_common *aarch64, uint64_t *data,
+	uint32_t *edscr_p)
 {
-	struct adiv5_dap *swjdp = a8->armv8_common.arm.dap;
-	uint32_t dscr = DSCR_INSTR_COMP;
-	uint32_t higher;
+	struct armv8_common *armv8 = &(aarch64->armv8_common);
+	struct adiv5_dap *swjdp = armv8->arm.dap;
+	uint32_t edscr;
+	uint32_t lword, hword;		/* Low/High word of 64-bit data */
 	int retval;
 
-	if (dscr_p)
-		dscr = *dscr_p;
+	edscr = edscr_p ? *edscr_p : 0;
 
-	/* Wait for DTRRXfull */
+	/* H4.4.1 Normal access mode:
+	 * EDSCR.TXfull == 1 indicates that DBGDTRTX_EL0 contains a
+	 * valid value that has been written by software running on the target
+	 * and not yet read by an external debugger.
+	 */
+	/* Wait for data to be ready on DCC */
 	long long then = timeval_ms();
-	while ((dscr & DSCR_DTR_TX_FULL) == 0) {
-		retval = mem_ap_sel_read_atomic_u32(swjdp, a8->armv8_common.debug_ap,
-				a8->armv8_common.debug_base + CPUDBG_DSCR,
-				&dscr);
+	while ((edscr & ARMV8_EDSCR_TXFULL) == 0) {
+		retval = mem_ap_read_atomic_u32(swjdp,
+				armv8->debug_base + CPUDBG_DSCR,
+				&edscr);
 		if (retval != ERROR_OK)
 			return retval;
 		if (timeval_ms() > then + 1000) {
-			LOG_ERROR("Timeout waiting for read dcc");
-			return ERROR_FAIL;
+			LOG_ERROR("Timeout waiting for reading DCC");
+			return ERROR_TARGET_TIMEOUT;
 		}
 	}
 
-	retval = mem_ap_sel_read_atomic_u32(swjdp, a8->armv8_common.debug_ap,
-					    a8->armv8_common.debug_base + CPUDBG_DTRTX,
-					    (uint32_t *)data);
+	/* H4.4.3 Accessing 64-bit data
+	 * Although the limitation doesn't apply in Debug state, but it's still
+	 * better to read DBGDTRRX_EL0 before reading DBGDTRTX_EL0, for receiving
+	 * a 64-bit value
+	 */
+	/* H2.4.8 Accessing registers in Debug state, Figure H2-1 (AArch64)
+	 *	(Debugger)		D[63:32]	D[31:00]	Note		 |	(Software, H4.3.1)
+	 *	Write register	DBGDTRTX	DBGDTRRX	Xn = D[63:0] |	Read
+	 *  Read  register	DBGDTRRX	DBGDTRTX	D[63:0] = Xn |	Write
+	 */
+	retval = mem_ap_read_u32(swjdp,
+			armv8->debug_base + ARMV8_REG_DBGDTRRX_EL0,
+			&hword);
 	if (retval != ERROR_OK)
 		return retval;
 
-	retval = mem_ap_sel_read_atomic_u32(swjdp, a8->armv8_common.debug_ap,
-					    a8->armv8_common.debug_base + CPUDBG_DTRRX,
-					    &higher);
+	retval = mem_ap_read_atomic_u32(swjdp,
+			armv8->debug_base + ARMV8_REG_DBGDTRTX_EL0,
+			&lword);
 	if (retval != ERROR_OK)
 		return retval;
 
-	*data = *(uint32_t *)data | (uint64_t)higher << 32;
+	*data = ((uint64_t)hword << 32) | (uint64_t)lword;
+#ifdef	_DEBUG_DCC_IO_
 	LOG_DEBUG("read DCC 0x%16.16" PRIx64, *data);
+#endif
 
-	if (dscr_p)
-		*dscr_p = dscr;
+	/* CAUTION:
+	 * edscr value is dirty because EDSCR.TXFfull should be cleared to 0
+	 * after reading DBGDTRTX_EL0 (H9.2.7)
+	 */
+	if (edscr_p)
+		*edscr_p = edscr;
 
 	return retval;
 }
