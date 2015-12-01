@@ -155,55 +155,70 @@ static int aarch64_init_debug_access(struct target *target)
 }
 
 /* To reduce needless round-trips, pass in a pointer to the current
- * DSCR value.  Initialize it to zero if you just need to know the
- * value on return from this function; or DSCR_INSTR_COMP if you
+ * EDSCR value.  Initialize it to zero if you just need to know the
+ * value on return from this function; or ARMV8_EDSCR_ITE if you
+ * happen to know that no instruction is pending.
+ * 'force' to read EDSCR at least once.
+ */
+static int aarch64_wait_ITE(struct armv8_common *armv8, uint32_t *edscr, bool force)
+{
+	int retval;
+	int64_t	then;
+
+	assert(edscr != NULL);
+
+	/* H4.4.1 Normal access mode: EDSCR.ITE == 1 indicates that
+	 * the PE is ready to accept an instruction to the ITR.
+	 */
+	then = timeval_ms();
+	while ((*edscr & ARMV8_EDSCR_ITE) == 0 || force) {
+		force = false;
+
+		retval = mem_ap_read_atomic_u32(armv8->arm.dap,
+				armv8->debug_base + ARMV8_REG_EDSCR, edscr);
+		if (retval != ERROR_OK) {
+			LOG_ERROR("Fail to read EDSCR");
+			return retval;
+		}
+
+		if (timeval_ms() > then + 1000) {
+			LOG_ERROR("Timeout waiting for ITR empty");
+			return ERROR_TARGET_TIMEOUT;
+		}
+	}	/* End of while(!ARMV8_EDSCR_ITE) */
+
+	return ERROR_OK;
+}
+
+/* To reduce needless round-trips, pass in a pointer to the current
+ * EDSCR value.  Initialize it to zero if you just need to know the
+ * value on return from this function; or ARMV8_EDSCR_ITE if you
  * happen to know that no instruction is pending.
  */
-static int aarch64_exec_opcode(struct target *target,
+int aarch64_exec_opcode(struct target *target,
 	uint32_t opcode, uint32_t *edscr_p)
 {
 	uint32_t edscr;
 	int retval;
 	struct armv8_common *armv8 = target_to_armv8(target);
-	struct adiv5_dap *swjdp = armv8->arm.dap;
 
 	edscr = edscr_p ? *edscr_p : 0;
 
 	LOG_DEBUG("exec opcode 0x%08" PRIx32, opcode);
 
-	/* Wait for InstrCompl bit to be set */
-	long long then = timeval_ms();
-	while ((edscr & ARMV8_EDSCR_ITE) == 0) {
-		retval = mem_ap_sel_read_atomic_u32(swjdp, armv8->debug_ap,
-				armv8->debug_base + ARMV8_REG_EDSCR, &edscr);
-		if (retval != ERROR_OK) {
-			LOG_ERROR("Could not read EDSCR register, opcode = 0x%08" PRIx32, opcode);
-			return retval;
-		}
-		if (timeval_ms() > then + 1000) {
-			LOG_ERROR("Timeout waiting for aarch64_exec_opcode");
-			return ERROR_FAIL;
-		}
-	}
-
-	retval = mem_ap_sel_write_u32(swjdp, armv8->debug_ap,
-			armv8->debug_base + CPUDBG_ITR, opcode);
+	/* Wait for ITR to be empty (EDSCR.ITE bit to be set) */
+	retval = aarch64_wait_ITE(armv8, &edscr, false);
 	if (retval != ERROR_OK)
 		return retval;
 
-	then = timeval_ms();
-	do {
-		retval = mem_ap_sel_read_atomic_u32(swjdp, armv8->debug_ap,
-				armv8->debug_base + ARMV8_REG_EDSCR, &edscr);
-		if (retval != ERROR_OK) {
-			LOG_ERROR("Could not read EDSCR register");
-			return retval;
-		}
-		if (timeval_ms() > then + 1000) {
-			LOG_ERROR("Timeout waiting for aarch64_exec_opcode");
-			return ERROR_FAIL;
-		}
-	} while ((edscr & ARMV8_EDSCR_ITE) == 0);	/* Wait for InstrCompl bit to be set */
+	/* Set ITR (opcode) for PE to execute */
+	retval = mem_ap_sel_write_u32(armv8->arm.dap, armv8->debug_ap,
+			armv8->debug_base + ARMV8_REG_EDITR, opcode);
+	if (retval != ERROR_OK)
+		return retval;
+
+	/* Wait for ITR to be empty */
+	retval = aarch64_wait_ITE(armv8, &edscr, true);
 
 	if (edscr_p)
 		*edscr_p = edscr;
