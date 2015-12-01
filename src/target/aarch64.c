@@ -403,59 +403,6 @@ static int aarch64_read_dcc_64(struct aarch64_common *aarch64, uint64_t *data,
 	return retval;
 }
 
-static int aarch64_dpm_prepare(struct arm_dpm *dpm)
-{
-	struct aarch64_common *a8 = dpm_to_a8(dpm);
-	struct adiv5_dap *swjdp = a8->armv8_common.arm.dap;
-	uint32_t dscr;
-	int retval;
-
-	/* set up invariant:  INSTR_COMP is set after ever DPM operation */
-	long long then = timeval_ms();
-	for (;; ) {
-		retval = mem_ap_sel_read_atomic_u32(swjdp, a8->armv8_common.debug_ap,
-				a8->armv8_common.debug_base + CPUDBG_DSCR,
-				&dscr);
-		if (retval != ERROR_OK)
-			return retval;
-		if ((dscr & DSCR_INSTR_COMP) != 0)
-			break;
-		if (timeval_ms() > then + 1000) {
-			LOG_ERROR("Timeout waiting for dpm prepare");
-			return ERROR_FAIL;
-		}
-	}
-
-	/* this "should never happen" ... */
-	if (dscr & DSCR_DTR_RX_FULL) {
-		LOG_ERROR("DSCR_DTR_RX_FULL, dscr 0x%08" PRIx32, dscr);
-		/* Clear DCCRX */	/* Alamy: Verify DSCR/DCCRX ? */
-		retval = mem_ap_sel_read_u32(swjdp, a8->armv8_common.debug_ap,
-			a8->armv8_common.debug_base + CPUDBG_DTRRX, &dscr);
-		if (retval != ERROR_OK)
-			return retval;
-
-		/* Clear sticky error */
-		retval = mem_ap_sel_write_u32(swjdp, a8->armv8_common.debug_ap,
-			a8->armv8_common.debug_base + ARMV8_REG_EDRCR,
-			ARMV8_EDRCR_CSE);
-		if (retval != ERROR_OK)
-			return retval;
-
-		retval = dap_run(swjdp);
-		if (retval != ERROR_OK)
-			return retval;
-	}
-
-	return retval;
-}
-
-static int aarch64_dpm_finish(struct arm_dpm *dpm)
-{
-	/* REVISIT what could be done here? */
-	return ERROR_OK;
-}
-
 static int aarch64_instr_write_data_dcc(struct arm_dpm *dpm,
 	uint32_t opcode, uint32_t data)
 {
@@ -706,6 +653,59 @@ static int aarch64_bpwp_disable(struct arm_dpm *dpm, unsigned index_t)
 
 	/* clear control register */
 	return aarch64_dap_write_memap_register_u32(dpm->arm->target, cr, 0);
+}
+
+static int aarch64_dpm_prepare(struct arm_dpm *dpm)
+{
+	struct armv8_common *armv8 = dpm_to_armv8(dpm);
+	struct adiv5_dap *swjdp = dpm->arm->dap;
+	uint32_t edscr;
+	int retval;
+
+	dap_ap_select(swjdp, armv8->debug_ap);
+
+	/* Wait for ITR to be empty */
+	retval = aarch64_wait_ITE(armv8, &edscr, true);
+	if (retval != ERROR_OK)
+		return retval;
+
+	/* this "should never happen" ... */
+	/* Debug Data Transfer Register, Receive: Debugger to PE */
+	if (edscr & ARMV8_EDSCR_RXFULL) {
+		LOG_ERROR("EDSCR_DTR_RX_FULL, edscr = 0x%08" PRIx32, edscr);
+
+		/* H4.4.4 ClearStickyErrors() */
+		/* H9.2.40 EDRCR
+		 * Clear the EDSCR.{TXU, RXO, ERR} bits, and, if the processor
+		 * is in Debug state, the EDSCR.ITO bit */
+		retval = mem_ap_write_atomic_u32(swjdp,
+			armv8->debug_base + ARMV8_REG_EDRCR,
+			ARMV8_EDRCR_CSE);
+		if (retval != ERROR_OK)
+			return retval;
+	}
+
+	return retval;
+}
+
+static int aarch64_dpm_finish(struct arm_dpm *dpm)
+{
+	struct aarch64_common *aarch64 = dpm_to_aarch64(dpm);
+	struct armv8_common *armv8 = dpm_to_armv8(dpm);
+	uint32_t edscr;
+	int retval;
+
+	/* Update saved EDSCR (maybe unnecessary: 2015-10-07 */
+	retval = mem_ap_sel_read_atomic_u32(armv8->arm.dap, armv8->debug_ap,
+			armv8->debug_base + ARMV8_REG_EDSCR, &edscr);
+	if (retval == ERROR_OK)
+		aarch64->cpudbg_edscr = edscr;
+
+
+	/* REVISIT what else could be done here ? */
+
+
+	return ERROR_OK;
 }
 
 static int aarch64_dpm_setup(struct aarch64_common *a8, uint32_t debug)
