@@ -573,22 +573,27 @@ static int aarch64_instr_read_data_dcc(struct arm_dpm *dpm,
 	return aarch64_read_dcc(a8, data, &dscr);
 }
 
+/*
+ * Called by
+ * dpm_read_reg_aarch64(), directly, to read registers. i.e.: AARCH64_X0 ... AARCH64_X30
+ * dpm_read_reg_aarch64(), through aarch64_instr_read_data_x0(), to read special registers.
+ */
 static int aarch64_instr_read_data_dcc_64(struct arm_dpm *dpm,
 	uint32_t opcode, uint64_t *data)
 {
 	struct aarch64_common *a8 = dpm_to_a8(dpm);
 	int retval;
-	uint32_t dscr = DSCR_INSTR_COMP;
+	uint32_t edscr;
 
-	/* the opcode, writing data to DCC */
-	retval = aarch64_exec_opcode(
-			a8->armv8_common.arm.target,
-			opcode,
-			&dscr);
+	/* We are sure that ITR is empty & DCC RX is empty after dpm_prepare()
+	 * edscr still got updated after opcode is executed
+	 */
+	edscr = ARMV8_EDSCR_ITE;
+	retval = aarch64_exec_opcode(dpm->arm->target, opcode, &edscr);
 	if (retval != ERROR_OK)
 		return retval;
 
-	return aarch64_read_dcc_64(a8, data, &dscr);
+	return aarch64_read_dcc_64(a8, data, &edscr);
 }
 
 static int aarch64_instr_read_data_r0(struct arm_dpm *dpm,
