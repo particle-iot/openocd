@@ -22,6 +22,7 @@
 #define __TARGET_TYPE_64_H_
 
 #include <jim-nvp.h>
+#include "target.h"
 
 struct target;
 
