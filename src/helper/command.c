@@ -583,6 +583,7 @@ static bool command_can_run(struct command_context *cmd_ctx, struct command *c)
 static int run_command(struct command_context *context,
 	struct command *c, const char *words[], unsigned num_words)
 {
+	LOG_DEBUG("%s", c->name);
 	if (!command_can_run(context, c)) {
 		/* Many commands may be run only before/after 'init' */
 		const char *when;
@@ -625,9 +626,10 @@ static int run_command(struct command_context *context,
 		/* we do not print out an error message because the command *should*
 		 * have printed out an error
 		 */
-		LOG_DEBUG("Command failed with error code %d", retval);
+		LOG_DEBUG("Command '%s' failed with error code %d", c->name, retval);
 	}
 
+	LOG_DEBUG("%s fin", c->name);
 	return retval;
 }
 
@@ -645,6 +647,7 @@ int command_run_line(struct command_context *context, char *line)
 	 * happen when the Jim Tcl interpreter is provided by eCos for
 	 * instance.
 	 */
+LOG_DEBUG("%s", line);
 	Jim_Interp *interp = context->interp;
 	Jim_DeleteAssocData(interp, "context");
 	retcode = Jim_SetAssocData(interp, "context", NULL, context);

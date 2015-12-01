@@ -1465,6 +1465,7 @@ int target_call_event_callbacks(struct target *target, enum target_event event)
 	struct target_event_callback *callback = target_event_callbacks;
 	struct target_event_callback *next_callback;
 
+	/* Alamy: should not include TARGET_EVENT_DEBUG_HALTED ? */
 	if (event == TARGET_EVENT_HALTED) {
 		/* execute early halted first */
 		target_call_event_callbacks(target, TARGET_EVENT_GDB_HALT);
@@ -1473,6 +1474,8 @@ int target_call_event_callbacks(struct target *target, enum target_event event)
 	LOG_DEBUG("target %s event %i (%s)", target_name(target), event,
 			Jim_Nvp_value2name_simple(nvp_target_event, event)->name);
 
+LOG_DEBUG("<<< %s:%s", target_name(target),
+Jim_Nvp_value2name_simple(nvp_target_event, event)->name);
 	target_handle_event(target, event);
 
 	while (callback) {
@@ -1480,6 +1483,8 @@ int target_call_event_callbacks(struct target *target, enum target_event event)
 		callback->callback(target, event, callback->priv);
 		callback = next_callback;
 	}
+LOG_DEBUG(">>> %s:%s", target_name(target),
+Jim_Nvp_value2name_simple(nvp_target_event, event)->name);
 
 	return ERROR_OK;
 }
@@ -2353,6 +2358,73 @@ int target_write_u8(struct target *target, uintmax_t address, uint8_t value)
 	return retval;
 }
 
+/* Register based value. i.e: %PC+8, %X30-4, value is optional */
+int parse_command_address_register_based(
+	struct command_context *cmd_ctx,
+	const char *argv,
+	uintmax_t *value)
+{
+	struct target *target = get_current_target(cmd_ctx);
+	int rc;
+	char *ofst;
+	struct reg *reg;
+	intmax_t offset = 0;
+
+	/* Do we have offset following register ? */
+	ofst = strchr(argv, '+');
+	if (ofst == NULL)
+		ofst = strchr(argv, '-');
+	if (ofst) {
+		rc = parse_smax(ofst, &offset);
+		if (rc != ERROR_OK)
+			return rc;
+		/* Appending an EOS for register_get_by_name to search register */
+		*ofst = 0x00;
+	}
+
+	reg = register_get_by_name(target->reg_cache, argv, 1);
+	if (!reg) {
+		command_print(cmd_ctx, "register %s not found in current target", argv);
+		return ERROR_TARGET_RESOURCE_NOT_AVAILABLE;
+	}
+	*value = buf_get_u64(reg->value, 0, 64);
+	*value += offset;
+
+	return ERROR_OK;
+}
+
+/* Parse argument as address */
+/* It could be an immediate value, or value of a register
+ * with an optional offset.
+ * For instance:
+ *	0x12345678, %PC+8, %X30-4
+ */
+int parse_command_address(
+	struct command_context *cmd_ctx,
+	const char *argv,
+	uintmax_t *value)
+{
+	int rc = ERROR_OK;
+
+	if (*argv == '%') {
+		rc = parse_command_address_register_based(cmd_ctx, argv+1, value);
+	} else {
+		/* COMMAND_PARSE_NUMBER(umax, argv, *value); */
+		rc = parse_umax(argv, value);
+	}
+
+	switch (rc) {
+	case ERROR_COMMAND_ARGUMENT_OVERFLOW:
+		command_print(cmd_ctx, "argument Overflow");
+		break;
+	case ERROR_COMMAND_ARGUMENT_UNDERFLOW:
+		command_print(cmd_ctx, "argument Underflow");
+		break;
+	}
+
+	return rc;
+}
+
 static int find_target(struct command_context *cmd_ctx, const char *name)
 {
 	struct target *target = get_target(name);
@@ -2627,7 +2699,18 @@ COMMAND_HANDLER(handle_reg_command)
 
 	target = get_current_target(CMD_CTX);
 
-	LOG_DEBUG("%s", target_name(target));
+	/*
+		When running
+		reason == DBG_REASON_UNDEFINED
+	*/
+	LOG_DEBUG("%s, reason=%d, state=%d", target_name(target),
+		target->debug_reason, target->state);
+
+	if ((target->state == TARGET_RUNNING) ||
+		(target->state == TARGET_DEBUG_RUNNING)) {
+		command_print(CMD_CTX, "%s is running. (Halt the target first)", target_name(target));
+		return ERROR_TARGET_NOT_HALTED;
+	}
 
 	/* list all available registers for the current target */
 	if (CMD_ARGC == 0) {
@@ -2871,7 +2954,7 @@ COMMAND_HANDLER(handle_resume_command)
 	 * handle breakpoints, not debugging */
 	uintmax_t addr = 0;
 	if (CMD_ARGC == 1) {
-		COMMAND_PARSE_NUMBER(umax, CMD_ARGV[0], addr);
+		parse_command_address(CMD_CTX, CMD_ARGV[0], &addr);
 		current = 0;
 	}
 
@@ -3058,7 +3141,7 @@ COMMAND_HANDLER(handle_md_command)
 		return ERROR_COMMAND_SYNTAX_ERROR;
 
 	uintmax_t address;
-	COMMAND_PARSE_NUMBER(umax, CMD_ARGV[0], address);
+	parse_command_address(CMD_CTX, CMD_ARGV[0], &address);
 
 	unsigned count = 1;
 	if (CMD_ARGC == 2)
@@ -3594,11 +3677,13 @@ COMMAND_HANDLER(handle_bp_command)
 	uint32_t length;
 	int hw = BKPT_SOFT;
 
+	LOG_DEBUG("ARGC=%d", CMD_ARGC);
 	switch (CMD_ARGC) {
 		case 0:
 			return handle_bp_command_list(CMD_CTX);
 
 		case 2:
+			/* bp <address> <length> : Software breakpoint */
 			asid = 0;
 			COMMAND_PARSE_NUMBER(umax, CMD_ARGV[0], addr);
 			COMMAND_PARSE_NUMBER(u32, CMD_ARGV[1], length);
@@ -3606,6 +3691,7 @@ COMMAND_HANDLER(handle_bp_command)
 
 		case 3:
 			if (strcmp(CMD_ARGV[2], "hw") == 0) {
+				/* bp <address> <length> hw : Hardware breakpoint */
 				hw = BKPT_HARD;
 				COMMAND_PARSE_NUMBER(umax, CMD_ARGV[0], addr);
 
@@ -3614,6 +3700,7 @@ COMMAND_HANDLER(handle_bp_command)
 				asid = 0;
 				return handle_bp_command_set(CMD_CTX, addr, asid, length, hw);
 			} else if (strcmp(CMD_ARGV[2], "hw_ctx") == 0) {
+				/* bp <asid> <length> hw_ctx : Hardware context breakpoint */
 				hw = BKPT_HARD;
 				COMMAND_PARSE_NUMBER(umax, CMD_ARGV[0], asid);
 				COMMAND_PARSE_NUMBER(u32, CMD_ARGV[1], length);
@@ -3622,6 +3709,7 @@ COMMAND_HANDLER(handle_bp_command)
 			}
 
 		case 4:
+			/* bp <address> <asid> <length> 'hw'|'hw_ctx' : Hybrid breakpoint */
 			hw = BKPT_HARD;
 			COMMAND_PARSE_NUMBER(umax, CMD_ARGV[0], addr);
 			COMMAND_PARSE_NUMBER(umax, CMD_ARGV[1], asid);
@@ -4352,6 +4440,8 @@ void target_handle_event(struct target *target, enum target_event e)
 {
 	struct target_event_action *teap;
 
+LOG_DEBUG("<<< %s:%s", target_name(target),
+Jim_Nvp_value2name_simple(nvp_target_event, e)->name);
 	for (teap = target->event_action; teap != NULL; teap = teap->next) {
 		if (teap->event == e) {
 			LOG_DEBUG("target: %s (%s) event: %d (%s) action: %s",
@@ -4366,6 +4456,8 @@ void target_handle_event(struct target *target, enum target_event e)
 			}
 		}
 	}
+LOG_DEBUG(">>> %s:%s", target_name(target),
+Jim_Nvp_value2name_simple(nvp_target_event, e)->name);
 }
 
 /**
@@ -5581,7 +5673,7 @@ static int jim_target_smp(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
 	retval = 0;
 	LOG_DEBUG("%d", argc);
 	/* argv[1] = target to associate in smp
-	 * argv[2] = target to assoicate in smp
+	 * argv[2] = target to associate in smp
 	 * argv[3] ...
 	 */
 
@@ -5610,12 +5702,15 @@ static int jim_target_smp(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
 		target = curr->target;
 		target->smp = 1;
 		target->head = head;
+LOG_DEBUG("list target=%p, target=%s(%p), head target=%p",
+curr, target_name(target), target, target->head);
 		curr = curr->next;
 	}
 
 	if (target && target->rtos)
 		retval = rtos_smp_init(head->target);
 
+LOG_DEBUG("head target=%p", head);
 	return retval;
 }
 

@@ -94,7 +94,7 @@ struct gdb_connection {
 	struct target_desc_format target_desc;
 };
 
-#if 0
+#if 1
 #define _DEBUG_GDB_IO_
 #endif
 
@@ -1145,7 +1145,7 @@ static int gdb_get_registers_packet(struct connection *connection,
 	int i;
 
 #ifdef _DEBUG_GDB_IO_
-	LOG_DEBUG("-");
+	LOG_DEBUG("target %s", target_name(target));
 #endif
 
 	if ((target->rtos != NULL) && (ERROR_OK == rtos_get_gdb_reg_list(connection)))
@@ -1174,8 +1174,10 @@ static int gdb_get_registers_packet(struct connection *connection,
 	reg_packet_p = reg_packet;
 
 	for (i = 0; i < reg_list_size; i++) {
-		if (!reg_list[i]->valid)
+		if (!reg_list[i]->valid) {
+			LOG_DEBUG("read invalid register %s", reg_list[i]->name);
 			reg_list[i]->type->get(reg_list[i]);
+		}
 		gdb_str_to_target(target, reg_packet_p, reg_list[i]);
 		reg_packet_p += DIV_ROUND_UP(reg_list[i]->size, 8) * 2;
 	}
@@ -1272,7 +1274,9 @@ static int gdb_get_register_packet(struct connection *connection,
 		return gdb_error(connection, retval);
 
 	if (reg_list_size <= reg_num) {
-		LOG_ERROR("gdb requested a non-existing register");
+		/* Alamy: aarch64: '$p42#d6' --> 'p42' --> reg_num == 66 */
+		LOG_ERROR("gdb requested a non-existing register (%d >= %d)",
+			reg_num, reg_list_size);
 		return ERROR_SERVER_REMOTE_CLOSED;
 	}
 
@@ -2057,6 +2061,221 @@ static int get_reg_features_list(struct target *target, char const **feature_lis
 	return ERROR_OK;
 }
 
+#if 0
+static int gdb_generate_aarch64_description_aarch64(char **tdesc_out)
+{
+	int retval = ERROR_OK;
+	char *tdesc = NULL;
+	int pos = 0;
+	int size = 0;
+
+	xml_printf(&retval, &tdesc, &pos, &size,
+			"<?xml version=\"1.0\"?>\n"
+			"<!DOCTYPE target SYSTEM \"gdb-target.dtd\">\n");
+
+	xml_printf(&retval, &tdesc, &pos, &size,
+			"<target>\n"
+			"  <architecture>aarch64</architecture>\n"
+			"  <xi:include href=\"aarch64-core.xml\"/>\n"
+			"  <xi:include href=\"aarch64-fpu.xml\"/>\n"
+			"</target>\n");
+
+	*tdesc_out = tdesc;
+
+	return ERROR_OK;
+}
+
+static int gdb_generate_aarch64_description_aarch64_core(char **tdesc_out)
+{
+	int retval = ERROR_OK;
+	char *tdesc = NULL;
+	int pos = 0;
+	int size = 0;
+
+	xml_printf(&retval, &tdesc, &pos, &size,
+			"<?xml version=\"1.0\"?>\n"
+			"<!DOCTYPE feature SYSTEM \"gdb-target.dtd\">\n"
+			"<feature name=\"org.gnu.gdb.aarch64.core\">\n");
+
+	xml_printf(&retval, &tdesc, &pos, &size,
+			"<reg name=\"x0\" bitsize=\"64\"/>\n"
+			"<reg name=\"x1\" bitsize=\"64\"/>\n"
+			"<reg name=\"x2\" bitsize=\"64\"/>\n"
+			"<reg name=\"x3\" bitsize=\"64\"/>\n"
+			"<reg name=\"x4\" bitsize=\"64\"/>\n"
+			"<reg name=\"x5\" bitsize=\"64\"/>\n"
+			"<reg name=\"x6\" bitsize=\"64\"/>\n"
+			"<reg name=\"x7\" bitsize=\"64\"/>\n"
+			"<reg name=\"x8\" bitsize=\"64\"/>\n"
+			"<reg name=\"x9\" bitsize=\"64\"/>\n"
+			"<reg name=\"x10\" bitsize=\"64\"/>\n"
+			"<reg name=\"x11\" bitsize=\"64\"/>\n"
+			"<reg name=\"x12\" bitsize=\"64\"/>\n"
+			"<reg name=\"x13\" bitsize=\"64\"/>\n"
+			"<reg name=\"x14\" bitsize=\"64\"/>\n"
+			"<reg name=\"x15\" bitsize=\"64\"/>\n"
+			"<reg name=\"x16\" bitsize=\"64\"/>\n"
+			"<reg name=\"x17\" bitsize=\"64\"/>\n"
+			"<reg name=\"x18\" bitsize=\"64\"/>\n"
+			"<reg name=\"x19\" bitsize=\"64\"/>\n"
+			"<reg name=\"x20\" bitsize=\"64\"/>\n"
+			"<reg name=\"x21\" bitsize=\"64\"/>\n"
+			"<reg name=\"x22\" bitsize=\"64\"/>\n"
+			"<reg name=\"x23\" bitsize=\"64\"/>\n"
+			"<reg name=\"x24\" bitsize=\"64\"/>\n"
+			"<reg name=\"x25\" bitsize=\"64\"/>\n"
+			"<reg name=\"x26\" bitsize=\"64\"/>\n"
+			"<reg name=\"x27\" bitsize=\"64\"/>\n"
+			"<reg name=\"x28\" bitsize=\"64\"/>\n"
+			"<reg name=\"x29\" bitsize=\"64\"/>\n"
+			"<reg name=\"x30\" bitsize=\"64\"/>\n");
+
+	xml_printf(&retval, &tdesc, &pos, &size,
+			"<reg name=\"sp\" bitsize=\"64\" type=\"data_ptr\"/>\n"
+			"<reg name=\"pc\" bitsize=\"64\" type=\"code_ptr\"/>\n"
+			"<reg name=\"spsr\" bitsize=\"32\"/>\n");
+
+	xml_printf(&retval, &tdesc, &pos, &size,
+			"</feature>\n");
+
+	*tdesc_out = tdesc;
+
+	return ERROR_OK;
+}
+
+static int gdb_generate_aarch64_description_aarch64_fpu(char **tdesc_out)
+{
+	int retval = ERROR_OK;
+	char *tdesc = NULL;
+	int pos = 0;
+	int size = 0;
+
+	xml_printf(&retval, &tdesc, &pos, &size,
+			"<?xml version=\"1.0\"?>\n"
+			"<!DOCTYPE feature SYSTEM \"gdb-target.dtd\">\n"
+			"<feature name=\"org.gnu.gdb.aarch64.fpu\">\n");
+
+	xml_printf(&retval, &tdesc, &pos, &size,
+            "<vector id=\"v2d\" type=\"ieee_double\" count=\"2\"/>\n"
+            "<vector id=\"v2u\" type=\"uint64\" count=\"2\"/>\n"
+            "<vector id=\"v2i\" type=\"int64\" count=\"2\"/>\n"
+            "<vector id=\"v4f\" type=\"ieee_single\" count=\"4\"/>\n"
+            "<vector id=\"v4u\" type=\"uint32\" count=\"4\"/>\n"
+            "<vector id=\"v4i\" type=\"int32\" count=\"4\"/>\n"
+            "<vector id=\"v8u\" type=\"uint16\" count=\"8\"/>\n"
+            "<vector id=\"v8i\" type=\"int16\" count=\"8\"/>\n"
+            "<vector id=\"v16u\" type=\"uint8\" count=\"16\"/>\n"
+            "<vector id=\"v16i\" type=\"int8\" count=\"16\"/>\n"
+            "<vector id=\"v1u\" type=\"uint128\" count=\"1\"/>\n"
+            "<vector id=\"v1i\" type=\"int128\" count=\"1\"/>\n");
+
+	xml_printf(&retval, &tdesc, &pos, &size,
+            "<union id=\"vnd\">\n"
+            "  <field name=\"f\" type=\"v2d\"/>\n"
+            "  <field name=\"u\" type=\"v2u\"/>\n"
+            "  <field name=\"s\" type=\"v2i\"/>\n"
+            "</union>\n"
+            "<union id=\"vns\">\n"
+            "  <field name=\"f\" type=\"v4f\"/>\n"
+            "  <field name=\"u\" type=\"v4u\"/>\n"
+            "  <field name=\"s\" type=\"v4i\"/>\n"
+            "</union>\n"
+            "<union id=\"vnh\">\n"
+            "  <field name=\"u\" type=\"v8u\"/>\n"
+            "  <field name=\"s\" type=\"v8i\"/>\n"
+            "</union>\n"
+            "<union id=\"vnb\">\n"
+            "  <field name=\"u\" type=\"v16u\"/>\n"
+            "  <field name=\"s\" type=\"v16i\"/>\n"
+            "</union>\n"
+            "<union id=\"vnq\">\n"
+            "  <field name=\"u\" type=\"v1u\"/>\n"
+            "  <field name=\"s\" type=\"v1i\"/>\n"
+            "</union>\n"
+            "<union id=\"aarch64v\">\n"
+            "  <field name=\"d\" type=\"vnd\"/>\n"
+            "  <field name=\"s\" type=\"vns\"/>\n"
+            "  <field name=\"h\" type=\"vnh\"/>\n"
+            "  <field name=\"b\" type=\"vnb\"/>\n"
+            "  <field name=\"q\" type=\"vnq\"/>\n"
+            "</union>\n");
+
+	xml_printf(&retval, &tdesc, &pos, &size,
+            "<reg name=\"v0\" bitsize=\"128\" type=\"aarch64v\" regnum=\"34\"/>\n"
+            "<reg name=\"v1\" bitsize=\"128\" type=\"aarch64v\" />\n"
+            "<reg name=\"v2\" bitsize=\"128\" type=\"aarch64v\" />\n"
+            "<reg name=\"v3\" bitsize=\"128\" type=\"aarch64v\" />\n"
+            "<reg name=\"v4\" bitsize=\"128\" type=\"aarch64v\" />\n"
+            "<reg name=\"v5\" bitsize=\"128\" type=\"aarch64v\" />\n"
+            "<reg name=\"v6\" bitsize=\"128\" type=\"aarch64v\" />\n"
+            "<reg name=\"v7\" bitsize=\"128\" type=\"aarch64v\" />\n"
+            "<reg name=\"v8\" bitsize=\"128\" type=\"aarch64v\" />\n"
+            "<reg name=\"v9\" bitsize=\"128\" type=\"aarch64v\" />\n"
+            "<reg name=\"v10\" bitsize=\"128\" type=\"aarch64v\"/>\n"
+            "<reg name=\"v11\" bitsize=\"128\" type=\"aarch64v\"/>\n"
+            "<reg name=\"v12\" bitsize=\"128\" type=\"aarch64v\"/>\n"
+            "<reg name=\"v13\" bitsize=\"128\" type=\"aarch64v\"/>\n"
+            "<reg name=\"v14\" bitsize=\"128\" type=\"aarch64v\"/>\n"
+            "<reg name=\"v15\" bitsize=\"128\" type=\"aarch64v\"/>\n"
+            "<reg name=\"v16\" bitsize=\"128\" type=\"aarch64v\"/>\n"
+            "<reg name=\"v17\" bitsize=\"128\" type=\"aarch64v\"/>\n"
+            "<reg name=\"v18\" bitsize=\"128\" type=\"aarch64v\"/>\n"
+            "<reg name=\"v19\" bitsize=\"128\" type=\"aarch64v\"/>\n"
+            "<reg name=\"v20\" bitsize=\"128\" type=\"aarch64v\"/>\n"
+            "<reg name=\"v21\" bitsize=\"128\" type=\"aarch64v\"/>\n"
+            "<reg name=\"v22\" bitsize=\"128\" type=\"aarch64v\"/>\n"
+            "<reg name=\"v23\" bitsize=\"128\" type=\"aarch64v\"/>\n"
+            "<reg name=\"v24\" bitsize=\"128\" type=\"aarch64v\"/>\n"
+            "<reg name=\"v25\" bitsize=\"128\" type=\"aarch64v\"/>\n"
+            "<reg name=\"v26\" bitsize=\"128\" type=\"aarch64v\"/>\n"
+            "<reg name=\"v27\" bitsize=\"128\" type=\"aarch64v\"/>\n"
+            "<reg name=\"v28\" bitsize=\"128\" type=\"aarch64v\"/>\n"
+            "<reg name=\"v29\" bitsize=\"128\" type=\"aarch64v\"/>\n"
+            "<reg name=\"v30\" bitsize=\"128\" type=\"aarch64v\"/>\n"
+            "<reg name=\"v31\" bitsize=\"128\" type=\"aarch64v\"/>\n");
+
+	xml_printf(&retval, &tdesc, &pos, &size,
+            "<reg name=\"fpsr\" bitsize=\"32\"/>\n"
+            "<reg name=\"fpcr\" bitsize=\"32\"/>\n");
+
+	xml_printf(&retval, &tdesc, &pos, &size,
+			"</feature>\n");
+
+
+	*tdesc_out = tdesc;
+
+	return ERROR_OK;
+}
+
+static int gdb_generate_aarch64_description(char **tdesc_out)
+{
+	int retval = ERROR_OK;
+	static int count = 0;
+
+LOG_DEBUG("count = %d", count);
+	switch (count++) {
+	case 0:
+		retval = gdb_generate_aarch64_description_aarch64(tdesc_out);
+		break;
+
+	case 1:
+		retval = gdb_generate_aarch64_description_aarch64_core(tdesc_out);
+		break;
+
+	case 2:
+		retval = gdb_generate_aarch64_description_aarch64_fpu(tdesc_out);
+		break;
+
+	default:
+		LOG_ERROR("Unsupported aarch64 description");
+		count = 0;
+		break;
+	}
+
+	return retval;
+}
+#endif
+
 static int gdb_generate_target_description(struct target *target, char **tdesc_out)
 {
 	int retval = ERROR_OK;
@@ -2067,6 +2286,12 @@ static int gdb_generate_target_description(struct target *target, char **tdesc_o
 	char *tdesc = NULL;
 	int pos = 0;
 	int size = 0;
+
+#if 0
+	if (is_aarch64(target)) {
+		return gdb_generate_aarch64_description(tdesc_out);
+	}
+#endif
 
 	retval = target_get_gdb_reg_list(target, &reg_list,
 			&reg_list_size, REG_CLASS_ALL);
@@ -2907,6 +3132,9 @@ static int gdb_target_start(struct target *target, const char *port)
 	if (NULL == gdb_service)
 		return -ENOMEM;
 
+LOG_DEBUG("target=%s(%p) on port %s, gdb_service=%p",
+	target_name(target), target, port, gdb_service);
+
 	gdb_service->target = target;
 	gdb_service->core[0] = -1;
 	gdb_service->core[1] = -1;
@@ -2961,6 +3189,7 @@ int gdb_target_add_all(struct target *target)
 	}
 
 	while (NULL != target) {
+LOG_DEBUG("target=%s(%p)", target_name(target), target);
 		int retval = gdb_target_add_one(target);
 		if (ERROR_OK != retval)
 			return retval;

@@ -20,6 +20,8 @@
 #define AARCH64_H
 
 #include "armv8.h"
+#include "target.h"
+#include "arm_dpm.h"
 
 #define AARCH64_COMMON_MAGIC 0x411fc082
 

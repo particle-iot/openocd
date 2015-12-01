@@ -30,6 +30,7 @@
 #include "target_type.h"
 #include "target_type64.h"
 #include "arm_opcodes.h"
+#include "armv8_opcodes.h"
 
 
 /**
@@ -189,6 +190,7 @@ static int dpm_read_reg32(struct arm_dpm *dpm, struct reg *r, unsigned regnum)
 	uint32_t value;
 	int retval = ERROR_FAIL;
 
+LOG_DEBUG("r=%s, regnum=%d", r->name, regnum);
 	switch (regnum) {
 		case 0 ... 14:
 			/* return via DCC:  "MCR p14, 0, Rnum, c0, c5, 0" */
@@ -224,6 +226,7 @@ static int dpm_read_reg32(struct arm_dpm *dpm, struct reg *r, unsigned regnum)
 			}
 			break;
 		default:
+			/* Alamy: MRS/MSR should not be here (Remove ARMV4_5_MRS) */
 			/* 16: "MRS r0, CPSR"; then return via DCC
 			 * 17: "MRS r0, SPSR"; then return via DCC
 			 */
@@ -243,28 +246,75 @@ static int dpm_read_reg32(struct arm_dpm *dpm, struct reg *r, unsigned regnum)
 	return retval;
 }
 
-static int dpm_read_reg64(struct arm_dpm *dpm, struct reg *r, unsigned regnum)
+/*
+ * DDI0487A(ARMv8-A Architecture): H2.3 Entering Debug State
+ * On entry to Debug state the preferred restart address and PSTATE are saved in DLR and DSPSR.
+ * The PE remains in the mode and security state from which it entered Debug state.
+ *
+ * Which implies:
+ *   PC     == DLR
+ *   PSTATE == DSPSR
+ */
+static int dpm_read_reg_aarch64(struct arm_dpm *dpm, struct reg *r, unsigned regnum)
 {
 	uint64_t value;
-	uint32_t i;
+	uint32_t itr;
 	int retval = ERROR_FAIL;
 
 	switch (regnum) {
-		case 0 ... 30:
-			i = 0xd5130400 + regnum; /* msr dbgdtr_el0,reg */
-			retval = dpm->instr_read_data_dcc_64(dpm, i, &value);
+		/* General registers (X0..X30) are not banked */
+		case AARCH64_X0 ... AARCH64_X30:
+			itr = A64_OPCODE_MSR_DBGDTR_EL0(regnum);	/* msr dbgdtr_el0, <Xt> */
+			retval = dpm->instr_read_data_dcc_64(dpm, itr, &value);
 			break;
-		case 31: /* SP */
-			i = 0x910003e0;
-			retval = dpm->instr_read_data_x0(dpm, i, &value);
+
+		/* SP, ELR & SPSR are not general purpose registers, read through X0 */
+		case AARCH64_SP:
+			itr = 0x910003e0;				/* mov x0, sp */
+			retval = dpm->instr_read_data_x0(dpm, itr, &value);
 			break;
-		case 32: /* PC */
-			i = 0xd53b4520;
-			retval = dpm->instr_read_data_x0(dpm, i, &value);
+		case AARCH64_PC:
+			/* C5.3.3 DLR_EL0
+			 * In Debug state, holds the address to restart from.
+			 *
+			 *	op0		op1		CRn		CRm		op2
+			 * MRS <Xt>, DLR_EL0	11		011		0100	0101	001
+			 */
+			itr = A64_OPCODE_MRS_DLR_EL0(AARCH64_X0);	/* mrs x0, dlr_el0 */
+			retval = dpm->instr_read_data_x0(dpm, itr, &value);
 			break;
-		case 33: /* CPSR */
-			i = 0xd53b4500;
-			retval = dpm->instr_read_data_x0(dpm, i, &value);
+		case AARCH64_PSTATE: /* SPSR */
+			/* C5.3.4 DSPSR_EL0
+			 * Holds the saved process state on entry to Debug state
+			 *
+			 *	op0		op1		CRn		CRm		op2
+			 * MRS <Xt>, DSPSR_EL0	11		011		0100	0101	000
+			 */
+			itr = A64_OPCODE_MRS_DSPSR_EL0(AARCH64_X0);	/* mrs x0, dspsr_el0 */
+			retval = dpm->instr_read_data_x0(dpm, itr, &value);
+			break;
+
+		case AARCH64_V0 ... AARCH64_V30:
+			value = 0;
+			LOG_WARNING("* Please implemented this *");
+			break;
+
+		case AARCH64_FPCR:
+			/* C5.3.8 FPCR
+			 *	op0		op1		CRn		CRm		op2
+			 * MRS <Xt>, FPCR	11		011		0100	0100	000
+			 */
+			itr = A64_OPCODE_MRS_FPCR(AARCH64_X0);
+			retval = dpm->instr_read_data_x0(dpm, itr, &value);
+			break;
+
+		case AARCH64_FPSR:
+			/* C5.3.9 FPSR
+			 *	op0		op1		CRn		CRm		op2
+			 * MRS <Xt>, FPSR	11		011		0100	0100	001
+			 */
+			itr = A64_OPCODE_MRS_FPSR(AARCH64_X0);
+			retval = dpm->instr_read_data_x0(dpm, itr, &value);
 			break;
 
 		default:
@@ -272,21 +322,31 @@ static int dpm_read_reg64(struct arm_dpm *dpm, struct reg *r, unsigned regnum)
 	}
 
 	if (retval == ERROR_OK) {
-		buf_set_u64(r->value, 0, 64, value);
-		r->valid = true;
-		r->dirty = false;
-		LOG_DEBUG("READ: %s, %16.16llx", r->name, (long long)value);
-	}
-
-	return retval;
+		switch (r->size) {
+		case 32:	buf_set_u32(r->value, 0, 32, value);	break;
+		case 64:	buf_set_u64(r->value, 0, 64, value);	break;
+		case 128:
+		default:
+			LOG_ERROR("Please implement the code for bitsize == %d", r->size);
+			break;
+		}
+ 		r->valid = true;
+ 		r->dirty = false;
+		LOG_DEBUG("READ: %s, 0x%.16" PRIx64, r->name, value);
+ 	}
+ 
+ 	return retval;
 }
 
 
 /* just read the register -- rely on the core mode being right */
 static int dpm_read_reg(struct arm_dpm *dpm, struct reg *r, unsigned regnum)
 {
-	if (r->size == 64)
-		return dpm_read_reg64(dpm, r, regnum);
+	struct target *target = dpm->arm->target;
+
+//	if (r->size == 64)
+	if (is_aarch64(target))
+		return dpm_read_reg_aarch64(dpm, r, regnum);
 	else
 		return dpm_read_reg32(dpm, r, regnum);
 }
@@ -331,19 +391,20 @@ static int dpm_write_reg32(struct arm_dpm *dpm, struct reg *r, unsigned regnum)
 	return retval;
 }
 
-static int dpm_write_reg64(struct arm_dpm *dpm, struct reg *r, unsigned regnum)
+static int dpm_write_reg_aarch64(struct arm_dpm *dpm, struct reg *r, unsigned regnum)
 {
 	int retval = ERROR_FAIL;
-	uint32_t i;
-	uint64_t value = buf_get_u64(r->value, 0, 64);
+	uint32_t itr;
+	uint64_t value;
 
+#if 0
 	switch (regnum) {
 		case 0 ... 30:
-			i = 0xd5330400 + regnum;
+			i = 0xd5330400 + regnum;	/* mrs <Xt>, dbgdtr_el0 */
 			retval = dpm->instr_write_data_dcc_64(dpm, i, value);
 			break;
 		case 32: /* PC */
-			i = 0xd51b4520;
+			i = 0xd51b4520;				/* msr dlr_el0, x0 */
 			retval = dpm->instr_write_data_x0(dpm, i, value);
 			break;
 		default:
@@ -352,9 +413,80 @@ static int dpm_write_reg64(struct arm_dpm *dpm, struct reg *r, unsigned regnum)
 			break;
 	}
 
+#else
+	switch (r->size) {
+	case 32:	value = buf_get_u32(r->value, 0, 32);	break;
+	case 64:	value = buf_get_u64(r->value, 0, 64);	break;
+	case 128:
+	default:
+		LOG_ERROR("Please implement the code for bitsize == %d", r->size);
+		return ERROR_FAIL;
+	}
+
+	switch (regnum) {
+		/* General registers (X0..X30) are not banked */
+		case AARCH64_X0 ... AARCH64_X30:
+			itr = A64_OPCODE_MRS_DBGDTR_EL0(regnum);	/* mrs <Xt>, dbgdtr_el0 */
+			retval = dpm->instr_write_data_dcc_64(dpm, itr, value);
+			break;
+
+		/* SP, ELR & SPSR are not general purpose registers, write through X0 */
+		case AARCH64_SP:
+			itr = 0x9100001f;				/* mov sp, x0 */
+			retval = dpm->instr_write_data_x0(dpm, itr, value);
+			break;
+		case AARCH64_PC:
+			/* C5.3.3 DLR_EL0
+			 * In Debug state, holds the address to restart from.
+			 *	MSR DLR_EL0, <Xt> ; Write Xt to DLR_EL0
+			 *	op0	op1	CRn	CRm	op2
+			 *	11	011	0100	0101	001
+			 */
+			itr = A64_OPCODE_MSR_DLR_EL0(AARCH64_X0);	/* msr dlr_el0, x0 */
+			retval = dpm->instr_write_data_x0(dpm, itr, value);
+			break;
+		case AARCH64_PSTATE: /* SPSR */
+			/* C5.3.4 DSPSR_EL0
+			 * Holds the saved process state on entry to Debug state
+			 *	MSR DSPSR_EL0, <Xt> ; Write Xt to DSPSR_EL0
+			 *	op0	op1	CRn	CRm	op2
+			 *	11	011	0100	0101	000
+			 */
+			itr = A64_OPCODE_MSR_DSPSR_EL0(AARCH64_X0);	/* mrs dspsr_el0, x0 */
+			retval = dpm->instr_write_data_x0(dpm, itr, value);
+			break;
+
+		case AARCH64_V0 ... AARCH64_V30:
+			value = 0;
+			LOG_WARNING("Please implemented this");
+			break;
+
+		case AARCH64_FPCR:
+			/* C5.3.8 FPCR
+			 *			op0	op1	CRn	CRm	op2
+			 * MRS <Xt>, FPCR	11	011	0100	0100	000
+			 */
+			itr = A64_OPCODE_MSR_FPCR(AARCH64_X0);
+			retval = dpm->instr_write_data_x0(dpm, itr, value);
+			break;
+
+		case AARCH64_FPSR:
+			/* C5.3.9 FPSR
+			 *			op0	op1	CRn	CRm	op2
+			 * MRS <Xt>, FPSR	11	011	0100	0100	001
+			 */
+			itr = A64_OPCODE_MSR_FPSR(AARCH64_X0);
+			retval = dpm->instr_write_data_x0(dpm, itr, value);
+			break;
+
+		default:
+			break;
+	}
+#endif
+
 	if (retval == ERROR_OK) {
 		r->dirty = false;
-		LOG_DEBUG("WRITE: %s, %16.16llx", r->name, (unsigned long long)value);
+		LOG_DEBUG("WRITE: %s, 0x%.16" PRIx64, r->name, value);
 	}
 
 	return retval;
@@ -363,8 +495,11 @@ static int dpm_write_reg64(struct arm_dpm *dpm, struct reg *r, unsigned regnum)
 /* just write the register -- rely on the core mode being right */
 static int dpm_write_reg(struct arm_dpm *dpm, struct reg *r, unsigned regnum)
 {
-	if (r->size == 64)
-		return dpm_write_reg64(dpm, r, regnum);
+	struct target *target = dpm->arm->target;
+
+//	if (r->size == 64)
+	if (is_aarch64(target))
+		return dpm_write_reg_aarch64(dpm, r, regnum);
 	else
 		return dpm_write_reg32(dpm, r, regnum);
 }
@@ -405,7 +540,12 @@ int arm_dpm_read_current_registers(struct arm_dpm *dpm)
 
 	/* REVISIT we can probably avoid reading R1..R14, saving time... */
 	for (unsigned i = 1; i < arm->core_cache->num_regs; i++) {
+LOG_DEBUG("read reg %d/%d", i, arm->core_cache->num_regs);
 		r = arm_reg_current(arm, i);
+if (r == NULL) {
+LOG_ERROR("register %d does not exist", i);
+goto fail;
+}
 		if (r->valid)
 			continue;
 
@@ -426,6 +566,14 @@ fail:
 	return retval;
 }
 
+/*
+ * Read general purpose registers of the the current context: X0..X30.
+ * Then SP, PC, and PSTATE.
+ * sets the core mode (EL: Exception Level) and state (AArch64 or AArch32).
+ * In normal operation this is called on entry to halting debug state,
+ * possibly after some other operations supporting restore of debug state
+ * or making sure the CPU is fully idle (drain write buffer, etc).
+ */
 int arm_dpm_read_current_registers_64(struct arm_dpm *dpm)
 {
 	struct arm *arm = dpm->arm;
@@ -438,17 +586,17 @@ int arm_dpm_read_current_registers_64(struct arm_dpm *dpm)
 	if (retval != ERROR_OK)
 		return retval;
 
-	/* read X0 first (it's used for scratch), then CPSR */
-	r = armv8_get_reg_by_num(arm, 0);
-	if (!r->valid) {
+	/* read X0 first (it's used for scratch) */
+	r = armv8_get_reg_by_num(arm, AARCH64_X0);
+	if (r && !r->valid) {
 		retval = dpm_read_reg(dpm, r, 0);
 		if (retval != ERROR_OK)
 			goto fail;
 	}
 	r->dirty = true;
 
-	LOG_DEBUG("Alamy: CPSR is AArch32 mode register, use PSTATE elements");
 #if 0
+	LOG_DEBUG("Alamy: CPSR is AArch32 mode register, use PSTATE elements");
 	/* Alamy: CPSR is AArch32 mode register.
 		In AArch64, use PSTATE elements to get processor state */
 LOG_DEBUG("is_aarch64 is %d. core_state is %d", is_aarch64(arm->target), core_state);
@@ -469,10 +617,14 @@ LOG_DEBUG("instr64 = 0x%08x, CPSR = 0x%08x", instr, cpsr);
 		arm->core_state = ARM_STATE_AARCH64;
 #endif
 
-	/* REVISIT we can probably avoid reading R1..R14, saving time... */
+	/* Read other registers */
 	for (unsigned i = 1; i < arm->core_cache->num_regs; i++) {
+		/* Hacking: Alamy: need to implement it ? */
+		if ((AARCH64_V0 <= i) && (i <= AARCH64_V31))
+			continue;
+
 		r = armv8_get_reg_by_num(arm, i);
-		if (r->valid)
+		if (r && r->valid)
 			continue;
 
 		retval = dpm_read_reg(dpm, r, i);
@@ -645,7 +797,8 @@ done:
 static int arm_dpm_write_dirty_registers_64(struct arm_dpm *dpm)
 {
 	struct arm *arm = dpm->arm;
-	struct reg_cache *cache = arm->core_cache;
+//	struct reg_cache *cache = arm->core_cache;
+	struct reg *r;
 	int retval;
 
 	/* Scan the registers until we find one that's both dirty and
@@ -654,8 +807,8 @@ static int arm_dpm_write_dirty_registers_64(struct arm_dpm *dpm)
 	 * actually find anything to do...
 	 */
 
-	/* check everything except our scratch register R0 */
-	for (unsigned i = 1; i <= 32; i++) {
+#if 0
+	for (unsigned i = 1; i = arm->core_cache->num_regs; i++) {
 		struct arm_reg *r;
 		unsigned regnum;
 
@@ -677,6 +830,31 @@ static int arm_dpm_write_dirty_registers_64(struct arm_dpm *dpm)
 		goto done;
 	cache->reg_list[0].dirty = false;
 
+#else
+	/* check everything except our scratch register X0 */
+	for (unsigned i = 1; i < arm->core_cache->num_regs; i++) {
+		/* Hacking: Alamy: need to implement it ? */
+		if ((AARCH64_V0 <= i) && (i <= AARCH64_V31))
+			continue;
+
+		r = armv8_get_reg_by_num(arm, i);
+		if (!r || !r->dirty)
+			continue;
+
+		int regnum = ((struct arm_reg *)(r->arch_info))->num;
+		retval = dpm_write_reg_aarch64(dpm, r, regnum);
+		if (retval != ERROR_OK)
+			goto done;
+	} /* end of for() */
+
+	/* flush X0 -- it's *very* dirty by now */
+	r = armv8_get_reg_by_num(arm, AARCH64_X0);
+	retval = dpm_write_reg_aarch64(dpm, r, 0);	/* Alamy: should use arm_reg->num ? */
+	if (retval != ERROR_OK)
+		goto done;
+	r->dirty = false;
+#endif
+
 done:
 	return retval;
 }
@@ -692,7 +870,7 @@ done:
 int arm_dpm_write_dirty_registers(struct arm_dpm *dpm, bool bpwp)
 {
 	struct arm *arm = dpm->arm;
-	struct reg_cache *cache = arm->core_cache;
+//	struct reg_cache *cache = arm->core_cache;
 	int retval;
 
 	retval = dpm->prepare(dpm);
@@ -733,11 +911,9 @@ int arm_dpm_write_dirty_registers(struct arm_dpm *dpm, bool bpwp)
 	/* NOTE:  writes to breakpoint and watchpoint registers might
 	 * be queued, and need (efficient/batched) flushing later.
 	 */
-
-	if (cache->reg_list[0].size == 64)
-		retval = arm_dpm_write_dirty_registers_64(dpm);
-	else
-		retval = arm_dpm_write_dirty_registers_32(dpm);
+	retval = (is_aarch64(target))
+		? arm_dpm_write_dirty_registers_64(dpm)
+		: arm_dpm_write_dirty_registers_32(dpm);
 
 	/* (void) */ dpm->finish(dpm);
 done:
@@ -1184,59 +1360,41 @@ void arm_dpm_report_dscr(struct arm_dpm *dpm, uint32_t dscr)
 	}
 }
 
+struct armv8_debug_reason_mapping {
+	uint8_t	status;		/* ARMv8 EDSCR.STATUS */
+	uint8_t reason;		/* target: DBG_REASON_xxx */
+} armv8_to_target_debug_reason[] = {
+	/* ARMV8_EDSCR_STATUS_xxx (ARMv8)		DBG_REASON_xxx (target) */
+	{ .status = ARMV8_EDSCR_STATUS_NDBG,		.reason = DBG_REASON_NOTHALTED},
+	{ .status = ARMV8_EDSCR_STATUS_RESTART,		.reason = DBG_REASON_NOTHALTED},
+	{ .status = ARMV8_EDSCR_STATUS_EDBGRQ,		.reason = DBG_REASON_DBGRQ},
+	{ .status = ARMV8_EDSCR_STATUS_BP,		.reason = DBG_REASON_BREAKPOINT},
+	{ .status = ARMV8_EDSCR_STATUS_WP,		.reason = DBG_REASON_WATCHPOINT},
+	{ .status = ARMV8_EDSCR_STATUS_STEP_NORM,	.reason = DBG_REASON_SINGLESTEP},
+	{ .status = ARMV8_EDSCR_STATUS_STEP_EXCL,	.reason = DBG_REASON_SINGLESTEP_EXCL},
+	{ .status = ARMV8_EDSCR_STATUS_STEP_NOSYND,	.reason = DBG_REASON_SINGLESTEP_NOSYND},
+	{ .status = ARMV8_EDSCR_STATUS_HLT,		.reason = DBG_REASON_HLT},
+	{ .status = ARMV8_EDSCR_STATUS_SW_ACC,		.reason = DBG_REASON_SWACC},
+	{ .status = ARMV8_EDSCR_STATUS_EXCPT,		.reason = DBG_REASON_EXCPT},
+	{ .status = ARMV8_EDSCR_STATUS_RESET,		.reason = DBG_REASON_RESET},
+	{ .status = ARMV8_EDSCR_STATUS_OS_UL,		.reason = DBG_REASON_OSUL},
+	{						.reason = DBG_REASON_UNDEFINED},	/* EOT*/
+};
+
 enum target_debug_reason armv8_edscr_debug_reason(uint32_t edscr)
 {
-	enum target_debug_reason reason = DBG_REASON_UNDEFINED;
+	struct armv8_debug_reason_mapping *mapping;
+	uint8_t status = EDSCR_STATUS(edscr);
+	uint8_t reason = DBG_REASON_UNDEFINED;
 
-	switch (EDSCR_STATUS(edscr)) {
-	case ARMV8_EDSCR_STATUS_NDBG:		/* Non-debug */
-	case ARMV8_EDSCR_STATUS_RESTART:	/* Restarting */
-		reason = DBG_REASON_NOTHALTED;
-		break;
-
-	case ARMV8_EDSCR_STATUS_EDBGRQ:		/* External debug request */
-		reason = DBG_REASON_DBGRQ;
-		break;
-
-	case ARMV8_EDSCR_STATUS_BP:			/* Breakpoint */
-		reason = DBG_REASON_BREAKPOINT;
-		break;
-
-	case ARMV8_EDSCR_STATUS_WP:			/* Watchpoint */
-		reason = DBG_REASON_WATCHPOINT;
-		break;
-
-	case ARMV8_EDSCR_STATUS_HALT_NORM:	/* Step, normal */
-	case ARMV8_EDSCR_STATUS_HALT_EXCL:	/* Step, exclusive */
-	case ARMV8_EDSCR_STATUS_HALT_NOSYND:/* Step, no syndrome */
-		reason = DBG_REASON_SINGLESTEP;
-		break;
-
-	case ARMV8_EDSCR_STATUS_OS_UL:		/* OS unlock catch */
-		reason = DBG_REASON_OSUL;
-		break;
-
-	case ARMV8_EDSCR_STATUS_RESET:		/* Reset catch */
-		reason = DBG_REASON_RESET;
-		break;
-
-	case ARMV8_EDSCR_STATUS_HLT:		/* HLT instruction */
-		reason = DBG_REASON_HLT;
-		break;
-
-	case ARMV8_EDSCR_STATUS_SW_ACC:		/* Software access to debug register */
-		reason = DBG_REASON_SWACC;
-		break;
-
-	case ARMV8_EDSCR_STATUS_EXCP:		/* Exception catch */
-		reason = DBG_REASON_EXCP;
-		break;
-
-	default:
-		/* We don't really need this as the value had been pre-assigned */
-		reason = DBG_REASON_UNDEFINED;
-		break;
-	}	// end of switch()
+	mapping = armv8_to_target_debug_reason;
+	while (mapping->reason != DBG_REASON_UNDEFINED) {
+		if (status == mapping->status) {
+			reason = mapping->reason;
+			break;
+		}
+		mapping++;
+	}
 
 	return reason;
 }
@@ -1262,8 +1420,8 @@ int arm_dpm_setup(struct arm_dpm *dpm)
 	arm->dpm = dpm;
 
 	/* register access setup */
-	arm->full_context = arm_dpm_full_context;
-	arm->read_core_reg = arm->read_core_reg ? : arm_dpm_read_core_reg;
+	arm->full_context   = arm->full_context   ? : arm_dpm_full_context;
+	arm->read_core_reg  = arm->read_core_reg  ? : arm_dpm_read_core_reg;
 	arm->write_core_reg = arm->write_core_reg ? : arm_dpm_write_core_reg;
 
 	if (arm->core_state == ARM_STATE_AARCH64) {

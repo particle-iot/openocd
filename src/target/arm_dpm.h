@@ -69,6 +69,10 @@ struct arm_dpm {
 	/** Invoke after a series of instruction operations */
 	int (*finish)(struct arm_dpm *);
 
+	/* EXECUTE INSTRUCTION */
+
+	int (*exec_opcode)(struct arm_dpm *, uint32_t opcode);
+
 	/* WRITE TO CPU */
 
 	/** Runs one instruction, writing data to DCC before execution. */

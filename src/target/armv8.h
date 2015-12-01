@@ -249,7 +249,6 @@
 #define	PE_STATUS_HALTED(s) \
 	(((s) != ARMV8_EDSCR_STATUS_NDBG) && ((s) != ARMV8_EDSCR_STATUS_RESTART))
 /* H9.2.39 EDPRSR.HALT when (EDPRSR.PU == 0b1) */
-//#define	PE_STATUS_HALTED(s)			((s) != ARMV8_EDSCR_STATUS_NDBG)
 
 
 /* Fields of EDRCR (0x090) */
@@ -279,30 +278,115 @@
 #define ARMV8_EDPRSR_PU				(1 <<  0)	/* Core powerup status (access debug registers) */
 
 /* Fields of PSTATE (D1.6.4 SPSRs) */
-#define ARMV8_PSTATE_N				(1 << 31)
-#define ARMV8_PSTATE_Z				(1 << 30)
-#define ARMV8_PSTATE_C				(1 << 29)
-#define ARMV8_PSTATE_V				(1 << 28)
-#define ARMV8_PSTATE_Q				(1 << 27)	/* AArch32 only */
-#define ARMV8_PSTATE_IT10_SHIFT		(1 << 25)
+#define ARMV8_PSTATE_N			(1 << 31)
+#define ARMV8_PSTATE_Z			(1 << 30)
+#define ARMV8_PSTATE_C			(1 << 29)
+#define ARMV8_PSTATE_V			(1 << 28)
+#define ARMV8_PSTATE_Q			(1 << 27)	/* AArch32 only */
+#define ARMV8_PSTATE_IT10_SHIFT		(1 << 25)	/* AArch32 only */
 #define ARMV8_PSTATE_IT10_MASK		(0b11 << ARMV8_PSTATE_IT10_SHIFT)
-#define ARMV8_PSTATE_SS				(1 << 21)	/* Software Step */
-#define ARMV8_PSTATE_IL				(1 << 20)
-#define ARMV8_PSTATE_GE_SHIFT		(1 << 16)
+#define ARMV8_PSTATE_SS			(1 << 21)	/* Software Step */
+#define ARMV8_PSTATE_IL			(1 << 20)
+#define ARMV8_PSTATE_GE_SHIFT		(1 << 16)	/* AArch32 only */
 #define ARMV8_PSTATE_GE_MASK		(0b1111 << ARMV8_PSTATE_GE_SHIFT)
-#define ARMV8_PSTATE_IT72_SHIFT		(1 << 10)
+#define ARMV8_PSTATE_IT72_SHIFT		(1 << 10)	/* AArch32 only */
 #define ARMV8_PSTATE_IT72_MASK		(0b111111 << ARMV8_PSTATE_IT72_SHIFT)
-#define ARMV8_PSTATE_D				(1 <<  9)	/* AArch64 only */
-#define ARMV8_PSTATE_E				(1 <<  9)	/* AArch32 only */
-#define ARMV8_PSTATE_A				(1 <<  8)
-#define ARMV8_PSTATE_I				(1 <<  7)
-#define ARMV8_PSTATE_F				(1 <<  6)
-#define ARMV8_PSTATE_T				(1 <<  5)	/* AArch32 only */
-#define ARMV8_PSTATE_nRW			(1 <<  4)	/* MODE[4] encodes the value of PSTATE.nRW */
+#define ARMV8_PSTATE_D			(1 <<  9)	/* AArch64 only */
+#define ARMV8_PSTATE_E			(1 <<  9)	/* AArch32 only */
+#define ARMV8_PSTATE_A			(1 <<  8)
+#define ARMV8_PSTATE_I			(1 <<  7)
+#define ARMV8_PSTATE_F			(1 <<  6)
+#define ARMV8_PSTATE_T			(1 <<  5)	/* AArch32 only */
+#define ARMV8_PSTATE_nRW		(1 <<  4)	/* MODE[4] encodes the value of PSTATE.nRW */
 #define ARMV8_PSTATE_MODE_SHIFT		(0)
 #define ARMV8_PSTATE_MODE_MASK		(0b11111 << ARMV8_PSTATE_MODE_SHIFT)
 
+#define ARMV8_PSTATE_MODE(pstate) \
+	(((pstate) & ARMV8_PSTATE_MODE_MASK) >> ARMV8_PSTATE_MODE_SHIFT)
 
+
+/* ------------------------------------------------------------------ */
+/* Cache related registers */
+
+/* Fields of CCSIDR_EL1 (D7.2.14 Current Cache Size ID Register) */
+#define ARMV8_CCSIDR_WT			(1 << 31)	/* Write-through */
+#define ARMV8_CCSIDR_WB			(1 << 30)	/* Write-back */
+#define ARMV8_CCSIDR_RA			(1 << 29)	/* Read-allocation */
+#define ARMV8_CCSIDR_WA			(1 << 28)	/* Write-allocation */
+#define ARMV8_CCSIDR_NUMSETS_SHIFT	(13)
+#define ARMV8_CCSIDR_NUMSETS_MASK	(0x7FFF << ARMV8_CCSIDR_NUMSETS_SHIFT)
+#define ARMV8_CCSIDR_ASSOCIATIVITY_SHIFT	(3)
+#define ARMV8_CCSIDR_ASSOCIATIVITY_MASK	(0x3FF << ARMV8_CCSIDR_ASSOCIATIVITY_SHIFT)
+#define ARMV8_CCSIDR_LINESIZE_SHIFT	(0)
+#define ARMV8_CCSIDR_LINESIZE_MASK	(0b111 << ARMV8_CCSIDR_LINESIZE_SHIFT)
+
+#define ARMV8_CCSIDR_NUMSETS(cssidr) \
+	(((cssidr) & ARMV8_CCSIDR_NUMSETS_MASK) >> ARMV8_CCSIDR_NUMSETS_SHIFT)
+#define ARMV8_CCSIDR_ASSOCIATIVITY(cssidr) \
+	(((cssidr) & ARMV8_CCSIDR_ASSOCIATIVITY_MASK) >> ARMV8_CCSIDR_ASSOCIATIVITY_SHIFT)
+#define ARMV8_CCSIDR_LINESIZE(cssidr) \
+	(((cssidr) & ARMV8_CCSIDR_LINESIZE_MASK) >> ARMV8_CCSIDR_LINESIZE_SHIFT)
+
+/* WAY: alias of ASSOCIATIVITY */
+#define ARMV8_CCSIDR_NUMWAYS_SHIFT	ARMV8_CCSIDR_ASSOCIATIVITY_SHIFT
+#define ARMV8_CCSIDR_NUMWAYS_MASK	ARMV8_CCSIDR_ASSOCIATIVITY_MASK
+#define ARMV8_CCSIDR_NUMWAYS		ARMV8_CCSIDR_ASSOCIATIVITY
+
+
+/* Fields of CLIDR_EL1 (D7.2.15 Cache Level ID Register) */
+#define ARMV8_CLIDR_ICB_SHIFT		(30)
+#define ARMV8_CLIDR_ICB_MASK		(0b111 << ARMV8_CLIDR_ICB_SHIFT)
+#define ARMV8_CLIDR_LOUU_SHIFT		(27)
+#define ARMV8_CLIDR_LOUU_MASK		(0b111 << ARMV8_CLIDR_LOUU_SHIFT)
+#define ARMV8_CLIDR_LOC_SHIFT		(24)
+#define ARMV8_CLIDR_LOC_MASK		(0b111 << ARMV8_CLIDR_LOC_SHIFT)
+#define ARMV8_CLIDR_LOUIS_SHIFT		(21)
+#define ARMV8_CLIDR_LOUIS_MASK		(0b111 << ARMV8_CLIDR_LOUIS_SHIFT)
+#define ARMV8_CLIDR_CTYPE_SHIFT(n)	(((n)-1)*3)
+#define ARMV8_CLIDR_CTYPE_MASK(n)	( 0b111 << (((n)-1)*3) )
+#define ARMV8_CLIDR_CTYPE7_SHIFT	(18)
+#define ARMV8_CLIDR_CTYPE7_MASK		(0b111 << ARMV8_CLIDR_CTYPE7_SHIFT)
+#define ARMV8_CLIDR_CTYPE6_SHIFT	(15)
+#define ARMV8_CLIDR_CTYPE6_MASK		(0b111 << ARMV8_CLIDR_CTYPE6_SHIFT)
+#define ARMV8_CLIDR_CTYPE5_SHIFT	(12)
+#define ARMV8_CLIDR_CTYPE5_MASK		(0b111 << ARMV8_CLIDR_CTYPE5_SHIFT)
+#define ARMV8_CLIDR_CTYPE4_SHIFT	(9)
+#define ARMV8_CLIDR_CTYPE4_MASK		(0b111 << ARMV8_CLIDR_CTYPE4_SHIFT)
+#define ARMV8_CLIDR_CTYPE3_SHIFT	(6)
+#define ARMV8_CLIDR_CTYPE3_MASK		(0b111 << ARMV8_CLIDR_CTYPE3_SHIFT)
+#define ARMV8_CLIDR_CTYPE2_SHIFT	(3)
+#define ARMV8_CLIDR_CTYPE2_MASK		(0b111 << ARMV8_CLIDR_CTYPE2_SHIFT)
+#define ARMV8_CLIDR_CTYPE1_SHIFT	(0)
+#define ARMV8_CLIDR_CTYPE1_MASK		(0b111 << ARMV8_CLIDR_CTYPE1_SHIFT)
+#define ARMV8_CLIDR_ICB(clidr) \
+	(((clidr) & ARMV8_CLIDR_ICB_MASK) >> ARMV8_CLIDR_ICB_SHIFT)
+#define ARMV8_CLIDR_LOUU(clidr) \
+	(((clidr) & ARMV8_CLIDR_LOUU_MASK) >> ARMV8_CLIDR_LOUU_SHIFT)
+#define ARMV8_CLIDR_LOC(clidr) \
+	(((clidr) & ARMV8_CLIDR_LOC_MASK) >> ARMV8_CLIDR_LOC_SHIFT)
+#define ARMV8_CLIDR_LOUIS(clidr) \
+	(((clidr) & ARMV8_CLIDR_LOUIS_MASK) >> ARMV8_CLIDR_LOUIS_SHIFT)
+#define ARMV8_CLIDR_CTYPE(n, clidr) \
+	(((clidr) & ARMV8_CLIDR_CTYPE_MASK(n)) >> ARMV8_CLIDR_CTYPE_SHIFT(n))
+#define ARMV8_CLIDR_CTYPE7(clidr) \
+	(((clidr) & ARMV8_CLIDR_CTYPE7_MASK) >> ARMV8_CLIDR_CTYPE7_SHIFT)
+#define ARMV8_CLIDR_CTYPE6(clidr) \
+	(((clidr) & ARMV8_CLIDR_CTYPE6_MASK) >> ARMV8_CLIDR_CTYPE6_SHIFT)
+#define ARMV8_CLIDR_CTYPE5(clidr) \
+	(((clidr) & ARMV8_CLIDR_CTYPE5_MASK) >> ARMV8_CLIDR_CTYPE5_SHIFT)
+#define ARMV8_CLIDR_CTYPE4(clidr) \
+	(((clidr) & ARMV8_CLIDR_CTYPE4_MASK) >> ARMV8_CLIDR_CTYPE4_SHIFT)
+#define ARMV8_CLIDR_CTYPE3(clidr) \
+	(((clidr) & ARMV8_CLIDR_CTYPE3_MASK) >> ARMV8_CLIDR_CTYPE3_SHIFT)
+#define ARMV8_CLIDR_CTYPE2(clidr) \
+	(((clidr) & ARMV8_CLIDR_CTYPE2_MASK) >> ARMV8_CLIDR_CTYPE2_SHIFT)
+#define ARMV8_CLIDR_CTYPE1(clidr) \
+	(((clidr) & ARMV8_CLIDR_CTYPE1_MASK) >> ARMV8_CLIDR_CTYPE1_SHIFT)
+
+
+
+/* ------------------------------------------------------------------ */
+/* CTI: Cross Trigger Interface */
 
 #define ARMV8_REG_CTI_CONTROL		(0x000)		/* CTI Control register */
 #define ARMV8_REG_CTI_INTACK		(0x010)		/* CTI Output Trigger Acknowledge register */
@@ -310,14 +394,14 @@
 #define ARMV8_REG_CTI_APPCLEAR		(0x018)		/* CTI Application Trigger Clear register */
 #define ARMV8_REG_CTI_APPPULSE		(0x01C)		/* CTI Application Pulse register */
 #define ARMV8_REG_CTI_INEN(n)		(0x020 + 0x4*(n))
-#define ARMV8_REG_CTI_INEN0			(0x020)		/* CTI Input Trigger to */
-#define ARMV8_REG_CTI_INEN1			(0x024)		/*     Output Channel */
-#define ARMV8_REG_CTI_INEN2			(0x028)		/*     Enable registers */
-#define ARMV8_REG_CTI_INEN3			(0x02C)
-#define ARMV8_REG_CTI_INEN4			(0x030)
-#define ARMV8_REG_CTI_INEN5			(0x034)
-#define ARMV8_REG_CTI_INEN6			(0x038)
-#define ARMV8_REG_CTI_INEN7			(0x03C)
+#define ARMV8_REG_CTI_INEN0		(0x020)		/* CTI Input Trigger to */
+#define ARMV8_REG_CTI_INEN1		(0x024)		/*     Output Channel */
+#define ARMV8_REG_CTI_INEN2		(0x028)		/*     Enable registers */
+#define ARMV8_REG_CTI_INEN3		(0x02C)
+#define ARMV8_REG_CTI_INEN4		(0x030)
+#define ARMV8_REG_CTI_INEN5		(0x034)
+#define ARMV8_REG_CTI_INEN6		(0x038)
+#define ARMV8_REG_CTI_INEN7		(0x03C)
 #define ARMV8_REG_CTI_OUTEN(n)		(0x0A0 + 0x4*(n))
 #define ARMV8_REG_CTI_OUTEN0		(0x0A0)		/* CTI Input Channel to */
 #define ARMV8_REG_CTI_OUTEN1		(0x0A4)		/*     Output Trigger */
@@ -334,6 +418,62 @@
 #define ARMV8_REG_CTI_CHOUTSTATUS	(0x13C)		/* CTI Channel Out Status register */
 #define ARMV8_REG_CTI_GATE			(0x140)		/* CTI Channel Gate Enable register */
 #define ARMV8_REG_CTI_ASICCTL		(0x144)		/* CTI External Multiplexer Control register */
+
+/* H5.4 CTI trigger events */
+#if 0
+#define ARMV8_CTI_OUT_DEBUG		(0b1 << 0)	/* CTI to PE: Debug request trigger event */
+#define ARMV8_CTI_OUT_RESTART		(0b1 << 1)	/* CTI to PE: Restart request trigger event */
+#define ARMV8_CTI_OUT_IRQ		(0b1 << 2)	/* Generic CTI interrupt trigger event */
+#define ARMV8_CTI_OUT_TRACE_EXT(n)	(0b1 << ((n)+4))	/* 4..7 */
+#define ARMV8_CTI_OUT_TRACE_EXT0	(0b1 << 4)	/* Optional: */
+#define ARMV8_CTI_OUT_TRACE_EXT1	(0b1 << 5)	/* Generic trace external input trigger event */
+#define ARMV8_CTI_OUT_TRACE_EXT2	(0b1 << 6)
+#define ARMV8_CTI_OUT_TRACE_EXT3	(0b1 << 7)
+
+#define ARMV8_CTI_IN_CROSS_HALT		(0b1 << 0)	/* Cross-halt trigger event */
+#define ARMV8_CTI_IN_PMO		(0b1 << 1)	/* Performance Monitors overflow trigger event */
+#define ARMV8_CTI_IN_TRACE_EXT(n)	(0b1 << ((n)+4)		/* 4..7 */
+#define ARMV8_CTI_IN_TRACE_EXT0		(0b1 << 4)	/* Optional: */
+#define ARMV8_CTI_IN_TRACE_EXT1		(0b1 << 5)	/* Generic trace external output trigger event */
+#define ARMV8_CTI_IN_TRACE_EXT2		(0b1 << 6)
+#define ARMV8_CTI_IN_TRACE_EXT3		(0b1 << 7)
+
+#else
+#define ARMV8_CTI_OUT_DEBUG		(0)	/* CTI to PE: Debug request trigger event */
+#define ARMV8_CTI_OUT_RESTART		(1)	/* CTI to PE: Restart request trigger event */
+#define ARMV8_CTI_OUT_IRQ		(2)	/* Generic CTI interrupt trigger event */
+#define ARMV8_CTI_OUT_TRACE_EXT(n)	(((n)+4))	/* 4..7 */
+#define ARMV8_CTI_OUT_TRACE_EXT0	(4)	/* Optional: */
+#define ARMV8_CTI_OUT_TRACE_EXT1	(5)	/* Generic trace external input trigger event */
+#define ARMV8_CTI_OUT_TRACE_EXT2	(6)
+#define ARMV8_CTI_OUT_TRACE_EXT3	(7)
+
+#define ARMV8_CTI_IN_CROSS_HALT		(0)	/* Cross-halt trigger event */
+#define ARMV8_CTI_IN_PMO		(1)	/* Performance Monitors overflow trigger event */
+#define ARMV8_CTI_IN_TRACE_EXT(n)	(((n)+4)		/* 4..7 */
+#define ARMV8_CTI_IN_TRACE_EXT0		(4)	/* Optional: */
+#define ARMV8_CTI_IN_TRACE_EXT1		(5)	/* Generic trace external output trigger event */
+#define ARMV8_CTI_IN_TRACE_EXT2		(6)
+#define ARMV8_CTI_IN_TRACE_EXT3		(7)
+#endif
+
+
+/* H9.3.18 CTIDEVID */
+#define ARMV8_CTIDEVID_INOUT_SHIFT	(24)
+#define ARMV8_CTIDEVID_INOUT_MASK	(0b11 << ARMV8_CTIDEVID_INOUT_SHIFT)
+#define ARMV8_CTIDEVID_INOUT_NOGATE	(0b00)
+#define ARMV8_CTIDEVID_INOUT_GATED	(0b01)
+#define ARMV8_CTIDEVID_NUMCHAN_SHIFT	(16)
+#define ARMV8_CTIDEVID_NUMCHAN_MASK	(0b111111 << ARMV8_CTIDEVID_NUMCHAN_SHIFT)
+#define ARMV8_CTIDEVID_NUMTRIG_SHIFT	(8)
+#define ARMV8_CTIDEVID_NUMTRIG_MASK	(0b111111 << ARMV8_CTIDEVID_NUMTRIG_SHIFT)
+#define ARMV8_CTIDEVID_EXTMUXNUM_SHIFT	(0)
+#define ARMV8_CTIDEVID_EXTMUXNUM_MASK	(0b11111 << ARMV8_CTIDEVID_EXTMUXNUM_SHIFT)
+
+#define	ARMV8_CTIDEVID_NUMCHAN(ctidevid)	\
+	(((ctidevid) & ARMV8_CTIDEVID_NUMCHAN_MASK) >> ARMV8_CTIDEVID_NUMCHAN_SHIFT)
+#define	ARMV8_CTIDEVID_NUMTRIG(ctidevid)	\
+	(((ctidevid) & ARMV8_CTIDEVID_NUMTRIG_MASK) >> ARMV8_CTIDEVID_NUMTRIG_SHIFT)
 
 /* ARM CoreSight component has 0xF00..0xFFF implemented */
 
@@ -453,6 +593,44 @@ enum {
 	AARCH64_SP,
 	AARCH64_PC,
 	AARCH64_PSTATE,
+
+	/* FPU registers */
+	AARCH64_V0 = 34,
+	AARCH64_V1,
+	AARCH64_V2,
+	AARCH64_V3,
+	AARCH64_V4,
+	AARCH64_V5,
+	AARCH64_V6,
+	AARCH64_V7,
+	AARCH64_V8,
+	AARCH64_V9,
+	AARCH64_V10,
+	AARCH64_V11,
+	AARCH64_V12,
+	AARCH64_V13,
+	AARCH64_V14,
+	AARCH64_V15,
+	AARCH64_V16,
+	AARCH64_V17,
+	AARCH64_V18,
+	AARCH64_V19,
+	AARCH64_V20,
+	AARCH64_V21,
+	AARCH64_V22,
+	AARCH64_V23,
+	AARCH64_V24,
+	AARCH64_V25,
+	AARCH64_V26,
+	AARCH64_V27,
+	AARCH64_V28,
+	AARCH64_V29,
+	AARCH64_V30,
+	AARCH64_V31,
+
+	/* Floating-point Status/Control Registers */
+	AARCH64_FPCR,	/* 66 */	/* P272 */
+	AARCH64_FPSR,	/* 67 */	/* P276 */
 };
 
 
@@ -487,17 +665,25 @@ struct armv8_cachesize {
 	uint32_t way_shift;
 };
 
+struct armv8_common;
+
 struct armv8_cache_common {
-	int ctype;
+	/* *_identify_cache() set 'identified' to true after cache is identified
+	 * and varaibles, in this structure are set (was 'ctype' before) */
+	bool identified;			/* Has cache type been identified ? */
+
+	uint64_t clidr;		/* Be used to flush D-Cache later */
 	struct armv8_cachesize d_u_size;	/* data cache */
 	struct armv8_cachesize i_size;		/* instruction cache */
 	int i_cache_enabled;
 	int d_u_cache_enabled;
 	/* l2 external unified cache if some */
-	void *l2_cache;
-	int (*flush_all_data_cache)(struct target *target);
+//	void *l2_cache;
+//	int (*flush_all_data_cache)(struct target *target);
 	int (*display_cache_info)(struct command_context *cmd_ctx,
 			struct armv8_cache_common *armv8_cache);
+	int (*flush_dcache_all)(struct target *target);
+//	int (*flush_cache_all)(struct armv8_cache_common *armv8_cache);
 };
 
 struct armv8_mmu_common {
@@ -618,7 +804,7 @@ static inline bool armv8_is_pe_status_valid(uint32_t edscr)
 
 #define CPUDBG_BVR_BASE		0x400
 #define CPUDBG_BCR_BASE		0x408
-#define CPUDBG_WVR_BASE		0x180
+#define CPUDBG_WVR_BASE		0x180	/* Alamy: should not be 0x800 ? */
 #define CPUDBG_WCR_BASE		0x1C0
 #define CPUDBG_VCR		0x01C
 
@@ -638,6 +824,8 @@ int armv8_mmu_translate_va_pa(struct target *target, uint64_t va,
 		uint64_t *val, int meminfo);
 int armv8_mmu_translate_va(struct target *target,  uint32_t va, uint32_t *val);
 
+int armv8_invalidate_icache(struct target *target);
+int armv8_flush_cache_all(struct target *target);	/* both D-Cache & I-Cache */
 int armv8_handle_cache_info_command(struct command_context *cmd_ctx,
 		struct armv8_cache_common *armv8_cache);
 
