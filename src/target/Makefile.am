@@ -88,6 +88,7 @@ ARMV7_SRC = \
 ARMV8_SRC = \
 	target64.c \
 	aarch64.c \
+	armv8_cti.c \
 	armv8.c
 
 ARM_DEBUG_SRC = \
