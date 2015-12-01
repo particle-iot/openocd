@@ -1608,8 +1608,10 @@ int debugport_init(struct adiv5_dap *dap)
 	 * ... for SWD mode this is patched as part
 	 * of link switchover
 	 */
+LOG_DEBUG("before set OPS(%p) for dap=%p", dap->ops, dap);
 	if (!dap->ops)
 		dap->ops = &jtag_dp_ops;
+LOG_DEBUG("after set OPS(%p) for dap=%p", dap->ops, dap);
 
 #if 0
 	retval = dap_dp_read_atomic(dap, DP_CTRL_STAT, &dp_ctrl_stat);
