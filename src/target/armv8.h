@@ -306,6 +306,34 @@
 
 
 /* ------------------------------------------------------------------ */
+/* Breakpoint/Watchpoint related registers */
+
+/* Fields of DBGBCRn_EL1 (H9.2.2 Debug Breakpoint Control Register) */
+#define ARMV8_DBGBCR_BT_SHIFT		(20)
+#define ARMV8_DBGBCR_BT_MASK		(0b1111 << ARMV8_DBGBCR_BT_SHIFT)
+#define ARMV8_DBGBCR_BT_UNLINK_INSTADDR		(0b0000)
+#define ARMV8_DBGBCR_BT_LINK_INSTADDR		(0b0001)
+#define ARMV8_DBGBCR_BT_UNLINK_CTXID		(0b0010)
+#define ARMV8_DBGBCR_BT_LINK_CTXID			(0b0011)
+#define ARMV8_DBGBCR_BT_UNLINK_nINSTADDR	(0b0100)
+#define ARMV8_DBGBCR_BT_LINK_nINSTADDR		(0b0101)
+#define ARMV8_DBGBCR_BT_UNLINK_VMID			(0b1000)
+#define ARMV8_DBGBCR_BT_LINK_VMID			(0b1001)
+#define ARMV8_DBGBCR_BT_UNLINK_VMID_CTXID	(0b1010)
+#define ARMV8_DBGBCR_BT_LINK_VMID_CTXID		(0b1011)
+#define ARMV8_DBGBCR_LBN_SHIFT		(16)
+#define ARMV8_DBGBCR_LBN_MASK		(0b1111 << ARMV8_DBGBCR_LBN_SHIFT)
+#define ARMV8_DBGBCR_SSC_SHIFT		(14)
+#define ARMV8_DBGBCR_SSC_MASK		(0b11 << ARMV8_DBGBCR_SSC_SHIFT)
+#define ARMV8_DBGBCR_HMC			(1 << 13)
+#define ARMV8_DBGBCR_BAS_SHIFT		(5)
+#define ARMV8_DBGBCR_BAS_MASK		(0b1111 << ARMV8_DBGBCR_BAS_SHIFT)
+#define ARMV8_DBGBCR_PMC_SHIFT		(1)
+#define ARMV8_DBGBCR_PMC_MASK		(0b11 << ARMV8_DBGBCR_PMC_SHIFT)
+#define ARMV8_DBGBCR_E				(1 <<  0)
+
+
+/* ------------------------------------------------------------------ */
 /* Cache related registers */
 
 /* Fields of CCSIDR_EL1 (D7.2.14 Current Cache Size ID Register) */
