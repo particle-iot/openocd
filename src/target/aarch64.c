@@ -34,6 +34,7 @@
 
 //#define	_DEBUG_OPCODE_
 //#define	_DEBUG_DCC_IO_
+#define	_DEBUG_BPWP_
 
 
 static int aarch64_poll(struct target *target);
@@ -1862,7 +1863,7 @@ static int aarch64_restore_context(struct target *target, bool bpwp)
 
 /* Setup hardware Breakpoint Register Pair */
 static int aarch64_set_breakpoint(struct target *target,
-	struct breakpoint *breakpoint, uint8_t matchmode)
+	struct breakpoint *breakpoint, uint8_t bptype)
 {
 	int retval;
 	int brp_i = 0;
@@ -1873,13 +1874,18 @@ static int aarch64_set_breakpoint(struct target *target,
 	struct aarch64_brp *brp_list = aarch64->brp_list;
 	uint32_t dscr;
 
+#ifdef	_DEBUG_BPWP_
+	LOG_DEBUG("%s: type=0x%x, addr=0x%.16"PRIXMAX,
+		target_name(target), bptype, breakpoint->address);
+#endif
+
 	if (breakpoint->set) {
 		LOG_WARNING("breakpoint already set");
 		return ERROR_OK;
 	}
 
 	if (breakpoint->type == BKPT_HARD) {
-		int64_t bpt_value;
+		uint32_t addr_hi, addr_lo;
 		while (brp_list[brp_i].used && (brp_i < aarch64->brp_num))
 			brp_i++;
 		if (brp_i >= aarch64->brp_num) {
@@ -1889,35 +1895,40 @@ static int aarch64_set_breakpoint(struct target *target,
 		breakpoint->set = brp_i + 1;
 		if (breakpoint->length == 2)
 			byte_addr_select = (3 << (breakpoint->address & 0x02));
-		control = ((matchmode & 0x7) << 20)
-			| (1 << 13)
-			| (byte_addr_select << 5)
-			| (3 << 1) | 1;
+		control = ((bptype & 0b1111) << ARMV8_DBGBCR_BT_SHIFT)
+			| ARMV8_DBGBCR_HMC
+			| (byte_addr_select << ARMV8_DBGBCR_BAS_SHIFT)
+			| (3 << ARMV8_DBGBCR_PMC_SHIFT)
+			| ARMV8_DBGBCR_E;
 		brp_list[brp_i].used = 1;
 		brp_list[brp_i].value = breakpoint->address & 0xFFFFFFFFFFFFFFFC;
 		brp_list[brp_i].control = control;
-		bpt_value = brp_list[brp_i].value;
+
+		addr_hi = brp_list[brp_i].value >> 32;
+		addr_lo = (uint32_t)(brp_list[brp_i].value);
 
 		retval = aarch64_dap_write_memap_register_u32(target, armv8->debug_base
-				+ CPUDBG_BVR_BASE + 16 * brp_list[brp_i].BRPn,
-				(uint32_t)(bpt_value & 0xFFFFFFFF));
+			+ ARMV8_REG_DBGBVR_EL1_LO(brp_list[brp_i].BRPn), addr_lo);
 		if (retval != ERROR_OK)
 			return retval;
 		retval = aarch64_dap_write_memap_register_u32(target, armv8->debug_base
-				+ CPUDBG_BVR_BASE + 4 + 16 * brp_list[brp_i].BRPn,
-				(uint32_t)(bpt_value >> 32));
+			+ ARMV8_REG_DBGBVR_EL1_HI(brp_list[brp_i].BRPn), addr_hi);
 		if (retval != ERROR_OK)
 			return retval;
-
 		retval = aarch64_dap_write_memap_register_u32(target, armv8->debug_base
-				+ CPUDBG_BCR_BASE + 16 * brp_list[brp_i].BRPn,
-				brp_list[brp_i].control);
+			+ ARMV8_REG_DBGBCR_EL1(brp_list[brp_i].BRPn),
+			brp_list[brp_i].control);
 		if (retval != ERROR_OK)
 			return retval;
-		LOG_DEBUG("brp %i control 0x%0" PRIx32 " value 0x%.16" PRIx64, brp_i,
+#ifdef	_DEBUG_BPWP_
+		LOG_DEBUG("brp %i control 0x%0" PRIx32 "(BT:0x%02x,LBN:0x%02x,BAS:0x%02x,E:%d) value 0x%.16" PRIx64, brp_i,
 			brp_list[brp_i].control,
+			(control & ARMV8_DBGBCR_BT_MASK) >> ARMV8_DBGBCR_BT_SHIFT,
+			(control & ARMV8_DBGBCR_LBN_MASK) >> ARMV8_DBGBCR_LBN_SHIFT,
+			(control & ARMV8_DBGBCR_BAS_MASK) >> ARMV8_DBGBCR_BAS_SHIFT,
+			(control & ARMV8_DBGBCR_E) ? 1 : 0,
 			brp_list[brp_i].value);
-
+#endif
 	} else if (breakpoint->type == BKPT_SOFT) {
 		uint8_t code[4];
 		buf_set_u32(code, 0, 32, A64_OPCODE_BRK(0x11));
@@ -2092,6 +2103,11 @@ static int aarch64_unset_breakpoint(struct target *target, struct breakpoint *br
 	struct aarch64_brp *brp_list = aarch64->brp_list;
 
 	LOG_DEBUG("WARNING(Alamy): Review this function");
+#ifdef	_DEBUG_BPWP_
+	LOG_DEBUG("%s: addr=0x%.16"PRIXMAX,
+		target_name(target), breakpoint->address);
+#endif
+
 	if (!breakpoint->set) {
 		LOG_WARNING("breakpoint not set");
 		return ERROR_OK;
@@ -2111,8 +2127,8 @@ static int aarch64_unset_breakpoint(struct target *target, struct breakpoint *br
 			brp_list[brp_i].value = 0;
 			brp_list[brp_i].control = 0;
 			retval = aarch64_dap_write_memap_register_u32(target, armv8->debug_base
-					+ CPUDBG_BCR_BASE + 16 * brp_list[brp_i].BRPn,
-					brp_list[brp_i].control);
+				+ ARMV8_REG_DBGBCR_EL1(brp_list[brp_i].BRPn),
+				brp_list[brp_i].control);
 			if (retval != ERROR_OK)
 				return retval;
 			if ((brp_j < 0) || (brp_j >= aarch64->brp_num)) {
@@ -2125,8 +2141,8 @@ static int aarch64_unset_breakpoint(struct target *target, struct breakpoint *br
 			brp_list[brp_j].value = 0;
 			brp_list[brp_j].control = 0;
 			retval = aarch64_dap_write_memap_register_u32(target, armv8->debug_base
-					+ CPUDBG_BCR_BASE + 16 * brp_list[brp_j].BRPn,
-					brp_list[brp_j].control);
+				+ ARMV8_REG_DBGBCR_EL1(brp_list[brp_j].BRPn),
+				brp_list[brp_j].control);
 			if (retval != ERROR_OK)
 				return retval;
 			breakpoint->linked_BRP = 0;
@@ -2145,12 +2161,12 @@ static int aarch64_unset_breakpoint(struct target *target, struct breakpoint *br
 			brp_list[brp_i].value = 0;
 			brp_list[brp_i].control = 0;
 			retval = aarch64_dap_write_memap_register_u32(target, armv8->debug_base
-					+ CPUDBG_BCR_BASE + 16 * brp_list[brp_i].BRPn,
-					brp_list[brp_i].control);
+				+ ARMV8_REG_DBGBCR_EL1(brp_list[brp_i].BRPn),
+				brp_list[brp_i].control);
 			if (retval != ERROR_OK)
 				return retval;
 			retval = aarch64_dap_write_memap_register_u32(target, armv8->debug_base
-					+ CPUDBG_BVR_BASE + 16 * brp_list[brp_i].BRPn,
+				+ CPUDBG_BVR_BASE + 16 * brp_list[brp_i].BRPn,
 					brp_list[brp_i].value);
 			if (retval != ERROR_OK)
 				return retval;
