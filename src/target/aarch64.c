@@ -696,7 +696,9 @@ static int aarch64_bpwp_enable(struct arm_dpm *dpm, unsigned index_t,
 	uint32_t cr = a8->armv8_common.debug_base;
 	int retval;
 
+	LOG_ERROR("Alamy: Rewrite this function (uintmax_t, use MACRO)");
 	switch (index_t) {
+	/* see arm_dpm_initialize */
 		case 0 ... 15:	/* breakpoints */
 			vr += CPUDBG_BVR_BASE;
 			cr += CPUDBG_BCR_BASE;
@@ -729,6 +731,7 @@ static int aarch64_bpwp_disable(struct arm_dpm *dpm, unsigned index_t)
 	struct aarch64_common *a8 = dpm_to_a8(dpm);
 	uint32_t cr;
 
+	LOG_ERROR("Alamy: Rewrite this function (uintmax_t, use MACRO)");
 	switch (index_t) {
 		case 0 ... 15:
 			cr = a8->armv8_common.debug_base + CPUDBG_BCR_BASE;
