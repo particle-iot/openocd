@@ -3245,6 +3245,13 @@ err_fail_dump_regs:
 	 * It's just a default value here. see debug_entry for detail */
 	armv8->arm.core_state = ARM_STATE_AARCH64;
 
+	/* Set target state */
+	target->state = armv8_is_pe_status_valid(edscr)
+		? ( PE_STATUS_HALTED(EDSCR_STATUS(edscr))
+			? TARGET_HALTED
+			: TARGET_RUNNING )
+		: TARGET_UNKNOWN;
+
 	retval = aarch64_dpm_setup(aarch64, debug);
 	if (retval != ERROR_OK)
 		return retval;
