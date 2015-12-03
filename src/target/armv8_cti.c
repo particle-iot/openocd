@@ -233,6 +233,142 @@ err:
 	return rc;
 }
 
+
+/**
+ * Determine the execution state of the PE after a halt
+ *
+ * @param target The TARGET used to restore selected AP
+ */
+int armv8_cti_determine_halt(struct target *target)
+{
+	struct armv8_common *armv8 = target_to_armv8(target);;
+	struct adiv5_dap *dap = armv8->arm.dap;;
+	int rc = ERROR_FAIL;
+	uint8_t restore_debug_ap = dap_ap_get_select(dap);
+	int64_t t0;
+	uint32_t edscr;
+
+#ifdef	_DEBUG_CTI_FUNC_ENTRY_
+	LOG_DEBUG("<<< %s", target_name(target));
+#endif
+
+	dap_ap_select(dap, armv8->debug_ap);
+
+	t0 = timeval_ms();		/* Start to wait at time 't0' */
+	do {
+		rc = mem_ap_read_atomic_u32(dap,
+			armv8->debug_base + ARMV8_REG_EDSCR, &edscr);
+		if (rc != ERROR_OK)	goto err;
+
+		if (PE_STATUS_HALTED(EDSCR_STATUS(edscr)))	/* Halted */
+		break;
+
+		if (timeval_ms() > t0 + 1000) {
+			LOG_ERROR("Timeout waiting %s to halt, EDSCR.STATUS=0x%x",
+				target_name(target),
+				EDSCR_STATUS(edscr));
+
+			rc = ERROR_TARGET_TIMEOUT;
+			goto err;
+		}
+	} while (true);
+
+err:
+	dap_ap_select(dap, restore_debug_ap);
+
+#ifdef	_DEBUG_CTI_FUNC_ENTRY_
+	LOG_DEBUG(">>> rc = %d", rc);
+#endif
+	return rc;
+}
+
+/**
+ * Determine the execution state of the PE after a restart
+ *
+ * H5.4.2 Restart request trigger event
+ * Debuggers can use EDPRSR.{SDR,HALTED} to determine
+ * the Execution state of the PE
+ *
+ * @param target The TARGET used to restore selected AP
+ */
+int armv8_cti_determine_restart(struct target *target)
+{
+	struct armv8_common *armv8 = target_to_armv8(target);;
+	struct adiv5_dap *dap = armv8->arm.dap;;
+	int rc = ERROR_FAIL;
+	uint8_t restore_debug_ap = dap_ap_get_select(dap);
+	int64_t t0;
+	uint32_t edprsr, edscr;
+
+#ifdef	_DEBUG_CTI_FUNC_ENTRY_
+	LOG_DEBUG("<<< %s", target_name(target));
+#endif
+
+	dap_ap_select(dap, armv8->debug_ap);
+
+	/* CAUTION: Do NOT compare with EDSCR_STATUS_NDBG,
+	 * PE might already be in ARMV8_EDSCR_STATUS_HALT_NOSYND status
+	 * when this function is called by 'step' command
+	 */
+	t0 = timeval_ms();		/* Start to wait at time 't0' */
+	do {
+		rc = mem_ap_read_atomic_u32(dap,
+			armv8->debug_base + ARMV8_REG_EDPRSR, &edprsr);
+		if (rc != ERROR_OK)	goto err;
+
+		if (edprsr & ARMV8_EDPRSR_SDR)	/* Sticky Debug Restart */
+			break;
+
+		if (timeval_ms() > t0 + 1000) {
+			LOG_ERROR("Timeout waiting %s to restart, EDPRSR.{SDR,HALTED}={%d,%d}",
+				target_name(target),
+				(edprsr & ARMV8_EDPRSR_SDR) ? 1 : 0,
+				(edprsr & ARMV8_EDPRSR_HALTED) ? 1 : 0
+			);
+			rc = ERROR_TARGET_TIMEOUT;
+//			goto err;
+			break;	/* Hacking: let's see the halt reason below */
+		}
+	} while (true);
+	/* WARNING: target might be HALTED.
+	 * i.e.: "halted: NoSynd" of 'step' execution */
+
+	/*
+	 * Read EDSCR to determine running/halted state
+	 * (For debugging)
+	 */
+	rc = mem_ap_read_atomic_u32(dap,
+		armv8->debug_base + ARMV8_REG_EDSCR, &edscr);
+	if (rc != ERROR_OK)	goto err;
+
+	if (PE_STATUS_HALTED(EDSCR_STATUS(edscr))) {
+		switch (EDSCR_STATUS(edscr)) {
+		case ARMV8_EDSCR_STATUS_STEP_NOSYND:
+			/* This is acceptable in 'step' case */
+			break;
+		case ARMV8_EDSCR_STATUS_STEP_NORM:
+		case ARMV8_EDSCR_STATUS_STEP_EXCL:
+			/* Would these two case stops so fast ? */
+			LOG_ERROR("Target %s STEP halted (0x%x) so fast (correct ?)",
+				target_name(target), EDSCR_STATUS(edscr));
+			break;
+		default:
+			LOG_DEBUG("%s soon halted due to 0x%x",
+				target_name(target), EDSCR_STATUS(edscr));
+			break;
+		}
+	}
+
+err:
+	dap_ap_select(dap, restore_debug_ap);
+
+#ifdef	_DEBUG_CTI_FUNC_ENTRY_
+	LOG_DEBUG(">>> rc = %d", rc);
+#endif
+	return rc;
+}
+
+
 /**
  * Enable Cross-Halt and Cross-Restart for all targets in the SMP group
  * Combine the cross-halt & restart code together
@@ -264,7 +400,8 @@ int armv8_cti_enable_cross_halt_restart(struct target *target)
 	for (target = all_targets; target; target = target->next) {
 		if (! target->smp)	continue;
 
-		/* Alamy: WARNING: Should it be ARMV8_CTI_CHANNEL_DEBUG ? */
+		/* Alamy: WARNING: Should it be
+		 * ARMV8_CTI_CHANNEL_DEBUG or ARMV8_CTI_OUT_DEBUG ? */
 		rc = armv8_cti_clear_trigger_events(target, ARMV8_CTI_CHANNEL_DEBUG);
 		if (rc != ERROR_OK)	goto err;
 	}
@@ -416,7 +553,8 @@ int armv8_cti_enable_cross_restart(struct target *target)
 		 * Before generating a Restart request trigger evnet for a PE, a debugger
 		 * must ensure any Debug request trigger event targeting that PE is cleared
 		 */
-		/* Alamy: WARNING: Should it be ARMV8_CTI_CHANNEL_DEBUG ? */
+		/* Alamy: WARNING: Should it be
+		 * ARMV8_CTI_CHANNEL_DEBUG or ARMV8_CTI_OUT_DEBUG ? */
 		rc = armv8_cti_clear_trigger_events(target, ARMV8_CTI_CHANNEL_DEBUG);
 		if (rc != ERROR_OK)	goto err;
 
@@ -491,8 +629,16 @@ int armv8_cti_single_halt(struct target *target)
 	if (rc != ERROR_OK)	goto err;
 
 
+	/* H5.4.1 Acknowledges the trigger event
+	 * If the PE is already in Debug state, the PE ignores the trigger event,
+	 * but the CTI continues to assert it until it is removed by the debugger.
+	 */
 	/* When the PE has entered Debug state, clear the Debug request trigger
 	 * event: CTIINTACK[0] = 1 */
+	rc = armv8_cti_determine_halt(target);
+	if (rc != ERROR_OK)	goto err;
+	rc = armv8_cti_clear_trigger_events(target, ARMV8_CTI_CHANNEL_DEBUG);
+	if (rc != ERROR_OK)	goto err;
 
 
 err:
@@ -543,6 +689,11 @@ int armv8_cti_single_restart(struct target *target)
 	rc = armv8_cti_generate_events(target, ARMV8_CTI_CHANNEL_RESTART);
 	if (rc != ERROR_OK)	goto err;
 
+
+	rc = armv8_cti_determine_restart(target);
+	if (rc != ERROR_OK)	goto err;
+
+
 err:
 	dap_ap_select(dap, restore_debug_ap);
 
@@ -560,10 +711,7 @@ err:
  */
 int armv8_cti_cross_halt(struct target *target)
 {
-	struct armv8_common *armv8 = target_to_armv8(target);;
-	struct adiv5_dap *dap = armv8->arm.dap;;
 	int rc = ERROR_FAIL;
-	uint8_t restore_debug_ap = dap_ap_get_select(dap);
 
 #ifdef	_DEBUG_CTI_FUNC_ENTRY_
 	LOG_DEBUG("<<<");
@@ -579,38 +727,24 @@ int armv8_cti_cross_halt(struct target *target)
 	if (rc != ERROR_OK)	goto err;
 
 
-	/* Determine the execution state of the PE. EDPRSR.{SDR, HALTED} */
-	int64_t t0;
-	uint32_t edscr;
+	/* Determine the execution state of each PE */
 	for (target = all_targets; target; target = target->next) {
 		if (! target->smp)	continue;
 
-		armv8 = target_to_armv8(target);
-		dap = armv8->arm.dap;
+		rc = armv8_cti_determine_halt(target);
+		if (rc != ERROR_OK) {
+			LOG_ERROR("%s should be halted but not", target_name(target));
+			continue;	/* Continue to determine next target/PE */
+		}
 
-		dap_ap_select(dap, armv8->debug_ap);
-
-		t0 = timeval_ms();		/* Start to wait at time 't0' */
-		do {
-			rc = mem_ap_read_atomic_u32(dap,
-				armv8->debug_base + ARMV8_REG_EDSCR, &edscr);
-			if (rc != ERROR_OK)	goto err;
-
-			if (PE_STATUS_HALTED(EDSCR_STATUS(edscr)))	/* Halted */
-				break;
-
-			if (timeval_ms() > t0 + 1000) {
-				LOG_ERROR("Timeout waiting %s to halt, EDSCR.STATUS=0x%x",
-					target_name(target),
-					EDSCR_STATUS(edscr));
-				/* continue to check next target(core) */
-			}
-		} while (true);
-	}	/* End of for(target) */
+		rc = armv8_cti_clear_trigger_events(target, ARMV8_CTI_CHANNEL_DEBUG);
+		if (rc != ERROR_OK) {
+			LOG_WARNING("%s: fail to clear trigger event", target_name(target));
+			continue;	/* Continue to determine next target/PE */
+		}
+	}
 
 err:
-	dap_ap_select(dap, restore_debug_ap);
-
 #ifdef	_DEBUG_CTI_FUNC_ENTRY_
 	LOG_DEBUG(">>> rc = %d", rc);
 #endif
@@ -621,14 +755,11 @@ err:
  * Restart all targets in the SMP group
  * Example H5-3 Synchronously restarting a group of PEs
  *
- * @param target The TARGET used to restore selected AP
+ * @param target The TARGET
  */
 int armv8_cti_cross_restart(struct target *target)
 {
-	struct armv8_common *armv8 = target_to_armv8(target);;
-	struct adiv5_dap *dap = armv8->arm.dap;;
 	int rc = ERROR_FAIL;
-	uint8_t restore_debug_ap = dap_ap_get_select(dap);
 
 #ifdef	_DEBUG_CTI_FUNC_ENTRY_
 	LOG_DEBUG("<<<");
@@ -643,67 +774,18 @@ int armv8_cti_cross_restart(struct target *target)
 	if (rc != ERROR_OK)	goto err;
 
 
-	/* Determine the execution state of the PE. EDPRSR.{SDR, HALTED} */
-	int64_t t0;
-	uint32_t edprsr, edscr;
+	/* Determine the execution state of each PE. EDPRSR.{SDR, HALTED} */
 	for (target = all_targets; target; target = target->next) {
 		if (! target->smp)	continue;
 
-		armv8 = target_to_armv8(target);
-		dap = armv8->arm.dap;
-
-		dap_ap_select(dap, armv8->debug_ap);
-
-		t0 = timeval_ms();		/* Start to wait at time 't0' */
-		do {
-			rc = mem_ap_read_atomic_u32(dap,
-				armv8->debug_base + ARMV8_REG_EDPRSR, &edprsr);
-			if (rc != ERROR_OK)	goto err;
-
-			if (edprsr & ARMV8_EDPRSR_SDR)	/* Sticky debug restart */
-				break;
-
-			if (timeval_ms() > t0 + 1000) {
-				LOG_ERROR("Timeout waiting %s to restart, EDPRSR.{SDR,HALTED}={%d,%d}",
-					target_name(target),
-					(edprsr & ARMV8_EDPRSR_SDR) ? 1 : 0,
-					(edprsr & ARMV8_EDPRSR_HALTED) ? 1 : 0
-				);
-				/* continue to check next target(core) */
-			}
-		} while (true);
-		/* WARNING: target might be HALTED.
-		 * i.e.: "halted: NoSynd" of 'step' execution */
-
-		/*
-		 * Read EDSCR to determine running/halted state
-		 */
-		rc = mem_ap_read_atomic_u32(dap,
-			armv8->debug_base + ARMV8_REG_EDSCR, &edscr);
-		if (rc != ERROR_OK)	goto err;
-
-		if (PE_STATUS_HALTED(EDSCR_STATUS(edscr))) {
-			switch (EDSCR_STATUS(edscr)) {
-			case ARMV8_EDSCR_STATUS_STEP_NOSYND:
-				/* This is acceptable in 'step' case */
-				break;
-			case ARMV8_EDSCR_STATUS_STEP_NORM:
-			case ARMV8_EDSCR_STATUS_STEP_EXCL:
-				/* Would these two case stops so fast ? */
-				LOG_ERROR("Target %s step halted (0x%x) so fast (correct ?)",
-					target_name(target), EDSCR_STATUS(edscr));
-				break;
-			default:
-				LOG_ERROR("Target %s should not halted (0x%x)",
-					target_name(target), EDSCR_STATUS(edscr));
-				break;
-			}
+		rc = armv8_cti_determine_restart(target);
+		if (rc != ERROR_OK) {
+			LOG_ERROR("%s should restart but not", target_name(target));
+			continue;	/* Continue to determine next target/PE */
 		}
-	}	/* End of for(target) */
+	}
 
 err:
-	dap_ap_select(dap, restore_debug_ap);
-
 #ifdef	_DEBUG_CTI_FUNC_ENTRY_
 	LOG_DEBUG(">>> rc = %d", rc);
 #endif

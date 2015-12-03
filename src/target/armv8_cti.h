@@ -45,14 +45,18 @@ int armv8_cti_init(struct target *target);
 int armv8_cti_generate_events(struct target *target, int channel_events);
 int armv8_cti_clear_trigger_events(struct target *target, int out_trigger_events);
 
+/* These are not really CTI operations but tightly-coupled */
+int armv8_cti_determine_halt(struct target *target);
+int armv8_cti_determine_restart(struct target *target);
+
 /* These functions change CTI configuration for its own sake */
 int armv8_cti_enable_cross_halt_restart(struct target *target);
 int armv8_cti_enable_cross_halt(struct target *target);
 int armv8_cti_enable_cross_restart(struct target *target);
+
 int armv8_cti_single_halt(struct target *target);
 int armv8_cti_single_restart(struct target *target);
 
-/* These functions call the enable_xxx() function then trigger one PE */
 int armv8_cti_cross_halt(struct target *target);
 int armv8_cti_cross_restart(struct target *target);
 
