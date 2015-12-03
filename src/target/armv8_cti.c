@@ -117,16 +117,19 @@ int armv8_cti_init(struct target *target)
 	dap_ap_select(dap, armv8->debug_ap);
 
 	/* Unlock access to CTI */
-	rc = mem_ap_write_atomic_u32(dap, cti_base + CS_REG_LAR, 0xC5ACCE55);
+	rc = mem_ap_write_u32(dap, cti_base + CS_REG_LAR, 0xC5ACCE55);
 	if (rc != ERROR_OK)	goto err;
 
 	/* Enable CTI */
-	rc = mem_ap_write_atomic_u32(dap, cti_base + ARMV8_REG_CTI_CONTROL,
+	rc = mem_ap_write_u32(dap, cti_base + ARMV8_REG_CTI_CONTROL,
 		ARMV8_CTI_CONTROL_GLBEN);
 	if (rc != ERROR_OK)	goto err;
 
 	/* Disable all cross-trigger events by default */
-	rc = mem_ap_write_atomic_u32(dap, cti_base + ARMV8_REG_CTI_GATE, 0);
+	rc = mem_ap_write_u32(dap, cti_base + ARMV8_REG_CTI_GATE, 0);
+	if (rc != ERROR_OK)	goto err;
+
+	rc = dap_run(dap);
 	if (rc != ERROR_OK)	goto err;
 
 err:
@@ -231,11 +234,229 @@ err:
 }
 
 /**
+ * Enable Cross-Halt and Cross-Restart for all targets in the SMP group
+ * Combine the cross-halt & restart code together
+ *
+ * @param target The TARGET used to restore selected AP
+ *
+ * NOTE:
+ * armv8_cti_enable_cross_halt() and armv8_cti_enable_cross_restart()
+ * are mutual exclusive, because they reset the CTI_GATE value to enable
+ * its own funcition.
+ * We could use bit-operation there, but there is side effect.
+ *
+ * armv8_cti_enable_cross_halt_restart() to eanble both at the same time,
+ * but the code using this function should take care of each PE's state
+ * carefully.
+ */
+int armv8_cti_enable_cross_halt_restart(struct target *target)
+{
+	struct armv8_common *armv8 = target_to_armv8(target);;
+	struct adiv5_dap *dap = armv8->arm.dap;;
+	int rc = ERROR_FAIL;
+	uint8_t restore_debug_ap = dap_ap_get_select(dap);
+
+#ifdef	_DEBUG_CTI_FUNC_ENTRY_
+	LOG_DEBUG("<<<");
+#endif
+
+	/* Clear any halt trigger-event first */
+	for (target = all_targets; target; target = target->next) {
+		if (! target->smp)	continue;
+
+		/* Alamy: WARNING: Should it be ARMV8_CTI_CHANNEL_DEBUG ? */
+		rc = armv8_cti_clear_trigger_events(target, ARMV8_CTI_CHANNEL_DEBUG);
+		if (rc != ERROR_OK)	goto err;
+	}
+
+	/* Refer to armv8_cti_enable_cross_halt()
+	 * and armv8_cti_enable_cross_restart() */
+	for (target = all_targets; target; target = target->next) {
+		if (! target->smp)	continue;
+
+		armv8 = target_to_armv8(target);
+		dap = armv8->arm.dap;
+
+		dap_ap_select(dap, armv8->debug_ap);
+
+		/* CTIGATE[2:1] = 0b11 */
+		rc = mem_ap_write_u32(dap,
+			armv8->debug_base + ARMV8_CTI_BASE_OFST + ARMV8_REG_CTI_GATE,
+			ARMV8_CTI_CHANNEL_CROSS_HALT | ARMV8_CTI_CHANNEL_RESTART);
+		if (rc != ERROR_OK)	goto err;
+
+		/* cross-halt: CTIINEN0[2] = 1 */
+		rc = mem_ap_write_u32(dap,
+			armv8->debug_base + ARMV8_CTI_BASE_OFST + ARMV8_REG_CTI_INEN(ARMV8_CTI_IN_CROSS_HALT),
+			ARMV8_CTI_CHANNEL_CROSS_HALT);
+		if (rc != ERROR_OK)	goto err;
+		/* cross-halt: CTIOUTEN0[2] = 1 */
+		rc = mem_ap_write_u32(dap,
+			armv8->debug_base + ARMV8_CTI_BASE_OFST + ARMV8_REG_CTI_OUTEN(ARMV8_CTI_OUT_DEBUG),
+			ARMV8_CTI_CHANNEL_CROSS_HALT);
+		if (rc != ERROR_OK)	goto err;
+
+		/* cross-restart: CTIOUTEN1[1] = 1 */
+		rc = mem_ap_write_u32(dap,
+			armv8->debug_base + ARMV8_CTI_BASE_OFST + ARMV8_REG_CTI_OUTEN(ARMV8_CTI_OUT_RESTART),
+			ARMV8_CTI_CHANNEL_RESTART);
+		if (rc != ERROR_OK)	goto err;
+
+		rc = dap_run(dap);
+		if (rc != ERROR_OK)	goto err;
+	}	/* End of for(target) */
+
+err:
+	dap_ap_select(dap, restore_debug_ap);
+
+#ifdef	_DEBUG_CTI_FUNC_ENTRY_
+	LOG_DEBUG(">>> rc = %d", rc);
+#endif
+	return rc;
+}
+
+/**
+ * Enable Cross-Halt for all targets in the SMP group
+ * Example H5-2 Halting all PEs in a group when any one PE halts
+ *
+ * @param target The TARGET used to restore selected AP
+ */
+int armv8_cti_enable_cross_halt(struct target *target)
+{
+	struct armv8_common *armv8 = target_to_armv8(target);;
+	struct adiv5_dap *dap = armv8->arm.dap;;
+	int rc = ERROR_FAIL;
+	uint8_t restore_debug_ap = dap_ap_get_select(dap);
+
+#ifdef	_DEBUG_CTI_FUNC_ENTRY_
+	LOG_DEBUG("<<<");
+#endif
+
+	for (target = all_targets; target; target = target->next) {
+		if (! target->smp)	continue;
+
+		armv8 = target_to_armv8(target);
+		dap = armv8->arm.dap;
+
+		dap_ap_select(dap, armv8->debug_ap);
+
+		/* 1. CTIGATE[2] = 1
+		 * So that each CTI passes channel events on internal channel 2
+		 * to the CTM */
+		rc = mem_ap_write_u32(dap,
+			armv8->debug_base + ARMV8_CTI_BASE_OFST + ARMV8_REG_CTI_GATE,
+			ARMV8_CTI_CHANNEL_CROSS_HALT);
+		if (rc != ERROR_OK)	goto err;
+
+		/* 2. CTIINEN0[2] = 1
+		 * So that each CTI generates a channel event on channel 2
+		 * in response to a Cross-halt trigger event */
+		rc = mem_ap_write_u32(dap,
+			armv8->debug_base + ARMV8_CTI_BASE_OFST + ARMV8_REG_CTI_INEN(ARMV8_CTI_IN_CROSS_HALT),
+			ARMV8_CTI_CHANNEL_CROSS_HALT);
+		if (rc != ERROR_OK)	goto err;
+
+		/* 3. CTIOUTEN0[2] = 1
+		 * So that each CTI generates a Debug request trigger event
+		 * in response to an channel event on channel 2 */
+		rc = mem_ap_write_u32(dap,
+			armv8->debug_base + ARMV8_CTI_BASE_OFST + ARMV8_REG_CTI_OUTEN(ARMV8_CTI_OUT_DEBUG),
+			ARMV8_CTI_CHANNEL_CROSS_HALT);
+		if (rc != ERROR_OK)	goto err;
+
+		rc = dap_run(dap);
+		if (rc != ERROR_OK)	goto err;
+	}	/* End of for(target) */
+
+
+	/* When a PE has halted, clear the Debug request trigger event by
+	 * write a value of 1 to CTIINTACK[0] */
+
+
+err:
+	dap_ap_select(dap, restore_debug_ap);
+
+#ifdef	_DEBUG_CTI_FUNC_ENTRY_
+	LOG_DEBUG(">>> rc = %d", rc);
+#endif
+	return rc;
+}
+
+/**
+ * Enable Cross-Restart for all targets in the SMP group
+ * Example H5-3 Synchronously restarting a group of PEs
+ *
+ * @param target The TARGET used to restore selected AP
+ */
+int armv8_cti_enable_cross_restart(struct target *target)
+{
+	struct armv8_common *armv8 = target_to_armv8(target);;
+	struct adiv5_dap *dap = armv8->arm.dap;;
+	int rc = ERROR_FAIL;
+	uint8_t restore_debug_ap = dap_ap_get_select(dap);
+
+#ifdef	_DEBUG_CTI_FUNC_ENTRY_
+	LOG_DEBUG("<<<");
+#endif
+
+	for (target = all_targets; target; target = target->next) {
+		if (! target->smp)	continue;
+
+		armv8 = target_to_armv8(target);
+		dap = armv8->arm.dap;
+
+		dap_ap_select(dap, armv8->debug_ap);
+
+		/* 1. If the PE was halted because of Debug request trigger event,
+		 * the debugger must ensure the trigger event is deasserted.
+		 * a. CTIINTACK[0] = 1: clear the Debug request trigger event
+		 * b. while(CTITRIGOUTSTATUS[0] != 0): confirm that the trigger event
+		 * has been deasserted. */
+		/* H5.4.2 Restart request trigger event
+		 * Before generating a Restart request trigger evnet for a PE, a debugger
+		 * must ensure any Debug request trigger event targeting that PE is cleared
+		 */
+		/* Alamy: WARNING: Should it be ARMV8_CTI_CHANNEL_DEBUG ? */
+		rc = armv8_cti_clear_trigger_events(target, ARMV8_CTI_CHANNEL_DEBUG);
+		if (rc != ERROR_OK)	goto err;
+
+		/* 2. CTIGATE[1] = 1
+		 * So that each CTI passes channel events on internal channel 1
+		 * to the CTM */
+		rc = mem_ap_write_u32(dap,
+			armv8->debug_base + ARMV8_CTI_BASE_OFST + ARMV8_REG_CTI_GATE,
+			ARMV8_CTI_CHANNEL_RESTART);
+		if (rc != ERROR_OK)	goto err;
+
+		/* 3. CTIOUTEN1[1] = 1
+		 * So that each CTI generates a Restart request trigger event
+		 * in response to a channel event on channel 1 */
+		rc = mem_ap_write_u32(dap,
+			armv8->debug_base + ARMV8_CTI_BASE_OFST + ARMV8_REG_CTI_OUTEN(ARMV8_CTI_OUT_RESTART),
+			ARMV8_CTI_CHANNEL_RESTART);
+		if (rc != ERROR_OK)	goto err;
+
+		rc = dap_run(dap);
+		if (rc != ERROR_OK)	goto err;
+	}	/* End of for(target) */
+
+err:
+	dap_ap_select(dap, restore_debug_ap);
+
+#ifdef	_DEBUG_CTI_FUNC_ENTRY_
+	LOG_DEBUG(">>> rc = %d", rc);
+#endif
+
+	return rc;
+}
+
+
+/**
  * Halt a single core (Example H5-1 Halting a single PE)
  *
  * @param target The TARGET
  */
-int armv8_cti_halt_single(struct target *target)
+int armv8_cti_single_halt(struct target *target)
 {
 	struct armv8_common *armv8 = target_to_armv8(target);
 	struct adiv5_dap *dap = armv8->arm.dap;
@@ -284,12 +505,60 @@ err:
 }
 
 /**
- * Enable Cross-Halt for all targets in the SMP group
+ * Restart a single core
+ *
+ * @param target The TARGET
+ */
+int armv8_cti_single_restart(struct target *target)
+{
+	struct armv8_common *armv8 = target_to_armv8(target);
+	struct adiv5_dap *dap = armv8->arm.dap;
+	int rc = ERROR_FAIL;
+	uint8_t restore_debug_ap = dap_ap_get_select(dap);
+
+#ifdef	_DEBUG_CTI_FUNC_ENTRY_
+	LOG_DEBUG("<<< restarting target %s", target_name(target));
+#endif
+
+	dap_ap_select(dap, armv8->debug_ap);
+
+	/* 1. CTIGATE[1] = 0
+	 * So that the CTI does not pass channel events on internal channel 1 to
+	 * the CTM */
+	rc = mem_ap_clear_bits_u32(dap,
+		armv8->debug_base + ARMV8_CTI_BASE_OFST + ARMV8_REG_CTI_GATE,
+		ARMV8_CTI_CHANNEL_RESTART);
+	if (rc != ERROR_OK)	goto err;
+
+	/* 2. CTIOUTEN1[1] = 1
+	 * So that each CTI generates a Restart request trigger event
+	 * in response to a channel event on channel 1 */
+	rc = mem_ap_write_u32(dap,
+		armv8->debug_base + ARMV8_CTI_BASE_OFST + ARMV8_REG_CTI_OUTEN(ARMV8_CTI_OUT_RESTART),
+		ARMV8_CTI_CHANNEL_RESTART);
+	if (rc != ERROR_OK)	goto err;
+
+	/* 3. CTIAPPPULSE[1] = 1
+	 * To generate a channel event on channel 1 */
+	rc = armv8_cti_generate_events(target, ARMV8_CTI_CHANNEL_RESTART);
+	if (rc != ERROR_OK)	goto err;
+
+err:
+	dap_ap_select(dap, restore_debug_ap);
+
+#ifdef	_DEBUG_CTI_FUNC_ENTRY_
+	LOG_DEBUG(">>> rc = %d", rc);
+#endif
+	return rc;
+}
+
+/**
+ * Halt all targets in the SMP group
  * Example H5-2 Halting all PEs in a group when any one PE halts
  *
  * @param target The TARGET used to restore selected AP
  */
-int armv8_cti_enable_cross_halt(struct target *target)
+int armv8_cti_cross_halt(struct target *target)
 {
 	struct armv8_common *armv8 = target_to_armv8(target);;
 	struct adiv5_dap *dap = armv8->arm.dap;;
@@ -300,189 +569,15 @@ int armv8_cti_enable_cross_halt(struct target *target)
 	LOG_DEBUG("<<<");
 #endif
 
-	for (target = all_targets; target; target = target->next) {
-		if (! target->smp)	continue;
+	rc = armv8_cti_enable_cross_halt(target);
+	if (rc != ERROR_OK)	goto err;
 
-		armv8 = target_to_armv8(target);
-		dap = armv8->arm.dap;
+	/* CTIAPPPULSE[2] = 1 on any one PE in the group */
+	/* Alamy: WARNING: Not verified to use ARMV8_CTI_CHANNEL_CROSS_HALT
+	 * or ARMV8_CTI_CHANNEL_DEBUG */
+	rc = armv8_cti_generate_events(target, ARMV8_CTI_CHANNEL_CROSS_HALT);
+	if (rc != ERROR_OK)	goto err;
 
-		dap_ap_select(dap, armv8->debug_ap);
-
-		/* 1. CTIGATE[2] = 1
-		 * So that each CTI passes channel events on internal channel 2
-		 * to the CTM */
-		rc = mem_ap_set_bits_u32(dap,
-			armv8->debug_base + ARMV8_CTI_BASE_OFST + ARMV8_REG_CTI_GATE,
-			ARMV8_CTI_CHANNEL_CROSS_HALT);
-		if (rc != ERROR_OK)	goto err;
-
-		/* 2. CTIINEN0[2] = 1
-		 * So that each CTI generates a channel event on channel 2
-		 * in response to a Cross-halt trigger event */
-		rc = mem_ap_write_atomic_u32(dap,
-			armv8->debug_base + ARMV8_CTI_BASE_OFST + ARMV8_REG_CTI_INEN(ARMV8_CTI_IN_CROSS_HALT),
-			ARMV8_CTI_CHANNEL_CROSS_HALT);
-		if (rc != ERROR_OK)	goto err;
-
-		/* 3. CTIOUTEN0[2] = 1
-		 * So that each CTI generates a Debug request trigger event
-		 * in response to an channel event on channel 2 */
-		rc = mem_ap_write_atomic_u32(dap,
-			armv8->debug_base + ARMV8_CTI_BASE_OFST + ARMV8_REG_CTI_OUTEN(ARMV8_CTI_OUT_DEBUG),
-			ARMV8_CTI_CHANNEL_CROSS_HALT);
-		if (rc != ERROR_OK)	goto err;
-	}	/* End of for(target) */
-
-
-	/* When a PE has halted, clear the Debug request trigger event by
-	 * write a value of 1 to CTIINTACK[0] */
-
-
-err:
-	dap_ap_select(dap, restore_debug_ap);
-
-#ifdef	_DEBUG_CTI_FUNC_ENTRY_
-	LOG_DEBUG(">>> rc = %d", rc);
-#endif
-	return rc;
-}
-
-/**
- * Enable Cross-Halt and Cross-Restart for all targets in the SMP group
- * Combine the cross-halt & restart code together
- *
- * @param target The TARGET used to restore selected AP
- */
-int armv8_cti_enable_cross_restart(struct target *target)
-{
-	struct armv8_common *armv8 = target_to_armv8(target);;
-	struct adiv5_dap *dap = armv8->arm.dap;;
-	int rc = ERROR_FAIL;
-	uint8_t restore_debug_ap = dap_ap_get_select(dap);
-
-#ifdef	_DEBUG_CTI_FUNC_ENTRY_
-	LOG_DEBUG("<<<");
-#endif
-
-	for (target = all_targets; target; target = target->next) {
-		if (! target->smp)	continue;
-
-		armv8 = target_to_armv8(target);
-		dap = armv8->arm.dap;
-
-		dap_ap_select(dap, armv8->debug_ap);
-
-		/* 1. If the PE was halted because of Debug request trigger event,
-		 * the debugger must ensure the trigger event is deasserted.
-		 * a. CTIINTACK[0] = 1: clear the Debug request trigger event
-		 * b. while(CTITRIGOUTSTATUS[0] != 0): confirm that the trigger event
-		 * has been deasserted. */
-		/* H5.4.2 Restart request trigger event
-		 * Before generating a Restart request trigger evnet for a PE, a debugger
-		 * must ensure any Debug request trigger event targeting that PE is cleared
-		 */
-		/* Alamy: WARNING: Should it be ARMV8_CTI_CHANNEL_DEBUG ? */
-		rc = armv8_cti_clear_trigger_events(target, ARMV8_CTI_CHANNEL_DEBUG);
-		if (rc != ERROR_OK)
-			goto err;
-
-		/* 2. CTIGATE[1] = 1
-		 * So that each CTI passes channel events on internal channel 1
-		 * to the CTM */
-		rc = mem_ap_set_bits_u32(dap,
-			armv8->debug_base + ARMV8_CTI_BASE_OFST + ARMV8_REG_CTI_GATE,
-			ARMV8_CTI_CHANNEL_RESTART);
-		if (rc != ERROR_OK)
-			goto err;
-
-		/* 3. CTIOUTEN1[1] = 1
-		 * So that each CTI generates a Restart request trigger event
-		 * in response to a channel event on channel 1 */
-		rc = mem_ap_set_bits_u32(dap,
-			armv8->debug_base + ARMV8_CTI_BASE_OFST + ARMV8_REG_CTI_OUTEN(ARMV8_CTI_OUT_RESTART),
-			ARMV8_CTI_CHANNEL_RESTART);
-		if (rc != ERROR_OK)
-			goto err;
-	}	/* End of for(target) */
-
-err:
-	dap_ap_select(dap, restore_debug_ap);
-
-#ifdef	_DEBUG_CTI_FUNC_ENTRY_
-	LOG_DEBUG(">>> rc = %d", rc);
-#endif
-
-	return rc;
-}
-
-/**
- * Restart all targets in the SMP group
- * Example H5-3 Synchronously restarting a group of PEs
- *
- * @param target The TARGET used to restore selected AP
- *
- * CAUTION:
- * Make sure it's SMP before calling this function, or 'armv8' would be NULL.
- */
-int armv8_cti_restart_smp(struct target *target)
-{
-	struct armv8_common *armv8 = target_to_armv8(target);;
-	struct adiv5_dap *dap = armv8->arm.dap;;
-	int rc = ERROR_FAIL;
-	uint8_t restore_debug_ap = dap_ap_get_select(dap);
-	uint32_t value;
-
-#ifdef	_DEBUG_CTI_FUNC_ENTRY_
-	LOG_DEBUG("<<<");
-#endif
-
-	for (target = all_targets; target; target = target->next) {
-		if (! target->smp)	continue;
-
-		armv8 = target_to_armv8(target);
-		dap = armv8->arm.dap;
-
-		dap_ap_select(dap, armv8->debug_ap);
-
-		/* 1. If the PE was halted because of Debug request trigger event,
-		 * the debugger must ensure the trigger event is deasserted.
-		 * a. CTIINTACK[0] = 1: clear the Debug request trigger event
-		 * b. while(CTITRIGOUTSTATUS[0] != 0): confirm that the trigger event
-		 * has been deasserted. */
-		/* H5.4.2 Restart request trigger event
-		 * Before generating a Restart request trigger evnet for a PE, a debugger
-		 * must ensure any Debug request trigger event targeting that PE is cleared
-		 */
-		/* Alamy: WARNING: Should it be ARMV8_CTI_CHANNEL_DEBUG ? */
-		rc = armv8_cti_clear_trigger_events(target, ARMV8_CTI_CHANNEL_DEBUG);
-		if (rc != ERROR_OK)
-			goto err;
-
-		/* 2. CTIGATE[1] = 1
-		 * So that each CTI passes channel events on internal channel 1
-		 * to the CTM */
-		rc = mem_ap_set_bits_u32(dap,
-			armv8->debug_base + ARMV8_CTI_BASE_OFST + ARMV8_REG_CTI_GATE,
-			ARMV8_CTI_CHANNEL_RESTART);
-		if (rc != ERROR_OK)
-			goto err;
-
-		/* 3. CTIOUTEN1[1] = 1
-		 * So that each CTI generates a Restart request trigger event
-		 * in response to a channel event on channel 1 */
-		rc = mem_ap_write_atomic_u32(dap,
-			armv8->debug_base + ARMV8_CTI_BASE_OFST + ARMV8_REG_CTI_OUTEN(ARMV8_CTI_OUT_RESTART),
-			ARMV8_CTI_CHANNEL_RESTART);
-		if (rc != ERROR_OK)
-			goto err;
-	}	/* End of for(target) */
-
-	/* 4. CTIAPPPULSE[1] = 1 on any one PE in the group
-	 * To generate a channel event on channel 1 */
-	assert(armv8 != NULL);	/* 'armv8' should point to the last smp target */
-	rc = mem_ap_write_atomic_u32(dap,
-		armv8->debug_base + ARMV8_CTI_BASE_OFST + ARMV8_REG_CTI_APPPULSE,
-		ARMV8_CTI_CHANNEL_RESTART);
 
 	/* Determine the execution state of the PE. EDPRSR.{SDR, HALTED} */
 	int64_t t0;
@@ -498,16 +593,81 @@ int armv8_cti_restart_smp(struct target *target)
 		t0 = timeval_ms();		/* Start to wait at time 't0' */
 		do {
 			rc = mem_ap_read_atomic_u32(dap,
-				armv8->debug_base + ARMV8_REG_EDPRSR, &value);
-			if (rc != ERROR_OK)
-				goto err;
-			if (value & ARMV8_EDPRSR_SDR)	/* Sticky debug restart */
+				armv8->debug_base + ARMV8_REG_EDSCR, &edscr);
+			if (rc != ERROR_OK)	goto err;
+
+			if (PE_STATUS_HALTED(EDSCR_STATUS(edscr)))	/* Halted */
 				break;
+
+			if (timeval_ms() > t0 + 1000) {
+				LOG_ERROR("Timeout waiting %s to halt, EDSCR.STATUS=0x%x",
+					target_name(target),
+					EDSCR_STATUS(edscr));
+				/* continue to check next target(core) */
+			}
+		} while (true);
+	}	/* End of for(target) */
+
+err:
+	dap_ap_select(dap, restore_debug_ap);
+
+#ifdef	_DEBUG_CTI_FUNC_ENTRY_
+	LOG_DEBUG(">>> rc = %d", rc);
+#endif
+	return rc;
+}
+
+/**
+ * Restart all targets in the SMP group
+ * Example H5-3 Synchronously restarting a group of PEs
+ *
+ * @param target The TARGET used to restore selected AP
+ */
+int armv8_cti_cross_restart(struct target *target)
+{
+	struct armv8_common *armv8 = target_to_armv8(target);;
+	struct adiv5_dap *dap = armv8->arm.dap;;
+	int rc = ERROR_FAIL;
+	uint8_t restore_debug_ap = dap_ap_get_select(dap);
+
+#ifdef	_DEBUG_CTI_FUNC_ENTRY_
+	LOG_DEBUG("<<<");
+#endif
+
+	rc = armv8_cti_enable_cross_restart(target);
+	if (rc != ERROR_OK)	goto err;
+
+	/* 4. CTIAPPPULSE[1] = 1 on any one PE in the group
+	 * To generate a channel event on channel 1 */
+	rc = armv8_cti_generate_events(target, ARMV8_CTI_CHANNEL_RESTART);
+	if (rc != ERROR_OK)	goto err;
+
+
+	/* Determine the execution state of the PE. EDPRSR.{SDR, HALTED} */
+	int64_t t0;
+	uint32_t edprsr, edscr;
+	for (target = all_targets; target; target = target->next) {
+		if (! target->smp)	continue;
+
+		armv8 = target_to_armv8(target);
+		dap = armv8->arm.dap;
+
+		dap_ap_select(dap, armv8->debug_ap);
+
+		t0 = timeval_ms();		/* Start to wait at time 't0' */
+		do {
+			rc = mem_ap_read_atomic_u32(dap,
+				armv8->debug_base + ARMV8_REG_EDPRSR, &edprsr);
+			if (rc != ERROR_OK)	goto err;
+
+			if (edprsr & ARMV8_EDPRSR_SDR)	/* Sticky debug restart */
+				break;
+
 			if (timeval_ms() > t0 + 1000) {
 				LOG_ERROR("Timeout waiting %s to restart, EDPRSR.{SDR,HALTED}={%d,%d}",
 					target_name(target),
-					(value & ARMV8_EDPRSR_SDR) ? 1 : 0,
-					(value & ARMV8_EDPRSR_HALTED) ? 1 : 0
+					(edprsr & ARMV8_EDPRSR_SDR) ? 1 : 0,
+					(edprsr & ARMV8_EDPRSR_HALTED) ? 1 : 0
 				);
 				/* continue to check next target(core) */
 			}
@@ -520,8 +680,8 @@ int armv8_cti_restart_smp(struct target *target)
 		 */
 		rc = mem_ap_read_atomic_u32(dap,
 			armv8->debug_base + ARMV8_REG_EDSCR, &edscr);
-		if (rc != ERROR_OK)
-			goto err;
+		if (rc != ERROR_OK)	goto err;
+
 		if (PE_STATUS_HALTED(EDSCR_STATUS(edscr))) {
 			switch (EDSCR_STATUS(edscr)) {
 			case ARMV8_EDSCR_STATUS_STEP_NOSYND:
