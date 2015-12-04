@@ -19,6 +19,8 @@ extern int aarch64_exec_opcode(struct target *target,
 void print_edscr_detail(struct command_context *cmd_ctx, uint32_t edscr)
 {
 	struct target *target = get_current_target(cmd_ctx);
+	enum target_debug_reason backup_debug_reason = target->debug_reason;
+	target->debug_reason = armv8_edscr_debug_reason(edscr);
 
 	command_print(cmd_ctx,
 		"EDSCR = 0x%.8"PRIx32 "\n"
@@ -48,6 +50,8 @@ void print_edscr_detail(struct command_context *cmd_ctx, uint32_t edscr)
 		(edscr & ARMV8_EDSCR_HDE) ? 1 : 0, EDSCR_STATUS(edscr), debug_reason_name(target),
 		(edscr & ARMV8_EDSCR_PIPEADV) ? 1: 0
 		);
+
+	target->debug_reason = backup_debug_reason;
 }
 
 void print_edesr_detail(struct command_context *cmd_ctx, uint32_t edesr)
@@ -90,6 +94,34 @@ void print_edprsr_detail(struct command_context *cmd_ctx, uint32_t edprsr)
 		);
 }
 
+void print_target_debug_info_status(struct command_context *cmd_ctx, struct target *target)
+{
+	struct aarch64_common *aarch64 = target_to_aarch64(target);
+	struct armv8_common *armv8 = &aarch64->armv8_common;
+	struct adiv5_dap *dap = armv8->arm.dap;
+	int rc = ERROR_FAIL;
+	uint32_t edprsr, edesr;
+
+	command_print(cmd_ctx, "----- Target %s -----", target_name(target));
+
+	dap_ap_select(dap, armv8->debug_ap);
+
+	print_edscr_detail(cmd_ctx, aarch64->cpudbg_edscr);
+
+	rc = mem_ap_read_atomic_u32(dap,
+			armv8->debug_base + ARMV8_REG_EDESR, &edesr);
+	if (rc == ERROR_OK) {
+		print_edesr_detail(cmd_ctx, edesr);
+	}
+
+	rc = mem_ap_read_atomic_u32(dap,
+			armv8->debug_base + ARMV8_REG_EDPRSR, &edprsr);
+	if (rc == ERROR_OK) {
+		print_edprsr_detail(cmd_ctx, edprsr);
+	}
+}
+
+/* ---------------------------------------- */
 int print_target_debug_info_cti(
 	struct command_context *cmd_ctx,
 	struct target *target)
@@ -156,7 +188,7 @@ int print_target_debug_info_cti(
 	if (rc != ERROR_OK)	goto err;
 
 	command_print(cmd_ctx,
-        "\tcontrol (glben) = %08x    gate = %08x\n"
+		"\tcontrol (glben) = %08x    gate = %08x\n"
 		"\tasicctl = %08x            appset = %08x\n"
 		"\ttrig in status = %08x     trig out status = %08x\n"
 		"\t  ch in status = %08x       ch out status = %08x\n"
@@ -178,37 +210,82 @@ err:
 	return rc;
 }
 
-void print_target_debug_info(struct command_context *cmd_ctx, struct target *target)
+/* ---------------------------------------- */
+#define ARMV8_BP_NUM		(4)		// Should be 16
+#define ARMV8_WP_NUM		(4)
+int print_target_debug_info_bpwp(
+	struct command_context *cmd_ctx,
+	struct target *target)
 {
 	struct aarch64_common *aarch64 = target_to_aarch64(target);
 	struct armv8_common *armv8 = &aarch64->armv8_common;
 	struct adiv5_dap *dap = armv8->arm.dap;
+//	struct aarch64_brp *brp_list = aarch64->brp_list;
+
 	int rc = ERROR_FAIL;
-	uint32_t edprsr, edesr;
+	int i;
+	uint32_t dbgbcr, dbgbvr_lo, dbgbvr_hi;
+	uint64_t dbgbvr;
 
-	command_print(cmd_ctx, "----- Target %s -----", target_name(target));
+	command_print(cmd_ctx, "Target %s", target_name(target));
 
-	dap_ap_select(dap, armv8->debug_ap);
+	/* H9.2.2 DBGBCR<n>_EL1, n = 0-15 */
+	for (i = 0; i < ARMV8_BP_NUM; i++) {
+		rc = mem_ap_read_u32(dap,
+			armv8->debug_base + ARMV8_REG_DBGBCR_EL1(i), &dbgbcr);
+		if (rc != ERROR_OK)	goto err;
+		rc = mem_ap_read_u32(dap,
+			armv8->debug_base + ARMV8_REG_DBGBVR_EL1_LO(i), &dbgbvr_lo);
+		if (rc != ERROR_OK)	goto err;
+		rc = mem_ap_read_u32(dap,
+			armv8->debug_base + ARMV8_REG_DBGBVR_EL1_HI(i), &dbgbvr_hi);
+		if (rc != ERROR_OK)	goto err;
+		rc = dap_run(dap);
+		if (rc != ERROR_OK)	goto err;
 
-	print_edscr_detail(cmd_ctx, aarch64->cpudbg_edscr);
+		dbgbvr = ((uint64_t)dbgbvr_hi << 32) | (uint64_t)dbgbvr_lo;
 
-	rc = mem_ap_read_atomic_u32(dap,
-			armv8->debug_base + ARMV8_REG_EDESR, &edesr);
-	if (rc == ERROR_OK) {
-		print_edesr_detail(cmd_ctx, edesr);
+		command_print(cmd_ctx,
+			"  BP(%d) BCR=0x%08"PRIx32"(BT:0x%02x,LBN:0x%02x,BAS:0x%02x,E:%d) Addr=0x%.16"PRIX64,
+			i,
+			dbgbcr,
+			(dbgbcr & ARMV8_DBGBCR_BT_MASK) >> ARMV8_DBGBCR_BT_SHIFT,
+			(dbgbcr & ARMV8_DBGBCR_LBN_MASK) >> ARMV8_DBGBCR_LBN_SHIFT,
+			(dbgbcr & ARMV8_DBGBCR_BAS_MASK) >> ARMV8_DBGBCR_BAS_SHIFT,
+			(dbgbcr & ARMV8_DBGBCR_E) ? 1 : 0,
+			dbgbvr);
 	}
 
-	rc = mem_ap_read_atomic_u32(dap,
-			armv8->debug_base + ARMV8_REG_EDPRSR, &edprsr);
-	if (rc == ERROR_OK) {
-		print_edprsr_detail(cmd_ctx, edprsr);
+#if 0
+	/* H9.2.8 DBGWCR<n>_EL1, n = 0-15 */
+	for (i = 0; i < 15; i++) {
+		rc = aarch64_dap_read_memap_register_u32(target,
+			armv8->debug_base + ARMV8_REG_DBGWCR_EL1(i), &dbgbcr);
+		if (rc != ERROR_OK)	goto err;
+		rc = aarch64_dap_read_memap_register_u32(target,
+			armv8->debug_base + ARMV8_REG_DBGWVR_EL1_LO(i), &dbgbvr_lo);
+		if (rc != ERROR_OK)	goto err;
+		rc = aarch64_dap_read_memap_register_u32(target,
+			armv8->debug_base + ARMV8_REG_DBGWVR_EL1_HI(i), &dbgbvr_hi);
+		if (rc != ERROR_OK)	goto err;
+
 	}
+#endif
 
-	rc = print_target_debug_info_cti(cmd_ctx, target);
-
+err:
+	return rc;
 }
 
-COMMAND_HANDLER(aarch64_handle_debug_info_command)
+void print_target_debug_info_all(
+	struct command_context *cmd_ctx,
+	struct target *target)
+{
+	print_target_debug_info_status  (cmd_ctx, target);
+	print_target_debug_info_cti     (cmd_ctx, target);
+	print_target_debug_info_bpwp    (cmd_ctx, target);
+}
+
+COMMAND_HANDLER(aarch64_handle_debug_info_status_command)
 {
 	struct target *target = get_current_target(CMD_CTX);
 	bool opt_smp = false;
@@ -218,18 +295,73 @@ COMMAND_HANDLER(aarch64_handle_debug_info_command)
 	}
 
 	if (!opt_smp) {
-		print_target_debug_info(CMD_CTX, target);
+		print_target_debug_info_status(CMD_CTX, target);
 		return ERROR_OK;
 	}
 
-	for (target = all_targets; target; target = target->next) {
-		print_target_debug_info(CMD_CTX, target);
-		command_print(CMD_CTX, "\n");
-	}
+	for (target = all_targets; target; target = target->next)
+		print_target_debug_info_status(CMD_CTX, target);
 
 	return ERROR_OK;
 }
 
+COMMAND_HANDLER(aarch64_handle_debug_info_cti_command)
+{
+	struct target *target = get_current_target(CMD_CTX);
+	bool opt_smp = false;
+
+	if (CMD_ARGC >= 1) {
+		opt_smp = (strcmp(CMD_ARGV[0], "smp") == 0);
+	}
+
+	if (!opt_smp) {
+		print_target_debug_info_cti(CMD_CTX, target);
+		return ERROR_OK;
+	}
+
+	for (target = all_targets; target; target = target->next)
+		print_target_debug_info_cti(CMD_CTX, target);
+
+	return ERROR_OK;
+}
+
+COMMAND_HANDLER(aarch64_handle_debug_info_bpwp_command)
+{
+	struct target *target = get_current_target(CMD_CTX);
+	bool opt_smp = false;
+
+	if (CMD_ARGC >= 1) {
+		opt_smp = (strcmp(CMD_ARGV[0], "smp") == 0);
+	}
+
+	if (!opt_smp) {
+		print_target_debug_info_bpwp(CMD_CTX, target);
+		return ERROR_OK;
+	}
+
+	for (target = all_targets; target; target = target->next)
+		print_target_debug_info_bpwp(CMD_CTX, target);
+
+	return ERROR_OK;
+}
+
+/* Falls into this function if nothing matched in the subcommand table */
+COMMAND_HANDLER(aarch64_handle_debug_info_command)
+{
+	struct target *target;
+
+/*
+	for (i = 0; i < CMD_ARGC; i++)
+		command_print(CMD_CTX, "parm %d = %s\n", i, CMD_ARGV[i]);
+*/
+
+	for (target = all_targets; target; target = target->next)
+		print_target_debug_info_all(CMD_CTX, target);
+
+	return ERROR_OK;
+}
+
+/* ---------------------------------------- */
 
 /*
 		d2801543	mov	x3, #0xAA
@@ -455,7 +587,31 @@ COMMAND_HANDLER(aarch64_handle_debug_command)
 }
 #endif
 
+static const struct command_registration aarch64_debug_info_subcommand_handlers[] = {
+	{
+		.name = "status",		/* aarch64 debug info status */
+		.handler = aarch64_handle_debug_info_status_command,
+		.mode = COMMAND_EXEC,
+		.help = "aarch64 debug info status [smp]",
+		.usage = "",
+	},
+	{
+		.name = "cti",			/* aarch64 debug info cti */
+		.handler = aarch64_handle_debug_info_cti_command,
+		.mode = COMMAND_EXEC,
+		.help = "aarch64 debug info cti [smp]",
+		.usage = "",
+	},
+	{
+		.name = "bpwp",			/* aarch64 debug info bpwp */
+		.handler = aarch64_handle_debug_info_bpwp_command,
+		.mode = COMMAND_EXEC,
+		.help = "aarch64 debug info bpwp [smp]",
+		.usage = "",
+	},
 
+	COMMAND_REGISTRATION_DONE
+};
 
 static const struct command_registration aarch64_debug_cache_subcommand_handlers[] = {
 	{
@@ -489,6 +645,7 @@ const struct command_registration aarch64_debug_subcommand_handlers[] = {
 		.handler = aarch64_handle_debug_info_command,
 		.mode = COMMAND_EXEC,
 		.help = "debugging information",
+		.chain = aarch64_debug_info_subcommand_handlers,
 		.usage = "",
 	},
 
