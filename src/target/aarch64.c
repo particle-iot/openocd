@@ -922,7 +922,7 @@ static int aarch64_poll_one(struct target *target)
 	struct adiv5_dap *swjdp = armv8->arm.dap;
 //	enum target_state prev_target_state = target->state;
 
-//	LOG_DEBUG("Target %s(%p)", target_name(target), target);
+	LOG_DEBUG("Target %s(%p)", target_name(target), target);
 
 	/* poll might be called from configuration file before examined */
 	if (!target_was_examined(target))
@@ -953,7 +953,7 @@ static int aarch64_poll_one(struct target *target)
 
 	if (! PE_STATUS_HALTED(EDSCR_STATUS(edscr)) ) {
 		target->state = TARGET_RUNNING;
-//		LOG_WARNING("Target %s is not halted", target_name(target);
+//		LOG_DEBUG("Target %s is not halted", target_name(target));
 
 		/* We don't want to break following JIM command(s)
 		 * (ie: target configure -event ...)
@@ -966,13 +966,29 @@ static int aarch64_poll_one(struct target *target)
 	target->state = TARGET_HALTED;
 	target->debug_reason = armv8_edscr_debug_reason(edscr);
 
-//	LOG_DEBUG("Target %s halted due to %s",
-//		target_name(target), debug_reason_name(target));
+//	LOG_DEBUG("Target %s halted due to %s, (prev_state=%d)",
+//		target_name(target), debug_reason_name(target),
+//		prev_target_state);
 
 	if (prev_target_state != TARGET_HALTED) {
 		/* We have a halting debug event
 		 * Either by triggered, or by debugger
 		 */
+
+		/* If not halted by Debugger (so it's triggered)
+		 * Halt other targets that are in the SMP group */
+		if ((EDSCR_STATUS(edscr) != ARMV8_EDSCR_STATUS_EDBGRQ)
+			&& (target->smp)) {
+
+			/* Halt all SMP cores */
+			/* Status concern:
+			 * The triggered core still keeps its triggered reason
+			 *   i.e. EDSCR.STATUS = 0x07 (breakpoint)
+			 * Other cores will be EDSCR.STATUS = 0x13 (debug-request)
+			 */
+			armv8_cti_cross_halt(target);
+		}
+
 		unsigned event;
 		if (prev_target_state == TARGET_DEBUG_RUNNING)
 			event = TARGET_EVENT_DEBUG_HALTED;
@@ -1116,38 +1132,17 @@ static int aarch64_poll(struct target *target)
 static int aarch64_halt_one(struct target *target)
 {
 	int retval = ERROR_OK;
-	uint32_t edscr;
-	struct armv8_common *armv8 = target_to_armv8(target);
-	struct adiv5_dap *swjdp = armv8->arm.dap;
+//	struct armv8_common *armv8 = target_to_armv8(target);
+
+	LOG_DEBUG("target = %s", target_name(target));
 
 	if (target->state == TARGET_HALTED) {
 		LOG_WARNING("Target %s has already been halted", target_name(target));
 		return ERROR_OK;
 	}
 
-LOG_DEBUG("target = %s, dbgbase=%"PRIx32, target_name(target), armv8->debug_base);
-
-	retval = armv8_cti_halt_single(target);
+	retval = armv8_cti_single_halt(target);
 	if (retval != ERROR_OK)	return retval;
-
-	long long t0 = timeval_ms();
-	for (;; ) {
-		retval = mem_ap_sel_read_atomic_u32(swjdp, armv8->debug_ap,
-				armv8->debug_base + ARMV8_REG_EDSCR, &edscr);
-		if (retval != ERROR_OK)
-			return retval;
-		if (PE_STATUS_HALTED(EDSCR_STATUS(edscr)))
-			break;
-		if (timeval_ms() > t0 + 1000) {
-			LOG_ERROR("Timeout waiting for halt");
-			return ERROR_TARGET_TIMEOUT;
-		}
-	}
-
-	/* H5.4.1 Acknowledges the trigger event */
-	retval = armv8_cti_clear_trigger_events(target, ARMV8_CTI_CHANNEL_DEBUG);
-	if (retval != ERROR_OK)
-		return retval;
 
 	/* We don't set target->state = TARGET_HALTED here,
 	 * for 'poll' to identify the reason (differ from WPBP)
@@ -1273,10 +1268,8 @@ static int aarch64_internal_restart(struct target *target)
 {
 	struct armv8_common *armv8 = target_to_armv8(target);
 	struct arm *arm = &armv8->arm;
-	struct adiv5_dap *swjdp = arm->dap;
 	int retval;
 	uint32_t edscr;
-	uint32_t value;
 
 	/*
 	 * * Restart core and wait for it to be started.  Clear ITRen and sticky
@@ -1310,98 +1303,31 @@ static int aarch64_internal_restart(struct target *target)
 	 * Debuggers must program the CTI to send Restart request trigger events
 	 * only to PEs that are halted.
 	 */
+	retval = mem_ap_read_atomic_u32(armv8->arm.dap,
+		armv8->debug_base + ARMV8_REG_EDSCR, &edscr);
+	if (retval != ERROR_OK)
+		return retval;
 
+	if (! PE_STATUS_HALTED(EDSCR_STATUS(edscr))) {
+		LOG_WARNING("%s is not halted", target_name(target));
+		return ERROR_OK;
+	}
 
 	/* H5.4.2 Restart request trigger event
 	 * Before generating a Restart request trigger evnet for a PE, a debugger
 	 * must ensure any Debug request trigger event targeting that PE is cleared
 	 */
+#if 0
 	/* Drop/Deactivate Debug request trigger event : CTIINTACK[0] = 0b1 */
-	retval = mem_ap_sel_write_atomic_u32(swjdp, armv8->debug_ap,
-			armv8->debug_base + ARMV8_CTI_BASE_OFST + ARMV8_REG_CTI_INTACK,
-			ARMV8_CTI_OUT_DEBUG);
+	/* Alamy: WARNING: Should it be
+	 * ARMV8_CTI_CHANNEL_DEBUG or ARMV8_CTI_OUT_DEBUG ? */
+	retval = armv8_cti_clear_trigger_events(ARMV8_CTI_OUT_DEBUG);
 	if (retval != ERROR_OK)
 		return retval;
-	/* Confirm that the output trigger has been deasserted:
-	 *   CTITRIGOUTSTATUS[n] == 0b0
-	 */
-	int64_t wait = timeval_ms();		/* Start to wait at time 'wait' */
-	do {
-		retval = mem_ap_read_atomic_u32(swjdp,
-				armv8->debug_base + ARMV8_CTI_BASE_OFST + ARMV8_REG_CTI_TRIGOUTSTATUS,
-				&value);
-		if (retval != ERROR_OK)
-			return retval;
-		if ((value & ARMV8_CTI_OUT_DEBUG) == 0)
-			break;
-
-		if (timeval_ms() > wait + 1000) {
-			LOG_ERROR("Timeout waiting for all trigger to be deasserted");
-			return ERROR_TARGET_TIMEOUT;
-		}
-	} while (true);
-
+#endif
 
 	/* Actually restart the PE */
-	retval = armv8_cti_generate_events(target, ARMV8_CTI_CHANNEL_RESTART);
-
-	if (retval != ERROR_OK)
-		return retval;
-
-	/* Waiting for core to leave Debug state */
-	/* H5.4.2 Restart request trigger event
-	 * Debuggers can use EDPRSR.{SDR, HALTED} to determine the
-	 * Execution state of the PE
-	 */
-	/* CAUTION: Do NOT compare with EDSCR_STATUS_NDBG,
-	 * PE might already be in ARMV8_EDSCR_STATUS_HALT_NOSYND status
-	 * when this function is called by 'step' command
-	 */
-	wait = timeval_ms();
-	do {
-		retval = mem_ap_read_atomic_u32(swjdp,
-			armv8->debug_base + ARMV8_REG_EDPRSR,
-			&value);
-		if (retval != ERROR_OK) {
-			return retval;
-		}
-		if (value & ARMV8_EDPRSR_SDR)	/* Sticky debug restart */
-			break;
-		if (timeval_ms() > wait + 1000) {
-			LOG_ERROR("Timeout waiting for resume, EDPRSR=0x%.8x, EDPRSR.SDR=%d, EDPRSR.HALTED=%d",
-				value,
-				(value & ARMV8_EDPRSR_SDR) ? 1 : 0,
-				(value & ARMV8_EDPRSR_HALTED) ? 1 : 0
-			);
-			return ERROR_TARGET_TIMEOUT;
-		}
-	} while (true);
-	/* WARNING: target might be in "halted: NoSynd" state (step) */
-
-	/*
-	 * Read EDSCR to determine running/halted state
-	 */
-	retval = mem_ap_read_atomic_u32(swjdp,
-			armv8->debug_base + ARMV8_REG_EDSCR, &edscr);
-	if (retval != ERROR_OK)
-		return retval;
-	if (PE_STATUS_HALTED(EDSCR_STATUS(edscr))) {
-		switch (EDSCR_STATUS(edscr)) {
-		case ARMV8_EDSCR_STATUS_STEP_NOSYND:
-			/* This is acceptable in 'step' case */
-			break;
-		case ARMV8_EDSCR_STATUS_STEP_NORM:
-		case ARMV8_EDSCR_STATUS_STEP_EXCL:
-			/* Would these two case stops so fast ? */
-			LOG_ERROR("Target %s step halted (0x%x) so fast (correct ?)",
-				target_name(target), EDSCR_STATUS(edscr));
-			break;
-		default:
-			LOG_ERROR("Target %s should not halted (0x%x)",
-				target_name(target), EDSCR_STATUS(edscr));
-			break;
-		}
-	}
+	retval = armv8_cti_single_restart(target);
 
 
 	target->debug_reason = DBG_REASON_NOTHALTED;
@@ -1473,15 +1399,13 @@ static int aarch64_resume_one(struct target *target, int current,
 /*
  * Only the selected 'target' will resume at 'address', if ('current' == 0)
  */
+#ifdef	_ARMV8_CTI_
 static int aarch64_resume_smp(struct target *target, int current,
 	uint64_t address, int handle_breakpoints, int debug_execution)
 {
 	struct target *t;
 	int use_current;
-#ifndef _ARMV8_CTI_
-	int retval_one;
-#endif
-	int retval_smp = ERROR_OK;	
+	int retval = ERROR_OK;
 
 	LOG_DEBUG("-");
 
@@ -1502,11 +1426,67 @@ static int aarch64_resume_smp(struct target *target, int current,
 			use_current = current;
 		else
 			use_current = 1;
-#ifdef _ARMV8_CTI_	/* H.W. CTI */
 		/* Restore context */
 		aarch64_internal_restore(t, use_current, &address,
 			handle_breakpoints, debug_execution);
-#else
+	}
+
+	retval = armv8_cti_cross_restart(target);
+	if (retval != ERROR_OK)
+		return retval;
+
+	for (t = all_targets; t; t = t->next) {
+		if (!debug_execution) {
+			t->state = TARGET_RUNNING;			/* WARNING */
+			target_call_event_callbacks(t, TARGET_EVENT_RESUMED);
+			LOG_DEBUG("target %s resumed at 0x%.16"PRIX64 " if %d",
+				target_name(t), address, use_current);
+		} else {
+			t->state = TARGET_DEBUG_RUNNING;	/* WARNING */
+			target_call_event_callbacks(t, TARGET_EVENT_DEBUG_RESUMED);
+			LOG_DEBUG("target %s debug resumed at 0x%.16"PRIX64 " if %d",
+				target_name(t), address, use_current);
+		}
+	}
+
+	/* There is a BIG chance that one core has been halted because of,
+	 * for example, breakpoint, before the cross-halt being set */
+	retval = armv8_cti_enable_cross_halt(target);
+
+	/* Last error message from among the SMP targets, if any */
+	return retval;
+}
+
+
+#else	/* #ifdef _ARMV8_CTI_ */
+static int aarch64_resume_smp(struct target *target, int current,
+	uint64_t address, int handle_breakpoints, int debug_execution)
+{
+	struct target *t;
+	int use_current;
+	int retval_one;
+	int retval_smp = ERROR_OK;
+
+	LOG_DEBUG("-");
+
+	/* H5.4.2 Restart request trigger event
+	 * Debuggers must program the CTI to send Restart request trigger events
+	 * only to PEs that are halted.
+	 *
+	 * When CTI is programmed properly, we just
+	 *	call aarch64_internal_restore()
+	 *  then trigger CTI
+	 */
+
+	for (t = all_targets; t; t = t->next) {
+		if (! t->smp)	continue;
+
+		/* Other core(s) resume at where they stopped */
+		if (t == target)
+			use_current = current;
+		else
+			use_current = 1;
+
 		retval_one = aarch64_resume_one(t, use_current, address,
 			handle_breakpoints, debug_execution);
 		if (ERROR_OK != retval_one) {
@@ -1514,31 +1494,12 @@ static int aarch64_resume_smp(struct target *target, int current,
 			LOG_WARNING("Failed to resume SMP target %s", target_name(t));
 			/* We continue to resume other SMP target(s) */
 		}
-#endif
 	}
-
-#ifdef	_ARMV8_CTI_
-	retval_smp = armv8_cti_restart_smp(target);
-
-	if (retval_smp != ERROR_OK)
-		return retval_smp;
-
-	if (!debug_execution) {
-		target->state = TARGET_RUNNING;			/* WARNING */
-		target_call_event_callbacks(target, TARGET_EVENT_RESUMED);
-		LOG_DEBUG("target %s resumed at 0x%.16"PRIX64 " if %d",
-			target_name(target), address, use_current);
-	} else {
-		target->state = TARGET_DEBUG_RUNNING;	/* WARNING */
-		target_call_event_callbacks(target, TARGET_EVENT_DEBUG_RESUMED);
-		LOG_DEBUG("target %s debug resumed at 0x%.16"PRIX64 " if %d",
-			target_name(target), address, use_current);
-	}
-#endif
 
 	/* Last error message from among the SMP targets, if any */
 	return retval_smp;
 }
+#endif	/* _ARMV8_CTI_ */
 
 static int aarch64_resume(struct target *target, int current,
 	uint64_t address, int handle_breakpoints, int debug_execution)
@@ -2165,6 +2126,7 @@ static int aarch64_unset_breakpoint(struct target *target, struct breakpoint *br
 				brp_list[brp_i].control);
 			if (retval != ERROR_OK)
 				return retval;
+			/* Alamy: We don't need this, do we ? */
 			retval = aarch64_dap_write_memap_register_u32(target, armv8->debug_base
 				+ CPUDBG_BVR_BASE + 16 * brp_list[brp_i].BRPn,
 					brp_list[brp_i].value);
@@ -2176,6 +2138,7 @@ static int aarch64_unset_breakpoint(struct target *target, struct breakpoint *br
 	} else {
 		/* restore original instruction (kept in target endianness) */
 		if (breakpoint->length == 4) {
+			/* Alamy: Should not be ~((uint64_t)0b11) ? */
 			retval = target_write_memory(target,
 					breakpoint->address & 0xFFFFFFFFFFFFFFFE,
 					4, 1, breakpoint->orig_instr);
