@@ -1048,7 +1048,7 @@ FLASH_BANK_COMMAND_HANDLER(niietcm4_flash_bank_command)
 {
 	struct niietcm4_flash_bank *niietcm4_info;
 
-	if (CMD_ARGC < 7)
+	if (CMD_ARGC < 6)
 		return ERROR_COMMAND_SYNTAX_ERROR;
 
 	niietcm4_info = malloc(sizeof(struct niietcm4_flash_bank));
