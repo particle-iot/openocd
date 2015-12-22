@@ -162,7 +162,7 @@ static int nds32_get_core_reg_64(struct reg *reg)
 
 static int nds32_update_psw(struct nds32 *nds32)
 {
-	uint32_t value_ir0;
+	uint32_t value_ir0=0;
 	struct aice_port_s *aice = target_to_aice(nds32->target);
 
 	nds32_get_mapped_reg(nds32, IR0, &value_ir0);
@@ -184,7 +184,7 @@ static int nds32_update_psw(struct nds32 *nds32)
 
 static int nds32_update_mmu_info(struct nds32 *nds32)
 {
-	uint32_t value;
+	uint32_t value=0;
 
 	/* Update MMU control status */
 	nds32_get_mapped_reg(nds32, MR0, &value);
@@ -196,7 +196,7 @@ static int nds32_update_mmu_info(struct nds32 *nds32)
 
 static int nds32_update_cache_info(struct nds32 *nds32)
 {
-	uint32_t value;
+	uint32_t value=0;
 
 	if (ERROR_OK == nds32_get_mapped_reg(nds32, MR8, &value)) {
 		if (value & 0x1)
@@ -219,8 +219,8 @@ static int nds32_update_cache_info(struct nds32 *nds32)
 static int nds32_update_lm_info(struct nds32 *nds32)
 {
 	struct nds32_memory *memory = &(nds32->memory);
-	uint32_t value_mr6;
-	uint32_t value_mr7;
+	uint32_t value_mr6=0;
+	uint32_t value_mr7=0;
 
 	nds32_get_mapped_reg(nds32, MR6, &value_mr6);
 	if (value_mr6 & 0x1)
@@ -268,7 +268,7 @@ static int nds32_update_lm_info(struct nds32 *nds32)
  */
 static int nds32_check_extension(struct nds32 *nds32)
 {
-	uint32_t value;
+	uint32_t value=0;
 
 	nds32_get_mapped_reg(nds32, FUCPR, &value);
 	if (value == NDS32_REGISTER_DISABLE) {
@@ -509,7 +509,8 @@ static struct reg *nds32_reg_current(struct nds32 *nds32, unsigned regnum)
 
 int nds32_full_context(struct nds32 *nds32)
 {
-	uint32_t value, value_ir0;
+	uint32_t value=0;
+	uint32_t value_ir0=0;
 
 	/* save $pc & $psw */
 	nds32_get_mapped_reg(nds32, PC, &value);
@@ -986,7 +987,8 @@ int nds32_arch_state(struct target *target)
 		return ERROR_FAIL;
 	}
 
-	uint32_t value_pc, value_psw;
+	uint32_t value_pc=0;
+	uint32_t value_psw=0;
 
 	nds32_get_mapped_reg(nds32, PC, &value_pc);
 	nds32_get_mapped_reg(nds32, IR0, &value_psw);
@@ -1056,8 +1058,8 @@ static void nds32_init_must_have_registers(struct nds32 *nds32)
 
 static int nds32_init_memory_config(struct nds32 *nds32)
 {
-	uint32_t value_cr1; /* ICM_CFG */
-	uint32_t value_cr2; /* DCM_CFG */
+	uint32_t value_cr1=0; /* ICM_CFG */
+	uint32_t value_cr2=0; /* DCM_CFG */
 	struct nds32_memory *memory = &(nds32->memory);
 
 	/* read $cr1 to init instruction memory information */
@@ -1085,9 +1087,9 @@ static int nds32_init_memory_config(struct nds32 *nds32)
 
 static void nds32_init_config(struct nds32 *nds32)
 {
-	uint32_t value_cr0;
-	uint32_t value_cr3;
-	uint32_t value_cr4;
+	uint32_t value_cr0=0;
+	uint32_t value_cr3=0;
+	uint32_t value_cr4=0;
 	struct nds32_cpu_version *cpu_version = &(nds32->cpu_version);
 	struct nds32_mmu_config *mmu_config = &(nds32->mmu_config);
 	struct nds32_misc_config *misc_config = &(nds32->misc_config);
@@ -1379,8 +1381,8 @@ static int nds32_init_option_registers(struct nds32 *nds32)
 		((struct nds32_reg *)reg_cache->reg_list[SHFT_CTL0].arch_info)->enable = true;
 		((struct nds32_reg *)reg_cache->reg_list[SHFT_CTL1].arch_info)->enable = true;
 
-		uint32_t value_mod;
-		uint32_t fucpr_backup;
+		uint32_t value_mod=0;
+		uint32_t fucpr_backup=0;
 		/* enable fpu and get configuration */
 		nds32_get_mapped_reg(nds32, FUCPR, &fucpr_backup);
 		if ((fucpr_backup & 0x80000000) == 0)
@@ -1414,7 +1416,7 @@ static int nds32_init_option_registers(struct nds32 *nds32)
 			((struct nds32_reg *)reg_cache->reg_list[IDR0].arch_info)->enable = false;
 	}
 
-	uint32_t ir3_value;
+	uint32_t ir3_value=0;
 	uint32_t ivb_prog_pri_lvl;
 	uint32_t ivb_ivic_ver;
 
@@ -1621,7 +1623,8 @@ int nds32_config(struct nds32 *nds32)
 		nds32->max_interrupt_level = 3;
 
 	/* get ILM/DLM size from MR6/MR7 */
-	uint32_t value_mr6, value_mr7;
+	uint32_t value_mr6=0;
+	uint32_t value_mr7=0;
 	uint32_t size_index;
 	nds32_get_mapped_reg(nds32, MR6, &value_mr6);
 	size_index = (value_mr6 >> 1) & 0xF;
@@ -1783,7 +1786,7 @@ int nds32_step(struct target *target, int current,
 	LOG_DEBUG("STEP PC %08" PRIx32 "%s", address, !current ? "!" : "");
 
 	/** set DSSIM */
-	uint32_t ir14_value;
+	uint32_t ir14_value=0;
 	nds32_get_mapped_reg(nds32, IR14, &ir14_value);
 	if (nds32->step_isr_enable)
 		ir14_value |= (0x1 << 31);
@@ -1836,7 +1839,7 @@ static int nds32_step_without_watchpoint(struct nds32 *nds32)
 	}
 
 	/** set DSSIM */
-	uint32_t ir14_value;
+	uint32_t ir14_value=0;
 	nds32_get_mapped_reg(nds32, IR14, &ir14_value);
 	if (nds32->step_isr_enable)
 		ir14_value |= (0x1 << 31);
@@ -1924,8 +1927,8 @@ int nds32_examine_debug_reason(struct nds32 *nds32)
 		case NDS32_DEBUG_BREAK_16:
 		case NDS32_DEBUG_INST_BREAK:
 			{
-				uint32_t value_pc;
-				uint32_t opcode;
+				uint32_t value_pc=0;
+				uint32_t opcode=0;
 				struct nds32_instruction instruction;
 
 				nds32_get_mapped_reg(nds32, PC, &value_pc);
@@ -2022,7 +2025,7 @@ int nds32_login(struct nds32 *nds32)
 			return ERROR_FAIL;
 
 		/* get current privilege level */
-		uint32_t value_edmsw;
+		uint32_t value_edmsw=0;
 		aice_read_debug_reg(aice, NDS_EDM_SR_EDMSW, &value_edmsw);
 		nds32->privilege_level = (value_edmsw >> 16) & 0x3;
 		LOG_INFO("Current privilege level: %d", nds32->privilege_level);
@@ -2145,7 +2148,7 @@ int nds32_resume(struct target *target, int current,
 
 	/* Disable HSS to avoid users misuse HSS */
 	if (nds32_reach_max_interrupt_level(nds32) == false) {
-		uint32_t value_ir0;
+		uint32_t value_ir0=0;
 		nds32_get_mapped_reg(nds32, IR0, &value_ir0);
 		value_ir0 &= ~(0x1 << 11);
 		nds32_set_mapped_reg(nds32, IR0, value_ir0);
@@ -2186,7 +2189,7 @@ static int nds32_soft_reset_halt(struct target *target)
 		return retval;
 
 	/* start fetching from IVB */
-	uint32_t value_ir3;
+	uint32_t value_ir3=0;
 	nds32_get_mapped_reg(nds32, IR3, &value_ir3);
 	nds32_set_mapped_reg(nds32, PC, value_ir3 & 0xFFFF0000);
 
@@ -2316,7 +2319,7 @@ int nds32_get_gdb_fileio_info(struct target *target, struct gdb_fileio_info *fil
 	}
 
 	struct nds32 *nds32 = target_to_nds32(target);
-	uint32_t value_ir6;
+	uint32_t value_ir6=0;
 	uint32_t syscall_id;
 
 	if (nds32->hit_syscall == false)

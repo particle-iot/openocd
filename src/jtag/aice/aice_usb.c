@@ -470,7 +470,7 @@ static int aice_usb_packet_flush(void)
 
 		/* check status */
 		uint32_t i;
-		uint32_t batch_status;
+		uint32_t batch_status=0;
 
 		i = 0;
 		while (1) {
@@ -4014,7 +4014,7 @@ static int aice_usb_profiling(uint32_t coreid, uint32_t interval, uint32_t itera
 
 		/* check status */
 		uint32_t i;
-		uint32_t batch_status;
+		uint32_t batch_status=0;
 
 		i = 0;
 		while (1) {
