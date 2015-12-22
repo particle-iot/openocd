@@ -199,7 +199,7 @@ static int jtagspi_probe(struct flash_bank *bank)
 
 static void jtagspi_read_status(struct flash_bank *bank, uint32_t *status)
 {
-	uint8_t buf;
+	uint8_t buf = 0;
 	jtagspi_cmd(bank, SPIFLASH_READ_STATUS, NULL, &buf, -8);
 	*status = buf;
 	/* LOG_DEBUG("status=0x%08" PRIx32, *status); */
