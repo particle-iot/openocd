@@ -142,29 +142,31 @@ void *buf_set_buf(const void *_src, unsigned src_start,
 	src += sb;
 	dst += db;
 
-	/* check if both buffers are on byte boundary and
-	 * len is a multiple of 8bit so we can simple copy
-	 * the buffer */
-	if ((sq == 0) && (dq == 0) &&  (lq == 0)) {
+	/* check if both buffers are on byte boundary */
+	if ((sq == 0) && (dq == 0)) {
+		/* copy all full bytes */
 		for (i = 0; i < lb; i++)
 			*dst++ = *src++;
+		/* copy trailing bits */
+		if (lq) {
+			uint8_t mask = (1 << lq) - 1;
+			*dst = (*dst & ~mask) | (*src & mask);
+		}
 		return _dst;
 	}
 
 	/* fallback to slow bit copy */
 	for (i = 0; i < len; i++) {
-		if (((*src >> (sq&7)) & 1) == 1)
-			*dst |= 1 << (dq&7);
+		if (((*src >> sq) & 1) != 0)
+			*dst |= 1 << dq;
 		else
-			*dst &= ~(1 << (dq&7));
-		if (sq++ == 7) {
-			sq = 0;
-			src++;
-		}
-		if (dq++ == 7) {
-			dq = 0;
-			dst++;
-		}
+			*dst &= ~(1 << dq);
+
+		sq = (sq + 1) % 8;
+		src += !sq;
+
+		dq = (dq + 1) % 8;
+		dst += !dq;
 	}
 
 	return _dst;
