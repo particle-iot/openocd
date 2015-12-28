@@ -85,7 +85,7 @@
 /* FTDI access library includes */
 #include "mpsse.h"
 
-#define JTAG_MODE (LSB_FIRST | POS_EDGE_IN | NEG_EDGE_OUT)
+#define JTAG_MODE (LSB_FIRST | NEG_EDGE_IN | NEG_EDGE_OUT)
 #define SWD_MODE (LSB_FIRST | POS_EDGE_IN | NEG_EDGE_OUT)
 
 static char *ftdi_device_desc;
