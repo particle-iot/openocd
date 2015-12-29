@@ -1,0 +1,9 @@
+Verified+1: jenkins
+Code-Review+1: Matthias Welwarsky <matthias@welwarsky.de>
+Code-Review+1: Jiri Kastner <cz172638@gmail.com>
+Code-Review+2: Andreas Fritiofson <andreas.fritiofson@gmail.com>
+Submitted-by: Andreas Fritiofson <andreas.fritiofson@gmail.com>
+Submitted-at: Tue, 29 Dec 2015 20:39:46 +0000
+Reviewed-on: http://openocd.zylin.com/2891
+Project: openocd
+Branch: refs/heads/master
