@@ -626,23 +626,46 @@ int dap_dp_init(struct adiv5_dap *dap)
 		if (retval != ERROR_OK)
 			continue;
 
-		dap->dp_ctrl_stat = CDBGPWRUPREQ | CSYSPWRUPREQ;
+		dap->dp_ctrl_stat &= ~CSYSPWRUPREQ;
+		dap->dp_ctrl_stat |= CDBGPWRUPREQ;
 		retval = dap_queue_dp_write(dap, DP_CTRL_STAT, dap->dp_ctrl_stat);
 		if (retval != ERROR_OK)
 			continue;
-
-		/* Check that we have debug power domains activated */
-		LOG_DEBUG("DAP: wait CDBGPWRUPACK");
+		LOG_DEBUG("DAP: wait for CDBGPWRUPACK");
 		retval = dap_dp_poll_register(dap, DP_CTRL_STAT,
 					      CDBGPWRUPACK, CDBGPWRUPACK,
 					      DAP_POWER_DOMAIN_TIMEOUT);
-		if (retval != ERROR_OK)
+		if (retval != ERROR_OK) {
+			LOG_DEBUG("DAP: polling CDBGPWRUPACK failed, clearing CDBGPWRREQ and SSTICKYERR");
+			dap->dp_ctrl_stat &= ~CDBGPWRUPREQ;
+			dap->dp_ctrl_stat |= SSTICKYERR;
+			retval = dap_queue_dp_write(dap, DP_CTRL_STAT, dap->dp_ctrl_stat);
+			if (retval != ERROR_OK)
+				LOG_DEBUG("DAP: clearing CDBGPWRREQ and SSTICKYERR failed");
 			continue;
+		}
 
+		dap->dp_ctrl_stat |= CSYSPWRUPREQ;
+		retval = dap_queue_dp_write(dap, DP_CTRL_STAT, dap->dp_ctrl_stat);
+		if (retval != ERROR_OK)
+			LOG_DEBUG("DAP: write request for CSYSPWRUP failed");
+
+		/* Check that we have debug power domains activated */
 		LOG_DEBUG("DAP: wait CSYSPWRUPACK");
 		retval = dap_dp_poll_register(dap, DP_CTRL_STAT,
 					      CSYSPWRUPACK, CSYSPWRUPACK,
 					      DAP_POWER_DOMAIN_TIMEOUT);
+		if (retval != ERROR_OK) {
+			LOG_DEBUG("DAP: polling CSYSPWRUPACK failed, clearing CSYSPWRREQ and SSTICKYERR");
+			dap->dp_ctrl_stat &= ~CSYSPWRUPREQ;
+			dap->dp_ctrl_stat |= SSTICKYERR;
+			retval = dap_queue_dp_write(dap, DP_CTRL_STAT, dap->dp_ctrl_stat);
+			if (retval != ERROR_OK)
+				LOG_DEBUG("DAP: clearing CSYSPWRREQ and SSTICKYERR failed");
+		}
+
+		dap->dp_ctrl_stat |= SSTICKYERR;
+		retval = dap_queue_dp_write(dap, DP_CTRL_STAT, dap->dp_ctrl_stat);
 		if (retval != ERROR_OK)
 			continue;
 
@@ -651,7 +674,7 @@ int dap_dp_init(struct adiv5_dap *dap)
 			continue;
 
 		/* With debug power on we can activate OVERRUN checking */
-		dap->dp_ctrl_stat = CDBGPWRUPREQ | CSYSPWRUPREQ | CORUNDETECT;
+		dap->dp_ctrl_stat |= CORUNDETECT;
 		retval = dap_queue_dp_write(dap, DP_CTRL_STAT, dap->dp_ctrl_stat);
 		if (retval != ERROR_OK)
 			continue;
