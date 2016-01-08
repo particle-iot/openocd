@@ -418,6 +418,18 @@ static inline int dap_dp_read_atomic(struct adiv5_dap *dap, unsigned reg,
 	return dap_run(dap);
 }
 
+static inline int dap_dp_write_atomic(struct adiv5_dap *dap, unsigned reg,
+				     uint32_t value)
+{
+	int retval;
+
+	retval = dap_queue_dp_write(dap, reg, value);
+	if (retval != ERROR_OK)
+		return retval;
+
+	return dap_run(dap);
+}
+
 static inline int dap_dp_poll_register(struct adiv5_dap *dap, unsigned reg,
 				       uint32_t mask, uint32_t value, int timeout)
 {
