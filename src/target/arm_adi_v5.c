@@ -612,25 +612,24 @@ int dap_dp_init(struct adiv5_dap *dap)
 	dap->last_read = NULL;
 	dap->dp_ctrl_stat = 0;
 
-	for (size_t i = 0; i < 10; i++) {
 		/* DP initialization */
 
 		retval = dap_dp_read_atomic(dap, DP_CTRL_STAT, &dap->dp_ctrl_stat);
 		if (retval != ERROR_OK)
-			continue;
+			return retval;
 
 		if (dap->dp_ctrl_stat & SSTICKYERR) {
 			retval = dap_dp_write_atomic(dap, DP_CTRL_STAT, dap->dp_ctrl_stat | SSTICKYERR);
 			if (retval != ERROR_OK)
-				continue;
+				return retval;
 			retval = dap_dp_read_atomic(dap, DP_CTRL_STAT, &dap->dp_ctrl_stat);
 			if (retval != ERROR_OK)
-				continue;
+				return retval;
 		}
 		dap->dp_ctrl_stat |= CDBGPWRUPREQ;
 		retval = dap_dp_write_atomic(dap, DP_CTRL_STAT, dap->dp_ctrl_stat);
 		if (retval != ERROR_OK)
-			continue;
+			return retval;
 		LOG_DEBUG("DAP: wait for CDBGPWRUPACK");
 		retval = dap_dp_poll_register(dap, DP_CTRL_STAT,
 					      CDBGPWRUPACK, CDBGPWRUPACK,
@@ -641,7 +640,7 @@ int dap_dp_init(struct adiv5_dap *dap)
 			retval = dap_dp_write_atomic(dap, DP_CTRL_STAT, dap->dp_ctrl_stat | SSTICKYERR);
 			if (retval != ERROR_OK)
 				LOG_DEBUG("DAP: clearing CDBGPWRREQ and SSTICKYERR failed");
-			continue;
+			return retval;
 		}
 
 		dap->dp_ctrl_stat |= CSYSPWRUPREQ;
@@ -667,16 +666,14 @@ int dap_dp_init(struct adiv5_dap *dap)
 		dap->dp_ctrl_stat |= CORUNDETECT;
 		retval = dap_dp_write_atomic(dap, DP_CTRL_STAT, dap->dp_ctrl_stat);
 		if (retval != ERROR_OK)
-			continue;
+			return retval;
 		retval = dap_dp_read_atomic(dap, DP_CTRL_STAT, &dap->dp_ctrl_stat);
 		if (retval != ERROR_OK)
-			continue;
+			return retval;
 		if (dap->dp_ctrl_stat & CORUNDETECT)
 			LOG_DEBUG("DAP: CORUNDETECT enabled");
 
 		LOG_DEBUG("DAP: initialized");
-		break;
-	}
 
 	return retval;
 }
