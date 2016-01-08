@@ -610,59 +610,63 @@ int dap_dp_init(struct adiv5_dap *dap)
 
 	dap->select = DP_SELECT_INVALID;
 	dap->last_read = NULL;
+	dap->dp_ctrl_stat = 0;
 
 	for (size_t i = 0; i < 10; i++) {
 		/* DP initialization */
 
-		retval = dap_queue_dp_read(dap, DP_CTRL_STAT, NULL);
+		retval = dap_dp_read_atomic(dap, DP_CTRL_STAT, &dap->dp_ctrl_stat);
 		if (retval != ERROR_OK)
 			continue;
 
-		retval = dap_queue_dp_write(dap, DP_CTRL_STAT, SSTICKYERR);
+		dap->dp_ctrl_stat = CDBGPWRUPREQ;
+		retval = dap_dp_write_atomic(dap, DP_CTRL_STAT, dap->dp_ctrl_stat);
 		if (retval != ERROR_OK)
 			continue;
-
-		retval = dap_queue_dp_read(dap, DP_CTRL_STAT, NULL);
-		if (retval != ERROR_OK)
-			continue;
-
-		dap->dp_ctrl_stat = CDBGPWRUPREQ | CSYSPWRUPREQ;
-		retval = dap_queue_dp_write(dap, DP_CTRL_STAT, dap->dp_ctrl_stat);
-		if (retval != ERROR_OK)
-			continue;
-
-		/* Check that we have debug power domains activated */
-		LOG_DEBUG("DAP: wait CDBGPWRUPACK");
+		LOG_DEBUG("DAP: wait for CDBGPWRUPACK");
 		retval = dap_dp_poll_register(dap, DP_CTRL_STAT,
 					      CDBGPWRUPACK, CDBGPWRUPACK,
 					      DAP_POWER_DOMAIN_TIMEOUT);
-		if (retval != ERROR_OK)
+		if (retval == ERROR_WAIT) {
+			LOG_DEBUG("DAP: polling CDBGPWRUPACK failed, clearing CDBGPWRREQ and SSTICKYERR");
+			dap->dp_ctrl_stat &= ~CDBGPWRUPREQ;
+			retval = dap_dp_write_atomic(dap, DP_CTRL_STAT, dap->dp_ctrl_stat | SSTICKYERR);
+			if (retval != ERROR_OK)
+				LOG_DEBUG("DAP: clearing CDBGPWRREQ and SSTICKYERR failed");
 			continue;
+		}
 
+		dap->dp_ctrl_stat |= CSYSPWRUPREQ;
+		retval = dap_dp_write_atomic(dap, DP_CTRL_STAT, dap->dp_ctrl_stat);
+		if (retval != ERROR_OK)
+			LOG_DEBUG("DAP: write request for CSYSPWRUP failed");
+
+		/* Check that we have debug power domains activated */
 		LOG_DEBUG("DAP: wait CSYSPWRUPACK");
 		retval = dap_dp_poll_register(dap, DP_CTRL_STAT,
 					      CSYSPWRUPACK, CSYSPWRUPACK,
 					      DAP_POWER_DOMAIN_TIMEOUT);
-		if (retval != ERROR_OK)
-			continue;
-
-		retval = dap_queue_dp_read(dap, DP_CTRL_STAT, NULL);
-		if (retval != ERROR_OK)
-			continue;
+		if (retval == ERROR_WAIT) {
+			LOG_DEBUG("DAP: polling CSYSPWRUPACK failed, clearing CSYSPWRREQ and SSTICKYERR");
+			dap->dp_ctrl_stat &= ~CSYSPWRUPREQ;
+			retval = dap_dp_write_atomic(dap, DP_CTRL_STAT, dap->dp_ctrl_stat | SSTICKYERR);
+			if (retval != ERROR_OK)
+				LOG_DEBUG("DAP: clearing CSYSPWRREQ and SSTICKYERR failed");
+			LOG_DEBUG("DAP: let's continue without CSYSPWRxxx");
+		}
 
 		/* With debug power on we can activate OVERRUN checking */
-		dap->dp_ctrl_stat = CDBGPWRUPREQ | CSYSPWRUPREQ | CORUNDETECT;
-		retval = dap_queue_dp_write(dap, DP_CTRL_STAT, dap->dp_ctrl_stat);
+		dap->dp_ctrl_stat |= CORUNDETECT;
+		retval = dap_dp_write_atomic(dap, DP_CTRL_STAT, dap->dp_ctrl_stat);
 		if (retval != ERROR_OK)
 			continue;
-		retval = dap_queue_dp_read(dap, DP_CTRL_STAT, NULL);
+		retval = dap_dp_read_atomic(dap, DP_CTRL_STAT, &dap->dp_ctrl_stat);
 		if (retval != ERROR_OK)
 			continue;
+		if (dap->dp_ctrl_stat & CORUNDETECT)
+			LOG_DEBUG("DAP: CORUNDETECT enabled");
 
-		retval = dap_run(dap);
-		if (retval != ERROR_OK)
-			continue;
-
+		LOG_DEBUG("DAP: initialized");
 		break;
 	}
 
