@@ -3331,11 +3331,6 @@ COMMAND_HANDLER(handle_cortex_a_mask_interrupts_command)
 	};
 	const Jim_Nvp *n;
 
-	if (target->state != TARGET_HALTED) {
-		command_print(CMD_CTX, "target must be stopped for \"%s\" command", CMD_NAME);
-		return ERROR_OK;
-	}
-
 	if (CMD_ARGC > 0) {
 		n = Jim_Nvp_name2value_simple(nvp_maskisr_modes, CMD_ARGV[0]);
 		if (n->name == NULL)
