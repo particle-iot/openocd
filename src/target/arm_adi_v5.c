@@ -644,7 +644,7 @@ int dap_dp_init(struct adiv5_dap *dap)
 					      CSYSPWRUPACK, CSYSPWRUPACK,
 					      DAP_POWER_DOMAIN_TIMEOUT);
 		if (retval != ERROR_OK)
-			continue;
+			LOG_DEBUG("DAP: polling failed, ignoring missing CSYSPWRUPACK");
 
 		retval = dap_queue_dp_read(dap, DP_CTRL_STAT, NULL);
 		if (retval != ERROR_OK)
