@@ -88,7 +88,7 @@ static const struct stack_register_offset rtos_threadx_arm9_CR4_stack_offsets_so
 	{ -1,   32 },		/* r12       */
 	{ -2,   32 },		/* sp (r13)  */
 	{ 0x28, 32 },		/* lr (r14)  */
-	{ -1,   32 },		/* pc (r15)  */
+	{ 0x28, 32 },		/* pc (r15)  - Copy LR to PC so that debugger does not show blank stack frame */
 	{ 0x04, 32 },		/* xPSR      */
 };
 
