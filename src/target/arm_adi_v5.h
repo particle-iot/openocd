@@ -235,6 +235,11 @@ struct adiv5_dap {
 	 * the AHB-AP has strange byte ordering these processors, and we need to
 	 * swizzle appropriately. */
 	bool ti_be_32_quirks;
+	/**
+	 * some systems have problem with CSYSPWRUPACK,
+	 * let's ignore it
+	 */
+	bool csysprwupack_ignore;
 
 	/**
 	 * Signals that an attempt to reestablish communication afresh
