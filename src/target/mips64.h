@@ -99,6 +99,8 @@ struct mips64_common {
 	struct mips_ejtag ejtag_info;
 	uint64_t core_regs[MIPS64_NUM_REGS];
 
+	struct working_area *fast_data_area;
+
 	bool bp_scanned;
 	int num_inst_bpoints;
 	int num_data_bpoints;
@@ -121,6 +123,8 @@ struct mips64_core_reg {
 #define MIPS64_OP_BEQ	0x04
 #define MIPS64_OP_BNE	0x05
 #define MIPS64_OP_ADDI	0x08
+#define MIPS64_OP_DADDI	24
+#define MIPS64_OP_DADDIU	25
 #define MIPS64_OP_AND	0x24
 #define MIPS64_OP_LUI	0x0F
 #define MIPS64_OP_LW	0x23
@@ -136,6 +140,7 @@ struct mips64_core_reg {
 #define MIPS64_OP_SW	0x2B
 #define MIPS64_OP_SD	0x3F
 #define MIPS64_OP_ORI	0x0D
+#define MIPS64_OP_JR	0x08
 
 #define MIPS64_OP_COP0	0x10
 #define MIPS64_OP_COP1	0x11
@@ -155,6 +160,8 @@ struct mips64_core_reg {
 
 #define MIPS64_NOP			0
 #define MIPS64_ADDI(tar, src, val)	MIPS64_I_INST(MIPS64_OP_ADDI, src, tar, val)
+#define MIPS64_DADDI(tar, src, val)	MIPS64_I_INST(MIPS64_OP_DADDI, src, tar, val)
+#define MIPS64_DADDIU(tar, src, val)	MIPS64_I_INST(MIPS64_OP_DADDIU, src, tar, val)
 #define MIPS64_AND(reg, off, val)	MIPS64_R_INST(0, off, val, reg, 0, MIPS64_OP_AND)
 #define MIPS64_B(off)			MIPS64_BEQ(0, 0, off)
 #define MIPS64_BEQ(src, tar, off)	MIPS64_I_INST(MIPS64_OP_BEQ, src, tar, off)
@@ -189,6 +196,7 @@ struct mips64_core_reg {
 #define MIPS64_SD(reg, off, base)	MIPS64_I_INST(MIPS64_OP_SD, base, reg, off)
 #define MIPS64_CACHE(op, reg, off)	(47 << 26 | (reg) << 21 | (op) << 16 | (off))
 #define MIPS64_SYNCI(reg, off)		(1 << 26 | (reg) << 21 | 0x1f << 16 | (off))
+#define MIPS64_JR(reg)			MIPS64_R_INST(0, reg, 0, 0, 0, MIPS64_OP_JR)
 
 /* ejtag specific instructions */
 #define MIPS64_DRET			0x4200001F
