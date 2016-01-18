@@ -825,7 +825,12 @@ fi
 # Search for FTD2XX library
 ###############################################################################
 
-if test $build_ft2232_ftd2xx = yes -o $build_presto_ftd2xx = yes -o $build_usb_blaster_ftd2xx = yes -o $build_openjtag_ftd2xx = yes; then
+ftd2xx_check_requested=yes
+
+ftd2xx_available=no
+ftd2xx_works=no
+
+if test $ftd2xx_check_requested = yes; then
 
   #-- Deal with MingW/Cygwin FTD2XX issues
   if test $is_win32 = yes; then
@@ -842,32 +847,37 @@ if test $build_ft2232_ftd2xx = yes -o $build_presto_ftd2xx = yes -o $build_usb_b
       # Set the CFLAGS for "ftd2xx.h"
       f=$with_ftd2xx_win32_zipdir/ftd2xx.h
       if test ! -f $f ; then
-        AC_MSG_ERROR([File: $f cannot be found])
-      fi
-      CFLAGS="$CFLAGS -I$with_ftd2xx_win32_zipdir"
+        AC_MSG_RESULT([File: $f cannot be found])
+      else
+        FTD2XX_CFLAGS="-I$with_ftd2xx_win32_zipdir"
 
-      # And calculate the LDFLAGS for the machine
-      case "$host_cpu" in
-      i?86|x86_32)
-        LDFLAGS="$LDFLAGS -L$with_ftd2xx_win32_zipdir/i386"
-        LIBS="$LIBS -lftd2xx"
-        f=$with_ftd2xx_win32_zipdir/i386/ftd2xx.lib
-        ;;
-      amd64|x86_64)
-        LDFLAGS="$LDFLAGS -L$with_ftd2xx_win32_zipdir/amd64"
-        LIBS="$LIBS -lftd2xx"
-        f=$with_ftd2xx_win32_zipdir/amd64/ftd2xx.lib
-        ;;
-      *)
-        AC_MSG_ERROR([Unknown Win32 host cpu: $host_cpu])
-        ;;
-      esac
-      if test ! -f $f ; then
-        AC_MSG_ERROR([Library: $f not found])
+        # And calculate the LDFLAGS for the machine
+        case "$host_cpu" in
+        i?86|x86_32)
+          FTD2XX_LDFLAGS="-L$with_ftd2xx_win32_zipdir/i386"
+          FTD2XX_LIB="-lftd2xx"
+          f=$with_ftd2xx_win32_zipdir/i386/ftd2xx.lib
+          ;;
+        amd64|x86_64)
+          FTD2XX_LDFLAGS="-L$with_ftd2xx_win32_zipdir/amd64"
+          FTD2XX_LIB="-lftd2xx"
+          f=$with_ftd2xx_win32_zipdir/amd64/ftd2xx.lib
+          ;;
+        *)
+          AC_MSG_ERROR([Unknown Win32 host cpu: $host_cpu])
+          ;;
+        esac
+        if test ! -f $f ; then
+             AC_MSG_RESULT([No - Library: $f not found])
+        else
+             AC_MSG_RESULT([Yes - $f])
+             ftd2xx_available=yes
+        fi
       fi
     else
-      LIBS="$LIBS -lftd2xx"
-      AC_MSG_WARN([ASSUMPTION: The (win32) FTDICHIP.COM files: ftd2xx.h and ftd2xx.lib are in a proper place])
+      FTD2XX_LIB="-lftd2xx"
+      ftd2xx_available=yes
+      AC_MSG_RESULT([Yes - ASSUMPTION: The (win32) FTDICHIP.COM files: ftd2xx.h and ftd2xx.lib are in a proper place])
     fi
 
   elif test $is_darwin = yes ; then
@@ -883,13 +893,15 @@ if test $build_ft2232_ftd2xx = yes -o $build_presto_ftd2xx = yes -o $build_usb_b
     AC_MSG_CHECKING([for libftd2xx.a (darwin)])
 
     if test ! -f /usr/local/include/ftd2xx.h ; then
-      AC_MSG_ERROR([ftd2xx library from FTDICHIP.com seems to be missing, cannot find: /usr/local/include/ftd2xx.h])
-    fi
+      AC_MSG_RESULT([No - ftd2xx library from FTDICHIP.com seems to be missing, cannot find: /usr/local/include/ftd2xx.h])
+    else
 
-    CFLAGS="$CFLAGS -I/usr/local/include"
-    LDFLAGS="$LDFLAGS -L/usr/local/lib"
-    LIBS="$LIBS -lftd2xx"
-    AC_MSG_RESULT([-L/usr/local/lib -lftd2xx])
+      FTD2XX_CFLAGS="-I/usr/local/include"
+      FTD2XX_LDFLAGS="-L/usr/local/lib"
+      FTD2XX_LIB="-lftd2xx"
+      AC_MSG_RESULT([-L/usr/local/lib -lftd2xx])
+      ftd2xx_available=yes
+    fi
 
   else
 
@@ -909,54 +921,62 @@ if test $build_ft2232_ftd2xx = yes -o $build_presto_ftd2xx = yes -o $build_usb_b
       # The .H file is simple..
       FTD2XX_H=$with_ftd2xx_linux_tardir/ftd2xx.h
       if test ! -f "${FTD2XX_H}"; then
-      AC_MSG_ERROR([Option: --with-ftd2xx-linux-tardir appears wrong, cannot find: ${FTD2XX_H}])
-      fi
-      CFLAGS="$CFLAGS -I$with_ftd2xx_linux_tardir"
-      if test $with_ftd2xx_lib = shared; then
-        FTD2XX_LDFLAGS="-L$with_ftd2xx_linux_tardir"
-        FTD2XX_LIB="-lftd2xx"
+        AC_MSG_RESULT([No - Option: --with-ftd2xx-linux-tardir appears wrong, cannot find: ${FTD2XX_H}])
       else
-        # Test #1 - v1.0.x
-        case "$host_cpu" in
-        i?86|x86_32)
-                dir=build/i386;;
-        amd64|x86_64)
-                dir=build/x86_64;;
-        *)
-                dir=none;;
-        esac
-        if test -f "$with_ftd2xx_linux_tardir/$dir/libftd2xx.a"; then
-          FTD2XX_LDFLAGS="-L$with_ftd2xx_linux_tardir/$dir"
-          # Also needs -lrt
-          FTD2XX_LIB="-lftd2xx -lrt"
+        FTD2XX_CFLAGS="-I$with_ftd2xx_linux_tardir"
+        if test $with_ftd2xx_lib = shared; then
+           FTD2XX_LDFLAGS="-L$with_ftd2xx_linux_tardir"
+           FTD2XX_LIB="-lftd2xx"
+           AC_MSG_RESULT([Yes - $with_ftd2xx_linux_tardir])
+           ftd2xx_available=yes
         else
-          # Test Number2.
-          # Grr.. perhaps it exists as a version number?
-          FTD2XX_LIB="$with_ftd2xx_linux_tardir/static_lib/libftd2xx.a.*.*.*"
-          count=`ls ${FTD2XX_LIB} | wc -l`
-          if test $count -gt 1 ; then
-            AC_MSG_ERROR([Multiple libftd2xx.a files found in: $with_ftd2xx_linux_tardir/static_lib sorry cannot handle this yet])
+          # Test #1 - v1.0.x
+          case "$host_cpu" in
+          i?86|x86_32)
+                  dir=build/i386;;
+          amd64|x86_64)
+                  dir=build/x86_64;;
+          *)
+                  dir=none;;
+          esac
+          if test -f "$with_ftd2xx_linux_tardir/$dir/libftd2xx.a"; then
+              FTD2XX_LDFLAGS="-L$with_ftd2xx_linux_tardir/$dir"
+              # Also needs -lrt
+              FTD2XX_LIB="-lftd2xx -lrt"
+              AC_MSG_RESULT([Yes - $with_ftd2xx_linux_tardir/$dir/libftd2xx.a])
+              ftd2xx_available=yes
+          else
+            # Test Number2.
+            # Grr.. perhaps it exists as a version number?
+            FTD2XX_LIB="$with_ftd2xx_linux_tardir/static_lib/libftd2xx.a.*.*.*"
+            count=`ls ${FTD2XX_LIB} | wc -l`
+            if test $count -gt 1 ; then
+              AC_MSG_RESULT([No - Multiple libftd2xx.a files found in: $with_ftd2xx_linux_tardir/static_lib sorry cannot handle this yet])
+            elif test $count -ne 1 ; then
+              AC_MSG_RESULT([No - Not found: $f, option: --with-ftd2xx-linux-tardir appears to be wrong])
+            else
+              # Because the "-l" rules do not understand version numbers...
+              # we will just stuff the absolute path onto the LIBS variable
+              FTD2XX_LIB="`ls ${FTD2XX_LIB}` -lpthread"
+              FTD2XX_LDFLAGS=""
+              AC_MSG_RESULT([Yes - ${FTD2XX_LIB}])
+              ftd2xx_available=yes
+            fi
+
           fi
-          if test $count -ne 1 ; then
-            AC_MSG_ERROR([Not found: $f, option: --with-ftd2xx-linux-tardir appears to be wrong])
-          fi
-          # Because the "-l" rules do not understand version numbers...
-          # we will just stuff the absolute path onto the LIBS variable
-          FTD2XX_LIB="`ls ${FTD2XX_LIB}` -lpthread"
-          FTD2XX_LDFLAGS=""
         fi
       fi
-      LDFLAGS="${LDFLAGS} ${FTD2XX_LDFLAGS}"
-      LIBS="${FTD2XX_LIB} ${LIBS}"
-      AC_MSG_RESULT([${FTD2XX_LDFLAGS} ${FTD2XX_LIB}])
     else
-      AC_CHECK_HEADER([ftd2xx.h],[],[
-          AC_MSG_ERROR([You seem to be missing the FTD2xx driver header file.])
+      AC_CHECK_HEADER([ftd2xx.h],[
+        AC_SEARCH_LIBS([FT_GetLibraryVersion],[ftd2xx],[
+            ftd2xx_available=yes
+          ],[
+            AC_MSG_RESULT([No - You appear to be missing the FTD2xx driver library.])
+          ],[-lrt -lusb-1.0])
+        ],[
+          AC_MSG_RESULT([No - You seem to be missing the FTD2xx driver header file.])
         ])
-      AC_SEARCH_LIBS([FT_GetLibraryVersion],[ftd2xx],,[
-          AC_MSG_ERROR([You appear to be missing the FTD2xx driver library.])
-        ],[-lrt -lusb-1.0])
-    fi # with_ftd2xx_linux_tardir
+    fi
   fi # win32/darwin/linux
 
   # Before we go any further - make sure we can *BUILD* and *RUN*
@@ -968,10 +988,10 @@ if test $build_ft2232_ftd2xx = yes -o $build_presto_ftd2xx = yes -o $build_usb_b
   # Save the LDFLAGS for later..
   LDFLAGS_SAVE=$LDFLAGS
   CFLAGS_SAVE=$CFLAGS
-  _LDFLAGS=`eval echo $LDFLAGS`
-  _CFLAGS=`eval echo $CFLAGS`
-  LDFLAGS=$_LDFLAGS
-  CFLAGS=$_CFLAGS
+  LIBS_SAVE=$LIBS
+  LDFLAGS="$LDFLAGS $FTD2XX_LDFLAGS"
+  CFLAGS="$CFLAGS $FTD2XX_CFLAGS"
+  LIBS="$LIBS $FTD2XX_LIB"
 
   AC_RUN_IFELSE([AC_LANG_PROGRAM([[
 #include "confdefs.h"
@@ -985,8 +1005,9 @@ if test $build_ft2232_ftd2xx = yes -o $build_presto_ftd2xx = yes -o $build_usb_b
     FT_GetLibraryVersion( &x );
     ]])], [
       AC_MSG_RESULT([Success!])
+      ftd2xx_works=yes
     ], [
-      AC_MSG_ERROR([Cannot build & run test program using ftd2xx.lib])
+      AC_MSG_RESULT([Fail - Cannot build & run test program using ftd2xx.lib])
     ], [
       AC_MSG_RESULT([Skipping as we are cross-compiling])
     ])
@@ -1011,7 +1032,7 @@ if test $build_ft2232_ftd2xx = yes -o $build_presto_ftd2xx = yes -o $build_usb_b
     AC_MSG_RESULT([$build_ft2232_highspeed])
 
     if test $build_ft2232_highspeed = no; then
-      AC_MSG_WARN([You need a newer FTD2XX driver (version 2.04.16 or later).])
+      AC_MSG_WARN([For FT2232H/FT4232HS high-speed support, you need a newer FTD2XX driver (version 2.04.16 or later).])
     fi
 
   AC_MSG_CHECKING([for ftd2xx FT232H device support])
@@ -1034,108 +1055,132 @@ if test $build_ft2232_ftd2xx = yes -o $build_presto_ftd2xx = yes -o $build_usb_b
     AC_MSG_RESULT([$has_enum_ft232h])
 
     if test $has_enum_ft232h = no; then
-      AC_MSG_WARN([You need a newer FTD2XX driver (version 2.08.12 or later).])
+      AC_MSG_WARN([For FT232H support, you need a newer FTD2XX driver (version 2.08.12 or later).])
     fi
 
-  LDFLAGS=$LDFLAGS_SAVE
-  CFLAGS=$CFLAGS_SAVE
+  if test $ftd2xx_works = no; then
+    # restore flags
+    LDFLAGS=$LDFLAGS_SAVE
+    CFLAGS=$CFLAGS_SAVE
+    LIBS=$LIBS_SAVE
+  fi
 fi # build_XXXX_ftd2xx
 
+if test $ftd2xx_works = no; then
+  if test $build_ft2232_ftd2xx = yes -o $build_presto_ftd2xx = yes -o $build_usb_blaster_ftd2xx = yes -o $build_openjtag_ftd2xx = yes; then
+    AC_MSG_ERROR([No working FTD2XX library found - The following drivers cannot function: presto_ftd2xx, legacy-ft2232_ftd2xx, usb_blaster_ftd2xx, openjtag_ftd2xx])
+  fi
+fi
 
 ###############################################################################
 # Search for libftdi library
 ###############################################################################
 
-if test $build_ft2232_libftdi = yes -o $build_usb_blaster_libftdi = yes -o \
-  $build_openjtag_ftdi = yes -o $build_presto_libftdi = yes; then
+libftdi_check_requested=yes
+
+libftdi_works=no
+
+if test $libftdi_check_requested = yes; then
 
   # we can have libftdi or libftdi1, so check it and use the latest one
   PKG_CHECK_MODULES([LIBFTDI1], [libftdi1], [use_libftdi=yes], [use_libftdi=no])
   if test $use_libftdi = no; then
     PKG_CHECK_MODULES([LIBFTDI], [libftdi], [use_libftdi=yes], [use_libftdi=no])
   fi
+
   if test $use_libftdi = no; then
-    AC_MSG_ERROR([The libftdi driver is not present on your system.])
+    AC_MSG_CHECKING([for libftdi library])
+    AC_MSG_RESULT([Not Found on your system])
+    AC_MSG_NOTICE([libftdi may not be installed - if it is, check visibility with pkg-config - you may need to modify PKG_CONFIG_PATH])
+  else
+    #
+    # Try to build a small program.
+    AC_MSG_CHECKING([Build & Link with libftdi...])
+
+    LDFLAGS_SAVE=$LDFLAGS
+    CFLAGS_SAVE=$CFLAGS
+    LIBS_SAVE=$LIBS
+    _LDFLAGS=`eval echo $LDFLAGS`
+    _CFLAGS=`eval echo $CFLAGS`
+    _LIBS=`eval echo $LIBS`
+    LDFLAGS=$_LDFLAGS
+    CFLAGS="$_CFLAGS $LIBFTDI_CFLAGS"
+    LIBS="$_LIBS $LIBFTDI_LIBS"
+
+    AC_RUN_IFELSE([AC_LANG_PROGRAM([[
+#include <stdio.h>
+#include <ftdi.h>
+    ]], [[
+    struct ftdi_context *p;
+    p = ftdi_new();
+    if( p != NULL ){
+        return 0;
+    } else {
+        fprintf( stderr, "calling ftdi_new() failed\n");
+        return 1;
+          }
+      ]])], [
+        AC_MSG_RESULT([Success])
+        libftdi_works=yes
+      ], [
+        AC_MSG_RESULT([Fail - Cannot build & run test program using libftdi])
+      ], [
+        AC_MSG_RESULT([Skipping as we are cross-compiling, trying build only])
+        AC_SEARCH_LIBS([ftdi_new], [], [libftdi_works=yes], [AC_MSG_ERROR([Cannot link with libftdi])])
+      ])
+
+    AC_MSG_CHECKING([for libftdi highspeed device support])
+    AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
+#include <stdio.h>
+#include <ftdi.h>
+      ]], [[
+        enum ftdi_chip_type x = TYPE_2232H;
+      ]])], [
+        AC_DEFINE([BUILD_FT2232_HIGHSPEED], [1],
+          [Support FT2232H/FT4232HS with FTD2XX or libftdi.])
+        build_ft2232_highspeed=yes
+      ], [
+        build_ft2232_highspeed=no
+      ])
+      AC_MSG_RESULT([$build_ft2232_highspeed])
+
+      if test $build_ft2232_highspeed = no; then
+        AC_MSG_WARN([For FT2232H/FT4232HS high-speed support, You need a newer libftdi version (0.16 or later).])
+      fi
+
+    AC_MSG_CHECKING([for libftdi FT232H device support])
+    AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
+#include <stdio.h>
+#include <ftdi.h>
+      ]], [[
+        enum ftdi_chip_type x = TYPE_232H;
+      ]])], [
+        AC_DEFINE([HAS_ENUM_FT232H], [1],
+          [Support FT232H with FTD2XX or libftdi.])
+        has_enum_ft232h=yes
+      ], [
+        has_enum_ft232h=no
+      ])
+      AC_MSG_RESULT([$has_enum_ft232h])
+
+      if test $has_enum_ft232h = no; then
+        AC_MSG_WARN([For FT232H support, You need a newer libftdi version (0.20 or later).])
+      fi
+
+    # Restore the 'unexpanded ldflags'
+    LDFLAGS=$LDFLAGS_SAVE
+    CFLAGS=$CFLAGS_SAVE
+    LIBS=$LIBS_SAVE
+  fi # use_libftdi
+fi # libftdi_check_requested
+
+
+if test $libftdi_works = no; then
+  if test $build_ft2232_libftdi = yes -o $build_usb_blaster_libftdi = yes -o \
+    $build_openjtag_ftdi = yes -o $build_presto_libftdi = yes; then
+    AC_MSG_ERROR([No working libftdi library found - The following drivers cannot function: presto_libftdi, legacy-ft2232_libftdi, usb_blaster_libftdi, openjtag_ftdi])
   fi
-
-  #
-  # Try to build a small program.
-  AC_MSG_CHECKING([Build & Link with libftdi...])
-
-  LDFLAGS_SAVE=$LDFLAGS
-  CFLAGS_SAVE=$CFLAGS
-  LIBS_SAVE=$LIBS
-  _LDFLAGS=`eval echo $LDFLAGS`
-  _CFLAGS=`eval echo $CFLAGS`
-  _LIBS=`eval echo $LIBS`
-  LDFLAGS=$_LDFLAGS
-  CFLAGS="$_CFLAGS $LIBFTDI_CFLAGS"
-  LIBS="$_LIBS $LIBFTDI_LIBS"
-
-  AC_RUN_IFELSE([AC_LANG_PROGRAM([[
-#include <stdio.h>
-#include <ftdi.h>
-  ]], [[
-  struct ftdi_context *p;
-  p = ftdi_new();
-  if( p != NULL ){
-      return 0;
-  } else {
-      fprintf( stderr, "calling ftdi_new() failed\n");
-      return 1;
-        }
-    ]])], [
-      AC_MSG_RESULT([Success])
-    ], [
-      AC_MSG_ERROR([Cannot build & run test program using libftdi])
-    ], [
-      AC_MSG_RESULT([Skipping as we are cross-compiling, trying build only])
-      AC_SEARCH_LIBS([ftdi_new], [], [], [AC_MSG_ERROR([Cannot link with libftdi])])
-    ])
-
-  AC_MSG_CHECKING([for libftdi highspeed device support])
-  AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
-#include <stdio.h>
-#include <ftdi.h>
-    ]], [[
-      enum ftdi_chip_type x = TYPE_2232H;
-    ]])], [
-      AC_DEFINE([BUILD_FT2232_HIGHSPEED], [1],
-        [Support FT2232H/FT4232HS with FTD2XX or libftdi.])
-      build_ft2232_highspeed=yes
-    ], [
-      build_ft2232_highspeed=no
-    ])
-    AC_MSG_RESULT([$build_ft2232_highspeed])
-
-    if test $build_ft2232_highspeed = no; then
-      AC_MSG_WARN([You need a newer libftdi version (0.16 or later).])
-    fi
-
-  AC_MSG_CHECKING([for libftdi FT232H device support])
-  AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
-#include <stdio.h>
-#include <ftdi.h>
-    ]], [[
-      enum ftdi_chip_type x = TYPE_232H;
-    ]])], [
-      AC_DEFINE([HAS_ENUM_FT232H], [1],
-        [Support FT232H with FTD2XX or libftdi.])
-      has_enum_ft232h=yes
-    ], [
-      has_enum_ft232h=no
-    ])
-    AC_MSG_RESULT([$has_enum_ft232h])
-
-    if test $has_enum_ft232h = no; then
-      AC_MSG_WARN([You need a newer libftdi version (0.20 or later).])
-    fi
-
-  # Restore the 'unexpanded ldflags'
-  LDFLAGS=$LDFLAGS_SAVE
-  CFLAGS=$CFLAGS_SAVE
-  LIBS=$LIBS_SAVE
-fi # build_XXXX_libftdi
+fi
 
 ###############################################################################
 # Search for libusb-1.x library
@@ -1161,7 +1206,7 @@ PKG_CHECK_MODULES([LIBUSB1], [libusb-1.0], [
 PKG_CHECK_MODULES([LIBUSB0], [libusb], [use_libusb0=yes], [use_libusb0=no])
 
 for hidapi_lib in hidapi hidapi-hidraw hidapi-libusb; do
-	PKG_CHECK_MODULES([HIDAPI_$hidapi_lib],[$hidapi_lib],[
+	PKG_CHECK_MODULES([HIDAPI],[$hidapi_lib],[
 		use_hidapi=yes
 		break
 	],[
