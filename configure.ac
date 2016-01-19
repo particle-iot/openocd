@@ -759,17 +759,19 @@ else
   AC_DEFINE([BUILD_BITQ], [0], [0 if you don't want a bitq interface.])
 fi
 
-AC_DEFINE([BUILD_OPENJTAG], [0], [0 if you don't want the OpenJTAG driver.])
-AC_DEFINE([BUILD_OPENJTAG_FTD2XX], [0], [0 if you don't want the OpenJTAG driver with FTD2XX driver.])
-AC_DEFINE([BUILD_OPENJTAG_LIBFTDI], [0], [0 if you don't want to build OpenJTAG driver with libftdi.])
 
 if test $build_openjtag_ftd2xx = yes; then
   AC_DEFINE([BUILD_OPENJTAG], [1], [1 if you want the OpenJTAG driver.])
   AC_DEFINE([BUILD_OPENJTAG_FTD2XX], [1], [1 if you want the OpenJTAG driver with FTD2XX driver.])
-fi
-if test $build_openjtag_ftdi = yes; then
+  AC_DEFINE([BUILD_OPENJTAG_LIBFTDI], [0], [0 if you don't want to build OpenJTAG driver with libftdi.])
+elif test $build_openjtag_ftdi = yes; then
   AC_DEFINE([BUILD_OPENJTAG], [1], [1 if you want the OpenJTAG drvier.])
   AC_DEFINE([BUILD_OPENJTAG_LIBFTDI], [1], [1 if you want to build OpenJTAG with FTDI driver.])
+  AC_DEFINE([BUILD_OPENJTAG_FTD2XX], [0], [0 if you don't want the OpenJTAG driver with FTD2XX driver.])
+else
+  AC_DEFINE([BUILD_OPENJTAG], [0], [0 if you don't want the OpenJTAG driver.])
+  AC_DEFINE([BUILD_OPENJTAG_FTD2XX], [0], [0 if you don't want the OpenJTAG driver with FTD2XX driver.])
+  AC_DEFINE([BUILD_OPENJTAG_LIBFTDI], [0], [0 if you don't want to build OpenJTAG driver with libftdi.])
 fi
 
 if test $build_oocd_trace = yes; then
