@@ -820,15 +820,20 @@ if test $build_sysfsgpio = yes; then
 else
   AC_DEFINE([BUILD_SYSFSGPIO], [0], [0 if you don't want SysfsGPIO driver.])
 fi
-#-- Deal with MingW/Cygwin FTD2XX issues
 
-if test $is_win32 = yes; then
-  if test "${with_ftd2xx_linux_tardir+set}" = set
-  then
-    AC_MSG_ERROR([The option: with_ftd2xx_linux_tardir is for LINUX only.])
-  fi
+###############################################################################
+# Search for FTD2XX library
+###############################################################################
 
-  if test $build_ft2232_ftd2xx = yes -o $build_presto_ftd2xx = yes -o $build_usb_blaster_ftd2xx = yes -o $build_openjtag_ftd2xx = yes; then
+if test $build_ft2232_ftd2xx = yes -o $build_presto_ftd2xx = yes -o $build_usb_blaster_ftd2xx = yes -o $build_openjtag_ftd2xx = yes; then
+
+  #-- Deal with MingW/Cygwin FTD2XX issues
+  if test $is_win32 = yes; then
+    if test "${with_ftd2xx_linux_tardir+set}" = set
+    then
+      AC_MSG_ERROR([The option: with_ftd2xx_linux_tardir is for LINUX only.])
+    fi
+
     AC_MSG_CHECKING([for ftd2xx.lib exists (win32)])
 
     # if we are given a zipdir...
@@ -864,20 +869,17 @@ if test $is_win32 = yes; then
       LIBS="$LIBS -lftd2xx"
       AC_MSG_WARN([ASSUMPTION: The (win32) FTDICHIP.COM files: ftd2xx.h and ftd2xx.lib are in a proper place])
     fi
-  fi
-fi # win32
 
-if test $is_darwin = yes ; then
-  if test "${with_ftd2xx_win32_zipdir+set}" = set
-  then
-    AC_MSG_ERROR([The option: --with-ftd2xx-win32-zipdir is for win32 only])
-  fi
-  if test "${with_ftd2xx_linux_tardir+set}" = set
-  then
-    AC_MSG_ERROR([The option: with_ftd2xx_linux_tardir is for LINUX only.])
-  fi
+  elif test $is_darwin = yes ; then
+    if test "${with_ftd2xx_win32_zipdir+set}" = set
+    then
+      AC_MSG_ERROR([The option: --with-ftd2xx-win32-zipdir is for win32 only])
+    fi
+    if test "${with_ftd2xx_linux_tardir+set}" = set
+    then
+      AC_MSG_ERROR([The option: with_ftd2xx_linux_tardir is for LINUX only.])
+    fi
 
-  if test $build_ft2232_ftd2xx = yes -o $build_presto_ftd2xx = yes -o $build_usb_blaster_ftd2xx = yes ; then
     AC_MSG_CHECKING([for libftd2xx.a (darwin)])
 
     if test ! -f /usr/local/include/ftd2xx.h ; then
@@ -888,17 +890,14 @@ if test $is_darwin = yes ; then
     LDFLAGS="$LDFLAGS -L/usr/local/lib"
     LIBS="$LIBS -lftd2xx"
     AC_MSG_RESULT([-L/usr/local/lib -lftd2xx])
-  fi
-fi # darwin
 
-if test $is_win32 = no && test $is_darwin = no ; then
+  else
 
-  if test "${with_ftd2xx_win32_zipdir+set}" = set
-  then
-    AC_MSG_ERROR([The option: --with-ftd2xx-win32-zipdir is for win32 only])
-  fi
+    if test "${with_ftd2xx_win32_zipdir+set}" = set
+    then
+      AC_MSG_ERROR([The option: --with-ftd2xx-win32-zipdir is for win32 only])
+    fi
 
-  if test $build_ft2232_ftd2xx = yes -o $build_presto_ftd2xx = yes -o $build_usb_blaster_ftd2xx = yes -o $build_openjtag_ftd2xx = yes; then
     # Must be linux
     if test $host_os != linux-gnu && test $host_os != linux ; then
       AC_MSG_ERROR([The (linux) ftd2xx library from FTDICHIP.com is linux only. Try --enable-ft2232-libftdi instead])
@@ -957,11 +956,8 @@ if test $is_win32 = no && test $is_darwin = no ; then
       AC_SEARCH_LIBS([FT_GetLibraryVersion],[ftd2xx],,[
           AC_MSG_ERROR([You appear to be missing the FTD2xx driver library.])
         ],[-lrt -lusb-1.0])
-    fi
-  fi
-fi # linux
-
-if test $build_ft2232_ftd2xx = yes -o $build_presto_ftd2xx = yes -o $build_usb_blaster_ftd2xx = yes ; then
+    fi # with_ftd2xx_linux_tardir
+  fi # win32/darwin/linux
 
   # Before we go any further - make sure we can *BUILD* and *RUN*
   # a simple app with the "ftd2xx.lib" file - in what ever form we where given
@@ -1043,13 +1039,18 @@ if test $build_ft2232_ftd2xx = yes -o $build_presto_ftd2xx = yes -o $build_usb_b
 
   LDFLAGS=$LDFLAGS_SAVE
   CFLAGS=$CFLAGS_SAVE
-fi
+fi # build_XXXX_ftd2xx
+
+
+###############################################################################
+# Search for libftdi library
+###############################################################################
 
 if test $build_ft2232_libftdi = yes -o $build_usb_blaster_libftdi = yes -o \
   $build_openjtag_ftdi = yes -o $build_presto_libftdi = yes; then
 
   # we can have libftdi or libftdi1, so check it and use the latest one
-  PKG_CHECK_MODULES([LIBFTDI], [libftdi1], [use_libftdi=yes], [use_libftdi=no])
+  PKG_CHECK_MODULES([LIBFTDI1], [libftdi1], [use_libftdi=yes], [use_libftdi=no])
   if test $use_libftdi = no; then
     PKG_CHECK_MODULES([LIBFTDI], [libftdi], [use_libftdi=yes], [use_libftdi=no])
   fi
@@ -1134,7 +1135,11 @@ if test $build_ft2232_libftdi = yes -o $build_usb_blaster_libftdi = yes -o \
   LDFLAGS=$LDFLAGS_SAVE
   CFLAGS=$CFLAGS_SAVE
   LIBS=$LIBS_SAVE
-fi
+fi # build_XXXX_libftdi
+
+###############################################################################
+# Search for libusb-1.x library
+###############################################################################
 
 PKG_CHECK_MODULES([LIBUSB1], [libusb-1.0], [
 	use_libusb1=yes
@@ -1148,6 +1153,10 @@ PKG_CHECK_MODULES([LIBUSB1], [libusb-1.0], [
 	use_libusb1=no
 	AC_MSG_WARN([libusb-1.x not found, trying legacy libusb-0.1 as a fallback; consider installing libusb-1.x instead])
 ])
+
+###############################################################################
+# Search for libusb-0.x library
+###############################################################################
 
 PKG_CHECK_MODULES([LIBUSB0], [libusb], [use_libusb0=yes], [use_libusb0=no])
 
