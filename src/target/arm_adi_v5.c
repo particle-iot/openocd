@@ -610,6 +610,8 @@ int dap_dp_init(struct adiv5_dap *dap)
 
 	dap->select = DP_SELECT_INVALID;
 	dap->last_read = NULL;
+	if (!dap->csysprwupack_ignore)
+		dap->csysprwupack_ignore = false;
 
 	for (size_t i = 0; i < 10; i++) {
 		/* DP initialization */
@@ -643,8 +645,10 @@ int dap_dp_init(struct adiv5_dap *dap)
 		retval = dap_dp_poll_register(dap, DP_CTRL_STAT,
 					      CSYSPWRUPACK, CSYSPWRUPACK,
 					      DAP_POWER_DOMAIN_TIMEOUT);
-		if (retval != ERROR_OK)
-			continue;
+		if (retval != ERROR_OK) {
+			LOG_DEBUG("DAP: polling failed, ignoring missing CSYSPWRUPACK");
+			dap->csysprwupack_ignore = true;
+		}
 
 		retval = dap_queue_dp_read(dap, DP_CTRL_STAT, NULL);
 		if (retval != ERROR_OK)
@@ -662,7 +666,7 @@ int dap_dp_init(struct adiv5_dap *dap)
 		retval = dap_run(dap);
 		if (retval != ERROR_OK)
 			continue;
-
+		LOG_DEBUG("DAP: debug port initialized");
 		break;
 	}
 
