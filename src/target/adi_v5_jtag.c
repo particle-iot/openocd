@@ -562,8 +562,7 @@ static int jtagdp_transaction_endcheck(struct adiv5_dap *dap)
 	if (ctrlstat & SSTICKYERR) {
 		LOG_DEBUG("jtag-dp: CTRL/STAT 0x%" PRIx32, ctrlstat);
 		/* Check power to debug regions */
-		if ((ctrlstat & (CDBGPWRUPREQ | CDBGPWRUPACK | CSYSPWRUPREQ | CSYSPWRUPACK)) !=
-						(CDBGPWRUPREQ | CDBGPWRUPACK | CSYSPWRUPREQ | CSYSPWRUPACK)) {
+		if ((ctrlstat & dap->prwupmask) != dap->prwupmask) {
 			LOG_ERROR("Debug regions are unpowered, an unexpected reset might have happened");
 			retval = ERROR_JTAG_DEVICE_ERROR;
 			goto done;
