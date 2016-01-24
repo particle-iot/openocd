@@ -167,7 +167,10 @@ COMMAND_HANDLER(handle_init_command)
 	command_context_mode(CMD_CTX, COMMAND_EXEC);
 
 	/* initialize telnet subsystem */
-	gdb_target_add_all(all_targets);
+	retval = gdb_target_add_all(all_targets);
+
+	if (retval != ERROR_OK)
+		return retval;
 
 	target_register_event_callback(log_target_callback_event_handler, CMD_CTX);
 
@@ -294,8 +297,10 @@ static int openocd_thread(int argc, char *argv[], struct command_context *cmd_ct
 
 	if (init_at_startup) {
 		ret = command_run_line(cmd_ctx, "init");
-		if (ERROR_OK != ret)
+		if (ERROR_OK != ret) {
+			server_quit();
 			return ERROR_FAIL;
+		}
 	}
 
 	ret = server_loop(cmd_ctx);

@@ -127,7 +127,9 @@ static int add_connection(struct service *service, struct command_context *cmd_c
 		free(out_file);
 		if (c->fd_out == -1) {
 			LOG_ERROR("could not open %s", service->port);
-			exit(1);
+			command_done(c->cmd_ctx);
+			free(c);
+			return ERROR_FAIL;
 		}
 
 		LOG_INFO("accepting '%s' connection from pipe %s", service->name, service->port);
@@ -186,7 +188,13 @@ static int remove_connection(struct service *service, struct connection *connect
 	return ERROR_OK;
 }
 
-/* FIX! make service return error instead of invoking exit() */
+static void free_service(struct service *c)
+{
+	free(c->name);
+	free(c->port);
+	free(c);
+}
+
 int add_service(char *name,
 	const char *port,
 	int max_connections,
@@ -229,7 +237,8 @@ int add_service(char *name,
 		c->fd = socket(AF_INET, SOCK_STREAM, 0);
 		if (c->fd == -1) {
 			LOG_ERROR("error creating socket: %s", strerror(errno));
-			exit(-1);
+			free_service(c);
+			return ERROR_FAIL;
 		}
 
 		setsockopt(c->fd,
@@ -247,7 +256,9 @@ int add_service(char *name,
 
 		if (bind(c->fd, (struct sockaddr *)&c->sin, sizeof(c->sin)) == -1) {
 			LOG_ERROR("couldn't bind to socket: %s", strerror(errno));
-			exit(-1);
+			close_socket(c->fd);
+			free_service(c);
+			return ERROR_FAIL;
 		}
 
 #ifndef _WIN32
@@ -265,7 +276,9 @@ int add_service(char *name,
 
 		if (listen(c->fd, 1) == -1) {
 			LOG_ERROR("couldn't listen on socket: %s", strerror(errno));
-			exit(-1);
+			close_socket(c->fd);
+			free_service(c);
+			return ERROR_FAIL;
 		}
 	} else if (c->type == CONNECTION_STDINOUT) {
 		c->fd = fileno(stdin);
@@ -286,13 +299,15 @@ int add_service(char *name,
 		/* we currenty do not support named pipes under win32
 		 * so exit openocd for now */
 		LOG_ERROR("Named pipes currently not supported under this os");
-		exit(1);
+		free_service(c);
+		return ERROR_FAIL;
 #else
 		/* Pipe we're reading from */
 		c->fd = open(c->port, O_RDONLY | O_NONBLOCK);
 		if (c->fd == -1) {
 			LOG_ERROR("could not open %s", c->port);
-			exit(1);
+			free_service(c);
+			return ERROR_FAIL;
 		}
 #endif
 	}
@@ -409,7 +424,7 @@ int server_loop(struct command_context *command_context)
 				FD_ZERO(&read_fds);
 			else {
 				LOG_ERROR("error during select: %s", strerror(errno));
-				exit(-1);
+				return ERROR_FAIL;
 			}
 #else
 
@@ -417,7 +432,7 @@ int server_loop(struct command_context *command_context)
 				FD_ZERO(&read_fds);
 			else {
 				LOG_ERROR("error during select: %s", strerror(errno));
-				exit(-1);
+				return ERROR_FAIL;
 			}
 #endif
 		}
@@ -447,11 +462,15 @@ int server_loop(struct command_context *command_context)
 
 		for (service = services; service; service = service->next) {
 			/* handle new connections on listeners */
-			if ((service->fd != -1)
-			    && (FD_ISSET(service->fd, &read_fds))) {
-				if (service->max_connections != 0)
-					add_connection(service, command_context);
-				else {
+			if ((service->fd != -1) && (FD_ISSET(service->fd, &read_fds))) {
+				if (service->max_connections != 0) {
+					retval = add_connection(service, command_context);
+
+					if (retval != ERROR_OK) {
+						LOG_ERROR("%i", retval);
+						return ERROR_FAIL;
+					}
+				} else {
 					if (service->type == CONNECTION_TCP) {
 						struct sockaddr_in sin;
 						socklen_t address_size = sizeof(sin);
@@ -536,7 +555,7 @@ int server_preinit(void)
 
 	if (WSAStartup(wVersionRequested, &wsaData) != 0) {
 		LOG_ERROR("Failed to Open Winsock");
-		exit(-1);
+		return ERROR_FAIL;
 	}
 
 	/* register ctrl-c handler */
@@ -553,11 +572,21 @@ int server_preinit(void)
 
 int server_init(struct command_context *cmd_ctx)
 {
-	int ret = tcl_init();
-	if (ERROR_OK != ret)
+	int ret;
+
+	ret  = tcl_init();
+
+	if (ret != ERROR_OK)
 		return ret;
 
-	return telnet_init("Open On-Chip Debugger");
+	ret = telnet_init("Open On-Chip Debugger");
+
+	if (ret != ERROR_OK) {
+		remove_services();
+		return ret;
+	}
+
+	return ERROR_OK;
 }
 
 int server_quit(void)
