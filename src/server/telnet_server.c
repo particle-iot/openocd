@@ -619,12 +619,13 @@ static int telnet_connection_closed(struct connection *connection)
 
 int telnet_init(char *banner)
 {
+	int ret;
+	struct telnet_service *telnet_service;
+
 	if (strcmp(telnet_port, "disabled") == 0) {
 		LOG_INFO("telnet server disabled");
 		return ERROR_OK;
 	}
-
-	struct telnet_service *telnet_service;
 
 	telnet_service = malloc(sizeof(struct telnet_service));
 
@@ -635,13 +636,16 @@ int telnet_init(char *banner)
 
 	telnet_service->banner = banner;
 
-	return add_service("telnet",
-		telnet_port,
-		CONNECTION_LIMIT_UNLIMITED,
-		telnet_new_connection,
-		telnet_input,
-		telnet_connection_closed,
+	ret = add_service("telnet", telnet_port, CONNECTION_LIMIT_UNLIMITED,
+		telnet_new_connection, telnet_input, telnet_connection_closed,
 		telnet_service);
+
+	if (ret != ERROR_OK) {
+		free(telnet_service);
+		return ret;
+	}
+
+	return ERROR_OK;
 }
 
 /* daemon configuration command telnet_port */
