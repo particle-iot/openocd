@@ -31,6 +31,9 @@
 #include "aice_usb.h"
 
 
+unsigned int aice_usb_rx_max_packet = 512;
+unsigned int aice_usb_tx_max_packet = 512;
+
 /* Global USB buffers */
 static uint8_t usb_in_buffer[AICE_IN_BUFFER_SIZE];
 static uint8_t usb_out_buffer[AICE_OUT_BUFFER_SIZE];
@@ -2093,6 +2096,76 @@ static int aice_usb_write_reg(uint32_t coreid, uint32_t num, uint32_t val)
 	return ERROR_OK;
 }
 
+#ifdef HAVE_LIBUSB1
+int jtag_libusb_get_endpoints(struct jtag_libusb_device *udev,
+		unsigned int *usb_read_ep,
+		unsigned int *usb_write_ep,
+		unsigned int *usb_rx_max_packet,
+		unsigned int *usb_tx_max_packet)
+{
+	const struct libusb_interface *inter;
+	const struct libusb_interface_descriptor *interdesc;
+	const struct libusb_endpoint_descriptor *epdesc;
+	struct libusb_config_descriptor *config;
+
+	libusb_get_config_descriptor(udev, 0, &config);
+	for (int i = 0; i < (int)config->bNumInterfaces; i++) {
+		inter = &config->interface[i];
+
+		for (int j = 0; j < inter->num_altsetting; j++) {
+			interdesc = &inter->altsetting[j];
+			for (int k = 0; k < (int)interdesc->bNumEndpoints; k++) {
+				epdesc = &interdesc->endpoint[k];
+				if (epdesc->bmAttributes != LIBUSB_TRANSFER_TYPE_BULK)
+					continue;
+
+				uint8_t epnum = epdesc->bEndpointAddress;
+				bool is_input = epnum & 0x80;
+
+				if (is_input) {
+					*usb_read_ep = epnum;
+					*usb_rx_max_packet = epdesc->wMaxPacketSize;
+				} else {
+					*usb_write_ep = epnum;
+					*usb_tx_max_packet = epdesc->wMaxPacketSize;
+				}
+			}
+		}
+	}
+	libusb_free_config_descriptor(config);
+
+	return 0;
+}
+#else
+int jtag_libusb_get_endpoints(struct jtag_libusb_device *udev,
+		unsigned int *usb_read_ep,
+		unsigned int *usb_write_ep,
+		unsigned int *usb_rx_max_packet,
+		unsigned int *usb_tx_max_packet)
+{
+	struct usb_interface *iface = udev->config->interface;
+	struct usb_interface_descriptor *desc = iface->altsetting;
+
+	for (int i = 0; i < desc->bNumEndpoints; i++) {
+		if (desc->endpoint[i].bmAttributes != USB_ENDPOINT_TYPE_BULK)
+			continue;
+
+		uint8_t epnum = desc->endpoint[i].bEndpointAddress;
+		bool is_input = epnum & 0x80;
+
+		if (is_input) {
+			*usb_read_ep = epnum;
+			*usb_rx_max_packet = desc->endpoint[i].wMaxPacketSize;
+		} else {
+			*usb_write_ep = epnum;
+			*usb_tx_max_packet = desc->endpoint[i].wMaxPacketSize;
+		}
+	}
+
+	return 0;
+}
+#endif
+
 static int aice_usb_open(struct aice_port_param_s *param)
 {
 	const uint16_t vids[] = { param->vid, 0 };
@@ -2137,10 +2210,15 @@ static int aice_usb_open(struct aice_port_param_s *param)
 
 	/* usb_set_configuration required under win32 */
 	jtag_libusb_set_configuration(devh, 0);
+	jtag_libusb_claim_interface(devh, 0);
 
+	struct jtag_libusb_device *udev = jtag_libusb_get_device(devh);
 	unsigned int aice_read_ep;
 	unsigned int aice_write_ep;
-	jtag_libusb_choose_interface(devh, &aice_read_ep, &aice_write_ep, -1, -1, -1);
+	jtag_libusb_get_endpoints(udev, &aice_read_ep, &aice_write_ep,
+			&aice_usb_rx_max_packet, &aice_usb_tx_max_packet);
+	LOG_DEBUG("aice_read_ep=0x%x, aice_write_ep=0x%x", aice_read_ep, aice_write_ep);
+	LOG_DEBUG("aice_usb_rx_max_packet=%d, aice_usb_tx_max_packet=%d", aice_usb_rx_max_packet, aice_usb_tx_max_packet);
 
 	aice_handler.usb_read_ep = aice_read_ep;
 	aice_handler.usb_write_ep = aice_write_ep;
