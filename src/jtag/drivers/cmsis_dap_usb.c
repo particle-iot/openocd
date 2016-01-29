@@ -213,13 +213,13 @@ static int cmsis_dap_usb_open(void)
 		if (found) {
 			/* we have found an adapter, so exit further checks */
 			/* check serial number matches if given */
-			if (cmsis_dap_serial != NULL) {
+			if (cmsis_dap_serial != NULL && cur_dev->serial_number != NULL) {
 				if (wcscmp(cmsis_dap_serial, cur_dev->serial_number) == 0) {
 					serial_found = true;
 					break;
 				}
-			} else
-				break;
+			}
+			found = false;
 		}
 
 		cur_dev = cur_dev->next;
