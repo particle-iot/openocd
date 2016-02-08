@@ -119,6 +119,10 @@ ATTRS{idVendor}=="1781", ATTRS{idProduct}=="0c63", MODE="664", GROUP="plugdev"
 # TI/Luminary Stellaris In-Circuit Debug Interface (ICDI) Board
 ATTRS{idVendor}=="1cbe", ATTRS{idProduct}=="00fd", MODE="664", GROUP="plugdev"
 
+# Ambiq Micro EVK's.
+SUBSYSTEMS=="usb", ACTION=="add", ATTRS{idVendor}=="2aec", ATTRS{idProduct}=="6010", MODE="664", GROUP="plugdev", RUN+="/sbin/modprobe ftdi_sio" RUN+="/bin/sh -c 'echo 2aec 6010 > /sys/bus/usb-serial/drivers/ftdi_sio/new_id'"
+SUBSYSTEMS=="usb", ACTION=="add", ATTRS{idVendor}=="2aec", ATTRS{idProduct}=="6011", MODE="664", GROUP="plugdev", RUN+="/sbin/modprobe ftdi_sio" RUN+="/bin/sh -c 'echo 2aec 6011 > /sys/bus/usb-serial/drivers/ftdi_sio/new_id'"
+
 # Marvell Sheevaplug
 ATTRS{idVendor}=="9e88", ATTRS{idProduct}=="9e8f", MODE="664", GROUP="plugdev"
 
