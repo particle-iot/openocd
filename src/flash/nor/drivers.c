@@ -27,6 +27,7 @@ extern struct flash_driver lpc288x_flash;
 extern struct flash_driver lpc2900_flash;
 extern struct flash_driver lpcspifi_flash;
 extern struct flash_driver cfi_flash;
+extern struct flash_driver ambiqmicro_flash;
 extern struct flash_driver at91sam3_flash;
 extern struct flash_driver at91sam4_flash;
 extern struct flash_driver at91sam4l_flash;
@@ -75,6 +76,7 @@ static struct flash_driver *flash_drivers[] = {
 	&lpc2900_flash,
 	&lpcspifi_flash,
 	&cfi_flash,
+	&ambiqmicro_flash,
 	&at91sam7_flash,
 	&at91sam3_flash,
 	&at91sam4_flash,
