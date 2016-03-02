@@ -398,7 +398,7 @@ static int stm32lx_write_half_pages(struct flash_bank *bank, const uint8_t *buff
 	struct stm32lx_flash_bank *stm32lx_info = bank->driver_priv;
 
 	uint32_t hp_nb = stm32lx_info->part_info->page_size / 2;
-	uint32_t buffer_size = 16384;
+	uint32_t buffer_size = stm32lx_info->part_info->page_size*8;
 	struct working_area *write_algorithm;
 	struct working_area *source;
 	uint32_t address = bank->base + offset;
@@ -612,7 +612,7 @@ static int stm32lx_write(struct flash_bank *bank, const uint8_t *buffer,
 		return retval;
 
 	/* first we need to write any unaligned head bytes upto
-	 * the next 128 byte page */
+	 * the next half_page byte page */
 
 	if (offset % hp_nb)
 		bytes_remaining = MIN(count, hp_nb - (offset % hp_nb));
