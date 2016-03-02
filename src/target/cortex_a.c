@@ -1899,18 +1899,21 @@ static int cortex_a_assert_reset(struct target *target)
 {
 	struct armv7a_common *armv7a = target_to_armv7a(target);
 
-	LOG_DEBUG(" ");
+	LOG_DEBUG("target->state: %s",
+			target_state_name(target));
+
+	enum reset_types jtag_reset_config = jtag_get_reset_config();
 
 	/* FIXME when halt is requested, make it work somehow... */
 
 	/* Issue some kind of warm reset. */
-	if (target_has_event_action(target, TARGET_EVENT_RESET_ASSERT))
+	if (target_has_event_action(target, TARGET_EVENT_RESET_ASSERT)) {
 		target_handle_event(target, TARGET_EVENT_RESET_ASSERT);
-	else if (jtag_get_reset_config() & RESET_HAS_SRST) {
-		/* REVISIT handle "pulls" cases, if there's
-		 * hardware that needs them to work.
-		 */
-		jtag_add_reset(0, 1);
+	} else if (jtag_reset_config & RESET_HAS_SRST) {
+		if (jtag_reset_config & RESET_SRST_PULLS_TRST)
+			jtag_add_reset(1, 1);
+		else
+			jtag_add_reset(0, 1);
 	} else {
 		LOG_ERROR("%s: how to reset?", target_name(target));
 		return ERROR_FAIL;
