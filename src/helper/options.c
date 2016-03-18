@@ -30,18 +30,19 @@
 #include "command.h"
 
 #include <getopt.h>
+#include <unistd.h>
 
 static int help_flag, version_flag;
 
 static const struct option long_options[] = {
-	{"help",		no_argument,			&help_flag,		1},
-	{"version",		no_argument,			&version_flag,	1},
-	{"debug",		optional_argument,		0,				'd'},
-	{"file",		required_argument,		0,				'f'},
-	{"search",		required_argument,		0,				's'},
-	{"log_output",	required_argument,		0,				'l'},
-	{"command",		required_argument,		0,				'c'},
-	{"pipe",		no_argument,			0,				'p'},
+	{"help",                no_argument,                    &help_flag,             1},
+	{"version",             no_argument,                    &version_flag,  1},
+	{"debug",               optional_argument,              0,                              'd'},
+	{"file",                required_argument,              0,                              'f'},
+	{"search",              required_argument,              0,                              's'},
+	{"log_output",  required_argument,              0,                              'l'},
+	{"command",             required_argument,              0,                              'c'},
+	{"pipe",                no_argument,                    0,                              'p'},
 	{0, 0, 0, 0}
 };
 
@@ -62,13 +63,13 @@ static char *find_suffix(const char *text, const char *suffix)
 		return (char *)text + text_len;
 
 	if (suffix_len > text_len || strncmp(text + text_len - suffix_len, suffix, suffix_len) != 0)
-		return NULL; /* Not a suffix of text */
+		return NULL;	/* Not a suffix of text */
 
 	return (char *)text + text_len - suffix_len;
 }
 #endif
 
-static void add_default_dirs(void)
+static void add_default_dirs(char *argv0)
 {
 	const char *run_prefix;
 	char *path;
@@ -92,6 +93,30 @@ static void add_default_dirs(void)
 
 	run_prefix = strExePath;
 #else
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-result"
+	if (strchr(argv0, '/') == NULL) {
+		char strElfRealPath[PATH_MAX];
+		/* If the name has no path separators, get path from environment. */
+		readlink("/proc/self/exe", strElfRealPath, PATH_MAX);
+		/* Strip executable file name, leaving path (there always is a '/') */
+		*strrchr(strElfRealPath, '/') = '\0';
+		LOG_DEBUG("/proc/self/exe: %s", strElfRealPath);
+		/* Strip '/bin', assume installed bin and scripts are in sub-directories */
+		*strrchr(strElfRealPath, '/') = '\0';
+		path = alloc_printf("%s%s", strElfRealPath, "/site");
+		if (path) {
+			add_script_search_dir(path);
+			free(path);
+		}
+
+		path = alloc_printf("%s%s", strElfRealPath, "/scripts");
+		if (path) {
+			add_script_search_dir(path);
+			free(path);
+		}
+	}
+#pragma GCC diagnostic pop
 	run_prefix = "";
 #endif
 
@@ -179,7 +204,8 @@ int parse_cmdline_args(struct command_context *cmd_ctx, int argc, char *argv[])
 				break;
 			case 'd':		/* --debug | -d */
 			{
-				char *command = alloc_printf("debug_level %s", optarg ? optarg : "3");
+				char *command = alloc_printf("debug_level %s",
+					optarg ? optarg : "3");
 				command_run_line(cmd_ctx, command);
 				free(command);
 				break;
@@ -193,14 +219,15 @@ int parse_cmdline_args(struct command_context *cmd_ctx, int argc, char *argv[])
 				break;
 			case 'c':		/* --command | -c */
 				if (optarg)
-				    add_config_command(optarg);
+					add_config_command(optarg);
 				break;
 			case 'p':
 				/* to replicate the old syntax this needs to be synchronous
 				 * otherwise the gdb stdin will overflow with the warning message */
 				command_run_line(cmd_ctx, "gdb_port pipe; log_output openocd.log");
-				LOG_WARNING("deprecated option: -p/--pipe. Use '-c \"gdb_port pipe; "
-						"log_output openocd.log\"' instead.");
+				LOG_WARNING(
+				"deprecated option: -p/--pipe. Use '-c \"gdb_port pipe; "
+				"log_output openocd.log\"' instead.");
 				break;
 		}
 	}
@@ -218,15 +245,15 @@ int parse_cmdline_args(struct command_context *cmd_ctx, int argc, char *argv[])
 	}
 
 	if (version_flag) {
-		/* Nothing to do, version gets printed automatically. */
-		/* It is not an error to request the VERSION number. */
+		/* Nothing to do, version gets printed automatically.
+		 * It is not an error to request the VERSION number. */
 		exit(0);
 	}
 
 	/* paths specified on the command line take precedence over these
 	 * built-in paths
 	 */
-	add_default_dirs();
+	add_default_dirs(argv[0]);
 
 	return ERROR_OK;
 }
