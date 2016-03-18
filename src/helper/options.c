@@ -30,18 +30,19 @@
 #include "command.h"
 
 #include <getopt.h>
+#include <unistd.h>
 
 static int help_flag, version_flag;
 
 static const struct option long_options[] = {
-	{"help",		no_argument,			&help_flag,		1},
-	{"version",		no_argument,			&version_flag,	1},
-	{"debug",		optional_argument,		0,				'd'},
-	{"file",		required_argument,		0,				'f'},
-	{"search",		required_argument,		0,				's'},
-	{"log_output",	required_argument,		0,				'l'},
-	{"command",		required_argument,		0,				'c'},
-	{"pipe",		no_argument,			0,				'p'},
+	{"help",                no_argument,                    &help_flag,             1},
+	{"version",             no_argument,                    &version_flag,  1},
+	{"debug",               optional_argument,              0,                              'd'},
+	{"file",                required_argument,              0,                              'f'},
+	{"search",              required_argument,              0,                              's'},
+	{"log_output",  required_argument,              0,                              'l'},
+	{"command",             required_argument,              0,                              'c'},
+	{"pipe",                no_argument,                    0,                              'p'},
 	{0, 0, 0, 0}
 };
 
@@ -62,15 +63,32 @@ static char *find_suffix(const char *text, const char *suffix)
 		return (char *)text + text_len;
 
 	if (suffix_len > text_len || strncmp(text + text_len - suffix_len, suffix, suffix_len) != 0)
-		return NULL; /* Not a suffix of text */
+		return NULL;	/* Not a suffix of text */
 
 	return (char *)text + text_len - suffix_len;
+}
+#else
+static void add_script_dirs(const char *prefix)
+{
+	char *path;
+	if (!prefix)
+		return;
+	path = alloc_printf("%s%s", prefix, "/site");
+	if (path) {
+		add_script_search_dir(path);
+		free(path);
+	}
+	path = alloc_printf("%s%s", prefix, "/scripts");
+	if (path) {
+		add_script_search_dir(path);
+		free(path);
+	}
 }
 #endif
 
 static void add_default_dirs(void)
 {
-	const char *run_prefix;
+	const char *run_prefix = "";
 	char *path;
 
 #ifdef _WIN32
@@ -92,7 +110,18 @@ static void add_default_dirs(void)
 
 	run_prefix = strExePath;
 #else
-	run_prefix = "";
+	char strElfRealPath[PATH_MAX];
+	int ret = readlink("/proc/self/exe", strElfRealPath, PATH_MAX);
+	if (ret < 0)
+		perror("readlink: ");
+	else {
+		/* Strip executable file name, leaving path (there always is a '/') */
+		*strrchr(strElfRealPath, '/') = '\0';
+		LOG_DEBUG("/proc/self/exe: %s", strElfRealPath);
+		/* Strip '/bin', assume scripts are up one level. */
+		*strrchr(strElfRealPath, '/') = '\0';
+		run_prefix = strElfRealPath;
+	}
 #endif
 
 	LOG_DEBUG("bindir=%s", BINDIR);
@@ -131,17 +160,9 @@ static void add_default_dirs(void)
 	}
 #endif
 
-	path = alloc_printf("%s%s%s", run_prefix, PKGDATADIR, "/site");
-	if (path) {
-		add_script_search_dir(path);
-		free(path);
-	}
+	add_script_dirs(run_prefix);
+	add_script_dirs(PKGDATADIR);
 
-	path = alloc_printf("%s%s%s", run_prefix, PKGDATADIR, "/scripts");
-	if (path) {
-		add_script_search_dir(path);
-		free(path);
-	}
 }
 
 int parse_cmdline_args(struct command_context *cmd_ctx, int argc, char *argv[])
@@ -179,7 +200,8 @@ int parse_cmdline_args(struct command_context *cmd_ctx, int argc, char *argv[])
 				break;
 			case 'd':		/* --debug | -d */
 			{
-				char *command = alloc_printf("debug_level %s", optarg ? optarg : "3");
+				char *command = alloc_printf("debug_level %s",
+					optarg ? optarg : "3");
 				command_run_line(cmd_ctx, command);
 				free(command);
 				break;
@@ -193,14 +215,15 @@ int parse_cmdline_args(struct command_context *cmd_ctx, int argc, char *argv[])
 				break;
 			case 'c':		/* --command | -c */
 				if (optarg)
-				    add_config_command(optarg);
+					add_config_command(optarg);
 				break;
 			case 'p':
 				/* to replicate the old syntax this needs to be synchronous
 				 * otherwise the gdb stdin will overflow with the warning message */
 				command_run_line(cmd_ctx, "gdb_port pipe; log_output openocd.log");
-				LOG_WARNING("deprecated option: -p/--pipe. Use '-c \"gdb_port pipe; "
-						"log_output openocd.log\"' instead.");
+				LOG_WARNING(
+				"deprecated option: -p/--pipe. Use '-c \"gdb_port pipe; "
+				"log_output openocd.log\"' instead.");
 				break;
 		}
 	}
@@ -218,8 +241,8 @@ int parse_cmdline_args(struct command_context *cmd_ctx, int argc, char *argv[])
 	}
 
 	if (version_flag) {
-		/* Nothing to do, version gets printed automatically. */
-		/* It is not an error to request the VERSION number. */
+		/* Nothing to do, version gets printed automatically.
+		 * It is not an error to request the VERSION number. */
 		exit(0);
 	}
 
