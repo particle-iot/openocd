@@ -188,6 +188,12 @@ struct cortex_m_common {
 	enum cortex_m_isrmasking_mode isrmasking_mode;
 
 	struct armv7m_common armv7m;
+
+	int apsel;
+};
+
+struct cortex_m_private_config {
+	int apsel;
 };
 
 static inline struct cortex_m_common *
