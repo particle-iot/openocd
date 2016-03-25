@@ -1,33 +1,31 @@
 /***************************************************************************
- *   Copyright (C) 2005 by Dominic Rath                                    *
- *   Dominic.Rath@gmx.de                                                   *
- *                                                                         *
- *   Copyright (C) 2008 by Spencer Oliver                                  *
- *   spen@spen-soft.co.uk                                                  *
- *                                                                         *
- *   Copyright (C) 2011 by Andreas Fritiofson                              *
- *   andreas.fritiofson@gmail.com                                          *
- *                                                                         *
- *   Copyright (C) 2013 by Roman Dmitrienko                                *
- *   me@iamroman.org                                                       *
- *                                                                         *
- *   Copyright (C) 2014 Nemui Trinomius                                    *
- *   nemuisan_kawausogasuki@live.jp                                        *
- *                                                                         *
- *   This program is free software; you can redistribute it and/or modify  *
- *   it under the terms of the GNU General Public License as published by  *
- *   the Free Software Foundation; either version 2 of the License, or     *
- *   (at your option) any later version.                                   *
- *                                                                         *
- *   This program is distributed in the hope that it will be useful,       *
- *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
- *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
- *   GNU General Public License for more details.                          *
- *                                                                         *
- *   You should have received a copy of the GNU General Public License     *
- *   along with this program; if not, write to the                         *
- *   Free Software Foundation, Inc.,                                       *
- *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.           *
+ *	 Copyright (C) 2005 by Dominic Rath									   *
+ *	 Dominic.Rath@gmx.de												   *
+ *																		   *
+ *	 Copyright (C) 2008 by Spencer Oliver								   *
+ *	 spen@spen-soft.co.uk												   *
+ *																		   *
+ *	 Copyright (C) 2011 by Andreas Fritiofson							   *
+ *	 andreas.fritiofson@gmail.com										   *
+ *																		   *
+ *	 Copyright (C) 2013 by Roman Dmitrienko								   *
+ *	 me@iamroman.org													   *
+ *																		   *
+ *	 Copyright (C) 2014 Nemui Trinomius									   *
+ *	 nemuisan_kawausogasuki@live.jp										   *
+ *																		   *
+ *	 This program is free software; you can redistribute it and/or modify  *
+ *	 it under the terms of the GNU General Public License as published by  *
+ *	 the Free Software Foundation; either version 2 of the License, or	   *
+ *	 (at your option) any later version.								   *
+ *																		   *
+ *	 This program is distributed in the hope that it will be useful,	   *
+ *	 but WITHOUT ANY WARRANTY; without even the implied warranty of		   *
+ *	 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the		   *
+ *	 GNU General Public License for more details.						   *
+ *																		   *
+ *	 You should have received a copy of the GNU General Public License	   *
+ *	 along with this program; if not, write to the						   *
  ***************************************************************************/
 
 #ifdef HAVE_CONFIG_H
@@ -41,55 +39,55 @@
 #include <target/cortex_m.h>
 
 /* keep family IDs in decimal */
-#define EFM_FAMILY_ID_GECKO             71
-#define EFM_FAMILY_ID_GIANT_GECKO       72
-#define EFM_FAMILY_ID_TINY_GECKO        73
-#define EFM_FAMILY_ID_LEOPARD_GECKO     74
-#define EFM_FAMILY_ID_WONDER_GECKO      75
-#define EFM_FAMILY_ID_ZERO_GECKO        76
+#define EFM_FAMILY_ID_GECKO				71
+#define EFM_FAMILY_ID_GIANT_GECKO		72
+#define EFM_FAMILY_ID_TINY_GECKO		73
+#define EFM_FAMILY_ID_LEOPARD_GECKO		74
+#define EFM_FAMILY_ID_WONDER_GECKO		75
+#define EFM_FAMILY_ID_ZERO_GECKO		76
 #define EFM_FAMILY_ID_HAPPY_GECKO	77
 #define EZR_FAMILY_ID_WONDER_GECKO		120
 #define EZR_FAMILY_ID_LEOPARD_GECKO		121
 
-#define EFM32_FLASH_ERASE_TMO           100
-#define EFM32_FLASH_WDATAREADY_TMO      100
-#define EFM32_FLASH_WRITE_TMO           100
+#define EFM32_FLASH_ERASE_TMO			100
+#define EFM32_FLASH_WDATAREADY_TMO		100
+#define EFM32_FLASH_WRITE_TMO			100
 
 /* size in bytes, not words; must fit all Gecko devices */
-#define LOCKBITS_PAGE_SZ                512
+#define LOCKBITS_PAGE_SZ				512
 
-#define EFM32_MSC_INFO_BASE             0x0fe00000
+#define EFM32_MSC_INFO_BASE				0x0fe00000
 
-#define EFM32_MSC_USER_DATA             EFM32_MSC_INFO_BASE
-#define EFM32_MSC_LOCK_BITS             (EFM32_MSC_INFO_BASE+0x4000)
-#define EFM32_MSC_DEV_INFO              (EFM32_MSC_INFO_BASE+0x8000)
+#define EFM32_MSC_USER_DATA				EFM32_MSC_INFO_BASE
+#define EFM32_MSC_LOCK_BITS				(EFM32_MSC_INFO_BASE+0x4000)
+#define EFM32_MSC_DEV_INFO				(EFM32_MSC_INFO_BASE+0x8000)
 
 /* PAGE_SIZE is only present in Leopard, Giant and Wonder Gecko MCUs */
-#define EFM32_MSC_DI_PAGE_SIZE          (EFM32_MSC_DEV_INFO+0x1e7)
-#define EFM32_MSC_DI_FLASH_SZ           (EFM32_MSC_DEV_INFO+0x1f8)
-#define EFM32_MSC_DI_RAM_SZ             (EFM32_MSC_DEV_INFO+0x1fa)
-#define EFM32_MSC_DI_PART_NUM           (EFM32_MSC_DEV_INFO+0x1fc)
-#define EFM32_MSC_DI_PART_FAMILY        (EFM32_MSC_DEV_INFO+0x1fe)
-#define EFM32_MSC_DI_PROD_REV           (EFM32_MSC_DEV_INFO+0x1ff)
+#define EFM32_MSC_DI_PAGE_SIZE			(EFM32_MSC_DEV_INFO+0x1e7)
+#define EFM32_MSC_DI_FLASH_SZ			(EFM32_MSC_DEV_INFO+0x1f8)
+#define EFM32_MSC_DI_RAM_SZ				(EFM32_MSC_DEV_INFO+0x1fa)
+#define EFM32_MSC_DI_PART_NUM			(EFM32_MSC_DEV_INFO+0x1fc)
+#define EFM32_MSC_DI_PART_FAMILY		(EFM32_MSC_DEV_INFO+0x1fe)
+#define EFM32_MSC_DI_PROD_REV			(EFM32_MSC_DEV_INFO+0x1ff)
 
-#define EFM32_MSC_REGBASE               0x400c0000
-#define EFM32_MSC_WRITECTRL             (EFM32_MSC_REGBASE+0x008)
-#define EFM32_MSC_WRITECTRL_WREN_MASK   0x1
-#define EFM32_MSC_WRITECMD              (EFM32_MSC_REGBASE+0x00c)
+#define EFM32_MSC_REGBASE				0x400c0000
+#define EFM32_MSC_WRITECTRL				(EFM32_MSC_REGBASE+0x008)
+#define EFM32_MSC_WRITECTRL_WREN_MASK	0x1
+#define EFM32_MSC_WRITECMD				(EFM32_MSC_REGBASE+0x00c)
 #define EFM32_MSC_WRITECMD_LADDRIM_MASK 0x1
 #define EFM32_MSC_WRITECMD_ERASEPAGE_MASK 0x2
 #define EFM32_MSC_WRITECMD_WRITEONCE_MASK 0x8
-#define EFM32_MSC_ADDRB                 (EFM32_MSC_REGBASE+0x010)
-#define EFM32_MSC_WDATA                 (EFM32_MSC_REGBASE+0x018)
-#define EFM32_MSC_STATUS                (EFM32_MSC_REGBASE+0x01c)
-#define EFM32_MSC_STATUS_BUSY_MASK      0x1
-#define EFM32_MSC_STATUS_LOCKED_MASK    0x2
-#define EFM32_MSC_STATUS_INVADDR_MASK   0x4
+#define EFM32_MSC_ADDRB					(EFM32_MSC_REGBASE+0x010)
+#define EFM32_MSC_WDATA					(EFM32_MSC_REGBASE+0x018)
+#define EFM32_MSC_STATUS				(EFM32_MSC_REGBASE+0x01c)
+#define EFM32_MSC_STATUS_BUSY_MASK		0x1
+#define EFM32_MSC_STATUS_LOCKED_MASK	0x2
+#define EFM32_MSC_STATUS_INVADDR_MASK	0x4
 #define EFM32_MSC_STATUS_WDATAREADY_MASK 0x8
 #define EFM32_MSC_STATUS_WORDTIMEOUT_MASK 0x10
 #define EFM32_MSC_STATUS_ERASEABORTED_MASK 0x20
-#define EFM32_MSC_LOCK                  (EFM32_MSC_REGBASE+0x03c)
-#define EFM32_MSC_LOCK_LOCKKEY          0x1b71
+#define EFM32_MSC_LOCK					(EFM32_MSC_REGBASE+0x03c)
+#define EFM32_MSC_LOCK_LOCKKEY			0x1b71
 
 struct efm32x_flash_bank {
 	int probed;
@@ -591,73 +589,73 @@ static int efm32x_write_block(struct flash_bank *bank, const uint8_t *buf,
 
 	/* see contrib/loaders/flash/efm32.S for src */
 	static const uint8_t efm32x_flash_write_code[] = {
-		/* #define EFM32_MSC_WRITECTRL_OFFSET      0x008 */
-		/* #define EFM32_MSC_WRITECMD_OFFSET       0x00c */
-		/* #define EFM32_MSC_ADDRB_OFFSET          0x010 */
-		/* #define EFM32_MSC_WDATA_OFFSET          0x018 */
-		/* #define EFM32_MSC_STATUS_OFFSET         0x01c */
-		/* #define EFM32_MSC_LOCK_OFFSET           0x03c */
+		/* #define EFM32_MSC_WRITECTRL_OFFSET	   0x008 */
+		/* #define EFM32_MSC_WRITECMD_OFFSET	   0x00c */
+		/* #define EFM32_MSC_ADDRB_OFFSET		   0x010 */
+		/* #define EFM32_MSC_WDATA_OFFSET		   0x018 */
+		/* #define EFM32_MSC_STATUS_OFFSET		   0x01c */
+		/* #define EFM32_MSC_LOCK_OFFSET		   0x03c */
 
-			0x15, 0x4e,    /* ldr     r6, =#0x1b71 */
-			0xc6, 0x63,    /* str     r6, [r0, #EFM32_MSC_LOCK_OFFSET] */
-			0x01, 0x26,    /* movs    r6, #1 */
-			0x86, 0x60,    /* str     r6, [r0, #EFM32_MSC_WRITECTRL_OFFSET] */
+			0x15, 0x4e,	   /* ldr	  r6, =#0x1b71 */
+			0xc6, 0x63,	   /* str	  r6, [r0, #EFM32_MSC_LOCK_OFFSET] */
+			0x01, 0x26,	   /* movs	  r6, #1 */
+			0x86, 0x60,	   /* str	  r6, [r0, #EFM32_MSC_WRITECTRL_OFFSET] */
 
 		/* wait_fifo: */
-			0x16, 0x68,    /* ldr     r6, [r2, #0] */
-			0x00, 0x2e,    /* cmp     r6, #0 */
-			0x22, 0xd0,    /* beq     exit */
-			0x55, 0x68,    /* ldr     r5, [r2, #4] */
-			0xb5, 0x42,    /* cmp     r5, r6 */
-			0xf9, 0xd0,    /* beq     wait_fifo */
+			0x16, 0x68,	   /* ldr	  r6, [r2, #0] */
+			0x00, 0x2e,	   /* cmp	  r6, #0 */
+			0x22, 0xd0,	   /* beq	  exit */
+			0x55, 0x68,	   /* ldr	  r5, [r2, #4] */
+			0xb5, 0x42,	   /* cmp	  r5, r6 */
+			0xf9, 0xd0,	   /* beq	  wait_fifo */
 
-			0x04, 0x61,    /* str     r4, [r0, #EFM32_MSC_ADDRB_OFFSET] */
-			0x01, 0x26,    /* movs    r6, #1 */
-			0xc6, 0x60,    /* str     r6, [r0, #EFM32_MSC_WRITECMD_OFFSET] */
-			0xc6, 0x69,    /* ldr     r6, [r0, #EFM32_MSC_STATUS_OFFSET] */
-			0x06, 0x27,    /* movs    r7, #6 */
-			0x3e, 0x42,    /* tst     r6, r7 */
-			0x16, 0xd1,    /* bne     error */
+			0x04, 0x61,	   /* str	  r4, [r0, #EFM32_MSC_ADDRB_OFFSET] */
+			0x01, 0x26,	   /* movs	  r6, #1 */
+			0xc6, 0x60,	   /* str	  r6, [r0, #EFM32_MSC_WRITECMD_OFFSET] */
+			0xc6, 0x69,	   /* ldr	  r6, [r0, #EFM32_MSC_STATUS_OFFSET] */
+			0x06, 0x27,	   /* movs	  r7, #6 */
+			0x3e, 0x42,	   /* tst	  r6, r7 */
+			0x16, 0xd1,	   /* bne	  error */
 
 		/* wait_wdataready: */
-			0xc6, 0x69,    /* ldr     r6, [r0, #EFM32_MSC_STATUS_OFFSET] */
-			0x08, 0x27,    /* movs    r7, #8 */
-			0x3e, 0x42,    /* tst     r6, r7 */
-			0xfb, 0xd0,    /* beq     wait_wdataready */
+			0xc6, 0x69,	   /* ldr	  r6, [r0, #EFM32_MSC_STATUS_OFFSET] */
+			0x08, 0x27,	   /* movs	  r7, #8 */
+			0x3e, 0x42,	   /* tst	  r6, r7 */
+			0xfb, 0xd0,	   /* beq	  wait_wdataready */
 
-			0x2e, 0x68,    /* ldr     r6, [r5] */
-			0x86, 0x61,    /* str     r6, [r0, #EFM32_MSC_WDATA_OFFSET] */
-			0x08, 0x26,    /* movs    r6, #8 */
-			0xc6, 0x60,    /* str     r6, [r0, #EFM32_MSC_WRITECMD_OFFSET] */
+			0x2e, 0x68,	   /* ldr	  r6, [r5] */
+			0x86, 0x61,	   /* str	  r6, [r0, #EFM32_MSC_WDATA_OFFSET] */
+			0x08, 0x26,	   /* movs	  r6, #8 */
+			0xc6, 0x60,	   /* str	  r6, [r0, #EFM32_MSC_WRITECMD_OFFSET] */
 
-			0x04, 0x35,    /* adds    r5, #4 */
-			0x04, 0x34,    /* adds    r4, #4 */
+			0x04, 0x35,	   /* adds	  r5, #4 */
+			0x04, 0x34,	   /* adds	  r4, #4 */
 
 		/* busy: */
-			0xc6, 0x69,    /* ldr     r6, [r0, #EFM32_MSC_STATUS_OFFSET] */
-			0x01, 0x27,    /* movs    r7, #1 */
-			0x3e, 0x42,    /* tst     r6, r7 */
-			0xfb, 0xd1,    /* bne     busy */
+			0xc6, 0x69,	   /* ldr	  r6, [r0, #EFM32_MSC_STATUS_OFFSET] */
+			0x01, 0x27,	   /* movs	  r7, #1 */
+			0x3e, 0x42,	   /* tst	  r6, r7 */
+			0xfb, 0xd1,	   /* bne	  busy */
 
-			0x9d, 0x42,    /* cmp     r5, r3 */
-			0x01, 0xd3,    /* bcc     no_wrap */
-			0x15, 0x46,    /* mov     r5, r2 */
-			0x08, 0x35,    /* adds    r5, #8 */
+			0x9d, 0x42,	   /* cmp	  r5, r3 */
+			0x01, 0xd3,	   /* bcc	  no_wrap */
+			0x15, 0x46,	   /* mov	  r5, r2 */
+			0x08, 0x35,	   /* adds	  r5, #8 */
 
 		/* no_wrap: */
-			0x55, 0x60,    /* str     r5, [r2, #4] */
-			0x01, 0x39,    /* subs    r1, r1, #1 */
-			0x00, 0x29,    /* cmp     r1, #0 */
-			0x02, 0xd0,    /* beq     exit */
-			0xdb, 0xe7,    /* b       wait_fifo */
+			0x55, 0x60,	   /* str	  r5, [r2, #4] */
+			0x01, 0x39,	   /* subs	  r1, r1, #1 */
+			0x00, 0x29,	   /* cmp	  r1, #0 */
+			0x02, 0xd0,	   /* beq	  exit */
+			0xdb, 0xe7,	   /* b		  wait_fifo */
 
 		/* error: */
-			0x00, 0x20,    /* movs    r0, #0 */
-			0x50, 0x60,    /* str     r0, [r2, #4] */
+			0x00, 0x20,	   /* movs	  r0, #0 */
+			0x50, 0x60,	   /* str	  r0, [r2, #4] */
 
 		/* exit: */
-			0x30, 0x46,    /* mov     r0, r6 */
-			0x00, 0xbe,    /* bkpt    #0 */
+			0x30, 0x46,	   /* mov	  r0, r6 */
+			0x00, 0xbe,	   /* bkpt	  #0 */
 
 		/* LOCKKEY */
 			0x71, 0x1b, 0x00, 0x00
@@ -689,11 +687,11 @@ static int efm32x_write_block(struct flash_bank *bank, const uint8_t *buf,
 		}
 	}
 
-	init_reg_param(&reg_params[0], "r0", 32, PARAM_IN_OUT);	/* flash base (in), status (out) */
+	init_reg_param(&reg_params[0], "r0", 32, PARAM_IN_OUT); /* flash base (in), status (out) */
 	init_reg_param(&reg_params[1], "r1", 32, PARAM_OUT);	/* count (word-32bit) */
 	init_reg_param(&reg_params[2], "r2", 32, PARAM_OUT);	/* buffer start */
 	init_reg_param(&reg_params[3], "r3", 32, PARAM_OUT);	/* buffer end */
-	init_reg_param(&reg_params[4], "r4", 32, PARAM_IN_OUT);	/* target address */
+	init_reg_param(&reg_params[4], "r4", 32, PARAM_IN_OUT); /* target address */
 
 	buf_set_u32(reg_params[0].value, 0, 32, EFM32_MSC_REGBASE);
 	buf_set_u32(reg_params[1].value, 0, 32, count);
@@ -997,7 +995,50 @@ static int get_efm32x_info(struct flash_bank *bank, char *buf, int buf_size)
 	return efm32x_decode_info(&info, buf, buf_size);
 }
 
+COMMAND_HANDLER(efm32x_handle_debuglock_command)
+{
+	struct target *target = NULL;
+
+	if (CMD_ARGC < 1)
+		return ERROR_COMMAND_SYNTAX_ERROR;
+
+	struct flash_bank *bank;
+	int retval = CALL_COMMAND_HANDLER(flash_command_get_bank, 0, &bank);
+	if (ERROR_OK != retval)
+		return retval;
+
+	struct efm32x_flash_bank *efm32x_info = bank->driver_priv;
+
+	target = bank->target;
+
+	if (target->state != TARGET_HALTED) {
+		LOG_ERROR("Target not halted");
+		return ERROR_TARGET_NOT_HALTED;
+	}
+
+	uint32_t *ptr;
+	ptr = efm32x_info->lb_page + 127;
+	*ptr = 0;
+
+	retval = efm32x_write_lock_data(bank);
+	if (ERROR_OK != retval) {
+		LOG_ERROR("Failed to write LB page");
+		return retval;
+	}
+
+	command_print(CMD_CTX, "efm32x debug interface locked");
+
+	return ERROR_OK;
+}
+
 static const struct command_registration efm32x_exec_command_handlers[] = {
+	{
+		.name = "debuglock",
+		.handler = efm32x_handle_debuglock_command,
+		.mode = COMMAND_EXEC,
+		.usage = "bank_id",
+		.help = "Lock the debug interface of the device.",
+	},
 	COMMAND_REGISTRATION_DONE
 };
 
