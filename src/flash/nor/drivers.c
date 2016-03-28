@@ -22,6 +22,7 @@
 #endif
 #include "imp.h"
 
+extern struct flash_driver ath79_flash;
 extern struct flash_driver lpc2000_flash;
 extern struct flash_driver lpc288x_flash;
 extern struct flash_driver lpc2900_flash;
@@ -71,6 +72,7 @@ extern struct flash_driver niietcm4_flash;
  * @todo Make this dynamically extendable with loadable modules.
  */
 static struct flash_driver *flash_drivers[] = {
+	&ath79_flash,
 	&lpc2000_flash,
 	&lpc288x_flash,
 	&lpc2900_flash,
