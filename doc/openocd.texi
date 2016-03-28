@@ -4944,6 +4944,37 @@ flash bank $_FLASHNAME mrvlqspi 0x0 0 0 0 $_TARGETNAME 0x46010000
 
 @end deffn
 
+@deffn {Flash Driver} ath79
+@cindex Atheros ath79 SPI driver
+@cindex SMI
+@cindex ath79
+ATH79 SoCs families include an external serial Flash memory
+interface able to drive two external SPI NOR-flash devices
+(maximum 16 MBytes).
+But this driver, support only first one external SPI NOR-flash
+device at flash bank address 0xbf000000. Any other flash bank
+address will be ignorred.
+Usually it is enough to restore the OEM bootloader.
+If necessary the second bank then next steps, should be done
+on the restored OEM bootloader, for example via UART-port.
+
+SMI makes the flash content directly accessible in the CPU
+address space; each external device is mapped in a memory bank.
+CPU can directly read data, execute code and boot from SMI banks.
+Normal OpenOCD commands like @command{mdw} can be used to display
+the flash content.
+
+The setup command only requires the @var{base} parameter in order
+to identify the memory bank.
+All other parameters are ignored. Additional information, like
+flash size, are detected automatically.
+
+@example
+flash bank $_FLASHNAME ath79 0xbf000000 0 0 0 $_TARGETNAME
+@end example
+
+@end deffn
+
 @subsection Internal Flash (Microcontrollers)
 
 @deffn {Flash Driver} aduc702x
