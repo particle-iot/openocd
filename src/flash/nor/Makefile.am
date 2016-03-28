@@ -32,6 +32,7 @@ NOR_DRIVERS = \
 	pic32mx.c \
 	spi.c \
 	stmsmi.c \
+	ath79.c \
 	stellaris.c \
 	stm32f1x.c \
 	stm32f2x.c \
