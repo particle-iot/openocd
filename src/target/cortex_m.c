@@ -1885,7 +1885,7 @@ static void cortex_m_dwt_free(struct target *target)
 int cortex_m_examine(struct target *target)
 {
 	int retval;
-	uint32_t cpuid, fpcr, mvfr0, mvfr1;
+	uint32_t cpuid, fpcr, mvfr0, mvfr1, didr, id_dfr;
 	int i;
 	struct cortex_m_common *cortex_m = target_to_cm(target);
 	struct adiv5_dap *swjdp = cortex_m->armv7m.arm.dap;
@@ -1923,12 +1923,23 @@ int cortex_m_examine(struct target *target)
 		if (retval != ERROR_OK)
 			return retval;
 
+		retval = target_read_u32(target, ID_DFR, &id_dfr);
+		if (retval != ERROR_OK)
+			return retval;
+
+		retval = target_read_u32(target, DIDR, &didr);
+		if (retval != ERROR_OK)
+			return retval;
+
+
 		/* Get CPU Type */
 		i = (cpuid >> 4) & 0xf;
 
 		LOG_DEBUG("Cortex-M%d r%" PRId8 "p%" PRId8 " processor detected",
 				i, (uint8_t)((cpuid >> 20) & 0xf), (uint8_t)((cpuid >> 0) & 0xf));
-		LOG_DEBUG("cpuid: 0x%8.8" PRIx32 "", cpuid);
+		LOG_INFO("cpuid: 0x%8.8" PRIx32 "", cpuid);
+		LOG_INFO("didr: 0x%8.8" PRIx32 "", didr);
+		LOG_INFO("id_dfr: 0x%8.8" PRIx32 "", id_dfr);
 
 		/* test for floating point feature on cortex-m4 */
 		if (i == 4) {

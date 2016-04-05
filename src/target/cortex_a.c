@@ -2871,7 +2871,7 @@ static int cortex_a_examine_first(struct target *target)
 	struct adiv5_dap *swjdp = armv7a->arm.dap;
 	int i;
 	int retval = ERROR_OK;
-	uint32_t didr, ctypr, ttypr, cpuid, dbg_osreg;
+	uint32_t didr, ctypr, ttypr, cpuid, dbg_osreg, id_dfr;
 
 	retval = dap_dp_init(swjdp);
 	if (retval != ERROR_OK) {
@@ -2935,11 +2935,6 @@ static int cortex_a_examine_first(struct target *target)
 
 	retval = mem_ap_read_atomic_u32(armv7a->debug_ap,
 			armv7a->debug_base + CPUDBG_CPUID, &cpuid);
-	if (retval != ERROR_OK)
-		return retval;
-
-	retval = mem_ap_read_atomic_u32(armv7a->debug_ap,
-			armv7a->debug_base + CPUDBG_CPUID, &cpuid);
 	if (retval != ERROR_OK) {
 		LOG_DEBUG("Examine %s failed", "CPUID");
 		return retval;
@@ -2963,18 +2958,27 @@ static int cortex_a_examine_first(struct target *target)
 			armv7a->debug_base + CPUDBG_DIDR, &didr);
 	if (retval != ERROR_OK) {
 		LOG_DEBUG("Examine %s failed", "DIDR");
-		return retval;
 	}
 
-	LOG_DEBUG("cpuid = 0x%08" PRIx32, cpuid);
-	LOG_DEBUG("ctypr = 0x%08" PRIx32, ctypr);
-	LOG_DEBUG("ttypr = 0x%08" PRIx32, ttypr);
-	LOG_DEBUG("didr = 0x%08" PRIx32, didr);
+       /* let load id_dfr */
+       retval = mem_ap_read_atomic_u32(armv7a->debug_ap,
+                       armv7a->debug_base + 0xD28, &id_dfr);
+       if (retval != ERROR_OK) {
+               LOG_DEBUG("Examine %s failed", "ID_DFR");
+               return retval;
+       }
+
+
+	LOG_INFO("cpuid = 0x%08" PRIx32, cpuid);
+	LOG_INFO("ctypr = 0x%08" PRIx32, ctypr);
+	LOG_INFO("ttypr = 0x%08" PRIx32, ttypr);
+	LOG_INFO("didr = 0x%08" PRIx32, didr);
+	LOG_INFO("id_dfr = 0x%08" PRIx32, id_dfr);
 
 	cortex_a->cpuid = cpuid;
 	cortex_a->ctypr = ctypr;
 	cortex_a->ttypr = ttypr;
-	cortex_a->didr = didr;
+	cortex_a->didr = didr; 
 
 	retval = mem_ap_read_atomic_u32(armv7a->debug_ap,
 				    armv7a->debug_base + CPUDBG_PRSR, &dbg_osreg);
