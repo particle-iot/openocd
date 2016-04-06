@@ -2871,7 +2871,7 @@ static int cortex_a_examine_first(struct target *target)
 	struct adiv5_dap *swjdp = armv7a->arm.dap;
 	int i;
 	int retval = ERROR_OK;
-	uint32_t didr, ctypr, ttypr, cpuid, dbg_osreg;
+	uint32_t didr, ctypr, ttypr, cpuid, dbg_osreg, id_dfr, id_dfr1, tmpreg, regno;
 
 	retval = dap_dp_init(swjdp);
 	if (retval != ERROR_OK) {
@@ -2934,14 +2934,53 @@ static int cortex_a_examine_first(struct target *target)
 		armv7a->debug_base = target->dbgbase;
 
 	retval = mem_ap_read_atomic_u32(armv7a->debug_ap,
-			armv7a->debug_base + CPUDBG_CPUID, &cpuid);
-	if (retval != ERROR_OK)
+					    armv7a->debug_base + CPUDBG_PRSR, &dbg_osreg);
+
+	if (retval != ERROR_OK) {
+		LOG_ERROR("Failed to read DBGPRSR @ 0x%" PRIx32,  armv7a->debug_base + CPUDBG_PRSR);
 		return retval;
+	}
+
+	LOG_DEBUG("target->coreid %" PRId32 " DBGPRSR  0x%" PRIx32, target->coreid, dbg_osreg);
+
+	if (dbg_osreg & (1UL << 0)) {
+		retval = mem_ap_write_atomic_u32(armv7a->debug_ap,
+					     armv7a->debug_base + CPUDBG_OSLAR,
+					     0);
+		if (retval != ERROR_OK)
+			LOG_ERROR("Failed to write 0 to OSLAR register @ 0x%08" PRIx32, armv7a->debug_base + CPUDBG_OSLAR);
+	  }
+
+	for (regno = 0; regno < 4096; regno = regno + 4) {
+		retval = mem_ap_read_atomic_u32(armv7a->debug_ap,
+			armv7a->debug_base + regno, &tmpreg);
+		if (retval != ERROR_OK) {
+			LOG_INFO("#%s|0x%08" PRIx32 "|FAILED", target_name(target), armv7a->debug_base + regno);
+			continue;
+		}
+		LOG_INFO("#%s|0x%08" PRIx32 "|0x%08" PRIx32, target_name(target), armv7a->debug_base + regno, tmpreg);
+	}
+
 
 	retval = mem_ap_read_atomic_u32(armv7a->debug_ap,
 			armv7a->debug_base + CPUDBG_CPUID, &cpuid);
 	if (retval != ERROR_OK) {
 		LOG_DEBUG("Examine %s failed", "CPUID");
+		return retval;
+	}
+
+     /* let load id_dfr */
+	retval = mem_ap_read_atomic_u32(armv7a->debug_ap,
+					armv7a->debug_base + 0xD48, &id_dfr);
+	if (retval != ERROR_OK) {
+		LOG_DEBUG("Examine %s failed", "ID_DFR");
+		return retval;
+	}
+
+	retval = mem_ap_read_atomic_u32(armv7a->debug_ap,
+					armv7a->debug_base + 0xD28, &id_dfr1);
+	if (retval != ERROR_OK) {
+		LOG_DEBUG("Examine %s failed", "ID_AA64DFR");
 		return retval;
 	}
 
@@ -2966,10 +3005,13 @@ static int cortex_a_examine_first(struct target *target)
 		return retval;
 	}
 
-	LOG_DEBUG("cpuid = 0x%08" PRIx32, cpuid);
-	LOG_DEBUG("ctypr = 0x%08" PRIx32, ctypr);
-	LOG_DEBUG("ttypr = 0x%08" PRIx32, ttypr);
-	LOG_DEBUG("didr = 0x%08" PRIx32, didr);
+
+	LOG_INFO("cpuid = 0x%08" PRIx32, cpuid);
+	LOG_INFO("ctypr = 0x%08" PRIx32, ctypr);
+	LOG_INFO("ttypr = 0x%08" PRIx32, ttypr);
+	LOG_INFO("didr = 0x%08" PRIx32, didr);
+	LOG_INFO("id_dfr = 0x%08" PRIx32, id_dfr);
+	LOG_INFO("id_aa64dfr = 0x%08" PRIx32, id_dfr1);
 
 	cortex_a->cpuid = cpuid;
 	cortex_a->ctypr = ctypr;
