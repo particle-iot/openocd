@@ -568,22 +568,25 @@ static int jtagdp_transaction_endcheck(struct adiv5_dap *dap)
 			goto done;
 		}
 
-		if (ctrlstat & SSTICKYERR)
-			LOG_ERROR("JTAG-DP STICKY ERROR");
-		if (ctrlstat & SSTICKYORUN)
-			LOG_DEBUG("JTAG-DP STICKY OVERRUN");
-
-		/* Clear Sticky Error Bits */
-		retval = adi_jtag_scan_inout_check_u32(dap, JTAG_DP_DPACC,
-				DP_CTRL_STAT, DPAP_WRITE,
-				dap->dp_ctrl_stat | SSTICKYERR, NULL, 0);
-		if (retval != ERROR_OK)
-			goto done;
-
 		if (ctrlstat & SSTICKYERR) {
+			LOG_ERROR("JTAG-DP STICKY ERROR");
+
+			/* Clear Sticky Error Bits */
+			retval = adi_jtag_scan_inout_check_u32(dap, JTAG_DP_DPACC,
+					DP_CTRL_STAT, DPAP_WRITE,
+					ctrlstat | SSTICKYERR, NULL, 0);
+			if (retval != ERROR_OK) {
+				LOG_ERROR("Failed to clear JTAG-DP STICKY ERROR using adi_jtag_scan_inout_check_u32");			
+				goto done;
+			}
+
 			retval = ERROR_JTAG_DEVICE_ERROR;
 			goto done;
 		}
+
+		if (ctrlstat & SSTICKYORUN)
+		LOG_DEBUG("JTAG-DP STICKY OVERRUN");
+
 	}
 
  done:

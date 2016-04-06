@@ -40,6 +40,8 @@
 #define ITM_LAR_KEY	0xC5ACCE55
 
 #define CPUID		0xE000ED00
+#define ID_DFR		0xE000ED48
+#define DIDR		0xE000E000
 /* Debug Control Block */
 #define DCB_DHCSR	0xE000EDF0
 #define DCB_DCRSR	0xE000EDF4
