@@ -870,6 +870,10 @@ static int cmsis_dap_init(void)
 	if (retval != ERROR_OK)
 		return retval;
 
+	retval = cmsis_dap_get_version_info();
+	if (retval != ERROR_OK)
+		return retval;
+
 	if (swd_mode) {
 		retval = cmsis_dap_swd_open();
 		if (retval != ERROR_OK)
@@ -889,10 +893,6 @@ static int cmsis_dap_init(void)
 
 		LOG_INFO("CMSIS-DAP: Interface Initialised (JTAG)");
 	}
-
-	retval = cmsis_dap_get_version_info();
-	if (retval != ERROR_OK)
-		return retval;
 
 	/* INFO_ID_PKT_SZ - short */
 	retval = cmsis_dap_cmd_DAP_Info(INFO_ID_PKT_SZ, &data);
