@@ -277,6 +277,11 @@ static int cmsis_dap_usb_open(void)
 	 * hardcoding a match by VID */
 	if (target_vid == 0x03eb)
 		packet_size = 512 + 1;
+	/* atmel mEDBG is 35 (can't string match product, it's gone) */
+	//if ((target_vid == 0x03eb) && wcsstr(cur_dev->product_string, L"mEDBG")) {
+	if ((target_vid == 0x03eb) && (target_pid == 0x2145)) {
+		packet_size = 35;
+	}
 
 	cmsis_dap_handle->packet_buffer = malloc(packet_size);
 	cmsis_dap_handle->packet_size = packet_size;
