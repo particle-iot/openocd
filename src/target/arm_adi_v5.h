@@ -97,6 +97,9 @@
 #define MEM_AP_REG_BASE64	0xF0		/* RO: Debug Base Address (LA) register */
 #define MEM_AP_REG_CFG		0xF4		/* RO: Configuration register */
 #define MEM_AP_REG_BASE		0xF8		/* RO: Debug Base Address register */
+#define MEM_AP_REG_BASE_MASK	0xfffff000
+#define MEM_AP_REG_BASE_VALID	(1UL << 0)
+#define MEM_AP_REG_BASE_CM	0xe00ff000
 /* Generic AP register address */
 #define AP_REG_IDR			0xFC		/* RO: Identification Register */
 
@@ -290,6 +293,7 @@ enum ap_type {
 	AP_TYPE_AHB_AP  = 0x1,  /* AHB Memory-AP */
 	AP_TYPE_APB_AP  = 0x2,  /* APB Memory-AP */
 	AP_TYPE_AXI_AP  = 0x4,  /* AXI Memory-AP */
+	AP_TYPE_AHB_AP_CM = 0xf, /* AHB Memory-AP with present cortex-m debugbase */
 };
 
 /**
