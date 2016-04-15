@@ -757,10 +757,22 @@ int dap_find_ap(struct adiv5_dap *dap, enum ap_type type_to_find, struct adiv5_a
 
 		/* read the IDR register of the Access Port */
 		uint32_t id_val = 0;
+		uint32_t baseaddr = 0;
 
 		int retval = dap_queue_ap_read(dap_ap(dap, ap_num), AP_REG_IDR, &id_val);
 		if (retval != ERROR_OK)
 			return retval;
+
+		if (type_to_find == AP_TYPE_AHB_AP_CM) {
+			retval = dap_queue_ap_read(dap_ap(dap, ap_num), MEM_AP_REG_BASE, &baseaddr);
+			if (retval != ERROR_OK)
+				return retval;
+			retval = dap_run(dap);
+			if ((retval == ERROR_OK) &&
+			    ((baseaddr & MEM_AP_REG_BASE_VALID) &&
+			     ((baseaddr & MEM_AP_REG_BASE_MASK) == MEM_AP_REG_BASE_CM)))
+				type_to_find = AP_TYPE_AHB_AP;
+		}
 
 		retval = dap_run(dap);
 
