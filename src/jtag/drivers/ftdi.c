@@ -99,8 +99,8 @@ static bool swd_mode;
 
 #define MAX_USB_IDS 8
 /* vid = pid = 0 marks the end of the list */
-static uint16_t ftdi_vid[MAX_USB_IDS + 1] = { 0 };
-static uint16_t ftdi_pid[MAX_USB_IDS + 1] = { 0 };
+static uint16_t ftdi_vid[MAX_USB_IDS + 1] = { 0x0403, 0 };
+static uint16_t ftdi_pid[MAX_USB_IDS + 1] = { 0x6010, 0 };
 
 static struct mpsse_ctx *mpsse_ctx;
 
