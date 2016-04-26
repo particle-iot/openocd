@@ -732,6 +732,7 @@ COMMAND_HANDLER(handle_armv4_5_reg_command)
 				sep = "";
 				break;
 			case ARM_MODE_MON:
+			case ARM_MODE_1176_MON:
 				if (arm->core_type != ARM_MODE_MON)
 					continue;
 			/* FALLTHROUGH */
