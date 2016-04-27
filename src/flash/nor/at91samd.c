@@ -75,6 +75,7 @@
 #define SAMD_SERIES_21		0x01
 #define SAMD_SERIES_10		0x02
 #define SAMD_SERIES_11		0x03
+#define SAMD_SERIES_09		0x04
 
 /* Device ID macros */
 #define SAMD_GET_PROCESSOR(id) (id >> 28)
@@ -219,6 +220,12 @@ static const struct samd_part samc21_parts[] = {
 	{ 0x0D, "SAMC21E15A", 32, 4 },
 };
 
+/* Known SAMD09 parts */
+static const struct samd_part samd09_parts[] = {
+	{ 0x0, "SAMD09D14A", 16, 4 },
+	{ 0x1, "SAMD09C13A", 8, 4 },
+};
+
 /* Each family of parts contains a parts table in the DEVSEL field of DID.  The
  * processor ID, family ID, and series ID are used to determine which exact
  * family this is and then we can use the corresponding table. */
@@ -248,6 +255,8 @@ static const struct samd_family samd_families[] = {
 		samc20_parts, ARRAY_SIZE(samc20_parts) },
 	{ SAMD_PROCESSOR_M0, SAMD_FAMILY_C, SAMD_SERIES_21,
 		samc21_parts, ARRAY_SIZE(samc21_parts) },
+	{ SAMD_PROCESSOR_M0, SAMD_FAMILY_D, SAMD_SERIES_09,
+		samd09_parts, ARRAY_SIZE(samd09_parts) },
 };
 
 struct samd_info {
