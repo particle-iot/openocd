@@ -28,18 +28,20 @@
 #include "command.h"
 
 #include <getopt.h>
+#include <limits.h>
+#include <stdlib.h>
 
 static int help_flag, version_flag;
 
 static const struct option long_options[] = {
-	{"help",		no_argument,			&help_flag,		1},
-	{"version",		no_argument,			&version_flag,	1},
-	{"debug",		optional_argument,		0,				'd'},
-	{"file",		required_argument,		0,				'f'},
-	{"search",		required_argument,		0,				's'},
-	{"log_output",	required_argument,		0,				'l'},
-	{"command",		required_argument,		0,				'c'},
-	{"pipe",		no_argument,			0,				'p'},
+	{"help",                no_argument,                    &help_flag,             1},
+	{"version",             no_argument,                    &version_flag,  1},
+	{"debug",               optional_argument,              0,                              'd'},
+	{"file",                required_argument,              0,                              'f'},
+	{"search",              required_argument,              0,                              's'},
+	{"log_output",  required_argument,              0,                              'l'},
+	{"command",             required_argument,              0,                              'c'},
+	{"pipe",                no_argument,                    0,                              'p'},
 	{0, 0, 0, 0}
 };
 
@@ -50,7 +52,6 @@ int configuration_output_handler(struct command_context *context, const char *li
 	return ERROR_OK;
 }
 
-#ifdef _WIN32
 static char *find_suffix(const char *text, const char *suffix)
 {
 	size_t text_len = strlen(text);
@@ -60,16 +61,43 @@ static char *find_suffix(const char *text, const char *suffix)
 		return (char *)text + text_len;
 
 	if (suffix_len > text_len || strncmp(text + text_len - suffix_len, suffix, suffix_len) != 0)
-		return NULL; /* Not a suffix of text */
+		return NULL;	/* Not a suffix of text */
 
 	return (char *)text + text_len - suffix_len;
 }
-#endif
+
+/** Concatenate strings, and add script search dir. */
+static void add_script_dir(char *prefix, const char *suffix)
+{
+	/* Never build a suffix only path to the root directory. */
+	if ((prefix == NULL) || (strlen(prefix) == 0))
+		return;
+
+	/* Convert path separators to UNIX style, should work on Windows also. */
+	for (char *p = prefix; *p; p++) {
+		if (*p == '\\')
+			*p = '/';
+	}
+
+	char *path = alloc_printf("%s%s", prefix, suffix);
+	if (path) {
+		add_script_search_dir(path);
+		free(path);
+	}
+}
+
+static void add_script_dirs(char *prefix)
+{
+	/* Don't add /site or /scripts */
+	if ((prefix == NULL) || (strlen(prefix) == 0))
+		return;
+	add_script_dir(prefix, "/site");
+	add_script_dir(prefix, "/scripts");
+}
 
 static void add_default_dirs(void)
 {
-	const char *run_prefix;
-	char *path;
+	char *run_prefix = "";
 
 #ifdef _WIN32
 	char strExePath[MAX_PATH];
@@ -83,15 +111,27 @@ static void add_default_dirs(void)
 		if (*p == '\\')
 			*p = '/';
 	}
+#else
+	char strExePath[PATH_MAX];
+	char *ret = realpath("/proc/self/exe", strExePath);
+	if (ret == NULL)
+		perror("realpath: ");
+
+	/* Strip executable file name, leaving path */
+	*strrchr(strExePath, '/') = '\0';
+#endif
 
 	char *end_of_prefix = find_suffix(strExePath, BINDIR);
 	if (end_of_prefix != NULL)
 		*end_of_prefix = '\0';
 
+	/* In some cases, BINDIR is a path that doesn't match.
+	The executable path suffix is 'bin' in this case. */
+	end_of_prefix = find_suffix(strExePath, "bin");
+	if (end_of_prefix != NULL)
+		*end_of_prefix = '\0';
+
 	run_prefix = strExePath;
-#else
-	run_prefix = "";
-#endif
 
 	LOG_DEBUG("bindir=%s", BINDIR);
 	LOG_DEBUG("pkgdatadir=%s", PKGDATADIR);
@@ -102,44 +142,21 @@ static void add_default_dirs(void)
 	 * listed last in the built-in search order, so the user can
 	 * override these scripts with site-specific customizations.
 	 */
-	const char *home = getenv("HOME");
 
-	if (home) {
-		path = alloc_printf("%s/.openocd", home);
-		if (path) {
-			add_script_search_dir(path);
-			free(path);
-		}
-	}
+	add_script_dir(getenv("HOME"), "/.openocd");
 
-	path = getenv("OPENOCD_SCRIPTS");
-
-	if (path)
-		add_script_search_dir(path);
+	add_script_dir(getenv("OPENOCD_SCRIPTS"), "");
 
 #ifdef _WIN32
-	const char *appdata = getenv("APPDATA");
+	char *appdata = getenv("APPDATA");
 
-	if (appdata) {
-		path = alloc_printf("%s/OpenOCD", appdata);
-		if (path) {
-			add_script_search_dir(path);
-			free(path);
-		}
-	}
+	if (appdata)
+		add_script_dir(appdata, "/OpenOCD");
 #endif
 
-	path = alloc_printf("%s%s%s", run_prefix, PKGDATADIR, "/site");
-	if (path) {
-		add_script_search_dir(path);
-		free(path);
-	}
+	add_script_dirs(run_prefix);
+	add_script_dirs(PKGDATADIR);
 
-	path = alloc_printf("%s%s%s", run_prefix, PKGDATADIR, "/scripts");
-	if (path) {
-		add_script_search_dir(path);
-		free(path);
-	}
 }
 
 int parse_cmdline_args(struct command_context *cmd_ctx, int argc, char *argv[])
@@ -177,7 +194,8 @@ int parse_cmdline_args(struct command_context *cmd_ctx, int argc, char *argv[])
 				break;
 			case 'd':		/* --debug | -d */
 			{
-				char *command = alloc_printf("debug_level %s", optarg ? optarg : "3");
+				char *command = alloc_printf("debug_level %s",
+					optarg ? optarg : "3");
 				command_run_line(cmd_ctx, command);
 				free(command);
 				break;
@@ -191,14 +209,15 @@ int parse_cmdline_args(struct command_context *cmd_ctx, int argc, char *argv[])
 				break;
 			case 'c':		/* --command | -c */
 				if (optarg)
-				    add_config_command(optarg);
+					add_config_command(optarg);
 				break;
 			case 'p':
 				/* to replicate the old syntax this needs to be synchronous
 				 * otherwise the gdb stdin will overflow with the warning message */
 				command_run_line(cmd_ctx, "gdb_port pipe; log_output openocd.log");
-				LOG_WARNING("deprecated option: -p/--pipe. Use '-c \"gdb_port pipe; "
-						"log_output openocd.log\"' instead.");
+				LOG_WARNING(
+				"deprecated option: -p/--pipe. Use '-c \"gdb_port pipe; "
+				"log_output openocd.log\"' instead.");
 				break;
 		}
 	}
@@ -216,8 +235,8 @@ int parse_cmdline_args(struct command_context *cmd_ctx, int argc, char *argv[])
 	}
 
 	if (version_flag) {
-		/* Nothing to do, version gets printed automatically. */
-		/* It is not an error to request the VERSION number. */
+		/* Nothing to do, version gets printed automatically.
+		 * It is not an error to request the VERSION number. */
 		exit(0);
 	}
 
