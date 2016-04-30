@@ -41,6 +41,7 @@ NOR_DRIVERS = \
 	ocl.c \
 	pic32mx.c \
 	psoc4.c \
+	psoc5lp.c \
 	sim3x.c \
 	spi.c \
 	stmsmi.c \
