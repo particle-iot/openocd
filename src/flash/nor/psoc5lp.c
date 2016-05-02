@@ -12,9 +12,12 @@
 
 #include "imp.h"
 
+#define PM_ACT_CFG12		0x400043AC
 #define SPC_CPU_DATA		0x40004720
 #define SPC_SR			0x40004722
 #define PANTHER_DEVICE_ID	0x4008001C
+
+#define PM_ACT_CFG12_EN_EE	(1 << 4)
 
 #define SPC_KEY1	0xB6
 #define SPC_KEY2	0xD3
@@ -52,6 +55,8 @@
 #define SECTOR_SIZE		(ROWS_PER_SECTOR * ROW_SIZE)
 #define BLOCK_SIZE		(256 * ROW_SIZE)
 #define SECTORS_PER_BLOCK	(BLOCK_SIZE / SECTOR_SIZE)
+#define EEPROM_ROW_SIZE		16
+#define EEPROM_SECTOR_SIZE	(ROWS_PER_SECTOR * EEPROM_ROW_SIZE)
 
 #define PART_NUMBER_LEN		(17 + 1)
 
@@ -373,6 +378,163 @@ static int psoc5lp_spc_get_temp(struct target *target, uint8_t samples,
 
 	return ERROR_OK;
 }
+
+/*
+ * EEPROM
+ */
+
+struct psoc5lp_eeprom_flash_bank {
+	bool probed;
+	const struct psoc5lp_device *device;
+};
+
+static int psoc5lp_eeprom_erase(struct flash_bank *bank, int first, int last)
+{
+	int i, retval;
+
+	for (i = first; i <= last; i++) {
+		retval = psoc5lp_spc_erase_sector(bank->target,
+				SPC_ARRAY_EEPROM, i);
+		if (retval != ERROR_OK)
+			return retval;
+	}
+
+	return ERROR_OK;
+}
+
+static int psoc5lp_eeprom_protect_check(struct flash_bank *bank)
+{
+	return ERROR_OK;
+}
+
+static int psoc5lp_eeprom_get_info_command(struct flash_bank *bank, char *buf, int buf_size)
+{
+	struct psoc5lp_eeprom_flash_bank *psoc_eeprom_bank = bank->driver_priv;
+	char part_number[PART_NUMBER_LEN];
+
+	psoc5lp_get_part_number(psoc_eeprom_bank->device, part_number);
+
+	snprintf(buf, buf_size, "%s", part_number);
+
+	return ERROR_OK;
+}
+
+static int psoc5lp_eeprom_probe(struct flash_bank *bank)
+{
+	struct psoc5lp_eeprom_flash_bank *psoc_eeprom_bank = bank->driver_priv;
+	uint32_t flash_addr = bank->base;
+	uint32_t device_id, val;
+	unsigned dev;
+	int i, retval;
+
+	if (psoc_eeprom_bank->probed)
+		return ERROR_OK;
+
+	if (bank->target->state != TARGET_HALTED) {
+		LOG_ERROR("Target not halted");
+		return ERROR_TARGET_NOT_HALTED;
+	}
+
+	/* Verify JTAG ID (5.3) */
+	retval = psoc5lp_get_device_id(bank->target, &device_id);
+	if (retval != ERROR_OK)
+		return retval;
+	LOG_DEBUG("PANTHER_DEVICE_ID = 0x%08" PRIX32, device_id);
+
+	psoc_eeprom_bank->device = NULL;
+	for (dev = 0; dev < ARRAY_SIZE(psoc5lp_devices); dev++) {
+		if (psoc5lp_devices[dev].id == device_id) {
+			psoc_eeprom_bank->device = &psoc5lp_devices[dev];
+			break;
+		}
+	}
+	if (!psoc_eeprom_bank->device) {
+		LOG_ERROR("Device 0x%08" PRIX32 " not supported", device_id);
+		return ERROR_FLASH_OPER_UNSUPPORTED;
+	}
+
+	retval = target_read_u32(bank->target, PM_ACT_CFG12, &val);
+	if (retval != ERROR_OK)
+		return retval;
+	if (!(val & PM_ACT_CFG12_EN_EE)) {
+		val |= PM_ACT_CFG12_EN_EE;
+		retval = target_write_u32(bank->target, PM_ACT_CFG12, val);
+		if (retval != ERROR_OK)
+			return retval;
+	}
+
+	bank->size = psoc_eeprom_bank->device->eeprom_kb * 1024;
+	bank->num_sectors = DIV_ROUND_UP(bank->size, EEPROM_SECTOR_SIZE);
+	bank->sectors = calloc(bank->num_sectors,
+			       sizeof(struct flash_sector));
+	for (i = 0; i < bank->num_sectors; i++) {
+		bank->sectors[i].size = EEPROM_SECTOR_SIZE;
+		bank->sectors[i].offset = flash_addr - bank->base;
+		bank->sectors[i].is_erased = -1;
+		bank->sectors[i].is_protected = -1;
+
+		flash_addr += bank->sectors[i].size;
+	}
+
+	bank->default_padded_value = 0x00;
+
+	psoc_eeprom_bank->probed = true;
+
+	return ERROR_OK;
+}
+
+static int psoc5lp_eeprom_auto_probe(struct flash_bank *bank)
+{
+	struct psoc5lp_eeprom_flash_bank *psoc_eeprom_bank = bank->driver_priv;
+
+	if (psoc_eeprom_bank->probed)
+		return ERROR_OK;
+
+	return psoc5lp_eeprom_probe(bank);
+}
+
+FLASH_BANK_COMMAND_HANDLER(psoc5lp_eeprom_flash_bank_command)
+{
+	struct psoc5lp_eeprom_flash_bank *psoc_eeprom_bank;
+
+	psoc_eeprom_bank = malloc(sizeof(struct psoc5lp_eeprom_flash_bank));
+	if (!psoc_eeprom_bank)
+		return ERROR_FLASH_OPERATION_FAILED;
+
+	psoc_eeprom_bank->probed = false;
+	psoc_eeprom_bank->device = NULL;
+
+	bank->driver_priv = psoc_eeprom_bank;
+
+	return ERROR_OK;
+}
+
+static const struct command_registration psoc5lp_eeprom_exec_command_handlers[] = {
+	COMMAND_REGISTRATION_DONE
+};
+
+static const struct command_registration psoc5lp_eeprom_command_handlers[] = {
+	{
+		.name = "psoc5lp_eeprom",
+		.mode = COMMAND_ANY,
+		.help = "PSoC 5LP EEPROM command group",
+		.usage = "",
+		.chain = psoc5lp_eeprom_exec_command_handlers,
+	},
+	COMMAND_REGISTRATION_DONE
+};
+
+struct flash_driver psoc5lp_eeprom_flash = {
+	.name = "psoc5lp_eeprom",
+	.commands = psoc5lp_eeprom_command_handlers,
+	.flash_bank_command = psoc5lp_eeprom_flash_bank_command,
+	.info = psoc5lp_eeprom_get_info_command,
+	.probe = psoc5lp_eeprom_probe,
+	.auto_probe = psoc5lp_eeprom_auto_probe,
+	.protect_check = psoc5lp_eeprom_protect_check,
+	.read = default_flash_read,
+	.erase = psoc5lp_eeprom_erase,
+};
 
 /*
  * Program Flash
