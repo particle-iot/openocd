@@ -1550,8 +1550,10 @@ int arm_blank_check_memory(struct target *target,
 				check_algorithm->address
 				+ i * sizeof(uint32_t),
 				check_code[i]);
-		if (retval != ERROR_OK)
+		if (retval != ERROR_OK) {
+			target_free_working_area(target, check_algorithm);
 			return retval;
+		}
 	}
 
 	arm_algo.common_magic = ARM_COMMON_MAGIC;
