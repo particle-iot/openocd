@@ -2394,7 +2394,7 @@ struct target_type cortexm_target = {
 	.read_memory = cortex_m_read_memory,
 	.write_memory = cortex_m_write_memory,
 	.checksum_memory = armv7m_checksum_memory,
-	.blank_check_memory = armv7m_blank_check_memory,
+	.blank_check_memory = armv7m_ff_blank_check_memory,
 
 	.run_algorithm = armv7m_run_algorithm,
 	.start_algorithm = armv7m_start_algorithm,
