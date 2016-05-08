@@ -224,7 +224,9 @@ int armv7m_restore_context(struct target *target);
 
 int armv7m_checksum_memory(struct target *target,
 		uint32_t address, uint32_t count, uint32_t *checksum);
-int armv7m_blank_check_memory(struct target *target,
+int armv7m_ff_blank_check_memory(struct target *target,
+		uint32_t address, uint32_t count, uint32_t *blank);
+int armv7m_0_blank_check_memory(struct target *target,
 		uint32_t address, uint32_t count, uint32_t *blank);
 
 int armv7m_maybe_skip_bkpt_inst(struct target *target, bool *inst_found);
