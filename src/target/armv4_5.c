@@ -1466,8 +1466,10 @@ int arm_checksum_memory(struct target *target,
 		retval = target_write_u32(target,
 				crc_algorithm->address + i * sizeof(uint32_t),
 				arm_crc_code[i]);
-		if (retval != ERROR_OK)
+		if (retval != ERROR_OK) {
+			target_free_working_area(target, crc_algorithm);
 			return retval;
+		}
 	}
 
 	arm_algo.common_magic = ARM_COMMON_MAGIC;
