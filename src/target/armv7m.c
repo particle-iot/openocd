@@ -728,8 +728,8 @@ cleanup:
 	return retval;
 }
 
-/** Checks whether a memory region is zeroed. */
-int armv7m_blank_check_memory(struct target *target,
+static int armv7m_blank_check_memory(struct target *target,
+	const uint8_t *code, size_t code_size, uint8_t erased_value,
 	uint32_t address, uint32_t count, uint32_t *blank)
 {
 	struct working_area *erase_check_algorithm;
@@ -737,17 +737,13 @@ int armv7m_blank_check_memory(struct target *target,
 	struct armv7m_algorithm armv7m_info;
 	int retval;
 
-	static const uint8_t erase_check_code[] = {
-#include "../../contrib/loaders/erase_check/armv7m_erase_check.inc"
-	};
-
 	/* make sure we have a working area */
-	if (target_alloc_working_area(target, sizeof(erase_check_code),
+	if (target_alloc_working_area(target, code_size,
 		&erase_check_algorithm) != ERROR_OK)
 		return ERROR_TARGET_RESOURCE_NOT_AVAILABLE;
 
 	retval = target_write_buffer(target, erase_check_algorithm->address,
-			sizeof(erase_check_code), (uint8_t *)erase_check_code);
+			code_size, code);
 	if (retval != ERROR_OK)
 		goto cleanup;
 
@@ -761,7 +757,7 @@ int armv7m_blank_check_memory(struct target *target,
 	buf_set_u32(reg_params[1].value, 0, 32, count);
 
 	init_reg_param(&reg_params[2], "r2", 32, PARAM_IN_OUT);
-	buf_set_u32(reg_params[2].value, 0, 32, 0xff);
+	buf_set_u32(reg_params[2].value, 0, 32, erased_value);
 
 	retval = target_run_algorithm(target,
 			0,
@@ -769,7 +765,7 @@ int armv7m_blank_check_memory(struct target *target,
 			3,
 			reg_params,
 			erase_check_algorithm->address,
-			erase_check_algorithm->address + (sizeof(erase_check_code) - 2),
+			erase_check_algorithm->address + (code_size - 2),
 			10000,
 			&armv7m_info);
 
@@ -784,6 +780,32 @@ cleanup:
 	target_free_working_area(target, erase_check_algorithm);
 
 	return retval;
+}
+
+/** Checks whether a memory region is zeroed (0xff). */
+int armv7m_ff_blank_check_memory(struct target *target,
+	uint32_t address, uint32_t count, uint32_t *blank)
+{
+	static const uint8_t erase_check_code[] = {
+#include "../../contrib/loaders/erase_check/armv7m_erase_check.inc"
+	};
+
+	return armv7m_blank_check_memory(target,
+		erase_check_code, sizeof(erase_check_code), 0xff,
+		address, count, blank);
+}
+
+/** Checks whether a memory region is zeroed (0x00). */
+int armv7m_0_blank_check_memory(struct target *target,
+	uint32_t address, uint32_t count, uint32_t *blank)
+{
+	static const uint8_t erase_check_code[] = {
+#include "../../contrib/loaders/erase_check/armv7m_0_erase_check.inc"
+	};
+
+	return armv7m_blank_check_memory(target,
+		erase_check_code, sizeof(erase_check_code), 0x00,
+		address, count, blank);
 }
 
 int armv7m_maybe_skip_bkpt_inst(struct target *target, bool *inst_found)
