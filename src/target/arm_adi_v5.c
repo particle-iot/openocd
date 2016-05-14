@@ -1004,8 +1004,8 @@ static const struct {
 	{ ARM_ID, 0x931, "Cortex-R5 ETM",    "(Embedded Trace)", },
 	{ ARM_ID, 0x932, "CoreSight MTB-M0+", "(Micro Trace Buffer)", },
 	{ ARM_ID, 0x941, "CoreSight TPIU-Lite", "(Trace Port Interface Unit)", },
-	{ ARM_ID, 0x950, "Cortex-A9 PTM", "(Program Trace Macrocell)", },
-	{ ARM_ID, 0x955, "Cortex-A5 ETM", "(Embedded Trace)", },
+	{ ARM_ID, 0x950, "Cortex-A9 PTM",    "(Program Trace Macrocell)", },
+	{ ARM_ID, 0x955, "Cortex-A5 ETM",    "(Embedded Trace)", },
 	{ ARM_ID, 0x95a, "Cortex-A72 ETM",   "(Embedded Trace)", },
 	{ ARM_ID, 0x95b, "Cortex-A17 PTM",   "(Program Trace Macrocell)", },
 	{ ARM_ID, 0x95d, "Cortex-A53 ETM",   "(Embedded Trace)", },
@@ -1019,14 +1019,14 @@ static const struct {
 	{ ARM_ID, 0x9a4, "CoreSight GPR",    "(Granular Power Requester)", },
 	{ ARM_ID, 0x9a5, "Cortex-A5 PMU",    "(Performance Monitor Unit)", },
 	{ ARM_ID, 0x9a7, "Cortex-A7 PMU",    "(Performance Monitor Unit)", },
-	{ ARM_ID, 0x9a8, "Cortex-A53 CTI",    "(Cross Trigger)", },
+	{ ARM_ID, 0x9a8, "Cortex-A53 CTI",   "(Cross Trigger)", },
 	{ ARM_ID, 0x9a9, "Cortex-M7 TPIU",   "(Trace Port Interface Unit)", },
-	{ ARM_ID, 0x9ae, "Cortex-A17 PMU",    "(Performance Monitor Unit)", },
+	{ ARM_ID, 0x9ae, "Cortex-A17 PMU",   "(Performance Monitor Unit)", },
 	{ ARM_ID, 0x9af, "Cortex-A15 PMU",   "(Performance Monitor Unit)", },
 	{ ARM_ID, 0x9b7, "Cortex-R7 PMU",    "(Performance Monitoring Unit)", },
-	{ ARM_ID, 0x9d3, "Cortex-A53 PMU",    "(Performance Monitor Unit)", },
-	{ ARM_ID, 0x9d7, "Cortex-A57 PMU",    "(Performance Monitor Unit)", },
-	{ ARM_ID, 0x9d8, "Cortex-A72 PMU",    "(Performance Monitor Unit)", },
+	{ ARM_ID, 0x9d3, "Cortex-A53 PMU",   "(Performance Monitor Unit)", },
+	{ ARM_ID, 0x9d7, "Cortex-A57 PMU",   "(Performance Monitor Unit)", },
+	{ ARM_ID, 0x9d8, "Cortex-A72 PMU",   "(Performance Monitor Unit)", },
 	{ ARM_ID, 0xc05, "Cortex-A5 Debug",  "(Debug Unit)", },
 	{ ARM_ID, 0xc07, "Cortex-A7 Debug",  "(Debug Unit)", },
 	{ ARM_ID, 0xc08, "Cortex-A8 Debug",  "(Debug Unit)", },
@@ -1036,15 +1036,15 @@ static const struct {
 	{ ARM_ID, 0xc14, "Cortex-R4 Debug",  "(Debug Unit)", },
 	{ ARM_ID, 0xc15, "Cortex-R5 Debug",  "(Debug Unit)", },
 	{ ARM_ID, 0xc17, "Cortex-R7 Debug",  "(Debug Unit)", },
-	{ ARM_ID, 0xd03, "Cortex-A53 Debug",  "(Debug Unit)", },
-	{ ARM_ID, 0xd07, "Cortex-A57 Debug",  "(Debug Unit)", },
-	{ ARM_ID, 0xd08, "Cortex-A72 Debug",  "(Debug Unit)", },
+	{ ARM_ID, 0xd03, "Cortex-A53 Debug", "(Debug Unit)", },
+	{ ARM_ID, 0xd07, "Cortex-A57 Debug", "(Debug Unit)", },
+	{ ARM_ID, 0xd08, "Cortex-A72 Debug", "(Debug Unit)", },
 	{ 0x09f,  0xcd0, "Atmel CPU with DSU", "(CPU)" },
 	{ 0x0E5,  0x000, "SHARC+/Blackfin+", "", },
 	{ 0x0F0,  0x440, "Qualcomm QDSS Component v1", "(Qualcomm Designed CoreSight Component v1)", },
 	/* legacy comment: 0x113: what? */
-	{ ANY_ID,  0x120, "TI SDTI",         "(System Debug Trace Interface)", }, /* from OMAP3 memmap */
-	{ ANY_ID,  0x343, "TI DAPCTL",       "", }, /* from OMAP3 memmap */
+	{ ANY_ID, 0x120, "TI SDTI",          "(System Debug Trace Interface)", }, /* from OMAP3 memmap */
+	{ ANY_ID, 0x343, "TI DAPCTL",        "", }, /* from OMAP3 memmap */
 };
 
 static int dap_rom_display(struct command_context *cmd_ctx,
