@@ -36,5 +36,6 @@ int nand_read_page(struct nand_device *nand, uint32_t page,
 int nand_probe(struct nand_device *nand);
 int nand_erase(struct nand_device *nand, int first_block, int last_block);
 int nand_build_bbt(struct nand_device *nand, int first, int last);
+bool nand_check_block_is_bad(struct nand_device *nand, int block);
 
 #endif	/* FLASH_NAND_IMP_H */

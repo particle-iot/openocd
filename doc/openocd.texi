@@ -6190,6 +6190,9 @@ The @var{offset} and @var{length} must be exact multiples of the
 device's page size. They describe a data region; the OOB data
 associated with each such page may also be accessed.
 
+When @command{nand skip_bad_blocks} is enabled, all bad blocks will
+be skipped to be fully compatible with @command{nand write}.
+
 @b{NOTE:} At the time this text was written, no error correction
 was done on the data that's read, unless raw access was disabled
 and the underlying NAND controller driver had a @code{read_page}
@@ -6225,9 +6228,9 @@ If those parameters are not specified,
 the whole NAND chip will be erased.
 The @var{num} parameter is the value shown by @command{nand list}.
 
-@b{NOTE:} This command will try to erase bad blocks, when told
+@b{NOTE:} Per default this command will try to erase bad blocks, when told
 to do so, which will probably invalidate the manufacturer's bad
-block marker.
+block marker. To modify this behavior, use @command{nand skip_bad_blocks}.
 For the remainder of the current server session, @command{nand info}
 will still report that the block ``is'' bad.
 @end deffn
@@ -6250,9 +6253,11 @@ Only full pages are written, and any extra space in the last
 page will be filled with 0xff bytes. (That includes OOB data,
 if that's being written.)
 
-@b{NOTE:} At the time this text was written, bad blocks are
-ignored. That is, this routine will not skip bad blocks,
-but will instead try to write them. This can cause problems.
+@b{NOTE:} Per default, bad blocks are ignored. That is, this routine
+will not skip bad blocks, but will instead try to write them. This
+can cause problems. This behavior can be modified with
+@command{skip_bad_blocks}. When bad block skipping is enabled, the
+data may be written beyond @var{offset} + file size.
 
 Provide at most one @var{option} parameter. With some
 NAND drivers, the meanings of these parameters may change
@@ -6311,6 +6316,9 @@ The same @var{options} accepted by @command{nand write},
 and the file will be processed similarly to produce the buffers that
 can be compared against the contents produced from @command{nand dump}.
 
+When @command{nand skip_bad_blocks} is enabled, all bad blocks will
+be skipped to be fully compatible with @command{nand write}.
+
 @b{NOTE:} This will not work when the underlying NAND controller
 driver's @code{write_page} routine must update the OOB with a
 hardward-computed ECC before the data is written. This limitation may
@@ -6358,6 +6366,25 @@ raw access (setting the flag) prevents use of those methods,
 bypassing hardware ECC logic.
 @i{This can be a dangerous option}, since writing blocks
 with the wrong ECC data can cause them to be marked as bad.
+@end deffn
+
+@deffn Command {nand skip_bad_blocks} num (@option{enable}|@option{disable})
+Sets or clears an flag affecting how page I/O is done.
+The @var{num} parameter is the value shown by @command{nand list}.
+
+This flag is cleared (disabled) by default, resulting in the commands
+@command{nand write} and @command{nand erase} to ignore bad block markers.
+
+When the flag is enabled, bad blocks are skipped completely. See also
+@command{nand write}, @command{nand erase}, @command{nand dump} and
+@command{nand verify} for more information.
+
+@i{This can be a dangerous option}, since writing and erasing bad blocks
+can cause corruption of data and invalidating the manufacturer's bad block
+markers. Skipping bad blocks can cause data to be written outside of the
+expected data range and may or may not work as intended, depending on the
+used processor, bootloader and operating system.
+
 @end deffn
 
 @anchor{nanddriverlist}

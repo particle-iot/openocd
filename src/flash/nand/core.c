@@ -259,6 +259,15 @@ int nand_build_bbt(struct nand_device *nand, int first, int last)
 	return ERROR_OK;
 }
 
+bool nand_check_block_is_bad(struct nand_device *nand, int block)
+{
+	// Retrieve data from flash only once
+	if (nand->blocks[block].is_bad == -1)
+		nand_build_bbt(nand, block, block);
+
+	return (nand->blocks[block].is_bad == 1);
+}
+
 int nand_read_status(struct nand_device *nand, uint8_t *status)
 {
 	if (!nand->device)
@@ -508,15 +517,17 @@ int nand_erase(struct nand_device *nand, int first_block, int last_block)
 	if ((first_block < 0) || (last_block >= nand->num_blocks))
 		return ERROR_COMMAND_SYNTAX_ERROR;
 
-	/* make sure we know if a block is bad before erasing it */
 	for (i = first_block; i <= last_block; i++) {
-		if (nand->blocks[i].is_bad == -1) {
-			nand_build_bbt(nand, i, last_block);
-			break;
+		/* make sure we know if a block is bad before erasing it */
+		const bool bad_block = nand_check_block_is_bad(nand, i);
+		if (bad_block) {
+			if (nand->skip_bad_blocks == 1) {
+				LOG_INFO("Skipped erasing bad block %d", i);
+				continue;
+			} else {
+				LOG_WARNING("Erasing bad block %d (will also erase bad block marker)", i);
+			}
 		}
-	}
-
-	for (i = first_block; i <= last_block; i++) {
 		/* Send erase setup command */
 		nand->controller->command(nand, NAND_CMD_ERASE1);
 
@@ -564,7 +575,7 @@ int nand_erase(struct nand_device *nand, int first_block, int last_block)
 
 		if (status & 0x1) {
 			LOG_ERROR("didn't erase %sblock %d; status: 0x%2.2x",
-				(nand->blocks[i].is_bad == 1)
+				bad_block
 				? "bad " : "",
 				i, status);
 			/* continue; other blocks might still be erasable */

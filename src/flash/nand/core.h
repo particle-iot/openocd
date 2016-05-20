@@ -69,6 +69,7 @@ struct nand_device {
 	int page_size;
 	int erase_size;
 	bool use_raw;
+	bool skip_bad_blocks;
 	int num_blocks;
 	struct nand_block *blocks;
 	struct nand_device *next;
