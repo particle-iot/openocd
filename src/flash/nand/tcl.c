@@ -252,14 +252,26 @@ COMMAND_HANDLER(handle_nand_write_command)
 		return retval;
 
 	uint32_t total_bytes = s.size;
+
 	while (s.size > 0) {
+		const uint32_t block = (s.address / nand->erase_size);
+
+		if (nand_check_block_is_bad(nand, block)) {
+			if (nand->skip_bad_blocks) {
+				LOG_WARNING("Skipping bad block %u", block);
+				s.address += nand->blocks->size;
+				continue;
+			} else {
+				LOG_WARNING("Writing to bad block %u", block);
+			}
+		}
+
 		int bytes_read = nand_fileio_read(nand, &s);
 		if (bytes_read <= 0) {
 			command_print(CMD_CTX, "error while reading file");
 			return nand_fileio_cleanup(&s);
 		}
 		s.size -= bytes_read;
-
 		retval = nand_write_page(nand, s.address / nand->page_size,
 				s.page, s.page_size, s.oob, s.oob_size);
 		if (ERROR_OK != retval) {
@@ -299,6 +311,17 @@ COMMAND_HANDLER(handle_nand_verify_command)
 		return retval;
 
 	while (file.size > 0) {
+		if (nand->skip_bad_blocks) {
+			const uint32_t block = (dev.address  / nand->erase_size);
+
+			/* make sure we know if a block is bad before reading from it */
+			if (nand_check_block_is_bad(nand, block)) {
+				LOG_WARNING("Skipping bad block %u", block);
+				dev.address += nand->blocks->size;
+				continue;
+			}
+		}
+
 		retval = nand_read_page(nand, dev.address / dev.page_size,
 				dev.page, dev.page_size, dev.oob, dev.oob_size);
 		if (ERROR_OK != retval) {
@@ -350,6 +373,15 @@ COMMAND_HANDLER(handle_nand_dump_command)
 		return retval;
 
 	while (s.size > 0) {
+		if (nand->skip_bad_blocks) {
+			const uint32_t block = (s.address  / nand->erase_size);
+			if (nand_check_block_is_bad(nand, block)) {
+				LOG_WARNING("Skipping bad block %u", block);
+				s.address += nand->blocks->size;
+				continue;
+			}
+		}
+
 		size_t size_written;
 		retval = nand_read_page(nand, s.address / nand->page_size,
 				s.page, s.page_size, s.oob, s.oob_size);
@@ -401,6 +433,30 @@ COMMAND_HANDLER(handle_nand_raw_access_command)
 
 	const char *msg = p->use_raw ? "enabled" : "disabled";
 	command_print(CMD_CTX, "raw access is %s", msg);
+
+	return ERROR_OK;
+}
+
+COMMAND_HANDLER(handle_nand_skip_bad_blocks_command)
+{
+	if ((CMD_ARGC < 1) || (CMD_ARGC > 2))
+		return ERROR_COMMAND_SYNTAX_ERROR;
+
+	struct nand_device *p;
+	int retval = CALL_COMMAND_HANDLER(nand_command_get_device, 0, &p);
+	if (ERROR_OK != retval)
+		return retval;
+
+	if (NULL == p->device) {
+		command_print(CMD_CTX, "#%s: not probed", CMD_ARGV[0]);
+		return ERROR_OK;
+	}
+
+	if (CMD_ARGC == 2)
+		COMMAND_PARSE_ENABLE(CMD_ARGV[1], p->skip_bad_blocks);
+
+	const char *msg = p->skip_bad_blocks ? "enabled" : "disabled";
+	command_print(CMD_CTX, "skipping bad blocks is %s", msg);
 
 	return ERROR_OK;
 }
@@ -470,6 +526,13 @@ static const struct command_registration nand_exec_command_handlers[] = {
 		.mode = COMMAND_EXEC,
 		.usage = "bank_id ['enable'|'disable']",
 		.help = "raw access to NAND flash device",
+	},
+	{
+		.name = "skip_bad_blocks",
+		.handler = handle_nand_skip_bad_blocks_command,
+		.mode = COMMAND_EXEC,
+		.usage = "bank_id ['enable'|'disable']",
+		.help = "skip bad blocks when writing/erasing",
 	},
 	COMMAND_REGISTRATION_DONE
 };
@@ -548,6 +611,7 @@ static COMMAND_HELPER(create_nand_device, const char *bank_name,
 	c->address_cycles = 0;
 	c->page_size = 0;
 	c->use_raw = false;
+	c->skip_bad_blocks = false;
 	c->next = NULL;
 
 	retval = CALL_COMMAND_HANDLER(controller->nand_device_command, c);
