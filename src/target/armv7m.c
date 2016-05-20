@@ -728,14 +728,34 @@ cleanup:
 	return retval;
 }
 
-static int armv7m_blank_check_memory(struct target *target,
-	const uint8_t *code, size_t code_size, uint8_t erased_value,
-	uint32_t address, uint32_t count, uint32_t *blank)
+/** Checks whether a memory region is erased. */
+int armv7m_blank_check_memory(struct target *target,
+	uint32_t address, uint32_t count, uint32_t *blank, uint8_t erased_value)
 {
 	struct working_area *erase_check_algorithm;
 	struct reg_param reg_params[3];
 	struct armv7m_algorithm armv7m_info;
+	const uint8_t *code;
+	uint32_t code_size;
 	int retval;
+
+	static const uint8_t erase_check_code[] = {
+#include "../../contrib/loaders/erase_check/armv7m_erase_check.inc"
+	};
+	static const uint8_t zero_erase_check_code[] = {
+#include "../../contrib/loaders/erase_check/armv7m_0_erase_check.inc"
+	};
+
+	switch (erased_value) {
+	case 0x00:
+		code = zero_erase_check_code;
+		code_size = sizeof(zero_erase_check_code);
+		break;
+	case 0xff:
+	default:
+		code = erase_check_code;
+		code_size = sizeof(erase_check_code);
+	}
 
 	/* make sure we have a working area */
 	if (target_alloc_working_area(target, code_size,
@@ -780,32 +800,6 @@ cleanup:
 	target_free_working_area(target, erase_check_algorithm);
 
 	return retval;
-}
-
-/** Checks whether a memory region is erased (0xff). */
-int armv7m_ff_blank_check_memory(struct target *target,
-	uint32_t address, uint32_t count, uint32_t *blank)
-{
-	static const uint8_t erase_check_code[] = {
-#include "../../contrib/loaders/erase_check/armv7m_erase_check.inc"
-	};
-
-	return armv7m_blank_check_memory(target,
-		erase_check_code, sizeof(erase_check_code), 0xff,
-		address, count, blank);
-}
-
-/** Checks whether a memory region is erased (0x00). */
-int armv7m_0_blank_check_memory(struct target *target,
-	uint32_t address, uint32_t count, uint32_t *blank)
-{
-	static const uint8_t erase_check_code[] = {
-#include "../../contrib/loaders/erase_check/armv7m_0_erase_check.inc"
-	};
-
-	return armv7m_blank_check_memory(target,
-		erase_check_code, sizeof(erase_check_code), 0x00,
-		address, count, blank);
 }
 
 int armv7m_maybe_skip_bkpt_inst(struct target *target, bool *inst_found)

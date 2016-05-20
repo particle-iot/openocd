@@ -1516,7 +1516,7 @@ int arm_checksum_memory(struct target *target,
  *
  */
 int arm_blank_check_memory(struct target *target,
-	uint32_t address, uint32_t count, uint32_t *blank)
+	uint32_t address, uint32_t count, uint32_t *blank, uint8_t erased_value)
 {
 	struct working_area *check_algorithm;
 	struct reg_param reg_params[3];
@@ -1565,7 +1565,7 @@ int arm_blank_check_memory(struct target *target,
 	buf_set_u32(reg_params[1].value, 0, 32, count);
 
 	init_reg_param(&reg_params[2], "r2", 32, PARAM_IN_OUT);
-	buf_set_u32(reg_params[2].value, 0, 32, 0xff);
+	buf_set_u32(reg_params[2].value, 0, 32, erased_value);
 
 	/* armv4 must exit using a hardware breakpoint */
 	if (arm->is_armv4)
