@@ -317,8 +317,8 @@ static int xmc4xxx_load_bank_layout(struct flash_bank *bank)
 	}
 
 	/* This part doesn't follow the typical standard of 0xff
-	 * being the default padding value.*/
-	bank->default_padded_value = 0x00;
+	 * being the erased value.*/
+	bank->default_padded_value = bank->erased_value = 0x00;
 
 	return ERROR_OK;
 }
@@ -613,41 +613,6 @@ static int xmc4xxx_enter_page_mode(struct flash_bank *bank)
 	}
 
 	return res;
-}
-
-/* The logical erase value of an xmc4xxx memory cell is 0x00,
- * therefore, we cannot use the built in flash blank check and must
- * implement our own */
-
-static int xmc4xxx_flash_blank_check(struct flash_bank *bank)
-{
-	struct target *target = bank->target;
-	int i;
-	int retval = ERROR_OK;
-	uint32_t blank;
-
-	if (bank->target->state != TARGET_HALTED) {
-		LOG_ERROR("Target not halted");
-		return ERROR_TARGET_NOT_HALTED;
-	}
-
-	for (i = 0; i < bank->num_sectors; i++) {
-		uint32_t address = bank->base + bank->sectors[i].offset;
-		uint32_t size = bank->sectors[i].size;
-
-		LOG_DEBUG("Erase checking 0x%08"PRIx32, address);
-		retval = armv7m_0_blank_check_memory(target, address, size, &blank);
-
-		if (retval != ERROR_OK)
-			break;
-
-		if (blank == 0x00)
-			bank->sectors[i].is_erased = 1;
-		else
-			bank->sectors[i].is_erased = 0;
-	}
-
-	return retval;
 }
 
 static int xmc4xxx_write_page(struct flash_bank *bank, const uint8_t *pg_buf,
@@ -1379,7 +1344,7 @@ struct flash_driver xmc4xxx_flash = {
 	.read = default_flash_read,
 	.probe = xmc4xxx_probe,
 	.auto_probe = xmc4xxx_probe,
-	.erase_check = xmc4xxx_flash_blank_check,
+	.erase_check = default_flash_blank_check,
 	.info = xmc4xxx_get_info_command,
 	.protect_check = xmc4xxx_protect_check,
 	.protect = xmc4xxx_protect,
