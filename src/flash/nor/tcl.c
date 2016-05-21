@@ -171,6 +171,7 @@ COMMAND_HANDLER(handle_flash_erase_check_command)
 		return retval;
 
 	int j;
+	bool blank = true;
 	retval = p->driver->erase_check(p);
 	if (retval == ERROR_OK)
 		command_print(CMD_CTX, "successfully checked erase state");
@@ -183,23 +184,31 @@ COMMAND_HANDLER(handle_flash_erase_check_command)
 
 	for (j = 0; j < p->num_sectors; j++) {
 		char *erase_state;
+		bool do_print = false;
 
-		if (p->sectors[j].is_erased == 0)
+		if (p->sectors[j].is_erased == 0) {
 			erase_state = "not erased";
+			do_print = true;
+		}
 		else if (p->sectors[j].is_erased == 1)
 			erase_state = "erased";
-		else
+		else {
 			erase_state = "erase state unknown";
-
-		command_print(CMD_CTX,
-			"\t#%3i: 0x%8.8" PRIx32 " (0x%" PRIx32 " %" PRIi32 "kB) %s",
-			j,
-			p->sectors[j].offset,
-			p->sectors[j].size,
-			p->sectors[j].size >> 10,
-			erase_state);
+			do_print = true;
+		}
+		if (do_print == true) {
+			blank = false;
+			command_print(CMD_CTX,
+						  "\t#%3i: 0x%8.8" PRIx32 " (0x%" PRIx32 " %" PRIi32 "kB) %s",
+						  j,
+						  p->sectors[j].offset,
+						  p->sectors[j].size,
+						  p->sectors[j].size >> 10,
+						  erase_state);
+		}
 	}
-
+	if (blank == true)
+		command_print(CMD_CTX, "Bank is erased");
 	return retval;
 }
 
