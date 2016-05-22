@@ -407,18 +407,40 @@ size_t unhexify(uint8_t *bin, const char *hex, size_t count)
 	return i / 2;
 }
 
-int hexify(char *hex, const char *bin, int count, int out_maxlen)
+/**
+ * Convert binary data into a string of hexadecimal pairs.
+ *
+ * @param[out] hex Buffer to store string of hexadecimal pairs. The buffer size
+ *                 must be at least @p length.
+ * @param[in] bin Buffer with binary data to convert into hexadecimal pairs.
+ * @param[in] count Number of bytes to convert.
+ * @param[in] length Maximum number of characters, including null-terminator,
+ *                   to store into @p hex.
+ *
+ * @returns The length of the converted string including null-terminator.
+ */
+size_t hexify(char *hex, const uint8_t *bin, size_t count,
+		size_t length)
 {
-	int i, cmd_len = 0;
+	size_t i;
+	size_t len;
+	int tmp;
 
-	/* May use a length, or a null-terminated string as input. */
-	if (count == 0)
-		count = strlen(bin);
+	if (!hex || !bin)
+		return 0;
 
-	for (i = 0; i < count; i++)
-		cmd_len += snprintf(hex + cmd_len, out_maxlen - cmd_len, "%02x", bin[i] & 0xff);
+	len = 0;
 
-	return cmd_len;
+	for (i = 0; i < count; i++) {
+		tmp = snprintf(hex + len, length - len, "%02x", bin[i] & 0xff);
+
+		if (tmp < 0)
+			return len;
+
+		len += tmp;
+	}
+
+	return len;
 }
 
 void buffer_shr(void *_buf, unsigned buf_len, unsigned count)
