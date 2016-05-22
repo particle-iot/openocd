@@ -26,6 +26,14 @@ src/jtag/drivers/OpenULINK/*.lk
 src/jtag/drivers/OpenULINK/*.ihx
 src/jtag/drivers/OpenULINK/*.rst
 
+# Loaders may build intermediate files.
+# Don't interfere with testing/examples/ though.
+contrib/loaders/**/*.elf
+contrib/loaders/**/*.bin
+contrib/loaders/**/*.hex
+contrib/loaders/**/*.lst
+contrib/loaders/**/*.map
+
 # editor files
 *.swp
 
