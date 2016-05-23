@@ -6463,9 +6463,6 @@ parameter: the address of the controller.
 nand device orion 0xd8000000
 @end example
 These controllers don't define any specialized commands.
-At this writing, their drivers don't include @code{write_page}
-or @code{read_page} methods, so @command{nand raw_access} won't
-change any behavior.
 @end deffn
 
 @deffn {NAND Driver} s3c2410
