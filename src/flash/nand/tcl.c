@@ -90,7 +90,7 @@ COMMAND_HANDLER(handle_nand_info_command)
 
 	if (NULL == p->device) {
 		command_print(CMD_CTX, "#%s: not probed", CMD_ARGV[0]);
-		return ERROR_OK;
+		return ERROR_NAND_DEVICE_NOT_PROBED;
 	}
 
 	if (first >= p->num_blocks)
@@ -166,6 +166,11 @@ COMMAND_HANDLER(handle_nand_erase_command)
 	if (ERROR_OK != retval)
 		return retval;
 
+	if (NULL == p->device) {
+		command_print(CMD_CTX, "#%s: not probed", CMD_ARGV[0]);
+		return ERROR_NAND_DEVICE_NOT_PROBED;
+	}
+
 	unsigned long offset;
 	unsigned long length;
 
@@ -212,6 +217,11 @@ COMMAND_HANDLER(handle_nand_check_bad_blocks_command)
 	int retval = CALL_COMMAND_HANDLER(nand_command_get_device, 0, &p);
 	if (ERROR_OK != retval)
 		return retval;
+
+	if (NULL == p->device) {
+		command_print(CMD_CTX, "#%s: not probed", CMD_ARGV[0]);
+		return ERROR_NAND_DEVICE_NOT_PROBED;
+	}
 
 	if (CMD_ARGC == 3) {
 		unsigned long offset;
@@ -393,7 +403,7 @@ COMMAND_HANDLER(handle_nand_raw_access_command)
 
 	if (NULL == p->device) {
 		command_print(CMD_CTX, "#%s: not probed", CMD_ARGV[0]);
-		return ERROR_OK;
+		return ERROR_NAND_DEVICE_NOT_PROBED;
 	}
 
 	if (CMD_ARGC == 2)
