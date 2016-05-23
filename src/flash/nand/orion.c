@@ -76,6 +76,28 @@ static int orion_nand_read(struct nand_device *nand, void *data)
 	return ERROR_OK;
 }
 
+static int orion_nand_read_block_data(struct nand_device *nand,
+		uint8_t *data, int data_size)
+{
+	struct orion_nand_controller *hw = nand->controller_priv;
+	struct target *target = nand->target;
+	int result;
+
+	CHECK_HALTED;
+	hw->io.chunk_size = nand->page_size;
+
+	/* try the fast way first */
+	result = arm_nandread(&hw->io, data, data_size);
+	if (result != ERROR_NAND_NO_BUFFER)
+		return result;
+
+	/* else do it slowly */
+	while (data_size--)
+		orion_nand_read(nand, data++);
+
+	return ERROR_OK;
+}
+
 static int orion_nand_write(struct nand_device *nand, uint16_t data)
 {
 	struct orion_nand_controller *hw = nand->controller_priv;
@@ -157,6 +179,7 @@ struct nand_flash_controller orion_nand_controller = {
 	.read_data = orion_nand_read,
 	.write_data = orion_nand_write,
 	.write_block_data = orion_nand_fast_block_write,
+	.read_block_data = orion_nand_read_block_data,
 	.reset = orion_nand_reset,
 	.nand_device_command = orion_nand_device_command,
 	.init = orion_nand_init,
