@@ -4963,32 +4963,31 @@ flash bank $_FLASHNAME aduc702x 0 0 0 0 $_TARGETNAME
 @deffn {Flash Driver} ambiqmicro
 @cindex ambiqmicro
 @cindex apollo
-All members of the Apollo microcontroller family from
-Ambiq Micro include internal flash and use ARM's Cortex-M4 core.
+@cindex apollo2
+Apollo Ultra Low Power Microcontrollers from
+Ambiq Micro use ARM's Cortex-M4F core.
+
 The host connects over USB to an FTDI interface that communicates
 with the target using SWD.
+
+The adapter_khz starts low. Once the connection is complete and
+the target probed the adapter speed can be raised if needed.
 
 The @var{ambiqmicro} driver reads the Chip Information Register detect
 the device class of the MCU.
 The Flash and Sram sizes directly follow device class, and are used
 to set up the flash banks.
-If this fails, the driver will use default values set to the minimum
-sizes of an Apollo chip.
 
-All Apollo chips have two flash banks of the same size.
+Apollo microcontrollers normally have two flash banks of the same size.
 In all cases the first flash bank starts at location 0,
 and the second bank starts after the first.
 
 @example
-# Flash bank 0
-flash bank $_FLASHNAME ambiqmicro 0 0x00040000 0 0 $_TARGETNAME
+# Flash bank 0 - size determined at runtime.
+flash bank $_FLASHNAME ambiqmicro 0x00000000 0x00000000 0 0 $_TARGETNAME
 # Flash bank 1 - same size as bank0, starts after bank 0.
-flash bank $_FLASHNAME ambiqmicro 0x00040000 0x00040000 0 0 $_TARGETNAME
+flash bank $_FLASHNAME ambiqmicro 0x00000000 0x00000000 0 0 $_TARGETNAME
 @end example
-
-Flash is programmed using custom entry points into the bootloader.
-This is the only way to program the flash as no flash control registers
-are available to the user.
 
 The @var{ambiqmicro} driver adds some additional commands:
 
@@ -4999,10 +4998,31 @@ Erase entire bank.
 Erase device pages.
 @end deffn
 @deffn Command {ambiqmicro program_otp} <bank> <offset> <count>
-Program OTP is a one time operation to create write protected flash.
-The user writes sectors to sram starting at 0x10000010.
-Program OTP will write these sectors from sram to flash, and write protect
-the flash.
+[APOLLO ONLY] Program OTP is a one time operation to program info space.
+Before issuing the command, the caller writes 32 bit words to sram starting at 0x10000010.
+The writes to info space are permanent.
+There is no way to erase and re-program once this command is used.
+@end deffn
+@deffn Command {ambiqmicro program_info} <bank> <offset> <count>
+[APOLLO2 ONLY] Program INFO will write 32 bit words from sram to info space.
+Before issuing the command, the caller writes 32 bit words to sram starting at 0x10001000.
+@end deffn
+@deffn Command {ambiqmicro poi}
+Send Power on Internal (POI) to target.
+The processor and all peripherals are reset.
+@end deffn
+@deffn Command {ambiqmicro por}
+Send  Power On Reset (POR) to target.
+The processor is reset.
+@end deffn
+@deffn Command {ambiqmicro recover}
+[APOLLO2 ONLY] Recover and erase locked device.
+@end deffn
+@deffn Command {ambiqmicro erase_info} <bank>
+[APOLLO2 ONLY] Erase the info space.
+@end deffn
+@deffn Command {ambiqmicro erase_info_plus_main} <bank>
+[APOLLO2 ONLY] Erase the info space plus main bank.
 @end deffn
 @end deffn
 
