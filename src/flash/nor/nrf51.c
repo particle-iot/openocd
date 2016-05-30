@@ -644,26 +644,23 @@ static int nrf51_probe(struct flash_bank *bank)
 
 	if (bank->base == NRF51_FLASH_BASE) {
 		res = target_read_u32(chip->target, NRF51_FICR_CODEPAGESIZE,
-				      &chip->code_page_size);
+		&chip->code_page_size);
 		if (res != ERROR_OK) {
 			LOG_ERROR("Couldn't read code page size");
 			return res;
 		}
 
+		/* Note the register name is misleading, this is the number of pages in flash memory, not the number of bytes! */
 		res = target_read_u32(chip->target, NRF51_FICR_CODESIZE,
-				      &chip->code_memory_size);
+				(uint32_t *) &bank->num_sectors);
 		if (res != ERROR_OK) {
 			LOG_ERROR("Couldn't read code memory size");
 			return res;
 		}
 
-		if (spec && chip->code_memory_size != spec->flash_size_kb) {
-			LOG_ERROR("Chip's reported Flash capacity does not match expected one");
-			return ERROR_FAIL;
-		}
-
-		bank->size = chip->code_memory_size * 1024;
-		bank->num_sectors = bank->size / chip->code_page_size;
+		/* The value stored in NRF51_FICR_CODESIZE is actually the number of bytes in one page of FLASH,
+		 * so to get the total size of Code FLASH we need to multiply that by the number of pages in Code FLASH. */
+		bank->size = bank->num_sectors * chip->code_page_size;
 		bank->sectors = calloc(bank->num_sectors,
 				       sizeof((bank->sectors)[0]));
 		if (!bank->sectors)
@@ -1272,7 +1269,7 @@ static int nrf51_info(struct flash_bank *bank, char *buf, int buf_size)
 		 "reset value for XTALFREQ: %"PRIx32"\n"
 		 "firmware id: 0x%04"PRIx32,
 		 ficr[0].value,
-		 ficr[1].value,
+		 (ficr[1].value * ficr[0].value) / 1024,
 		 (ficr[2].value == 0xFFFFFFFF) ? 0 : ficr[2].value / 1024,
 		 ((ficr[3].value & 0xFF) == 0x00) ? "present" : "not present",
 		 ficr[4].value,
