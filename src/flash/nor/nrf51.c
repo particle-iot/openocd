@@ -623,6 +623,24 @@ static int nrf51_probe(struct flash_bank *bank)
 		return res;
 	}
 
+	res = target_read_u32(chip->target, NRF51_FICR_CODEPAGESIZE,
+			&chip->code_page_size);
+	if (res != ERROR_OK) {
+		LOG_ERROR("Couldn't read code page size");
+		return res;
+	}
+
+	res = target_read_u32(chip->target, NRF51_FICR_CODESIZE,
+			&chip->code_memory_size);
+	if (res != ERROR_OK) {
+		LOG_ERROR("Couldn't read code memory size");
+		return res;
+	}
+
+	/* The value stored in NRF51_FICR_CODESIZE is actually the number of bytes in one page of FLASH,
+	   so to get the total size of Code FLASH we need to multiply that by the number of pages in Code FLASH. */
+	chip->code_memory_size = (chip->code_memory_size * chip->code_page_size) / 1024;
+
 	hwid &= 0xFFFF;	/* HWID is stored in the lower two
 			 * bytes of the CONFIGID register */
 
