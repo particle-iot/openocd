@@ -44,6 +44,15 @@ static int mips_mips64_set_breakpoint(struct target *target,
 static int mips_mips64_unset_breakpoint(struct target *target,
 		struct breakpoint *breakpoint);
 
+static uint64_t mips64_extend_sign(uint64_t addr)
+{
+	if (addr >> 32)
+		return addr;
+	if (addr >> 31)
+		return addr | (ULLONG_MAX << 32);
+	return addr;
+}
+
 static int mips_mips64_examine_debug_reason(struct target *target)
 {
 	if ((target->debug_reason != DBG_REASON_DBGRQ)
@@ -243,6 +252,9 @@ static int mips_mips64_resume(struct target *target, int current, uint64_t addre
 	struct breakpoint *breakpoint = NULL;
 	uint64_t resume_pc;
 
+	if (mips64mode32)
+		address = mips64_extend_sign(address);
+
 	if (target->state != TARGET_HALTED) {
 		LOG_WARNING("target not halted %d", target->state);
 		return ERROR_TARGET_NOT_HALTED;
@@ -306,6 +318,9 @@ static int mips_mips64_step(struct target *target, int current, uint64_t address
 	mips64_common_t *mips64 = target->arch_info;
 	struct mips_ejtag *ejtag_info = &mips64->ejtag_info;
 	struct breakpoint *breakpoint = NULL;
+
+	if (mips64mode32)
+		address = mips64_extend_sign(address);
 
 	if (target->state != TARGET_HALTED) {
 		LOG_WARNING("target not halted");
@@ -510,6 +525,9 @@ static int mips_mips64_add_breakpoint(struct target *target, struct breakpoint *
 {
 	mips64_common_t *mips64 = target->arch_info;
 
+	if (mips64mode32)
+		breakpoint->address = mips64_extend_sign(breakpoint->address);
+
 	if (breakpoint->type == BKPT_HARD) {
 		if (mips64->num_inst_bpoints_avail < 1) {
 			LOG_INFO("no hardware breakpoint available");
@@ -686,6 +704,9 @@ static int mips_mips64_read_memory(struct target *target, uint64_t address,
 	mips64_common_t *mips64 = target->arch_info;
 	struct mips_ejtag *ejtag_info = &mips64->ejtag_info;
 
+	if (mips64mode32)
+		address = mips64_extend_sign(address);
+
 	LOG_DEBUG("address: 0x%16.16" PRIx64 ", size: 0x%8.8" PRIx32 ", count: 0x%8.8" PRIx32 "", address, size, count);
 
 	if (target->state != TARGET_HALTED) {
@@ -816,6 +837,9 @@ static int mips_mips64_write_memory(struct target *target, uint64_t address,
 	mips64_common_t *mips64 = target->arch_info;
 	struct mips_ejtag *ejtag_info = &mips64->ejtag_info;
 	int retval;
+
+	if (mips64mode32)
+		address = mips64_extend_sign(address);
 
 	LOG_DEBUG("address: 0x%16.16" PRIx64 ", size: 0x%8.8" PRIx32 ", count: 0x%8.8" PRIx32 "", address, size, count);
 
