@@ -35,6 +35,8 @@
 #include "target_type.h"
 #include "register.h"
 
+static int mips64mode32 = 0;
+
 static void mips_mips64_enable_breakpoints(struct target *target);
 static void mips_mips64_enable_watchpoints(struct target *target);
 static int mips_mips64_set_breakpoint(struct target *target,
@@ -943,6 +945,31 @@ static int mips_mips64_checksum_memory(struct target *target, uint64_t address, 
 	return ERROR_FAIL; /* use bulk read method */
 }
 
+COMMAND_HANDLER(handle_mips64mode32)
+{
+	if (CMD_ARGC > 0)
+		COMMAND_PARSE_NUMBER(int, CMD_ARGV[0], mips64mode32);
+
+	if (mips64mode32)
+		command_print(CMD_CTX, "enabled");
+	else
+		command_print(CMD_CTX, "disabled");
+
+	return ERROR_OK;
+}
+
+
+static const struct command_registration mips64_commands_handlers[] = {
+	{
+		.name = "mips64mode32",
+		.mode = COMMAND_EXEC,
+		.help = "Enable/disable 32 bit mode",
+		.usage = "[1|0]",
+		.handler = handle_mips64mode32
+	},
+	COMMAND_REGISTRATION_DONE
+};
+
 struct target_type mips_mips64_target = {
 	.name = "mips_mips64",
 
@@ -976,6 +1003,8 @@ struct target_type mips_mips64_target = {
 	.target_create = mips_mips64_target_create,
 	.init_target = mips_mips64_init_target,
 	.examine = mips_mips64_examine,
+
+	.commands = mips64_commands_handlers,
 };
 
 #endif /* BUILD_TARGET64 */
