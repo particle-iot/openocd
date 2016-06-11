@@ -166,8 +166,10 @@ noinst_HEADERS = \
 
 DIST_SUBDIRS = usb_blaster
 
+if JLINK
 if INTERNAL_LIBJAYLINK
 DIST_SUBDIRS += libjaylink
+endif
 endif
 
 MAINTAINERCLEANFILES = $(srcdir)/Makefile.in
