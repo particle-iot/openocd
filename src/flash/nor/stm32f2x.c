@@ -150,7 +150,7 @@
 #define OPT_RDRSTSTOP  3
 #define OPT_RDRSTSTDBY 4
 #define OPT_BFB2       5	/* dual flash bank only */
-#define OPT_DB1M       14	/* 1 MiB devices dual flash bank option */
+#define OPTCR_DB1M    31	/* F42x 1 MiB devices dual flash bank option */
 
 /* register unlock keys */
 
@@ -851,7 +851,7 @@ static int stm32x_probe(struct flash_bank *bank)
 			LOG_DEBUG("unable to read option bytes");
 			return retval;
 		}
-		if (optiondata & (1 << OPT_DB1M)) {
+		if (optiondata & (1 << OPTCR_DB1M)) {
 			stm32x_info->has_large_mem = true;
 			LOG_INFO("Dual Bank 1024 kiB STM32F42x/43x found");
 		}
