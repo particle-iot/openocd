@@ -60,11 +60,18 @@
  * Sector sizes in kiBytes:
  * 1 MiByte part with 4 x 16, 1 x 64, 7 x 128.
  * 2 MiByte part with 4 x 16, 1 x 64, 7 x 128, 4 x 16, 1 x 64, 7 x 128.
- * 1 MiByte STM32F42x/43x part with DB1M Option set:
+ * 1 MiByte STM32F42x/43x/F46x part with DB1M Option set:
  *                    4 x 16, 1 x 64, 3 x 128, 4 x 16, 1 x 64, 3 x 128.
  *
- * STM32F7
+ * STM32F745/46/56
  * 1 MiByte part with 4 x 32, 1 x 128, 3 x 256.
+ *
+ * STM32F765/767/768/777/779
+ * 1/2 MiByte parts with configurable organization
+ * Single bank mode (nDBANK = 1), 256 Byte Flash access:
+ *    4 x 32k, 1 x 128k, 3/7 x 256k
+ * Dual bank mode (nDBANK = 0), 128 Byte Flash access, RWW
+ *    4 x 16k, 1 x 64k, 3/7 x 128k, 4 x 16k, 1 x 64k, 3/7 x 128k
  *
  * Protection size is sector size.
  *
@@ -83,6 +90,8 @@
  *
  * RM0385
  * http://www.st.com/web/en/resource/technical/document/reference_manual/DM00124865.pdf
+ * RM0410
+ * http://www.st.com/resource/en/reference_manual/dm00224583.pdf
  *
  * STM32F1x series - notice that this code was copy, pasted and knocked
  * into a stm32f2x driver, so in case something has been converted or
@@ -151,6 +160,7 @@
 #define OPT_RDRSTSTDBY 4
 #define OPT_BFB2       5	/* dual flash bank only */
 #define OPTCR_DB1M    31	/* F42x 1 MiB devices dual flash bank option */
+#define OPTCR_nDBANK  29	/* F76x 1 MiB devices dual flash bank option */
 
 /* register unlock keys */
 
@@ -771,6 +781,7 @@ static int stm32x_probe(struct flash_bank *bank)
 	uint16_t max_flash_size_in_kb;
 	uint32_t device_id;
 	uint32_t base_address = 0x08000000;
+	uint32_t optcr;
 
 	stm32x_info->probed = 0;
 	stm32x_info->has_large_mem = false;
@@ -782,7 +793,8 @@ static int stm32x_probe(struct flash_bank *bank)
 	LOG_INFO("device id = 0x%08" PRIx32 "", device_id);
 
 	/* set max flash size depending on family */
-	switch (device_id & 0xfff) {
+	device_id &= 0xfff;
+	switch (device_id) {
 	case 0x411:
 	case 0x413:
 	case 0x441:
@@ -805,6 +817,11 @@ static int stm32x_probe(struct flash_bank *bank)
 		break;
 	case 0x449:
 		max_flash_size_in_kb = 1024;
+		max_sector_size_in_kb = 256;
+		flash_size_reg = 0x1FF0F442;
+		break;
+	case 0x451:
+		max_flash_size_in_kb = 2048;
 		max_sector_size_in_kb = 256;
 		flash_size_reg = 0x1FF0F442;
 		break;
@@ -839,27 +856,36 @@ static int stm32x_probe(struct flash_bank *bank)
 	/* calculate numbers of pages */
 	int num_pages = (flash_size_in_kb / max_sector_size_in_kb) + 4;
 
-	/* Devices with > 1024 kiByte always are dual-banked */
-	if (flash_size_in_kb > 1024)
+	if (num_pages > 12)
 		stm32x_info->has_large_mem = true;
-
-	/* F42x/43x 1024 kiByte devices have a dual bank option */
-	if ((device_id & 0xfff) == 0x419 && (flash_size_in_kb == 1024)) {
-		uint32_t optiondata;
-		retval = target_read_u32(target, STM32_FLASH_OPTCR, &optiondata);
+	/* Eventual correct num_pages for dual bank devices */
+	else if ((device_id == 0x419) || (device_id == 0x434)) {
+		/* F42x/43x/F46x 1024 kiByte devices have a dual bank option */
+		retval = target_read_u32(target, STM32_FLASH_OPTCR, &optcr);
 		if (retval != ERROR_OK) {
 			LOG_DEBUG("unable to read option bytes");
 			return retval;
 		}
-		if (optiondata & (1 << OPTCR_DB1M)) {
+		if (optcr & (1 << OPTCR_DB1M)) {
 			stm32x_info->has_large_mem = true;
-			LOG_INFO("Dual Bank 1024 kiB STM32F42x/43x found");
+			num_pages += 8;
+			LOG_INFO("Dual Bank 1024 kiB STM32F42x/43x/46x found");
+		} else
+			LOG_DEBUG("Unexpected flash size for STM32F42x/43x");
+	} else if (device_id == 0x451) {
+		/* All F76x/77x devices have a dual bank option */
+		retval = target_read_u32(target, STM32_FLASH_OPTCR, &optcr);
+		if (retval != ERROR_OK) {
+			LOG_DEBUG("unable to read option bytes");
+			return retval;
+		}
+		if ((optcr & (1 << OPTCR_nDBANK)) == 0) {
+			max_sector_size_in_kb = 128;
+			stm32x_info->has_large_mem = true;
+			num_pages += 12;
+			LOG_INFO("Dual Bank STM32F76x/77x found");
 		}
 	}
-
-	/* check for dual-banked devices */
-	if (stm32x_info->has_large_mem)
-		num_pages += 4;
 
 	/* check that calculation result makes sense */
 	assert(num_pages > 0);
@@ -1019,6 +1045,16 @@ static int get_stm32x_info(struct flash_bank *bank, char *buf, int buf_size)
 			break;
 		}
 		break;
+	case 0x451:
+		device_str = "STM32F76x/F77x";
+
+		switch (rev_id) {
+		case 0x1000:
+			rev_str = "A";
+			break;
+		}
+		break;
+
 	case 0x434:
 		device_str = "STM32F46x/F47x";
 
