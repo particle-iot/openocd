@@ -162,10 +162,13 @@ struct stmqspi_target {
 };
 
 static const struct stmqspi_target target_devices[] = {
-	/* name,			device_id, qspi_base,   io_base */
-	{ "stm32f74x_75x",	0x449,	0x90000000,	0xA0001000 },
-	{ "stm32l4x6",		0x415,	0x90000000,	0xA0001000 },
-	{ NULL,				0x000,	0x00000000,	0x00000000 },
+	/* name,				device_id, qspi_base,   io_base */
+	{ "stm32l4x6",			0x415,	0x90000000,	0xA0001000 },
+	{ "stm32f446",			0x421,	0x90000000,	0xA0001000 },
+	{ "stm32f469_479",		0x434,	0x90000000,	0xA0001000 },
+	{ "stm32f74x_75x",		0x449,	0x90000000,	0xA0001000 },
+	{ "stm32f76x_77x",		0x451,	0x90000000,	0xA0001000 },
+	{ NULL,					0x000,	0x00000000,	0x00000000 },
 };
 
 FLASH_BANK_COMMAND_HANDLER(stmqspi_flash_bank_command)
