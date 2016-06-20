@@ -332,7 +332,7 @@ static int stm32x_read_options(struct flash_bank *bank)
 	/* f7 has IWDG_STOP and IWDG_STDBY in bit 31 and 30 */
 	stm32x_info->option_bytes.user_options_high = (optiondata >> 24) & 0xc0;
 	stm32x_info->option_bytes.RDP = (optiondata >> 8) & 0xff;
-	stm32x_info->option_bytes.protection = (optiondata >> 16) & 0xff;
+	stm32x_info->option_bytes.protection = (optiondata >> 16) & 0xfff;
 
 	if (stm32x_info->has_boot_addr) {
 		retval = target_read_u32(target, STM32_FLASH_OPTCR1, &optiondata);
