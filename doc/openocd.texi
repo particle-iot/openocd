@@ -6731,6 +6731,11 @@ the initial log output channel is stderr.
 Add @var{directory} to the file/script search path.
 @end deffn
 
+@deffn Command loopback [on|off]
+Restrict TCP/IP services to the loopback interface.
+By default, services will listen on all available interfaces.
+@end deffn
+
 @anchor{targetstatehandling}
 @section Target State handling
 @cindex reset

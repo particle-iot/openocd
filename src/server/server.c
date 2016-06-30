@@ -52,6 +52,9 @@ static int last_signal;
 /* set the polling period to 100ms */
 static int polling_period = 100;
 
+/* determines if services should be restricted to loopback */
+static bool restrict_loopback;
+
 static int add_connection(struct service *service, struct command_context *cmd_ctx)
 {
 	socklen_t address_size;
@@ -222,6 +225,11 @@ int add_service(char *name,
 	}
 
 	if (c->type == CONNECTION_TCP) {
+		if (restrict_loopback)
+			c->address = INADDR_LOOPBACK;
+		else
+			c->address = INADDR_ANY;
+
 		c->max_connections = max_connections;
 
 		c->fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -240,11 +248,11 @@ int add_service(char *name,
 
 		memset(&c->sin, 0, sizeof(c->sin));
 		c->sin.sin_family = AF_INET;
-		c->sin.sin_addr.s_addr = INADDR_ANY;
+		c->sin.sin_addr.s_addr = htonl(c->address);
 		c->sin.sin_port = htons(c->portnumber);
 
 		if (bind(c->fd, (struct sockaddr *)&c->sin, sizeof(c->sin)) == -1) {
-			LOG_ERROR("couldn't bind to socket: %s", strerror(errno));
+			LOG_ERROR("couldn't bind %s to socket: %s", name, strerror(errno));
 			exit(-1);
 		}
 
@@ -632,6 +640,22 @@ COMMAND_HANDLER(handle_poll_period_command)
 	return ERROR_OK;
 }
 
+COMMAND_HANDLER(handle_loopback_command)
+{
+	switch (CMD_ARGC) {
+		case 0:
+			command_print(CMD_CTX, "restrict loopback: %s",
+			    restrict_loopback ? "on" : "off");
+			break;
+		case 1:
+			COMMAND_PARSE_ON_OFF(CMD_ARGV[0], restrict_loopback);
+			break;
+		default:
+			return ERROR_COMMAND_SYNTAX_ERROR;
+	}
+	return ERROR_OK;
+}
+
 static const struct command_registration server_command_handlers[] = {
 	{
 		.name = "shutdown",
@@ -646,6 +670,14 @@ static const struct command_registration server_command_handlers[] = {
 		.mode = COMMAND_ANY,
 		.usage = "",
 		.help = "set the servers polling period",
+	},
+	{
+		.name = "loopback",
+		.handler = &handle_loopback_command,
+		.mode = COMMAND_ANY,
+		.help = "Restrict TCP/IP services to the loopback interface. "
+		    "By default, services will listen on all available interfaces.",
+		.usage = "[on|off]",
 	},
 	COMMAND_REGISTRATION_DONE
 };

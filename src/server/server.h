@@ -58,6 +58,7 @@ struct service {
 	char *name;
 	enum connection_type type;
 	char *port;
+	in_addr_t address;
 	unsigned short portnumber;
 	int fd;
 	struct sockaddr_in sin;
