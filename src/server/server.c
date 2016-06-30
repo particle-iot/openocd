@@ -52,6 +52,9 @@ static int last_signal;
 /* set the polling period to 100ms */
 static int polling_period = 100;
 
+/* address on which to listen for incoming TCP/IP connections */
+static char *bindto_address = "any";
+
 static int add_connection(struct service *service, struct command_context *cmd_ctx)
 {
 	socklen_t address_size;
@@ -240,11 +243,21 @@ int add_service(char *name,
 
 		memset(&c->sin, 0, sizeof(c->sin));
 		c->sin.sin_family = AF_INET;
-		c->sin.sin_addr.s_addr = INADDR_ANY;
+		if (strcmp(bindto_address, "any") == 0)
+			c->sin.sin_addr.s_addr = htonl(INADDR_ANY);
+		else if (strcmp(bindto_address, "localhost") == 0)
+			c->sin.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+		else {
+			c->sin.sin_addr.s_addr = inet_addr(bindto_address);
+			if (c->sin.sin_addr.s_addr == -1)
+				LOG_ERROR("couldn't parse address: %s", bindto_address);
+				exit(-1);
+			}
+		}
 		c->sin.sin_port = htons(c->portnumber);
 
 		if (bind(c->fd, (struct sockaddr *)&c->sin, sizeof(c->sin)) == -1) {
-			LOG_ERROR("couldn't bind to socket: %s", strerror(errno));
+			LOG_ERROR("couldn't bind %s to socket: %s", name, strerror(errno));
 			exit(-1);
 		}
 
@@ -632,6 +645,21 @@ COMMAND_HANDLER(handle_poll_period_command)
 	return ERROR_OK;
 }
 
+COMMAND_HANDLER(handle_bindto_command)
+{
+	switch (CMD_ARGC) {
+		case 0:
+			command_print(CMD_CTX, "bindto address: %s", bindto_address);
+			break;
+		case 1:
+			bindto_address = strdup(CMD_ARGV[0]);
+			break;
+		default:
+			return ERROR_COMMAND_SYNTAX_ERROR;
+	}
+	return ERROR_OK;
+}
+
 static const struct command_registration server_command_handlers[] = {
 	{
 		.name = "shutdown",
@@ -646,6 +674,14 @@ static const struct command_registration server_command_handlers[] = {
 		.mode = COMMAND_ANY,
 		.usage = "",
 		.help = "set the servers polling period",
+	},
+	{
+		.name = "bindto",
+		.handler = &handle_bindto_command,
+		.mode = COMMAND_ANY,
+		.help = "Specify address on which to listen for incoming TCP/IP "
+		    "connections",
+		.usage = "['any'|'localhost'|addr]",
 	},
 	COMMAND_REGISTRATION_DONE
 };
