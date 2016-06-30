@@ -130,6 +130,7 @@ AC_CHECK_HEADERS([net/if.h], [], [], [dnl
 # include <sys/socket.h>
 #endif
 ])
+AC_CHECK_HEADERS([arpa/inet.h])
 
 AC_HEADER_ASSERT
 AC_HEADER_STDBOOL
