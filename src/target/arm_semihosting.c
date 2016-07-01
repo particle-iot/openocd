@@ -129,7 +129,7 @@ static int do_semihosting(struct target *target)
 			retval = target_read_memory(target, r1, 1, 1, &c);
 			if (retval != ERROR_OK)
 				return retval;
-			putchar(c);
+			LOG_USER_N("%c", c);
 			result = 0;
 		}
 		break;
@@ -142,7 +142,7 @@ static int do_semihosting(struct target *target)
 				return retval;
 			if (!c)
 				break;
-			putchar(c);
+			LOG_USER_N("%c", c);
 		} while (1);
 		result = 0;
 		break;
