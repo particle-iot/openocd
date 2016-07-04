@@ -270,10 +270,10 @@ static int cmsis_dap_usb_open(void)
 
 	int packet_size = PACKET_SIZE;
 
-	/* atmel cmsis-dap uses 512 byte reports */
+	/* atmel/LPC Link2 cmsis-dap uses 512 byte reports */
 	/* TODO: HID report descriptor should be parsed instead of
 	 * hardcoding a match by VID */
-	if (target_vid == 0x03eb)
+	if (target_vid == 0x03eb || target_vid == 0x1fc9)
 		packet_size = 512 + 1;
 
 	cmsis_dap_handle->packet_buffer = malloc(packet_size);
