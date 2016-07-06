@@ -19,6 +19,8 @@
  *   along with this program.  If not, see <http://www.gnu.org/licenses/>. *
  ***************************************************************************/
 
+// THANKS GERRIT
+
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -28,6 +30,10 @@
 #include "command.h"
 
 #include <getopt.h>
+
+#if IS_DARWIN
+#include <libproc.h>
+#endif
 
 static int help_flag, version_flag;
 
@@ -50,8 +56,21 @@ int configuration_output_handler(struct command_context *context, const char *li
 	return ERROR_OK;
 }
 
-#ifdef _WIN32
-static char *find_suffix(const char *text, const char *suffix)
+char *find_prefix(const char *text, const char *prefix)
+{
+	size_t text_len = strlen(text);
+	size_t prefix_len = strlen(prefix);
+
+	if (prefix_len == 0)
+		return (char *)text + text_len;
+
+	if (prefix_len > text_len || strncmp(text, prefix, prefix_len) != 0)
+		return NULL; /* Not a prefix of text */
+
+	return (char *)text + prefix_len;
+}
+
+char *find_suffix(const char *text, const char *suffix)
 {
 	size_t text_len = strlen(text);
 	size_t suffix_len = strlen(suffix);
@@ -64,11 +83,11 @@ static char *find_suffix(const char *text, const char *suffix)
 
 	return (char *)text + text_len - suffix_len;
 }
-#endif
 
 static void add_default_dirs(void)
 {
-	const char *run_prefix;
+	char *run_prefix = NULL;
+	char *pkgdatadir;
 	char *path;
 
 #ifdef _WIN32
@@ -89,10 +108,25 @@ static void add_default_dirs(void)
 		*end_of_prefix = '\0';
 
 	run_prefix = strExePath;
-#else
-	run_prefix = "";
+#elif IS_DARWIN
+	char pathbuf[PROC_PIDPATHINFO_MAXSIZE];
+
+	if (proc_pidpath(getpid(), pathbuf, sizeof pathbuf) > 0) {
+		/* Strip executable file name, leaving path */
+		*strrchr(pathbuf, '/') = '\0';
+
+		/* Assume a run prefix iff BINDIR is a subdirectory of PREFIX */
+		char *bindir = find_prefix(BINDIR, PREFIX);
+		if (bindir != NULL) {
+			char *end_of_prefix = find_suffix(pathbuf, bindir);
+			if (end_of_prefix != NULL)
+				*end_of_prefix = '\0';
+			run_prefix = pathbuf;
+		}
+	}
 #endif
 
+	LOG_DEBUG("prefix=%s", PREFIX);
 	LOG_DEBUG("bindir=%s", BINDIR);
 	LOG_DEBUG("pkgdatadir=%s", PKGDATADIR);
 	LOG_DEBUG("run_prefix=%s", run_prefix);
@@ -128,14 +162,20 @@ static void add_default_dirs(void)
 		}
 	}
 #endif
+	if (run_prefix == NULL)
+		run_prefix = "";
 
-	path = alloc_printf("%s%s%s", run_prefix, PKGDATADIR, "/site");
+	pkgdatadir = find_prefix(PKGDATADIR, PREFIX);
+	if (pkgdatadir == NULL)
+		pkgdatadir = PKGDATADIR;
+
+	path = alloc_printf("%s%s%s", run_prefix, pkgdatadir, "/site");
 	if (path) {
 		add_script_search_dir(path);
 		free(path);
 	}
 
-	path = alloc_printf("%s%s%s", run_prefix, PKGDATADIR, "/scripts");
+	path = alloc_printf("%s%s%s", run_prefix, pkgdatadir, "/scripts");
 	if (path) {
 		add_script_search_dir(path);
 		free(path);
