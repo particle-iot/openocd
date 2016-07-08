@@ -315,6 +315,55 @@ static int kinetis_mdm_poll_register(struct adiv5_dap *dap, unsigned reg, uint32
 	return ERROR_FAIL;
 }
 
+COMMAND_HANDLER(kinetis_mdm_halt)
+{
+	struct target *target = get_current_target(CMD_CTX);
+	struct cortex_m_common *cortex_m = target_to_cm(target);
+	struct adiv5_dap *dap = cortex_m->armv7m.arm.dap;
+	int retval;
+
+	if (!dap) {
+		LOG_ERROR("Cannot perform halt with a high-level adapter");
+		return ERROR_FAIL;
+	}
+
+	retval = kinetis_mdm_write_register(dap, MDM_REG_CTRL, MDM_CTRL_DBG_REQ);
+	if (retval != ERROR_OK) {
+		LOG_ERROR("MDM: failed to halt core");
+		return retval;
+	}
+	target->debug_reason = DBG_REASON_DBGRQ;
+
+	return ERROR_OK;
+}
+
+COMMAND_HANDLER(kinetis_mdm_reset)
+{
+	struct target *target = get_current_target(CMD_CTX);
+	struct cortex_m_common *cortex_m = target_to_cm(target);
+	struct adiv5_dap *dap = cortex_m->armv7m.arm.dap;
+	int retval;
+
+	if (!dap) {
+		LOG_ERROR("Cannot perform halt with a high-level adapter");
+		return ERROR_FAIL;
+	}
+
+	retval = kinetis_mdm_write_register(dap, MDM_REG_CTRL, MDM_CTRL_SYS_RES_REQ);
+	if (retval != ERROR_OK) {
+		LOG_ERROR("MDM: failed to assert reset");
+		return retval;
+	}
+
+	retval = kinetis_mdm_write_register(dap, MDM_REG_CTRL, 0);
+	if (retval != ERROR_OK) {
+		LOG_ERROR("MDM: failed to deassert reset");
+		return retval;
+	}
+
+	return ERROR_OK;
+}
+
 /*
  * This function implements the procedure to mass erase the flash via
  * SWD/JTAG on Kinetis K and L series of devices as it is described in
@@ -1945,11 +1994,24 @@ static const struct command_registration kinetis_security_command_handlers[] = {
 		.handler = kinetis_check_flash_security_status,
 	},
 	{
+		.name = "halt",
+		.mode = COMMAND_EXEC,
+		.help = "",
+		.usage = "",
+		.handler = kinetis_mdm_halt,
+	},
+	{
 		.name = "mass_erase",
 		.mode = COMMAND_EXEC,
 		.help = "",
 		.usage = "",
 		.handler = kinetis_mdm_mass_erase,
+	},
+	{	.name = "reset",
+		.mode = COMMAND_EXEC,
+		.help = "",
+		.usage = "",
+		.handler = kinetis_mdm_reset,
 	},
 	COMMAND_REGISTRATION_DONE
 };
