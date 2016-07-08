@@ -245,14 +245,14 @@ struct kinetis_flash_bank {
 #define MDM_STAT_CORE_SLEEPDEEP	(1<<17)
 #define MDM_STAT_CORESLEEPING	(1<<18)
 
-#define MEM_CTRL_FMEIP		(1<<0)
-#define MEM_CTRL_DBG_DIS	(1<<1)
-#define MEM_CTRL_DBG_REQ	(1<<2)
-#define MEM_CTRL_SYS_RES_REQ	(1<<3)
-#define MEM_CTRL_CORE_HOLD_RES	(1<<4)
-#define MEM_CTRL_VLLSX_DBG_REQ	(1<<5)
-#define MEM_CTRL_VLLSX_DBG_ACK	(1<<6)
-#define MEM_CTRL_VLLSX_STAT_ACK	(1<<7)
+#define MDM_CTRL_FMEIP		(1<<0)
+#define MDM_CTRL_DBG_DIS	(1<<1)
+#define MDM_CTRL_DBG_REQ	(1<<2)
+#define MDM_CTRL_SYS_RES_REQ	(1<<3)
+#define MDM_CTRL_CORE_HOLD_RES	(1<<4)
+#define MDM_CTRL_VLLSX_DBG_REQ	(1<<5)
+#define MDM_CTRL_VLLSX_DBG_ACK	(1<<6)
+#define MDM_CTRL_VLLSX_STAT_ACK	(1<<7)
 
 #define MDM_ACCESS_TIMEOUT	3000 /* iterations */
 
@@ -319,7 +319,9 @@ static int kinetis_mdm_poll_register(struct adiv5_dap *dap, unsigned reg, uint32
  * This function implements the procedure to mass erase the flash via
  * SWD/JTAG on Kinetis K and L series of devices as it is described in
  * AN4835 "Production Flash Programming Best Practices for Kinetis K-
- * and L-series MCUs" Section 4.2.1
+ * and L-series MCUs" Section 4.2.1. To prevent a watchdog reset loop,
+ * the core remains halted after this function completes as suggested
+ * by the application note.
  */
 COMMAND_HANDLER(kinetis_mdm_mass_erase)
 {
@@ -341,27 +343,38 @@ COMMAND_HANDLER(kinetis_mdm_mass_erase)
 	 * Reset Request bit in the MDM-AP control register after
 	 * establishing communication...
 	 */
-
-	/* assert SRST */
-	if (jtag_get_reset_config() & RESET_HAS_SRST)
-		adapter_assert_reset();
-	else
-		LOG_WARNING("Attempting mass erase without hardware reset. This is not reliable; "
-			    "it's recommended you connect SRST and use ``reset_config srst_only''.");
-
-	retval = kinetis_mdm_write_register(dap, MDM_REG_CTRL, MEM_CTRL_SYS_RES_REQ);
-	if (retval != ERROR_OK)
+	retval = kinetis_mdm_write_register(dap, MDM_REG_CTRL, MDM_CTRL_SYS_RES_REQ);
+	if (retval != ERROR_OK) {
+		LOG_ERROR("MDM: failed to assert reset");
 		return retval;
+	}
 
 	/*
 	 * ... Read the MDM-AP status register until the Flash Ready bit sets...
 	 */
-	retval = kinetis_mdm_poll_register(dap, MDM_REG_STAT,
-					   MDM_STAT_FREADY | MDM_STAT_SYSRES,
-					   MDM_STAT_FREADY);
+	retval = kinetis_mdm_poll_register(dap, MDM_REG_STAT, MDM_STAT_FREADY, MDM_STAT_FREADY);
 	if (retval != ERROR_OK) {
-		LOG_ERROR("MDM : flash ready timeout");
+		LOG_ERROR("MDM: flash ready timeout");
 		return retval;
+	}
+	/*
+	 * ... Read the MDM-AP status register Mass Erase Enable bit to
+	 * determine if the mass erase command is enabled. If Mass Erase
+	 * Enable = 0, then mass erase is disabled and the processor
+	 * cannot be erased or unsecured. If Mass Erase Enable = 1, then
+	 * the mass erase command can be used...
+	 */
+	uint32_t stat;
+
+	retval = kinetis_mdm_read_register(dap, MDM_REG_STAT, &stat);
+	if (retval != ERROR_OK) {
+		LOG_ERROR("MDM: failed to read MDM_REG_STAT");
+		return retval;
+	}
+
+	if (!(stat & MDM_STAT_FMEEN)) {
+		LOG_ERROR("MDM: mass erase is disabled");
+		return ERROR_FAIL;
 	}
 
 	/*
@@ -369,40 +382,30 @@ COMMAND_HANDLER(kinetis_mdm_mass_erase)
 	 * Erase in Progress bit. This will start the mass erase
 	 * process...
 	 */
-	retval = kinetis_mdm_write_register(dap, MDM_REG_CTRL,
-					    MEM_CTRL_SYS_RES_REQ | MEM_CTRL_FMEIP);
-	if (retval != ERROR_OK)
+	retval = kinetis_mdm_write_register(dap, MDM_REG_CTRL, MDM_CTRL_SYS_RES_REQ | MDM_CTRL_FMEIP);
+	if (retval != ERROR_OK) {
+		LOG_ERROR("MDM: failed to start mass erase");
 		return retval;
-
-	/* As a sanity check make sure that device started mass erase procedure */
-	retval = kinetis_mdm_poll_register(dap, MDM_REG_STAT,
-					   MDM_STAT_FMEACK, MDM_STAT_FMEACK);
-	if (retval != ERROR_OK)
-		return retval;
+	}
 
 	/*
 	 * ... Read the MDM-AP control register until the Flash Mass
 	 * Erase in Progress bit clears...
 	 */
-	retval = kinetis_mdm_poll_register(dap, MDM_REG_CTRL,
-					   MEM_CTRL_FMEIP,
-					   0);
-	if (retval != ERROR_OK)
+	retval = kinetis_mdm_poll_register(dap, MDM_REG_CTRL, MDM_CTRL_FMEIP, 0);
+	if (retval != ERROR_OK) {
+		LOG_ERROR("MDM: mass erase timeout");
 		return retval;
+	}
 
 	/*
 	 * ... Negate the RESET signal or clear the System Reset Request
 	 * bit in the MDM-AP control register...
 	 */
 	retval = kinetis_mdm_write_register(dap, MDM_REG_CTRL, 0);
-	if (retval != ERROR_OK)
+	if (retval != ERROR_OK) {
+		LOG_ERROR("MDM: failed to clear reset");
 		return retval;
-
-	if (jtag_get_reset_config() & RESET_HAS_SRST) {
-		/* halt MCU otherwise it loops in hard fault - WDOG reset cycle */
-		target->reset_halt = true;
-		target->type->assert_reset(target);
-		target->type->deassert_reset(target);
 	}
 
 	return ERROR_OK;
