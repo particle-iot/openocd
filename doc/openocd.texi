@@ -5283,11 +5283,17 @@ flash bank $_FLASHNAME kinetis 0 0 0 0 $_TARGETNAME
 Checks status of device security lock. Used internally in examine-end event.
 @end deffn
 
+@deffn Command {kinetis mdm halt}
+Issues a halt via the MDM-AP. The core may be resumed by issuing the
+@command{kinetis mdm resume} command.
+@end deffn
+
 @deffn Command {kinetis mdm mass_erase}
-Issues a complete Flash erase via the MDM-AP.
-This can be used to erase a chip back to its factory state.
-Command removes security lock from a device (use of SRST highly recommended).
-It does not require the processor to be halted.
+Issues a complete Flash erase via the MDM-AP. This can be used to erase a chip
+back to its factory state. Command removes security lock from a device. It does
+not require the processor to be halted, however the core will remain in a
+halted state after this command completes. The core may be resumed by issuing
+the @command{kinetis mdm resume} command.
 @end deffn
 
 @deffn Command {kinetis nvm_partition}
@@ -5318,6 +5324,14 @@ of 1024 bytes and its contents is not loaded to FlexRAM during reset:
 @example
 kinetis nvm_partition eebkp 16 1024 1024 off
 @end example
+@end deffn
+
+@deffn Command {kinetis mdm reset}
+Issues a reset via the MDM-AP.
+@end deffn
+
+@deffn Command {kinetis mdm resume}
+Resumes a halted core via the MDM-AP. Used internally in resume-start event.
 @end deffn
 
 @deffn Command {kinetis disable_wdog}
