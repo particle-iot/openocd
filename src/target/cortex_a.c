@@ -1496,7 +1496,6 @@ static int cortex_a_set_breakpoint(struct target *target,
 	int retval;
 	int brp_i = 0;
 	uint32_t control;
-	uint8_t byte_addr_select = 0x0F;
 	struct cortex_a_common *cortex_a = target_to_cortex_a(target);
 	struct armv7a_common *armv7a = &cortex_a->armv7a_common;
 	struct cortex_a_brp *brp_list = cortex_a->brp_list;
@@ -1514,8 +1513,15 @@ static int cortex_a_set_breakpoint(struct target *target,
 			return ERROR_TARGET_RESOURCE_NOT_AVAILABLE;
 		}
 		breakpoint->set = brp_i + 1;
-		if (breakpoint->length == 2)
-			byte_addr_select = (3 << (breakpoint->address & 0x02));
+
+		/* This works for word aligned, 32 bit instructions */
+		uint8_t byte_addr_select = 0x0F;
+		/* This takes care of all non-word aligned instructions */
+		if (breakpoint->address & 0x02)
+			byte_addr_select = 0x0C;
+		else if (breakpoint->address == 2)
+			byte_addr_select = 0x03; /* 16 bit word aligned instructions */
+
 		control = ((matchmode & 0x7) << 20)
 			| (byte_addr_select << 5)
 			| (3 << 1) | 1;
