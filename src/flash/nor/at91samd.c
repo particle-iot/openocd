@@ -25,7 +25,7 @@
 
 #include <target/cortex_m.h>
 
-#define SAMD_NUM_SECTORS	16
+#define SAMD_NUM_PROT_BLOCKS	16
 #define SAMD_PAGE_SIZE_MAX	1024
 
 #define SAMD_FLASH			((uint32_t)0x00000000)	/* physical Flash memory */
@@ -275,6 +275,7 @@ struct samd_info {
 	uint32_t page_size;
 	int num_pages;
 	int sector_size;
+	int prot_block_size;
 
 	bool probed;
 	struct target *target;
@@ -317,8 +318,8 @@ static int samd_protect_check(struct flash_bank *bank)
 		return res;
 
 	/* Lock bits are active-low */
-	for (int i = 0; i < bank->num_sectors; i++)
-		bank->sectors[i].is_protected = !(lock & (1<<i));
+	for (int i = 0; i < bank->num_prot_blocks; i++)
+		bank->prot_blocks[i].is_protected = !(lock & (1u<<i));
 
 	return ERROR_OK;
 }
@@ -369,8 +370,6 @@ static int samd_probe(struct flash_bank *bank)
 
 	bank->size = part->flash_kb * 1024;
 
-	chip->sector_size = bank->size / SAMD_NUM_SECTORS;
-
 	res = samd_get_flash_page_info(bank->target, &chip->page_size,
 			&chip->num_pages);
 	if (res != ERROR_OK) {
@@ -386,21 +385,23 @@ static int samd_probe(struct flash_bank *bank)
 				part->flash_kb, chip->num_pages, chip->page_size);
 	}
 
+	/* Erase granularity = 1 row = 4 pages */
+	chip->sector_size = chip->page_size * 4;
+
 	/* Allocate the sector table */
-	bank->num_sectors = SAMD_NUM_SECTORS;
-	bank->sectors = calloc(bank->num_sectors, sizeof((bank->sectors)[0]));
+	bank->num_sectors = chip->num_pages / 4;
+	bank->sectors = alloc_block_array(0, chip->sector_size, bank->num_sectors);
 	if (!bank->sectors)
 		return ERROR_FAIL;
 
-	/* Fill out the sector information: all SAMD sectors are the same size and
-	 * there is always a fixed number of them. */
-	for (int i = 0; i < bank->num_sectors; i++) {
-		bank->sectors[i].size = chip->sector_size;
-		bank->sectors[i].offset = i * chip->sector_size;
-		/* mark as unknown */
-		bank->sectors[i].is_erased = -1;
-		bank->sectors[i].is_protected = -1;
-	}
+	/* 16 protection blocks per device */
+	chip->prot_block_size = bank->size / SAMD_NUM_PROT_BLOCKS;
+
+	/* Allocate the table of protection blocks */
+	bank->num_prot_blocks = SAMD_NUM_PROT_BLOCKS;
+	bank->prot_blocks = alloc_block_array(0, chip->prot_block_size, bank->num_prot_blocks);
+	if (!bank->prot_blocks)
+		return ERROR_FAIL;
 
 	samd_protect_check(bank);
 
@@ -597,8 +598,6 @@ out_user_row:
 
 static int samd_protect(struct flash_bank *bank, int set, int first, int last)
 {
-	struct samd_info *chip = (struct samd_info *)bank->driver_priv;
-
 	/* We can issue lock/unlock region commands with the target running but
 	 * the settings won't persist unless we're able to modify the LOCK regions
 	 * and that requires the target to be halted. */
@@ -610,15 +609,15 @@ static int samd_protect(struct flash_bank *bank, int set, int first, int last)
 	int res = ERROR_OK;
 
 	for (int s = first; s <= last; s++) {
-		if (set != bank->sectors[s].is_protected) {
-			/* Load an address that is within this sector (we use offset 0) */
+		if (set != bank->prot_blocks[s].is_protected) {
+			/* Load an address that is within this protection block (we use offset 0) */
 			res = target_write_u32(bank->target,
 							SAMD_NVMCTRL + SAMD_NVMCTRL_ADDR,
-							((s * chip->sector_size) >> 1));
+							bank->prot_blocks[s].offset >> 1);
 			if (res != ERROR_OK)
 				goto exit;
 
-			/* Tell the controller to lock that sector */
+			/* Tell the controller to lock that block */
 			res = samd_issue_nvmctrl_command(bank->target,
 					set ? SAMD_NVM_CMD_LR : SAMD_NVM_CMD_UR);
 			if (res != ERROR_OK)
@@ -648,7 +647,6 @@ exit:
 static int samd_erase(struct flash_bank *bank, int first, int last)
 {
 	int res;
-	int rows_in_sector;
 	struct samd_info *chip = (struct samd_info *)bank->driver_priv;
 
 	if (bank->target->state != TARGET_HALTED) {
@@ -662,26 +660,12 @@ static int samd_erase(struct flash_bank *bank, int first, int last)
 			return ERROR_FLASH_BANK_NOT_PROBED;
 	}
 
-	/* The SAMD NVM has row erase granularity.  There are four pages in a row
-	 * and the number of rows in a sector depends on the sector size, which in
-	 * turn depends on the Flash capacity as there is a fixed number of
-	 * sectors. */
-	rows_in_sector = chip->sector_size / (chip->page_size * 4);
-
 	/* For each sector to be erased */
 	for (int s = first; s <= last; s++) {
-		if (bank->sectors[s].is_protected) {
-			LOG_ERROR("SAMD: failed to erase sector %d. That sector is write-protected", s);
-			return ERROR_FLASH_OPERATION_FAILED;
-		}
-
-		/* For each row in that sector */
-		for (int r = s * rows_in_sector; r < (s + 1) * rows_in_sector; r++) {
-			res = samd_erase_row(bank->target, r * chip->page_size * 4);
-			if (res != ERROR_OK) {
-				LOG_ERROR("SAMD: failed to erase sector %d", s);
-				return res;
-			}
+		res = samd_erase_row(bank->target, bank->sectors[s].offset);
+		if (res != ERROR_OK) {
+			LOG_ERROR("SAMD: failed to erase sector %d at 0x%08" PRIx32, s, bank->sectors[s].offset);
+			return res;
 		}
 	}
 
