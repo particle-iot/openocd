@@ -50,6 +50,7 @@
 #include "breakpoints.h"
 #include "cortex_a.h"
 #include "register.h"
+#include "armv7a_mmu.h"
 #include "target_request.h"
 #include "target_type.h"
 #include "arm_opcodes.h"
