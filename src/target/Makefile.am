@@ -71,6 +71,7 @@ ARMV7_SRC = \
 	%D%/armv7m_trace.c \
 	%D%/cortex_m.c \
 	%D%/armv7a.c \
+	%D%/armv7a_mmu.c \
 	%D%/cortex_a.c \
 	%D%/ls1_sap.c
 
@@ -143,6 +144,7 @@ INTEL_IA32_SRC = \
 	%D%/arm_adi_v5.h \
 	%D%/armv7a_cache.h \
 	%D%/armv7a_cache_l2x.h \
+	%D%/armv7a_mmu.h \
 	%D%/arm_disassembler.h \
 	%D%/arm_opcodes.h \
 	%D%/arm_simulator.h \
