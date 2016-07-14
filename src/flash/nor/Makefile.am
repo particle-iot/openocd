@@ -32,6 +32,7 @@ NOR_DRIVERS = \
 	lpc288x.c \
 	lpc2900.c \
 	lpcspifi.c \
+	max32xxx.c \
 	mdr.c \
 	mrvlqspi.c \
 	niietcm4.c \
