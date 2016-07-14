@@ -71,6 +71,7 @@ ARMV7_SRC = \
 	%D%/armv7m_trace.c \
 	%D%/cortex_m.c \
 	%D%/armv7a.c \
+	%D%/armv7a_mmu.c \
 	%D%/cortex_a.c \
 	%D%/ls1_sap.c
 
