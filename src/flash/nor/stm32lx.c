@@ -759,6 +759,7 @@ static int stm32lx_probe(struct flash_bank *bank)
 	uint32_t device_id;
 	uint32_t base_address = FLASH_BANK0_ADDRESS;
 	uint32_t second_bank_base;
+	uint16_t flash_size_bank_in_kb;
 
 	stm32lx_info->probed = 0;
 	stm32lx_info->part_info = NULL;
@@ -816,16 +817,25 @@ static int stm32lx_probe(struct flash_bank *bank)
 		/* Use the configured base address to determine if this is the first or second flash bank.
 		 * Verify that the base address is reasonably correct and determine the flash bank size
 		 */
+		/* if the user sets the size manually then overwrite default bank value */
+		flash_size_bank_in_kb = stm32lx_info->part_info->first_bank_size_kb;
+		if (stm32lx_info->user_bank_size) {
+			flash_size_bank_in_kb = stm32lx_info->user_bank_size / 1024;
+			/* bank size cannot be higher than flash size */
+			if (flash_size_bank_in_kb > flash_size_in_kb)
+				flash_size_bank_in_kb = flash_size_in_kb;
+		}
+
 		second_bank_base = base_address +
-			stm32lx_info->part_info->first_bank_size_kb * 1024;
+				flash_size_bank_in_kb * 1024;
 		if (bank->base == second_bank_base || !bank->base) {
 			/* This is the second bank  */
 			base_address = second_bank_base;
 			flash_size_in_kb = flash_size_in_kb -
-				stm32lx_info->part_info->first_bank_size_kb;
+					flash_size_bank_in_kb;
 		} else if (bank->base == base_address) {
 			/* This is the first bank */
-			flash_size_in_kb = stm32lx_info->part_info->first_bank_size_kb;
+			flash_size_in_kb = flash_size_bank_in_kb;
 		} else {
 			LOG_WARNING("STM32L flash bank base address config is incorrect."
 				    " 0x%" PRIx32 " but should rather be 0x%" PRIx32 " or 0x%" PRIx32,
