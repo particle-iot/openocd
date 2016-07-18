@@ -599,6 +599,9 @@ produced, PDF schematics are easily found and it is easy to make.
 @* A JTAG driver acting as a client for the JTAG VPI server interface.
 @* Link: @url{http://github.com/fjullien/jtag_vpi}
 
+@item @b{avago_pilot}
+@* A driver which supports Avago Pilot JTAG Master Interface.
+
 @end itemize
 
 @node About Jim-Tcl
