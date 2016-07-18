@@ -72,7 +72,7 @@ void dump_scan_command(struct scan_command *scan)
 		PRINTF(" IR SCAN NOT PRESENT\n");
 	}
 
-	
+
 	PRINTF(" Number of fields is %d\n", scan->num_fields);
 	PRINTF(" End state is %x\n", scan->end_state);
 	for (i = 0; i < scan->num_fields; i++) {
