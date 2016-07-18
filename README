@@ -339,6 +339,63 @@ Note that on Linux there is no good reason to use these FTDI binaries;
 they are no faster (on Linux) than libftdi, and cause licensing issues.
 
 
+=======================================
+Using Avago Pilot JTAG Master Interface
+=======================================
+
+These instructions help to build and use the Avago Pilot JTAG
+Master Interface driver
+
+Building the Avago Pilot JTAG Master Interface driver
+------------------------------------------------------
+
+NOTE: arm-eabi Toolchain and the following exports are needed
+
+export PATH=$PATH:/<toolchain path>/bin/"
+export LIBUSB1_CFLAGS=
+export PKG_CONFIG=
+export libusb_CFLAGS=
+export libusb_LIBS=
+
+Then run configure like so:
+
+MAKEINFO=true ./configure --enable-avago_pilot --build=x86 \
+--host=arm-emulex-linux-gnueabi \
+--with-sysroot=<toolchain path>/arm-emulex-linux-gnueabi/sysroot/ \
+--disable-internal-libjaylink
+
+followed by 'make'
+
+If you see autoconf/libtool related errors then run these
+commands first then start to build the driver.
+
+make distclean
+autoreconf -ivf
+
+STICKY ERR when reading pilot regs
+-----------------------------------
+Do this from OpenOCD prompt or put it in pilot4.cfg
+
+dap apsel 1
+dap apcsw 1
+
+NOTE: This is already put in the pilot4.cfg
+
+Running openocd for Avago Pilot
+-------------------------------
+Get openocd, avago_pilot.cfg and pilot4.cfg to the Pilot's filesystem
+and run the following command
+
+openocd -f avago_pilot.cfg -f pilot4.cfg
+
+For different SMP switching
+---------------------------
+Since pilot has more than one core, to switch between the cores you can
+run the following commmand:
+
+targets pilot4.cpu0
+targets pilot4.cpu1
+
 ==========================
 Obtaining OpenOCD From GIT
 ==========================

@@ -221,6 +221,9 @@ m4_define([USB0_ADAPTERS],
 m4_define([HIDAPI_ADAPTERS],
 	[[[cmsis_dap], [CMSIS-DAP Compliant Debugger], [CMSIS_DAP]]])
 
+m4_define([AVAGO_ADAPTER],
+	[[[avago_pilot], [Avago Pilot Debugger], [AVAGO_PILOT]]])
+
 #========================================
 # FTD2XXX support comes in 4 forms.
 #    (1) win32 - via a zip file
@@ -379,7 +382,7 @@ m4_define([AC_ARG_ADAPTERS], [
   ])
 ])
 
-AC_ARG_ADAPTERS([USB1_ADAPTERS, USB_ADAPTERS, USB0_ADAPTERS, HIDAPI_ADAPTERS], [auto])
+AC_ARG_ADAPTERS([USB1_ADAPTERS, USB_ADAPTERS, USB0_ADAPTERS, HIDAPI_ADAPTERS, AVAGO_ADAPTER], [auto])
 
 AC_ARG_ENABLE([parport],
   AS_HELP_STRING([--enable-parport], [Enable building the pc parallel port driver]),
@@ -438,6 +441,10 @@ AC_ARG_ENABLE([zy1000_master],
 AC_ARG_ENABLE([zy1000],
   AS_HELP_STRING([--enable-zy1000], [Enable ZY1000 interface]),
   [build_zy1000=$enableval], [build_zy1000=no])
+
+AC_ARG_ENABLE([avago_pilot],
+  AS_HELP_STRING([--enable-avago_pilot], [Enable Avago Pilot interface]),
+  [build_avago_pilot=$enableval], [build_avago_pilot=no])
 
 AC_ARG_ENABLE([ioutil],
   AS_HELP_STRING([--enable-ioutil], [Enable ioutil functions - useful for standalone OpenOCD implementations]),
@@ -657,6 +664,12 @@ if test $build_zy1000 = yes; then
   AC_DEFINE([BUILD_ZY1000], [1], [1 if you want ZY1000.])
 else
   AC_DEFINE([BUILD_ZY1000], [0], [0 if you don't want ZY1000.])
+fi
+
+if test $build_avago_pilot = yes; then
+  AC_DEFINE([BUILD_AVAGO_PILOT], [1], [1 if you want AVAGO PILOT.])
+else
+  AC_DEFINE([BUILD_AVAGO_PILOT], [0], [0 if you don't want AVAGO PILOT.])
 fi
 
 if test $build_zy1000_master = yes; then
@@ -1182,6 +1195,7 @@ PROCESS_ADAPTERS([USB1_ADAPTERS], [$use_libusb1 = yes], [libusb-1.x])
 PROCESS_ADAPTERS([USB_ADAPTERS], [$use_libusb1 = yes -o $use_libusb0 = yes], [libusb-1.x or libusb-0.1])
 PROCESS_ADAPTERS([USB0_ADAPTERS], [$use_libusb0 = yes], [libusb-0.1])
 PROCESS_ADAPTERS([HIDAPI_ADAPTERS], [$use_hidapi = yes], [hidapi])
+PROCESS_ADAPTERS([AVAGO_ADAPTERS], [$use_avago = yes], [avagopilot])
 
 if test $enable_stlink != no -o $enable_ti_icdi != no; then
 	AC_DEFINE([BUILD_HLADAPTER], [1], [1 if you want the High Level JTAG driver.])
@@ -1204,6 +1218,7 @@ AM_CONDITIONAL([DUMMY], [test $build_dummy = yes])
 AM_CONDITIONAL([GIVEIO], [test x$parport_use_giveio = xyes])
 AM_CONDITIONAL([EP93XX], [test $build_ep93xx = yes])
 AM_CONDITIONAL([ZY1000], [test $build_zy1000 = yes])
+AM_CONDITIONAL([AVAGO_PILOT], [test $build_avago_pilot = yes])
 AM_CONDITIONAL([ZY1000_MASTER], [test $build_zy1000_master = yes])
 AM_CONDITIONAL([IOUTIL], [test $build_ioutil = yes])
 AM_CONDITIONAL([AT91RM9200], [test $build_at91rm9200 = yes])
@@ -1317,7 +1332,7 @@ echo
 echo
 echo OpenOCD configuration summary
 echo --------------------------------------------------
-m4_foreach([adapter], [USB1_ADAPTERS, USB_ADAPTERS, USB0_ADAPTERS, HIDAPI_ADAPTERS],
+m4_foreach([adapter], [USB1_ADAPTERS, USB_ADAPTERS, USB0_ADAPTERS, HIDAPI_ADAPTERS, AVAGO_ADAPTER],
 	[s=m4_format(["%-40s"], ADAPTER_DESC([adapter]))
 	case $ADAPTER_VAR([adapter]) in
 		auto)
