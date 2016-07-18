@@ -93,6 +93,9 @@ endif
 if USBPROG
 DRIVERFILES += usbprog.c
 endif
+if AVAGO_PILOT
+DRIVERFILES += avago_pilot.c
+endif
 if RLINK
 DRIVERFILES += rlink.c rlink_speed_table.c
 endif
