@@ -90,6 +90,9 @@ extern struct jtag_interface openjtag_interface;
 #if BUILD_JLINK == 1
 extern struct jtag_interface jlink_interface;
 #endif
+#if BUILD_AVAGO_PILOT == 1
+extern struct jtag_interface avago_interface;
+#endif
 #if BUILD_VSLLINK == 1
 extern struct jtag_interface vsllink_interface;
 #endif
@@ -227,6 +230,9 @@ struct jtag_interface *jtag_interfaces[] = {
 #endif
 #if BUILD_CMSIS_DAP == 1
 		&cmsis_dap_interface,
+#endif
+#if BUILD_AVAGO_PILOT == 1
+		&avago_interface,
 #endif
 #endif /* standard drivers */
 		NULL,

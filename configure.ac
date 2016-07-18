@@ -439,6 +439,10 @@ AC_ARG_ENABLE([zy1000],
   AS_HELP_STRING([--enable-zy1000], [Enable ZY1000 interface]),
   [build_zy1000=$enableval], [build_zy1000=no])
 
+AC_ARG_ENABLE([avago_pilot],
+  AS_HELP_STRING([--enable-avago_pilot], [Enable Avago Pilot interface]),
+  [build_avago_pilot=$enableval], [build_avago_pilot=no])
+
 AC_ARG_ENABLE([ioutil],
   AS_HELP_STRING([--enable-ioutil], [Enable ioutil functions - useful for standalone OpenOCD implementations]),
   [build_ioutil=$enableval], [build_ioutil=no])
@@ -657,6 +661,12 @@ if test $build_zy1000 = yes; then
   AC_DEFINE([BUILD_ZY1000], [1], [1 if you want ZY1000.])
 else
   AC_DEFINE([BUILD_ZY1000], [0], [0 if you don't want ZY1000.])
+fi
+
+if test $build_avago_pilot = yes; then
+  AC_DEFINE([BUILD_AVAGO_PILOT], [1], [1 if you want AVAGO PILOT.])
+else
+  AC_DEFINE([BUILD_AVAGO_PILOT], [0], [0 if you don't want AVAGO PILOT.])
 fi
 
 if test $build_zy1000_master = yes; then
@@ -1204,6 +1214,7 @@ AM_CONDITIONAL([DUMMY], [test $build_dummy = yes])
 AM_CONDITIONAL([GIVEIO], [test x$parport_use_giveio = xyes])
 AM_CONDITIONAL([EP93XX], [test $build_ep93xx = yes])
 AM_CONDITIONAL([ZY1000], [test $build_zy1000 = yes])
+AM_CONDITIONAL([AVAGO_PILOT], [test $build_avago_pilot = yes])
 AM_CONDITIONAL([ZY1000_MASTER], [test $build_zy1000_master = yes])
 AM_CONDITIONAL([IOUTIL], [test $build_ioutil = yes])
 AM_CONDITIONAL([AT91RM9200], [test $build_at91rm9200 = yes])

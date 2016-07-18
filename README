@@ -339,6 +339,39 @@ Note that on Linux there is no good reason to use these FTDI binaries;
 they are no faster (on Linux) than libftdi, and cause licensing issues.
 
 
+=======================================
+Using Avago Pilot JTAG Master Interface
+=======================================
+
+These instructions help to build and use the Avago Pilot JTAG
+Master Interface driver
+
+Building the Avago Pilot JTAG Master Interface driver
+------------------------------------------------------
+
+NOTE: arm-eabi Toolchain and the following exports are needed
+
+export PATH=$PATH:/<toolchain path>/bin/"
+export LIBUSB1_CFLAGS=
+export PKG_CONFIG=
+export libusb_CFLAGS=
+export libusb_LIBS=
+
+Then run configure like so:
+
+MAKEINFO=true ./configure --enable-avago_pilot --build=x86 \
+--host=arm-emulex-linux-gnueabi \
+--with-sysroot=<toolchain path>/arm-emulex-linux-gnueabi/sysroot/ \
+--disable-internal-libjaylink
+
+followed by 'make'
+
+If you see autoconf/libtool related errors then run these
+commands first then start to build the driver.
+
+make distclean
+autoreconf -ivf
+
 ==========================
 Obtaining OpenOCD From GIT
 ==========================
