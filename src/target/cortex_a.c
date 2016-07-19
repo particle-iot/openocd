@@ -1919,7 +1919,8 @@ static int cortex_a_assert_reset(struct target *target)
 	}
 
 	/* registers are now invalid */
-	register_cache_invalidate(armv7a->arm.core_cache);
+	if (target_was_examined(target))
+		register_cache_invalidate(armv7a->arm.core_cache);
 
 	target->state = TARGET_RESET;
 
@@ -1935,17 +1936,22 @@ static int cortex_a_deassert_reset(struct target *target)
 	/* be certain SRST is off */
 	jtag_add_reset(0, 0);
 
-	retval = cortex_a_poll(target);
-	if (retval != ERROR_OK)
-		return retval;
+	if (target_was_examined(target)) {
+		retval = cortex_a_poll(target);
+		if (retval != ERROR_OK)
+			return retval;
+	}
 
 	if (target->reset_halt) {
 		if (target->state != TARGET_HALTED) {
 			LOG_WARNING("%s: ran after reset and before halt ...",
 				target_name(target));
-			retval = target_halt(target);
-			if (retval != ERROR_OK)
-				return retval;
+			if (target_was_examined(target)) {
+				retval = target_halt(target);
+				if (retval != ERROR_OK)
+					return retval;
+			} else
+				target->state = TARGET_UNKNOWN;
 		}
 	}
 
