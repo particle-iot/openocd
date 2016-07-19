@@ -124,6 +124,8 @@ struct stm32lx_part_info {
 
 	uint32_t flash_base;	/* Flash controller registers location */
 	uint32_t fsize_base;	/* Location of FSIZE register */
+	const uint8_t *run_algorithm_code;
+	const uint8_t run_algorithm_size;
 };
 
 struct stm32lx_flash_bank {
@@ -133,6 +135,41 @@ struct stm32lx_flash_bank {
 	uint32_t flash_base;
 
 	const struct stm32lx_part_info *part_info;
+};
+
+/* see contrib/loaders/flash/stm32lx.S for src */
+static const uint8_t stm32lx_cortex_m3_flash_write_code[] = {
+	/* write_word: */
+	0x00, 0x23,             /* movs r3, #0 */
+	0x04, 0xe0,             /* b test_done */
+
+	/* write_word: */
+	0x51, 0xf8, 0x04, 0xcb, /* ldr ip, [r1], #4 */
+	0x40, 0xf8, 0x04, 0xcb, /* str ip, [r0], #4 */
+	0x01, 0x33,             /* adds r3, #1 */
+
+	/* test_done: */
+	0x93, 0x42,             /* cmp r3, r2 */
+	0xf8, 0xd3,             /* bcc write_word */
+	0x00, 0xbe,             /* bkpt 0 */
+};
+
+/* see contrib/loaders/flash/stm32l0.S for src */
+static const uint8_t stm32lx_cortex_m0_plus_flash_write_code[] = {
+	0x00, 0x23, 			/* movs r3, #0 */
+	0x04, 0xe0, 			/* b test_done */
+
+	/* write_word: */
+	0x0c, 0x68, 			/* ldr	r4, [r1] */
+	0x04, 0x31, 			/* adds r1, #4 */
+	0x04, 0x60, 			/* str	r4, [r0] */
+	0x04, 0x30, 			/* adds r0, #4 */
+	0x01, 0x33, 			/* adds	r3, #1 */
+
+	/* test_done: */
+	0x93, 0x42, 			/* cmp r3, r2 */
+	0xf8, 0xd3, 			/* bcc write_word */
+	0x00, 0xbe, 			/* bkpt 0 */
 };
 
 static const struct stm32lx_rev stm32_416_revs[] = {
@@ -175,6 +212,8 @@ static const struct stm32lx_part_info stm32lx_parts[] = {
 		.has_dual_banks		= false,
 		.flash_base			= 0x40023C00,
 		.fsize_base			= 0x1FF8004C,
+		.run_algorithm_code = stm32lx_cortex_m3_flash_write_code,
+		.run_algorithm_size = sizeof(stm32lx_cortex_m3_flash_write_code),
 	},
 	{
 		.id					= 0x417,
@@ -187,6 +226,8 @@ static const struct stm32lx_part_info stm32lx_parts[] = {
 		.has_dual_banks		= false,
 		.flash_base			= 0x40022000,
 		.fsize_base			= 0x1FF8007C,
+		.run_algorithm_code = stm32lx_cortex_m0_plus_flash_write_code,
+		.run_algorithm_size = sizeof(stm32lx_cortex_m0_plus_flash_write_code),
 	},
 	{
 		.id					= 0x425,
@@ -199,6 +240,8 @@ static const struct stm32lx_part_info stm32lx_parts[] = {
 		.has_dual_banks		= false,
 		.flash_base			= 0x40022000,
 		.fsize_base			= 0x1FF8007C,
+		.run_algorithm_code = stm32lx_cortex_m0_plus_flash_write_code,
+		.run_algorithm_size = sizeof(stm32lx_cortex_m0_plus_flash_write_code),
 	},
 	{
 		.id					= 0x427,
@@ -211,6 +254,8 @@ static const struct stm32lx_part_info stm32lx_parts[] = {
 		.has_dual_banks		= false,
 		.flash_base			= 0x40023C00,
 		.fsize_base			= 0x1FF800CC,
+		.run_algorithm_code = stm32lx_cortex_m3_flash_write_code,
+		.run_algorithm_size = sizeof(stm32lx_cortex_m3_flash_write_code),
 	},
 	{
 		.id					= 0x429,
@@ -223,6 +268,8 @@ static const struct stm32lx_part_info stm32lx_parts[] = {
 		.has_dual_banks		= false,
 		.flash_base			= 0x40023C00,
 		.fsize_base			= 0x1FF8004C,
+		.run_algorithm_code = stm32lx_cortex_m3_flash_write_code,
+		.run_algorithm_size = sizeof(stm32lx_cortex_m3_flash_write_code),
 	},
 	{
 		.id					= 0x436,
@@ -236,6 +283,8 @@ static const struct stm32lx_part_info stm32lx_parts[] = {
 		.has_dual_banks		= true,
 		.flash_base			= 0x40023C00,
 		.fsize_base			= 0x1FF800CC,
+		.run_algorithm_code = stm32lx_cortex_m3_flash_write_code,
+		.run_algorithm_size = sizeof(stm32lx_cortex_m3_flash_write_code),
 	},
 	{
 		.id					= 0x437,
@@ -249,6 +298,8 @@ static const struct stm32lx_part_info stm32lx_parts[] = {
 		.has_dual_banks		= true,
 		.flash_base			= 0x40023C00,
 		.fsize_base			= 0x1FF800CC,
+		.run_algorithm_code = stm32lx_cortex_m3_flash_write_code,
+		.run_algorithm_size = sizeof(stm32lx_cortex_m3_flash_write_code),
 	},
 	{
 		.id					= 0x447,
@@ -258,10 +309,12 @@ static const struct stm32lx_part_info stm32lx_parts[] = {
 		.page_size			= 128,
 		.pages_per_sector	= 32,
 		.max_flash_size_kb	= 192,
-		.first_bank_size_kb	= 128,
+		.first_bank_size_kb	= 96,
 		.has_dual_banks		= true,
 		.flash_base			= 0x40022000,
 		.fsize_base			= 0x1FF8007C,
+		.run_algorithm_code = stm32lx_cortex_m0_plus_flash_write_code,
+		.run_algorithm_size = sizeof(stm32lx_cortex_m0_plus_flash_write_code),
 	},
 	{
 		.id					= 0x457,
@@ -274,6 +327,8 @@ static const struct stm32lx_part_info stm32lx_parts[] = {
 		.has_dual_banks		= false,
 		.flash_base			= 0x40022000,
 		.fsize_base			= 0x1FF8007C,
+		.run_algorithm_code = stm32lx_cortex_m0_plus_flash_write_code,
+		.run_algorithm_size = sizeof(stm32lx_cortex_m0_plus_flash_write_code),
 	},
 };
 
@@ -447,24 +502,6 @@ static int stm32lx_write_half_pages(struct flash_bank *bank, const uint8_t *buff
 
 	int retval = ERROR_OK;
 
-	/* see contib/loaders/flash/stm32lx.S for src */
-
-	static const uint8_t stm32lx_flash_write_code[] = {
-		/* write_word: */
-		0x00, 0x23,             /* movs r3, #0 */
-		0x04, 0xe0,             /* b test_done */
-
-		/* write_word: */
-		0x51, 0xf8, 0x04, 0xcb, /* ldr ip, [r1], #4 */
-		0x40, 0xf8, 0x04, 0xcb, /* str ip, [r0], #4 */
-		0x01, 0x33,             /* adds r3, #1 */
-
-		/* test_done: */
-		0x93, 0x42,             /* cmp r3, r2 */
-		0xf8, 0xd3,             /* bcc write_word */
-		0x00, 0xbe,             /* bkpt 0 */
-	};
-
 	/* Make sure we're performing a half-page aligned write. */
 	if (count % hp_nb) {
 		LOG_ERROR("The byte count must be %" PRIu32 "B-aligned but count is %" PRIi32 "B)", hp_nb, count);
@@ -472,7 +509,7 @@ static int stm32lx_write_half_pages(struct flash_bank *bank, const uint8_t *buff
 	}
 
 	/* flash write code */
-	if (target_alloc_working_area(target, sizeof(stm32lx_flash_write_code),
+	if (target_alloc_working_area(target, stm32lx_info->part_info->run_algorithm_size,
 			&write_algorithm) != ERROR_OK) {
 		LOG_DEBUG("no working area for block memory writes");
 		return ERROR_TARGET_RESOURCE_NOT_AVAILABLE;
@@ -481,8 +518,8 @@ static int stm32lx_write_half_pages(struct flash_bank *bank, const uint8_t *buff
 	/* Write the flashing code */
 	retval = target_write_buffer(target,
 			write_algorithm->address,
-			sizeof(stm32lx_flash_write_code),
-			stm32lx_flash_write_code);
+			stm32lx_info->part_info->run_algorithm_size,
+			stm32lx_info->part_info->run_algorithm_code);
 	if (retval != ERROR_OK) {
 		target_free_working_area(target, write_algorithm);
 		return retval;
