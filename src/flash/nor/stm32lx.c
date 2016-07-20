@@ -447,22 +447,25 @@ static int stm32lx_write_half_pages(struct flash_bank *bank, const uint8_t *buff
 
 	int retval = ERROR_OK;
 
-	/* see contib/loaders/flash/stm32lx.S for src */
-
+	/*
+	 * code for flashing in thumb mode
+	 * see contrib/loaders/flash/stm32l0.S for src
+	 */
 	static const uint8_t stm32lx_flash_write_code[] = {
-		/* write_word: */
-		0x00, 0x23,             /* movs r3, #0 */
-		0x04, 0xe0,             /* b test_done */
+		0x00, 0x23,				/* movs r3, #0 */
+		0x04, 0xe0,				/* b test_done */
 
 		/* write_word: */
-		0x51, 0xf8, 0x04, 0xcb, /* ldr ip, [r1], #4 */
-		0x40, 0xf8, 0x04, 0xcb, /* str ip, [r0], #4 */
-		0x01, 0x33,             /* adds r3, #1 */
+		0x0c, 0x68,				/* ldr r4, [r1] */
+		0x04, 0x31,				/* adds r1, #4 */
+		0x04, 0x60,				/* str r4, [r0] */
+		0x04, 0x30,				/* adds r0, #4 */
+		0x01, 0x33,				/* adds r3, #1 */
 
 		/* test_done: */
-		0x93, 0x42,             /* cmp r3, r2 */
-		0xf8, 0xd3,             /* bcc write_word */
-		0x00, 0xbe,             /* bkpt 0 */
+		0x93, 0x42,				/* cmp r3, r2 */
+		0xf8, 0xd3,				/* bcc write_word */
+		0x00, 0xbe,				/* bkpt 0 */
 	};
 
 	/* Make sure we're performing a half-page aligned write. */
