@@ -2198,6 +2198,12 @@ Set to @option{enable} to cause OpenOCD to send the target descriptions to gdb v
 The default behaviour is @option{enable}.
 @end deffn
 
+@deffn {Config Command} gdb_thread_list (@option{enable}|@option{disable})
+Set to @option{enable} to cause OpenOCD to send the thread list to gdb via qXfer:threads:read packet.
+This command enables more efficient updating and thread names in gdb (requires version 7.11.1 and up).
+The default behaviour is @option{disable}.
+@end deffn
+
 @deffn {Command} gdb_save_tdesc
 Saves the target descripton file to the local file system.
 

@@ -90,6 +90,8 @@ struct gdb_connection {
 	bool attached;
 	/* temporarily used for target description support */
 	struct target_desc_format target_desc;
+	/* temporarily used for thread list support */
+	char *thread_list;
 };
 
 #if 0
@@ -129,6 +131,11 @@ static int gdb_report_data_abort;
  * via qXfer:features:read packet */
 /* enabled by default */
 static int gdb_use_target_description = 1;
+
+/* set if we are sending thread list to gdb
+ * via qXfer:threads:read packet */
+/* disabled by default */
+static int gdb_use_thread_list;
 
 /* current processing free-run type, used by file-I/O */
 static char gdb_running_type;
@@ -934,6 +941,7 @@ static int gdb_new_connection(struct connection *connection)
 	gdb_connection->attached = true;
 	gdb_connection->target_desc.tdesc = NULL;
 	gdb_connection->target_desc.tdesc_length = 0;
+	gdb_connection->thread_list = NULL;
 
 	/* send ACK to GDB for debug request */
 	gdb_write(connection, "+", 1);
@@ -2266,6 +2274,97 @@ error:
 	return retval;
 }
 
+static int gdb_generate_thread_list(struct target *target, char **thread_list_out)
+{
+	struct rtos *rtos = target->rtos;
+	int retval = ERROR_OK;
+	char *thread_list = NULL;
+	int pos = 0;
+	int size = 0;
+
+	if (rtos == NULL)
+		return ERROR_FAIL;
+
+	xml_printf(&retval, &thread_list, &pos, &size,
+		   "<?xml version=\"1.0\"?>\n"
+		   "<threads>\n");
+
+	for (int i = 0; i < rtos->thread_count; i++) {
+		struct thread_detail *thread_detail = &rtos->thread_details[i];
+
+		if (!thread_detail->exists)
+			continue;
+
+		xml_printf(&retval, &thread_list, &pos, &size,
+			   "<thread id=\"%" PRIx64 "\"",
+			   thread_detail->threadid);
+
+		if (thread_detail->thread_name_str != NULL)
+			xml_printf(&retval, &thread_list, &pos, &size,
+				   " name=\"%s\"",
+				   thread_detail->thread_name_str);
+
+		xml_printf(&retval, &thread_list, &pos, &size,
+			   ">");
+
+		if (thread_detail->extra_info_str != NULL)
+			xml_printf(&retval, &thread_list, &pos, &size,
+				   thread_detail->extra_info_str);
+
+		xml_printf(&retval, &thread_list, &pos, &size,
+			   "</thread>\n");
+	}
+
+	xml_printf(&retval, &thread_list, &pos, &size,
+		   "</threads>\n");
+
+	if (retval == ERROR_OK)
+		*thread_list_out = thread_list;
+	else
+		free(thread_list);
+
+	return retval;
+}
+
+static int gdb_get_thread_list_chunk(struct target *target, char **thread_list,
+		char **chunk, int32_t offset, uint32_t length)
+{
+	if (*thread_list == NULL) {
+		int retval = gdb_generate_thread_list(target, thread_list);
+		if (retval != ERROR_OK) {
+			LOG_ERROR("Unable to Generate Thread List");
+			return ERROR_FAIL;
+		}
+	}
+
+	size_t thread_list_length = strlen(*thread_list);
+	char transfer_type;
+
+	length = MIN(length, thread_list_length - offset);
+	if (length < (thread_list_length - offset))
+		transfer_type = 'm';
+	else
+		transfer_type = 'l';
+
+	*chunk = malloc(length + 2);
+	if (*chunk == NULL) {
+		LOG_ERROR("Unable to allocate memory");
+		return ERROR_FAIL;
+	}
+
+	(*chunk)[0] = transfer_type;
+	strncpy((*chunk) + 1, (*thread_list) + offset, length);
+	(*chunk)[1 + length] = '\0';
+
+	/* After gdb-server sends out last chunk, invalidate thread list. */
+	if (transfer_type == 'l') {
+		free(*thread_list);
+		*thread_list = NULL;
+	}
+
+	return ERROR_OK;
+}
+
 static int gdb_query_packet(struct connection *connection,
 		char const *packet, int packet_size)
 {
@@ -2355,10 +2454,11 @@ static int gdb_query_packet(struct connection *connection,
 			&buffer,
 			&pos,
 			&size,
-			"PacketSize=%x;qXfer:memory-map:read%c;qXfer:features:read%c;QStartNoAckMode+",
+			"PacketSize=%x;qXfer:memory-map:read%c;qXfer:features:read%c;qXfer:threads:read%c;QStartNoAckMode+",
 			(GDB_BUFFER_SIZE - 1),
 			((gdb_use_memory_map == 1) && (flash_get_bank_count() > 0)) ? '+' : '-',
-			(gdb_target_desc_supported == 1) ? '+' : '-');
+			(gdb_target_desc_supported == 1) ? '+' : '-',
+			(gdb_use_thread_list == 1) ? '+' : '-');
 
 		if (retval != ERROR_OK) {
 			gdb_send_error(connection, 01);
@@ -2394,6 +2494,37 @@ static int gdb_query_packet(struct connection *connection,
 		 */
 		retval = gdb_get_target_description_chunk(target, &gdb_connection->target_desc,
 				&xml, offset, length);
+		if (retval != ERROR_OK) {
+			gdb_error(connection, retval);
+			return retval;
+		}
+
+		gdb_put_packet(connection, xml, strlen(xml));
+
+		free(xml);
+		return ERROR_OK;
+	} else if (strncmp(packet, "qXfer:threads:read:", 19) == 0) {
+		char *xml = NULL;
+		int retval = ERROR_OK;
+
+		int offset;
+		unsigned int length;
+
+		/* skip command character */
+		packet += 19;
+
+		if (decode_xfer_read(packet, NULL, &offset, &length) < 0) {
+			gdb_send_error(connection, 01);
+			return ERROR_OK;
+		}
+
+		/* Target should prepare correct thread list for annex.
+		 * The first character of returned xml is 'm' or 'l'. 'm' for
+		 * there are *more* chunks to transfer. 'l' for it is the *last*
+		 * chunk of target description.
+		 */
+		retval = gdb_get_thread_list_chunk(target, &gdb_connection->thread_list,
+						   &xml, offset, length);
 		if (retval != ERROR_OK) {
 			gdb_error(connection, retval);
 			return retval;
@@ -3047,6 +3178,15 @@ COMMAND_HANDLER(handle_gdb_target_description_command)
 	return ERROR_OK;
 }
 
+COMMAND_HANDLER(handle_gdb_thread_list_command)
+{
+	if (CMD_ARGC != 1)
+		return ERROR_COMMAND_SYNTAX_ERROR;
+
+	COMMAND_PARSE_ENABLE(CMD_ARGV[0], gdb_use_thread_list);
+	return ERROR_OK;
+}
+
 COMMAND_HANDLER(handle_gdb_save_tdesc_command)
 {
 	char *tdesc;
@@ -3148,6 +3288,13 @@ static const struct command_registration gdb_command_handlers[] = {
 		.handler = handle_gdb_target_description_command,
 		.mode = COMMAND_CONFIG,
 		.help = "enable or disable target description",
+		.usage = "('enable'|'disable')"
+	},
+	{
+		.name = "gdb_thread_list",
+		.handler = handle_gdb_thread_list_command,
+		.mode = COMMAND_CONFIG,
+		.help = "enable or disable thread list",
 		.usage = "('enable'|'disable')"
 	},
 	{
