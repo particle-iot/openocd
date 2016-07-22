@@ -540,7 +540,7 @@ int armv7m_arch_state(struct target *target)
 	sp = buf_get_u32(arm->core_cache->reg_list[ARMV7M_R13].value, 0, 32);
 
 	LOG_USER("target halted due to %s, current mode: %s %s\n"
-		"xPSR: %#8.8" PRIx32 " pc: %#8.8" PRIx32 " %csp: %#8.8" PRIx32 "%s",
+		"xPSR: %#8.8" PRIx32 " pc: %#8.8" PRIx32 " %csp: %#8.8" PRIx32 "%s%s",
 		debug_reason_name(target),
 		arm_mode_name(arm->core_mode),
 		armv7m_exception_string(armv7m->exception_number),
@@ -548,7 +548,8 @@ int armv7m_arch_state(struct target *target)
 		buf_get_u32(arm->pc->value, 0, 32),
 		(ctrl & 0x02) ? 'p' : 'm',
 		sp,
-		arm->is_semihosting ? ", semihosting" : "");
+		arm->is_semihosting ? ", semihosting" : "",
+		arm->is_semihosting_fileio ? " fileio" : "");
 
 	return ERROR_OK;
 }
