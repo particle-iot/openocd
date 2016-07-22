@@ -101,6 +101,7 @@
 #define WDOG_STCTRH	0x40052000
 #define SMC_PMCTRL	0x4007E001
 #define SMC_PMSTAT	0x4007E003
+#define MCM_PLACR	0xF000300C
 
 /* Values */
 #define PM_STAT_RUN		0x01
@@ -230,7 +231,8 @@ struct kinetis_flash_bank {
 		FS_PROGRAM_SECTOR = 1,
 		FS_PROGRAM_LONGWORD = 2,
 		FS_PROGRAM_PHRASE = 4, /* Unsupported */
-		FS_INVALIDATE_CACHE = 8,
+		FS_INVALIDATE_CACHE_K = 8,
+		FS_INVALIDATE_CACHE_L = 0x10,
 	} flash_support;
 };
 
@@ -1170,12 +1172,13 @@ static int kinetis_check_run_mode(struct target *target)
 static void kinetis_invalidate_flash_cache(struct flash_bank *bank)
 {
 	struct kinetis_flash_bank *kinfo = bank->driver_priv;
-	uint8_t pfb01cr_byte2 = 0xf0;
 
-	if (!(kinfo->flash_support & FS_INVALIDATE_CACHE))
-		return;
+	if (kinfo->flash_support & FS_INVALIDATE_CACHE_K)
+		target_write_u8(bank->target, FMC_PFB01CR + 2, 0xf0);
 
-	target_write_memory(bank->target, FMC_PFB01CR + 2, 1, 1, &pfb01cr_byte2);
+	else if (kinfo->flash_support & FS_INVALIDATE_CACHE_L)
+		target_write_u8(bank->target, MCM_PLACR + 1, 0x04);
+
 	return;
 }
 
@@ -1538,7 +1541,7 @@ static int kinetis_probe(struct flash_bank *bank)
 			pflash_sector_size_bytes = 1<<10;
 			nvm_sector_size_bytes = 1<<10;
 			num_blocks = 2;
-			kinfo->flash_support = FS_PROGRAM_LONGWORD | FS_PROGRAM_SECTOR | FS_INVALIDATE_CACHE;
+			kinfo->flash_support = FS_PROGRAM_LONGWORD | FS_PROGRAM_SECTOR | FS_INVALIDATE_CACHE_K;
 			break;
 		case KINETIS_K_SDID_K10_M72:
 		case KINETIS_K_SDID_K20_M72:
@@ -1551,7 +1554,7 @@ static int kinetis_probe(struct flash_bank *bank)
 			pflash_sector_size_bytes = 2<<10;
 			nvm_sector_size_bytes = 1<<10;
 			num_blocks = 2;
-			kinfo->flash_support = FS_PROGRAM_LONGWORD | FS_PROGRAM_SECTOR | FS_INVALIDATE_CACHE;
+			kinfo->flash_support = FS_PROGRAM_LONGWORD | FS_PROGRAM_SECTOR | FS_INVALIDATE_CACHE_K;
 			kinfo->max_flash_prog_size = 1<<10;
 			break;
 		case KINETIS_K_SDID_K10_M100:
@@ -1567,7 +1570,7 @@ static int kinetis_probe(struct flash_bank *bank)
 			pflash_sector_size_bytes = 2<<10;
 			nvm_sector_size_bytes = 2<<10;
 			num_blocks = 2;
-			kinfo->flash_support = FS_PROGRAM_LONGWORD | FS_PROGRAM_SECTOR | FS_INVALIDATE_CACHE;
+			kinfo->flash_support = FS_PROGRAM_LONGWORD | FS_PROGRAM_SECTOR | FS_INVALIDATE_CACHE_K;
 			break;
 		case KINETIS_K_SDID_K21_M120:
 		case KINETIS_K_SDID_K22_M120:
@@ -1576,7 +1579,7 @@ static int kinetis_probe(struct flash_bank *bank)
 			kinfo->max_flash_prog_size = 1<<10;
 			nvm_sector_size_bytes = 4<<10;
 			num_blocks = 2;
-			kinfo->flash_support = FS_PROGRAM_PHRASE | FS_PROGRAM_SECTOR | FS_INVALIDATE_CACHE;
+			kinfo->flash_support = FS_PROGRAM_PHRASE | FS_PROGRAM_SECTOR | FS_INVALIDATE_CACHE_K;
 			break;
 		case KINETIS_K_SDID_K10_M120:
 		case KINETIS_K_SDID_K20_M120:
@@ -1586,7 +1589,7 @@ static int kinetis_probe(struct flash_bank *bank)
 			pflash_sector_size_bytes = 4<<10;
 			nvm_sector_size_bytes = 4<<10;
 			num_blocks = 4;
-			kinfo->flash_support = FS_PROGRAM_PHRASE | FS_PROGRAM_SECTOR | FS_INVALIDATE_CACHE;
+			kinfo->flash_support = FS_PROGRAM_PHRASE | FS_PROGRAM_SECTOR | FS_INVALIDATE_CACHE_K;
 			break;
 		default:
 			LOG_ERROR("Unsupported K-family FAMID");
@@ -1600,7 +1603,7 @@ static int kinetis_probe(struct flash_bank *bank)
 				/* K02FN64, K02FN128: FTFA, 2kB sectors */
 				pflash_sector_size_bytes = 2<<10;
 				num_blocks = 1;
-				kinfo->flash_support = FS_PROGRAM_LONGWORD | FS_INVALIDATE_CACHE;
+				kinfo->flash_support = FS_PROGRAM_LONGWORD | FS_INVALIDATE_CACHE_K;
 				break;
 
 			case KINETIS_SDID_FAMILYID_K2X | KINETIS_SDID_SUBFAMID_KX2: {
@@ -1615,7 +1618,7 @@ static int kinetis_probe(struct flash_bank *bank)
 					/* MK24FN1M */
 					pflash_sector_size_bytes = 4<<10;
 					num_blocks = 2;
-					kinfo->flash_support = FS_PROGRAM_PHRASE | FS_PROGRAM_SECTOR | FS_INVALIDATE_CACHE;
+					kinfo->flash_support = FS_PROGRAM_PHRASE | FS_PROGRAM_SECTOR | FS_INVALIDATE_CACHE_K;
 					kinfo->max_flash_prog_size = 1<<10;
 					break;
 				}
@@ -1625,7 +1628,7 @@ static int kinetis_probe(struct flash_bank *bank)
 					/* K22 with new-style SDID - smaller pflash with FTFA, 2kB sectors */
 					pflash_sector_size_bytes = 2<<10;
 					/* autodetect 1 or 2 blocks */
-					kinfo->flash_support = FS_PROGRAM_LONGWORD | FS_INVALIDATE_CACHE;
+					kinfo->flash_support = FS_PROGRAM_LONGWORD | FS_INVALIDATE_CACHE_K;
 					break;
 				}
 				LOG_ERROR("Unsupported Kinetis K22 DIEID");
@@ -1636,12 +1639,12 @@ static int kinetis_probe(struct flash_bank *bank)
 				if ((kinfo->sim_sdid & (KINETIS_SDID_DIEID_MASK)) == KINETIS_SDID_DIEID_K24FN256) {
 					/* K24FN256 - smaller pflash with FTFA */
 					num_blocks = 1;
-					kinfo->flash_support = FS_PROGRAM_LONGWORD | FS_INVALIDATE_CACHE;
+					kinfo->flash_support = FS_PROGRAM_LONGWORD | FS_INVALIDATE_CACHE_K;
 					break;
 				}
 				/* K24FN1M without errata 7534 */
 				num_blocks = 2;
-				kinfo->flash_support = FS_PROGRAM_PHRASE | FS_PROGRAM_SECTOR | FS_INVALIDATE_CACHE;
+				kinfo->flash_support = FS_PROGRAM_PHRASE | FS_PROGRAM_SECTOR | FS_INVALIDATE_CACHE_K;
 				kinfo->max_flash_prog_size = 1<<10;
 				break;
 
@@ -1655,7 +1658,7 @@ static int kinetis_probe(struct flash_bank *bank)
 				nvm_sector_size_bytes = 4<<10;
 				kinfo->max_flash_prog_size = 1<<10;
 				num_blocks = 2;
-				kinfo->flash_support = FS_PROGRAM_PHRASE | FS_PROGRAM_SECTOR | FS_INVALIDATE_CACHE;
+				kinfo->flash_support = FS_PROGRAM_PHRASE | FS_PROGRAM_SECTOR | FS_INVALIDATE_CACHE_K;
 				break;
 
 			case KINETIS_SDID_FAMILYID_K2X | KINETIS_SDID_SUBFAMID_KX6:
@@ -1666,7 +1669,7 @@ static int kinetis_probe(struct flash_bank *bank)
 				nvm_sector_size_bytes = 4<<10;
 				kinfo->max_flash_prog_size = 1<<10;
 				num_blocks = 4;
-				kinfo->flash_support = FS_PROGRAM_PHRASE | FS_PROGRAM_SECTOR | FS_INVALIDATE_CACHE;
+				kinfo->flash_support = FS_PROGRAM_PHRASE | FS_PROGRAM_SECTOR | FS_INVALIDATE_CACHE_K;
 				break;
 			default:
 				LOG_ERROR("Unsupported Kinetis FAMILYID SUBFAMID");
@@ -1678,7 +1681,7 @@ static int kinetis_probe(struct flash_bank *bank)
 			pflash_sector_size_bytes = 1<<10;
 			nvm_sector_size_bytes = 1<<10;
 			/* autodetect 1 or 2 blocks */
-			kinfo->flash_support = FS_PROGRAM_LONGWORD;
+			kinfo->flash_support = FS_PROGRAM_LONGWORD | FS_INVALIDATE_CACHE_L;
 			break;
 
 		case KINETIS_SDID_SERIESID_KV:
@@ -1688,14 +1691,14 @@ static int kinetis_probe(struct flash_bank *bank)
 				/* KV10: FTFA, 1kB sectors */
 				pflash_sector_size_bytes = 1<<10;
 				num_blocks = 1;
-				kinfo->flash_support = FS_PROGRAM_LONGWORD;
+				kinfo->flash_support = FS_PROGRAM_LONGWORD | FS_INVALIDATE_CACHE_L;
 				break;
 
 			case KINETIS_SDID_FAMILYID_K1X | KINETIS_SDID_SUBFAMID_KX1:
 				/* KV11: FTFA, 2kB sectors */
 				pflash_sector_size_bytes = 2<<10;
 				num_blocks = 1;
-				kinfo->flash_support = FS_PROGRAM_LONGWORD;
+				kinfo->flash_support = FS_PROGRAM_LONGWORD | FS_INVALIDATE_CACHE_L;
 				break;
 
 			case KINETIS_SDID_FAMILYID_K3X | KINETIS_SDID_SUBFAMID_KX0:
@@ -1704,7 +1707,7 @@ static int kinetis_probe(struct flash_bank *bank)
 				/* KV31: FTFA, 2kB sectors, 2 blocks */
 				pflash_sector_size_bytes = 2<<10;
 				/* autodetect 1 or 2 blocks */
-				kinfo->flash_support = FS_PROGRAM_LONGWORD | FS_INVALIDATE_CACHE;
+				kinfo->flash_support = FS_PROGRAM_LONGWORD | FS_INVALIDATE_CACHE_K;
 				break;
 
 			case KINETIS_SDID_FAMILYID_K4X | KINETIS_SDID_SUBFAMID_KX2:
@@ -1713,7 +1716,7 @@ static int kinetis_probe(struct flash_bank *bank)
 				/* KV4x: FTFA, 4kB sectors */
 				pflash_sector_size_bytes = 4<<10;
 				num_blocks = 1;
-				kinfo->flash_support = FS_PROGRAM_LONGWORD | FS_INVALIDATE_CACHE;
+				kinfo->flash_support = FS_PROGRAM_LONGWORD | FS_INVALIDATE_CACHE_K;
 				break;
 
 			default:
