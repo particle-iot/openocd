@@ -1683,6 +1683,7 @@ static int cortex_m_init_target(struct command_context *cmd_ctx,
 	struct target *target)
 {
 	armv7m_build_reg_cache(target);
+	arm_semihosting_init(target);
 	return ERROR_OK;
 }
 
