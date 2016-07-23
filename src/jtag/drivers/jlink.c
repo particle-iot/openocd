@@ -439,9 +439,9 @@ static int jlink_register(void)
 	if (!jaylink_has_cap(caps, JAYLINK_DEV_CAP_REGISTER))
 		return ERROR_OK;
 
-	ret = jaylink_register(devh, &conn, connlist, NULL, NULL);
+	ret = jaylink_register(devh, &conn, connlist, NULL, NULL, NULL);
 
-	if (ret < 0) {
+	if (ret != JAYLINK_OK) {
 		LOG_ERROR("jaylink_register() failed: %s.",
 			jaylink_strerror_name(ret));
 		return ERROR_FAIL;
@@ -739,9 +739,9 @@ static int jlink_quit(void)
 	}
 
 	if (jaylink_has_cap(caps, JAYLINK_DEV_CAP_REGISTER)) {
-		ret = jaylink_unregister(devh, &conn, connlist, NULL, NULL);
+		ret = jaylink_unregister(devh, &conn, connlist, NULL, NULL, NULL);
 
-		if (ret < 0)
+		if (ret != JAYLINK_OK)
 			LOG_ERROR("jaylink_unregister() failed: %s.",
 				jaylink_strerror_name(ret));
 	}
