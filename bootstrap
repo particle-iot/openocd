@@ -37,6 +37,8 @@ else
     echo "Setting up submodules"
     git submodule init
     git submodule update
+
+    ( cd src/jtag/drivers/libjaylink/ && ./autogen.sh )
 fi
 
 echo "Bootstrap complete. Quick build instructions:"
