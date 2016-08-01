@@ -147,7 +147,9 @@ struct mips32_algorithm {
 #define MIPS32_OP_XORI	0x0E
 #define MIPS32_OP_XOR	0x26
 #define MIPS32_OP_SLTU  0x2B
-#define MIPS32_OP_SRL	0x03
+#define MIPS32_OP_SLL	0x00
+#define MIPS32_OP_SRL	0x02
+#define MIPS32_OP_SRA	0x03
 #define MIPS32_OP_SYNCI	0x1F
 
 #define MIPS32_OP_REGIMM	0x01
@@ -194,6 +196,8 @@ struct mips32_algorithm {
 #define MIPS32_SH(reg, off, base)		MIPS32_I_INST(MIPS32_OP_SH, base, reg, off)
 #define MIPS32_SW(reg, off, base)		MIPS32_I_INST(MIPS32_OP_SW, base, reg, off)
 #define MIPS32_XOR(reg, val1, val2)		MIPS32_R_INST(0, val1, val2, reg, 0, MIPS32_OP_XOR)
+#define MIPS32_SLL(reg, src, off)		MIPS32_R_INST(0, 0, src, reg, off, MIPS32_OP_SLL)
+#define MIPS32_SRA(reg, src, off)		MIPS32_R_INST(0, 0, src, reg, off, MIPS32_OP_SRA)
 #define MIPS32_SRL(reg, src, off)		MIPS32_R_INST(0, 0, src, reg, off, MIPS32_OP_SRL)
 #define MIPS32_SLTU(dst, src, tar)		MIPS32_R_INST(MIPS32_OP_SPECIAL, src, tar, dst, 0, MIPS32_OP_SLTU)
 #define MIPS32_SYNCI(off, base)			MIPS32_I_INST(MIPS32_OP_REGIMM, base, MIPS32_OP_SYNCI, off)
