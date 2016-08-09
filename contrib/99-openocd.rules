@@ -30,6 +30,9 @@ ATTRS{idVendor}=="0403", ATTRS{idProduct}=="8a99", MODE="664", GROUP="plugdev"
 # XDS100v2
 ATTRS{idVendor}=="0403", ATTRS{idProduct}=="a6d0", MODE="664", GROUP="plugdev"
 
+# Texas Instruments XDS100 Ver 3.0
+ATTRS{idVendor}=="0403", ATTRS{idProduct}=="a6d1", MODE="664", GROUP="plugdev"
+
 # Xverve Signalyzer Tool (DT-USB-ST), Signalyzer LITE (DT-USB-SLITE)
 ATTRS{idVendor}=="0403", ATTRS{idProduct}=="bca0", MODE="664", GROUP="plugdev"
 ATTRS{idVendor}=="0403", ATTRS{idProduct}=="bca1", MODE="664", GROUP="plugdev"
