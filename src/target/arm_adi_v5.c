@@ -746,7 +746,8 @@ static bool is_dap_cid_ok(uint32_t cid)
 /*
  * This function checks the ID for each access port to find the requested Access Port type
  */
-int dap_find_ap(struct adiv5_dap *dap, enum ap_type type_to_find, struct adiv5_ap **ap_out)
+int dap_find_ap(struct adiv5_dap *dap, enum ap_type type_to_find, struct adiv5_ap **ap_out,
+				bool valid_baseaddr)
 {
 	int ap_num;
 
@@ -757,45 +758,63 @@ int dap_find_ap(struct adiv5_dap *dap, enum ap_type type_to_find, struct adiv5_a
 		uint32_t id_val = 0;
 
 		int retval = dap_queue_ap_read(dap_ap(dap, ap_num), AP_REG_IDR, &id_val);
-		if (retval != ERROR_OK)
-			return retval;
+		if (retval == ERROR_OK)
+			retval = dap_run(dap);
+		if (retval == ERROR_OK) {
+			if (valid_baseaddr == true) {
+				uint32_t baseaddr = 0;
 
-		retval = dap_run(dap);
+				retval = dap_queue_ap_read(dap_ap(dap, ap_num), MEM_AP_REG_BASE, &baseaddr);
+				if (retval == ERROR_OK)
+					retval = dap_run(dap);
 
-		/* IDR bits:
-		 * 31-28 : Revision
-		 * 27-24 : JEDEC bank (0x4 for ARM)
-		 * 23-17 : JEDEC code (0x3B for ARM)
-		 * 16-13 : Class (0b1000=Mem-AP)
-		 * 12-8  : Reserved
-		 *  7-4  : AP Variant (non-zero for JTAG-AP)
-		 *  3-0  : AP Type (0=JTAG-AP 1=AHB-AP 2=APB-AP 4=AXI-AP)
-		 */
+				/*
+				 * On some SoCs there's an AHB-AP connected to the
+				 * AMBA High Performance Bus which has no connection
+				 * to any debug components and thus no valid ROM table
+				 * When asked specifically to find a valid baseaddr,
+				 * skip these APs
+				 */
+				if (retval != ERROR_OK || baseaddr == 0xFFFFFFFF
+						|| (baseaddr & 3) == 2)
+					continue;
+			}
 
-		/* Reading register for a non-existant AP should not cause an error,
-		 * but just to be sure, try to continue searching if an error does happen.
-		 */
-		if ((retval == ERROR_OK) &&                  /* Register read success */
-			((id_val & IDR_JEP106) == IDR_JEP106_ARM) && /* Jedec codes match */
-			((id_val & IDR_TYPE) == type_to_find)) {      /* type matches*/
+			/* IDR bits:
+			 * 31-28 : Revision
+			 * 27-24 : JEDEC bank (0x4 for ARM)
+			 * 23-17 : JEDEC code (0x3B for ARM)
+			 * 16-13 : Class (0b1000=Mem-AP)
+			 * 12-8  : Reserved
+			 *  7-4  : AP Variant (non-zero for JTAG-AP)
+			 *  3-0  : AP Type (0=JTAG-AP 1=AHB-AP 2=APB-AP 4=AXI-AP)
+			 */
 
-			LOG_DEBUG("Found %s at AP index: %d (IDR=0x%08" PRIX32 ")",
-						(type_to_find == AP_TYPE_AHB_AP)  ? "AHB-AP"  :
-						(type_to_find == AP_TYPE_APB_AP)  ? "APB-AP"  :
-						(type_to_find == AP_TYPE_AXI_AP)  ? "AXI-AP"  :
-						(type_to_find == AP_TYPE_JTAG_AP) ? "JTAG-AP" : "Unknown",
-						ap_num, id_val);
+			/* Reading register for a non-existant AP should not cause an error,
+			 * but just to be sure, try to continue searching if an error does happen.
+			 */
+			if (((id_val & IDR_JEP106) == IDR_JEP106_ARM) && /* Jedec codes match */
+				((id_val & IDR_TYPE) == type_to_find)) {      /* type matches*/
 
-			*ap_out = &dap->ap[ap_num];
-			return ERROR_OK;
+				LOG_DEBUG("Found %s at AP index: %d (IDR=0x%08" PRIX32 ")",
+							(type_to_find == AP_TYPE_AHB_AP)  ? "AHB-AP"  :
+							(type_to_find == AP_TYPE_APB_AP)  ? "APB-AP"  :
+							(type_to_find == AP_TYPE_AXI_AP)  ? "AXI-AP"  :
+							(type_to_find == AP_TYPE_JTAG_AP) ? "JTAG-AP" : "Unknown",
+							ap_num, id_val);
+
+				*ap_out = &dap->ap[ap_num];
+				return ERROR_OK;
+			}
 		}
 	}
 
-	LOG_DEBUG("No %s found",
+	LOG_DEBUG("No %s (%08x) found",
 				(type_to_find == AP_TYPE_AHB_AP)  ? "AHB-AP"  :
 				(type_to_find == AP_TYPE_APB_AP)  ? "APB-AP"  :
 				(type_to_find == AP_TYPE_AXI_AP)  ? "AXI-AP"  :
-				(type_to_find == AP_TYPE_JTAG_AP) ? "JTAG-AP" : "Unknown");
+				(type_to_find == AP_TYPE_JTAG_AP) ? "JTAG-AP" : "Unknown",
+				type_to_find);
 	return ERROR_FAIL;
 }
 

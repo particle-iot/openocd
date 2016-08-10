@@ -98,6 +98,7 @@
 #define MEM_AP_REG_BASE64	0xF0		/* RO: Debug Base Address (LA) register */
 #define MEM_AP_REG_CFG		0xF4		/* RO: Configuration register */
 #define MEM_AP_REG_BASE		0xF8		/* RO: Debug Base Address register */
+#define MEM_AP_REG_BASE_VALID	(1UL << 0)
 /* Generic AP register address */
 #define AP_REG_IDR			0xFC		/* RO: Identification Register */
 
@@ -483,7 +484,8 @@ int dap_get_debugbase(struct adiv5_ap *ap,
 /* Probe Access Ports to find a particular type */
 int dap_find_ap(struct adiv5_dap *dap,
 			enum ap_type type_to_find,
-			struct adiv5_ap **ap_out);
+			struct adiv5_ap **ap_out,
+			bool valid_baseaddr);
 
 static inline struct adiv5_ap *dap_ap(struct adiv5_dap *dap, uint8_t ap_num)
 {

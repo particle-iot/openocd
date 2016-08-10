@@ -2964,7 +2964,7 @@ static int cortex_a_examine_first(struct target *target)
 	}
 
 	/* Search for the APB-AP - it is needed for access to debug registers */
-	retval = dap_find_ap(swjdp, AP_TYPE_APB_AP, &armv7a->debug_ap);
+	retval = dap_find_ap(swjdp, AP_TYPE_APB_AP, &armv7a->debug_ap, false);
 	if (retval != ERROR_OK) {
 		LOG_ERROR("Could not find APB-AP for debug access");
 		return retval;
@@ -2982,7 +2982,7 @@ static int cortex_a_examine_first(struct target *target)
 	 * REVISIT: We should search for AXI-AP as well and make sure the AP's MEMTYPE says it
 	 * can access system memory. */
 	armv7a->memory_ap_available = false;
-	retval = dap_find_ap(swjdp, AP_TYPE_AHB_AP, &armv7a->memory_ap);
+	retval = dap_find_ap(swjdp, AP_TYPE_AHB_AP, &armv7a->memory_ap, false);
 	if (retval == ERROR_OK) {
 		retval = mem_ap_init(armv7a->memory_ap);
 		if (retval == ERROR_OK)
