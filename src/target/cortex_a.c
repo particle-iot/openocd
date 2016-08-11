@@ -53,6 +53,7 @@
 #include "target_request.h"
 #include "target_type.h"
 #include "arm_opcodes.h"
+#include "jtag/swd.h"
 #include <helper/time_support.h>
 
 static int cortex_a_poll(struct target *target);
@@ -1910,9 +1911,10 @@ static int cortex_a_assert_reset(struct target *target)
 		/* REVISIT handle "pulls" cases, if there's
 		 * hardware that needs them to work.
 		 */
-		if (target->reset_halt)
-			if (jtag_get_reset_config() & RESET_SRST_NO_GATING)
-				jtag_add_reset(0, 1);
+		if (transport_is_swd() ||
+				(target->reset_halt && (jtag_get_reset_config() & RESET_SRST_NO_GATING)))
+			jtag_add_reset(0, 1);
+
 	} else {
 		LOG_ERROR("%s: how to reset?", target_name(target));
 		return ERROR_FAIL;
