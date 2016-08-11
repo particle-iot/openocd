@@ -1373,6 +1373,9 @@ struct target_type arm11_target = {
 	.add_breakpoint = arm11_add_breakpoint,
 	.remove_breakpoint = arm11_remove_breakpoint,
 
+	.add_watchpoint = arm_dpm_add_watchpoint,
+	.remove_watchpoint = arm_dpm_remove_watchpoint,
+
 	.run_algorithm = armv4_5_run_algorithm,
 
 	.commands = arm11_command_handlers,

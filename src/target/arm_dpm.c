@@ -343,8 +343,6 @@ done:
 	return retval;
 }
 
-static int dpm_add_breakpoint(struct target *target, struct breakpoint *bp);
-
 /**
  * Writes all modified core registers for all processor modes.  In normal
  * operation this is called on exit from halting debug state.
@@ -371,7 +369,7 @@ int arm_dpm_write_dirty_registers(struct arm_dpm *dpm, bool bpwp)
 	 * we should be able to assume we handle them; but until then,
 	 * cope with the hand-crafted breakpoint code.
 	 */
-	if (arm->target->type->add_breakpoint == dpm_add_breakpoint) {
+	if (arm->target->type->add_breakpoint == arm_dpm_add_breakpoint) {
 		for (unsigned i = 0; i < dpm->nbp; i++) {
 			struct dpm_bp *dbp = dpm->dbp + i;
 			struct breakpoint *bp = dbp->bp;
@@ -772,7 +770,7 @@ static int dpm_bpwp_setup(struct arm_dpm *dpm, struct dpm_bpwp *xp,
 	return ERROR_OK;
 }
 
-static int dpm_add_breakpoint(struct target *target, struct breakpoint *bp)
+int arm_dpm_add_breakpoint(struct target *target, struct breakpoint *bp)
 {
 	struct arm *arm = target_to_arm(target);
 	struct arm_dpm *dpm = arm->dpm;
@@ -800,7 +798,7 @@ static int dpm_add_breakpoint(struct target *target, struct breakpoint *bp)
 	return retval;
 }
 
-static int dpm_remove_breakpoint(struct target *target, struct breakpoint *bp)
+int arm_dpm_remove_breakpoint(struct target *target, struct breakpoint *bp)
 {
 	struct arm *arm = target_to_arm(target);
 	struct arm_dpm *dpm = arm->dpm;
@@ -856,7 +854,7 @@ static int dpm_watchpoint_setup(struct arm_dpm *dpm, unsigned index_t,
 	return retval;
 }
 
-static int dpm_add_watchpoint(struct target *target, struct watchpoint *wp)
+int arm_dpm_add_watchpoint(struct target *target, struct watchpoint *wp)
 {
 	struct arm *arm = target_to_arm(target);
 	struct arm_dpm *dpm = arm->dpm;
@@ -874,7 +872,7 @@ static int dpm_add_watchpoint(struct target *target, struct watchpoint *wp)
 	return retval;
 }
 
-static int dpm_remove_watchpoint(struct target *target, struct watchpoint *wp)
+int arm_dpm_remove_watchpoint(struct target *target, struct watchpoint *wp)
 {
 	struct arm *arm = target_to_arm(target);
 	struct arm_dpm *dpm = arm->dpm;
@@ -981,16 +979,6 @@ int arm_dpm_setup(struct arm_dpm *dpm)
 	/* coprocessor access setup */
 	arm->mrc = dpm_mrc;
 	arm->mcr = dpm_mcr;
-
-	/* breakpoint setup -- optional until it works everywhere */
-	if (!target->type->add_breakpoint) {
-		target->type->add_breakpoint = dpm_add_breakpoint;
-		target->type->remove_breakpoint = dpm_remove_breakpoint;
-	}
-
-	/* watchpoint setup */
-	target->type->add_watchpoint = dpm_add_watchpoint;
-	target->type->remove_watchpoint = dpm_remove_watchpoint;
 
 	/* FIXME add vector catch support */
 

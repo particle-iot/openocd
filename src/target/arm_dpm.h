@@ -133,6 +133,10 @@ int arm_dpm_initialize(struct arm_dpm *dpm);
 int arm_dpm_read_current_registers(struct arm_dpm *);
 int dpm_modeswitch(struct arm_dpm *dpm, enum arm_mode mode);
 
+int arm_dpm_add_breakpoint(struct target *target, struct breakpoint *bp);
+int arm_dpm_remove_breakpoint(struct target *target, struct breakpoint *bp);
+int arm_dpm_add_watchpoint(struct target *target, struct watchpoint *wp);
+int arm_dpm_remove_watchpoint(struct target *target, struct watchpoint *wp);
 
 int arm_dpm_write_dirty_registers(struct arm_dpm *, bool bpwp);
 

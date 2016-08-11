@@ -3495,8 +3495,8 @@ struct target_type cortexa_target = {
 	.add_context_breakpoint = cortex_a_add_context_breakpoint,
 	.add_hybrid_breakpoint = cortex_a_add_hybrid_breakpoint,
 	.remove_breakpoint = cortex_a_remove_breakpoint,
-	.add_watchpoint = NULL,
-	.remove_watchpoint = NULL,
+	.add_watchpoint = arm_dpm_add_watchpoint,
+	.remove_watchpoint = arm_dpm_remove_watchpoint,
 
 	.commands = cortex_a_command_handlers,
 	.target_create = cortex_a_target_create,
@@ -3580,8 +3580,8 @@ struct target_type cortexr4_target = {
 	.add_context_breakpoint = cortex_a_add_context_breakpoint,
 	.add_hybrid_breakpoint = cortex_a_add_hybrid_breakpoint,
 	.remove_breakpoint = cortex_a_remove_breakpoint,
-	.add_watchpoint = NULL,
-	.remove_watchpoint = NULL,
+	.add_watchpoint = arm_dpm_add_watchpoint,
+	.remove_watchpoint = arm_dpm_remove_watchpoint,
 
 	.commands = cortex_r4_command_handlers,
 	.target_create = cortex_r4_target_create,
