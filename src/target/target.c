@@ -67,10 +67,6 @@ static int target_array2mem(Jim_Interp *interp, struct target *target,
 static int target_mem2array(Jim_Interp *interp, struct target *target,
 		int argc, Jim_Obj * const *argv);
 static int target_register_user_commands(struct command_context *cmd_ctx);
-static int target_get_gdb_fileio_info_default(struct target *target,
-		struct gdb_fileio_info *fileio_info);
-static int target_gdb_fileio_end_default(struct target *target, int retcode,
-		int fileio_errno, bool ctrl_c);
 static int target_profiling_default(struct target *target, uint32_t *samples,
 		uint32_t max_num_samples, uint32_t *num_samples, uint32_t seconds);
 
@@ -656,7 +652,8 @@ static int target_process_reset(struct command_context *cmd_ctx, enum target_res
 	retval = target_call_timer_callbacks_now();
 
 	for (target = all_targets; target; target = target->next) {
-		target->type->check_reset(target);
+		if (target->type->check_reset != NULL)
+			target->type->check_reset(target);
 		target->running_alg = false;
 	}
 
@@ -670,21 +667,9 @@ static int identity_virt2phys(struct target *target,
 	return ERROR_OK;
 }
 
-static int no_mmu(struct target *target, int *enabled)
-{
-	*enabled = 0;
-	return ERROR_OK;
-}
-
 static int default_examine(struct target *target)
 {
 	target_set_examined(target);
-	return ERROR_OK;
-}
-
-/* no check by default */
-static int default_check_reset(struct target *target)
-{
 	return ERROR_OK;
 }
 
@@ -692,7 +677,12 @@ int target_examine_one(struct target *target)
 {
 	target_call_event_callbacks(target, TARGET_EVENT_EXAMINE_START);
 
-	int retval = target->type->examine(target);
+	int retval;
+	if (target->type->examine != NULL)
+		retval = target->type->examine(target);
+	else
+		retval = default_examine(target);
+
 	if (retval != ERROR_OK)
 		return retval;
 
@@ -1047,11 +1037,11 @@ int target_read_phys_memory(struct target *target,
 		LOG_ERROR("Target not examined yet");
 		return ERROR_FAIL;
 	}
-	if (!target->type->read_phys_memory) {
-		LOG_ERROR("Target %s doesn't support read_phys_memory", target_name(target));
-		return ERROR_FAIL;
-	}
-	return target->type->read_phys_memory(target, address, size, count, buffer);
+	if (target->type->read_phys_memory != NULL)
+		return target->type->read_phys_memory(target, address, size, count, buffer);
+
+	/* Default to normal read */
+	return target_read_memory(target, address, size, count, buffer);
 }
 
 int target_write_memory(struct target *target,
@@ -1075,11 +1065,20 @@ int target_write_phys_memory(struct target *target,
 		LOG_ERROR("Target not examined yet");
 		return ERROR_FAIL;
 	}
-	if (!target->type->write_phys_memory) {
-		LOG_ERROR("Target %s doesn't support write_phys_memory", target_name(target));
-		return ERROR_FAIL;
-	}
-	return target->type->write_phys_memory(target, address, size, count, buffer);
+	if (target->type->write_phys_memory != NULL)
+		return target->type->write_phys_memory(target, address, size, count, buffer);
+
+	/* Default to normal write */
+	return target_write_memory(target, address, size, count, buffer);
+}
+
+int target_virt2phys(struct target *target, uint32_t address, uint32_t *physical)
+{
+	if (target->type->virt2phys != NULL)
+		return target->type->virt2phys(target, address, physical);
+
+	/* Default to identity translation */
+	return identity_virt2phys(target, address, physical);
 }
 
 int target_add_breakpoint(struct target *target,
@@ -1164,31 +1163,46 @@ int target_step(struct target *target,
 
 int target_get_gdb_fileio_info(struct target *target, struct gdb_fileio_info *fileio_info)
 {
+	/* If target does not support semi-hosting function, target
+	   has no need to provide .get_gdb_fileio_info callback.
+	   It just return ERROR_FAIL and gdb_server will return "Txx"
+	   as target halted every time.  */
+	if (target->type->get_gdb_fileio_info == NULL)
+		return ERROR_FAIL;
+
 	if (target->state != TARGET_HALTED) {
 		LOG_WARNING("target %s is not halted", target->cmd_name);
 		return ERROR_TARGET_NOT_HALTED;
 	}
+
 	return target->type->get_gdb_fileio_info(target, fileio_info);
 }
 
 int target_gdb_fileio_end(struct target *target, int retcode, int fileio_errno, bool ctrl_c)
 {
+	if (target->type->gdb_fileio_end == NULL)
+		return ERROR_OK;
+
 	if (target->state != TARGET_HALTED) {
 		LOG_WARNING("target %s is not halted", target->cmd_name);
 		return ERROR_TARGET_NOT_HALTED;
 	}
+
 	return target->type->gdb_fileio_end(target, retcode, fileio_errno, ctrl_c);
 }
 
 int target_profiling(struct target *target, uint32_t *samples,
 			uint32_t max_num_samples, uint32_t *num_samples, uint32_t seconds)
 {
+	if (target->type->profiling == NULL)
+		return target_profiling_default(target, samples, max_num_samples, num_samples, seconds);
+
 	if (target->state != TARGET_HALTED) {
 		LOG_WARNING("target %s is not halted", target->cmd_name);
 		return ERROR_TARGET_NOT_HALTED;
 	}
-	return target->type->profiling(target, samples, max_num_samples,
-			num_samples, seconds);
+
+	return target->type->profiling(target, samples, max_num_samples, num_samples, seconds);
 }
 
 /**
@@ -1208,11 +1222,6 @@ static int target_init_one(struct command_context *cmd_ctx,
 	target_reset_examined(target);
 
 	struct target_type *type = target->type;
-	if (type->examine == NULL)
-		type->examine = default_examine;
-
-	if (type->check_reset == NULL)
-		type->check_reset = default_check_reset;
 
 	assert(type->init_target != NULL);
 
@@ -1225,39 +1234,14 @@ static int target_init_one(struct command_context *cmd_ctx,
 	/* Sanity-check MMU support ... stub in what we must, to help
 	 * implement it in stages, but warn if we need to do so.
 	 */
-	if (type->mmu) {
+	if (type->mmu != NULL) {
 		if (type->virt2phys == NULL) {
 			LOG_ERROR("type '%s' is missing virt2phys", type->name);
-			type->virt2phys = identity_virt2phys;
 		}
 	} else {
-		/* Make sure no-MMU targets all behave the same:  make no
-		 * distinction between physical and virtual addresses, and
-		 * ensure that virt2phys() is always an identity mapping.
-		 */
-		if (type->write_phys_memory || type->read_phys_memory || type->virt2phys)
+		if (type->write_phys_memory != NULL || type->read_phys_memory != NULL || type->virt2phys != NULL)
 			LOG_WARNING("type '%s' has bad MMU hooks", type->name);
-
-		type->mmu = no_mmu;
-		type->write_phys_memory = type->write_memory;
-		type->read_phys_memory = type->read_memory;
-		type->virt2phys = identity_virt2phys;
 	}
-
-	if (target->type->read_buffer == NULL)
-		target->type->read_buffer = target_read_buffer_default;
-
-	if (target->type->write_buffer == NULL)
-		target->type->write_buffer = target_write_buffer_default;
-
-	if (target->type->get_gdb_fileio_info == NULL)
-		target->type->get_gdb_fileio_info = target_get_gdb_fileio_info_default;
-
-	if (target->type->gdb_fileio_end == NULL)
-		target->type->gdb_fileio_end = target_gdb_fileio_end_default;
-
-	if (target->type->profiling == NULL)
-		target->type->profiling = target_profiling_default;
 
 	return ERROR_OK;
 }
@@ -1704,11 +1688,13 @@ int target_alloc_working_area_try(struct target *target, uint32_t size, struct w
 	/* Reevaluate working area address based on MMU state*/
 	if (target->working_areas == NULL) {
 		int retval;
-		int enabled;
+		int enabled = 0;
 
-		retval = target->type->mmu(target, &enabled);
-		if (retval != ERROR_OK)
-			return retval;
+		if (target->type->mmu != NULL) {
+			retval = target->type->mmu(target, &enabled);
+			if (retval != ERROR_OK)
+				return retval;
+		}
 
 		if (!enabled) {
 			if (target->working_area_phys_spec) {
@@ -1951,22 +1937,6 @@ int target_arch_state(struct target *target)
 	return retval;
 }
 
-static int target_get_gdb_fileio_info_default(struct target *target,
-		struct gdb_fileio_info *fileio_info)
-{
-	/* If target does not support semi-hosting function, target
-	   has no need to provide .get_gdb_fileio_info callback.
-	   It just return ERROR_FAIL and gdb_server will return "Txx"
-	   as target halted every time.  */
-	return ERROR_FAIL;
-}
-
-static int target_gdb_fileio_end_default(struct target *target,
-		int retcode, int fileio_errno, bool ctrl_c)
-{
-	return ERROR_OK;
-}
-
 static int target_profiling_default(struct target *target, uint32_t *samples,
 		uint32_t max_num_samples, uint32_t *num_samples, uint32_t seconds)
 {
@@ -2041,7 +2011,11 @@ int target_write_buffer(struct target *target, uint32_t address, uint32_t size, 
 		return ERROR_FAIL;
 	}
 
-	return target->type->write_buffer(target, address, size, buffer);
+	if (target->type->write_buffer != NULL)
+		return target->type->write_buffer(target, address, size, buffer);
+
+	/* Fall back to default implementation */
+	return target_write_buffer_default(target, address, size, buffer);
 }
 
 static int target_write_buffer_default(struct target *target, uint32_t address, uint32_t count, const uint8_t *buffer)
@@ -2102,7 +2076,11 @@ int target_read_buffer(struct target *target, uint32_t address, uint32_t size, u
 		return ERROR_FAIL;
 	}
 
-	return target->type->read_buffer(target, address, size, buffer);
+	if (target->type->read_buffer != NULL)
+		return target->type->read_buffer(target, address, size, buffer);
+
+	/* Fall back to default implementation */
+	return target_read_buffer_default(target, address, size, buffer);
 }
 
 static int target_read_buffer_default(struct target *target, uint32_t address, uint32_t count, uint8_t *buffer)
@@ -3671,7 +3649,7 @@ COMMAND_HANDLER(handle_virt2phys_command)
 	uint32_t pa;
 
 	struct target *target = get_current_target(CMD_CTX);
-	int retval = target->type->virt2phys(target, va, &pa);
+	int retval = target_virt2phys(target, va, &pa);
 	if (retval == ERROR_OK)
 		command_print(CMD_CTX, "Physical address 0x%08" PRIx32 "", pa);
 
@@ -4889,8 +4867,13 @@ static int jim_target_examine(Jim_Interp *interp, int argc, Jim_Obj *const *argv
 	if (!target->tap->enabled)
 		return jim_target_tap_disabled(interp);
 
-	int e = target->type->examine(target);
-	if (e != ERROR_OK)
+	int retval;
+	if (target->type->examine != NULL)
+		retval = target->type->examine(target);
+	else
+		retval = default_examine(target);
+
+	if (retval != ERROR_OK)
 		return JIM_ERR;
 	return JIM_OK;
 }

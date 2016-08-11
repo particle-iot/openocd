@@ -474,7 +474,7 @@ int nds32_v3_read_buffer(struct target *target, uint32_t address,
 	 * Because hardware will turn off IT/DT by default, it MUST translate virtual address
 	 * to physical address.
 	 */
-	if (ERROR_OK == target->type->virt2phys(target, address, &physical_address))
+	if (ERROR_OK == target_virt2phys(target, address, &physical_address))
 		address = physical_address;
 	else
 		return ERROR_FAIL;
@@ -532,7 +532,7 @@ int nds32_v3_write_buffer(struct target *target, uint32_t address,
 	 * Because hardware will turn off IT/DT by default, it MUST translate virtual address
 	 * to physical address.
 	 */
-	if (ERROR_OK == target->type->virt2phys(target, address, &physical_address))
+	if (ERROR_OK == target_virt2phys(target, address, &physical_address))
 		address = physical_address;
 	else
 		return ERROR_FAIL;
@@ -594,7 +594,7 @@ int nds32_v3_read_memory(struct target *target, uint32_t address,
 	 * Because hardware will turn off IT/DT by default, it MUST translate virtual address
 	 * to physical address.
 	 */
-	if (ERROR_OK == target->type->virt2phys(target, address, &physical_address))
+	if (ERROR_OK == target_virt2phys(target, address, &physical_address))
 		address = physical_address;
 	else
 		return ERROR_FAIL;
@@ -652,7 +652,7 @@ int nds32_v3_write_memory(struct target *target, uint32_t address,
 	 * Because hardware will turn off IT/DT by default, it MUST translate virtual address
 	 * to physical address.
 	 */
-	if (ERROR_OK == target->type->virt2phys(target, address, &physical_address))
+	if (ERROR_OK == target_virt2phys(target, address, &physical_address))
 		address = physical_address;
 	else
 		return ERROR_FAIL;

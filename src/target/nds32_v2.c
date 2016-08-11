@@ -647,7 +647,7 @@ static int nds32_v2_translate_address(struct target *target, uint32_t *address)
 	if ((NDS_MEMORY_ACC_BUS == memory->access_channel) ||
 			((NDS_MEMORY_ACC_CPU == memory->access_channel) &&
 			 nds32_reach_max_interrupt_level(nds32))) {
-		if (ERROR_OK == target->type->virt2phys(target, *address, &physical_address))
+		if (ERROR_OK == target_virt2phys(target, *address, &physical_address))
 			*address = physical_address;
 		else
 			return ERROR_FAIL;

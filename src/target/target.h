@@ -548,6 +548,9 @@ int target_write_memory(struct target *target,
 int target_write_phys_memory(struct target *target,
 		uint32_t address, uint32_t size, uint32_t count, const uint8_t *buffer);
 
+/* Translate virtual to physical address. */
+int target_virt2phys(struct target *target, uint32_t address, uint32_t *physical);
+
 /*
  * Write to target memory using the virtual address.
  *

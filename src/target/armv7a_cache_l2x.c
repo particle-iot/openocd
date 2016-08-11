@@ -85,8 +85,7 @@ int armv7a_l2x_cache_flush_virt(struct target *target, uint32_t virt,
 	for (i = 0; i < size; i += linelen) {
 		uint32_t pa, offs = virt + i;
 
-		/* FIXME: use less verbose virt2phys? */
-		retval = target->type->virt2phys(target, offs, &pa);
+		retval = target_virt2phys(target, offs, &pa);
 		if (retval != ERROR_OK)
 			goto done;
 
@@ -121,8 +120,7 @@ static int armv7a_l2x_cache_inval_virt(struct target *target, uint32_t virt,
 	for (i = 0; i < size; i += linelen) {
 		uint32_t pa, offs = virt + i;
 
-		/* FIXME: use less verbose virt2phys? */
-		retval = target->type->virt2phys(target, offs, &pa);
+		retval = target_virt2phys(target, offs, &pa);
 		if (retval != ERROR_OK)
 			goto done;
 
@@ -157,8 +155,7 @@ static int armv7a_l2x_cache_clean_virt(struct target *target, uint32_t virt,
 	for (i = 0; i < size; i += linelen) {
 		uint32_t pa, offs = virt + i;
 
-		/* FIXME: use less verbose virt2phys? */
-		retval = target->type->virt2phys(target, offs, &pa);
+		retval = target_virt2phys(target, offs, &pa);
 		if (retval != ERROR_OK)
 			goto done;
 

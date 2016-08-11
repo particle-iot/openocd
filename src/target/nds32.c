@@ -1450,7 +1450,7 @@ int nds32_add_software_breakpoint(struct target *target,
 	uint32_t break_insn;
 
 	/* check the breakpoint size */
-	target->type->read_buffer(target, breakpoint->address, 4, (uint8_t *)&data);
+	target_read_buffer(target, breakpoint->address, 4, (uint8_t *)&data);
 
 	/* backup origin instruction
 	 * instruction is big-endian */
@@ -1469,12 +1469,12 @@ int nds32_add_software_breakpoint(struct target *target,
 	memcpy(breakpoint->orig_instr, &data, breakpoint->length);
 
 	/* self-modified code */
-	target->type->write_buffer(target, breakpoint->address, breakpoint->length, (const uint8_t *)&break_insn);
+	target_write_buffer(target, breakpoint->address, breakpoint->length, (const uint8_t *)&break_insn);
 	/* write_back & invalidate dcache & invalidate icache */
 	nds32_cache_sync(target, breakpoint->address, breakpoint->length);
 
 	/* read back to check */
-	target->type->read_buffer(target, breakpoint->address, breakpoint->length, (uint8_t *)&check_data);
+	target_read_buffer(target, breakpoint->address, breakpoint->length, (uint8_t *)&check_data);
 	if (memcmp(&check_data, &break_insn, breakpoint->length) == 0)
 		return ERROR_OK;
 
@@ -1494,7 +1494,7 @@ int nds32_remove_software_breakpoint(struct target *target,
 	else
 		return ERROR_FAIL;
 
-	target->type->read_buffer(target, breakpoint->address, breakpoint->length,
+	target_read_buffer(target, breakpoint->address, breakpoint->length,
 			(uint8_t *)&check_data);
 
 	/* break instruction is modified */
@@ -1502,7 +1502,7 @@ int nds32_remove_software_breakpoint(struct target *target,
 		return ERROR_FAIL;
 
 	/* self-modified code */
-	target->type->write_buffer(target, breakpoint->address, breakpoint->length,
+	target_write_buffer(target, breakpoint->address, breakpoint->length,
 			breakpoint->orig_instr);
 
 	/* write_back & invalidate dcache & invalidate icache */
@@ -1739,7 +1739,7 @@ int nds32_cache_sync(struct target *target, uint32_t address, uint32_t length)
 			 * be physical address.  L1I_VA_INVALIDATE uses PSW.IT to decide
 			 * address translation or not. */
 			uint32_t physical_addr;
-			if (ERROR_FAIL == target->type->virt2phys(target, cur_address,
+			if (ERROR_FAIL == target_virt2phys(target, cur_address,
 						&physical_addr))
 				return ERROR_FAIL;
 
@@ -2355,7 +2355,7 @@ int nds32_get_gdb_fileio_info(struct target *target, struct gdb_fileio_info *fil
 				nds32_get_mapped_reg(nds32, R1, &(fileio_info->param_3));
 				nds32_get_mapped_reg(nds32, R2, &(fileio_info->param_4));
 
-				target->type->read_buffer(target, fileio_info->param_1,
+				target_read_buffer(target, fileio_info->param_1,
 						256, filename);
 				fileio_info->param_2 = strlen((char *)filename) + 1;
 			}
@@ -2394,7 +2394,7 @@ int nds32_get_gdb_fileio_info(struct target *target, struct gdb_fileio_info *fil
 				nds32_get_mapped_reg(nds32, R0, &(fileio_info->param_1));
 				/* reserve fileio_info->param_2 for length of path */
 
-				target->type->read_buffer(target, fileio_info->param_1,
+				target_read_buffer(target, fileio_info->param_1,
 						256, filename);
 				fileio_info->param_2 = strlen((char *)filename) + 1;
 			}
@@ -2409,11 +2409,11 @@ int nds32_get_gdb_fileio_info(struct target *target, struct gdb_fileio_info *fil
 				nds32_get_mapped_reg(nds32, R1, &(fileio_info->param_3));
 				/* reserve fileio_info->param_4 for length of new path */
 
-				target->type->read_buffer(target, fileio_info->param_1,
+				target_read_buffer(target, fileio_info->param_1,
 						256, filename);
 				fileio_info->param_2 = strlen((char *)filename) + 1;
 
-				target->type->read_buffer(target, fileio_info->param_3,
+				target_read_buffer(target, fileio_info->param_3,
 						256, filename);
 				fileio_info->param_4 = strlen((char *)filename) + 1;
 			}
@@ -2433,7 +2433,7 @@ int nds32_get_gdb_fileio_info(struct target *target, struct gdb_fileio_info *fil
 				/* reserve fileio_info->param_2 for length of old path */
 				nds32_get_mapped_reg(nds32, R1, &(fileio_info->param_3));
 
-				target->type->read_buffer(target, fileio_info->param_1,
+				target_read_buffer(target, fileio_info->param_1,
 						256, filename);
 				fileio_info->param_2 = strlen((char *)filename) + 1;
 			}
@@ -2457,7 +2457,7 @@ int nds32_get_gdb_fileio_info(struct target *target, struct gdb_fileio_info *fil
 				nds32_get_mapped_reg(nds32, R0, &(fileio_info->param_1));
 				/* reserve fileio_info->param_2 for length of old path */
 
-				target->type->read_buffer(target, fileio_info->param_1,
+				target_read_buffer(target, fileio_info->param_1,
 						256, command);
 				fileio_info->param_2 = strlen((char *)command) + 1;
 			}

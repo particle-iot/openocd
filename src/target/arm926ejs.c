@@ -624,7 +624,7 @@ int arm926ejs_write_memory(struct target *target, uint32_t address,
 		}
 
 		uint32_t pa;
-		retval = target->type->virt2phys(target, address, &pa);
+		retval = target_virt2phys(target, address, &pa);
 		if (retval != ERROR_OK)
 			return retval;
 
