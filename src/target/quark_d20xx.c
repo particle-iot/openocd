@@ -87,7 +87,7 @@ static int quark_d20xx_reset_deassert(struct target *t)
 	return ERROR_OK;
 }
 
-struct target_type quark_d20xx_target = {
+const struct target_type quark_d20xx_target = {
 	.name = "quark_d20xx",
 	.target_create = quark_d20xx_target_create,
 	.init_target = quark_d20xx_init_target,

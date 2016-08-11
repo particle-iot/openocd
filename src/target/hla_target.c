@@ -776,7 +776,7 @@ static const struct command_registration adapter_command_handlers[] = {
 	COMMAND_REGISTRATION_DONE
 };
 
-struct target_type hla_target = {
+const struct target_type hla_target = {
 	.name = "hla_target",
 	.deprecated_name = "stm32_stlink",
 

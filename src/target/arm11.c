@@ -1349,7 +1349,7 @@ static const struct command_registration arm11_command_handlers[] = {
 };
 
 /** Holds methods for ARM11xx targets. */
-struct target_type arm11_target = {
+const struct target_type arm11_target = {
 	.name = "arm11",
 
 	.poll = arm11_poll,

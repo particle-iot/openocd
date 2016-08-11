@@ -455,7 +455,7 @@ static int nds32_v3m_examine(struct target *target)
 }
 
 /** Holds methods for NDS32 V3m targets. */
-struct target_type nds32_v3m_target = {
+const struct target_type nds32_v3m_target = {
 	.name = "nds32_v3m",
 
 	.poll = nds32_poll,

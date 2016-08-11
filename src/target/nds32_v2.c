@@ -737,7 +737,7 @@ static int nds32_v2_write_memory(struct target *target, uint32_t address,
 }
 
 /** Holds methods for V2 targets. */
-struct target_type nds32_v2_target = {
+const struct target_type nds32_v2_target = {
 	.name = "nds32_v2",
 
 	.poll = nds32_poll,

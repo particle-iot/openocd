@@ -884,7 +884,7 @@ const struct command_registration arm9tdmi_command_handlers[] = {
 };
 
 /** Holds methods for ARM9TDMI targets. */
-struct target_type arm9tdmi_target = {
+const struct target_type arm9tdmi_target = {
 	.name = "arm9tdmi",
 
 	.poll = arm7_9_poll,

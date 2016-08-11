@@ -2304,7 +2304,7 @@ static const struct command_registration dsp563xx_command_handlers[] = {
 };
 
 /** Holds methods for DSP563XX targets. */
-struct target_type dsp563xx_target = {
+const struct target_type dsp563xx_target = {
 	.name = "dsp563xx",
 
 	.poll = dsp563xx_poll,

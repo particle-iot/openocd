@@ -1677,7 +1677,7 @@ const struct command_registration arm920t_command_handlers[] = {
 };
 
 /** Holds methods for ARM920 targets. */
-struct target_type arm920t_target = {
+const struct target_type arm920t_target = {
 	.name = "arm920t",
 
 	.poll = arm7_9_poll,

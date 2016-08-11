@@ -47,7 +47,7 @@ static int mcu_write_dr(struct jtag_tap *tap, uint8_t *dr_in, uint8_t *dr_out, i
 static int mcu_write_ir_u8(struct jtag_tap *tap, uint8_t *ir_in, uint8_t ir_out, int ir_len, int rti);
 static int mcu_write_dr_u32(struct jtag_tap *tap, uint32_t *ir_in, uint32_t ir_out, int dr_len, int rti);
 
-struct target_type avr_target = {
+const struct target_type avr_target = {
 	.name = "avr",
 
 	.poll = avr_poll,

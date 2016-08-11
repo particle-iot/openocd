@@ -2388,7 +2388,7 @@ static const struct command_registration cortex_m_command_handlers[] = {
 	COMMAND_REGISTRATION_DONE
 };
 
-struct target_type cortexm_target = {
+const struct target_type cortexm_target = {
 	.name = "cortex_m",
 	.deprecated_name = "cortex_m3",
 

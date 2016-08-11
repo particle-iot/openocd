@@ -2270,7 +2270,7 @@ static int dsp5680xx_step(struct target *target, int current, uint32_t address,
 }
 
 /** Holds methods for dsp5680xx targets. */
-struct target_type dsp5680xx_target = {
+const struct target_type dsp5680xx_target = {
 	.name = "dsp5680xx",
 
 	.poll = dsp5680xx_poll,

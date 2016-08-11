@@ -3688,7 +3688,7 @@ static const struct command_registration xscale_command_handlers[] = {
 	COMMAND_REGISTRATION_DONE
 };
 
-struct target_type xscale_target = {
+const struct target_type xscale_target = {
 	.name = "xscale",
 
 	.poll = xscale_poll,

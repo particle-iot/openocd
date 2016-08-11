@@ -71,37 +71,37 @@ static int target_profiling_default(struct target *target, uint32_t *samples,
 		uint32_t max_num_samples, uint32_t *num_samples, uint32_t seconds);
 
 /* targets */
-extern struct target_type arm7tdmi_target;
-extern struct target_type arm720t_target;
-extern struct target_type arm9tdmi_target;
-extern struct target_type arm920t_target;
-extern struct target_type arm966e_target;
-extern struct target_type arm946e_target;
-extern struct target_type arm926ejs_target;
-extern struct target_type fa526_target;
-extern struct target_type feroceon_target;
-extern struct target_type dragonite_target;
-extern struct target_type xscale_target;
-extern struct target_type cortexm_target;
-extern struct target_type cortexa_target;
-extern struct target_type cortexr4_target;
-extern struct target_type arm11_target;
-extern struct target_type ls1_sap_target;
-extern struct target_type mips_m4k_target;
-extern struct target_type avr_target;
-extern struct target_type dsp563xx_target;
-extern struct target_type dsp5680xx_target;
-extern struct target_type testee_target;
-extern struct target_type avr32_ap7k_target;
-extern struct target_type hla_target;
-extern struct target_type nds32_v2_target;
-extern struct target_type nds32_v3_target;
-extern struct target_type nds32_v3m_target;
-extern struct target_type or1k_target;
-extern struct target_type quark_x10xx_target;
-extern struct target_type quark_d20xx_target;
+extern const struct target_type arm7tdmi_target;
+extern const struct target_type arm720t_target;
+extern const struct target_type arm9tdmi_target;
+extern const struct target_type arm920t_target;
+extern const struct target_type arm966e_target;
+extern const struct target_type arm946e_target;
+extern const struct target_type arm926ejs_target;
+extern const struct target_type fa526_target;
+extern const struct target_type feroceon_target;
+extern const struct target_type dragonite_target;
+extern const struct target_type xscale_target;
+extern const struct target_type cortexm_target;
+extern const struct target_type cortexa_target;
+extern const struct target_type cortexr4_target;
+extern const struct target_type arm11_target;
+extern const struct target_type ls1_sap_target;
+extern const struct target_type mips_m4k_target;
+extern const struct target_type avr_target;
+extern const struct target_type dsp563xx_target;
+extern const struct target_type dsp5680xx_target;
+extern const struct target_type testee_target;
+extern const struct target_type avr32_ap7k_target;
+extern const struct target_type hla_target;
+extern const struct target_type nds32_v2_target;
+extern const struct target_type nds32_v3_target;
+extern const struct target_type nds32_v3m_target;
+extern const struct target_type or1k_target;
+extern const struct target_type quark_x10xx_target;
+extern const struct target_type quark_d20xx_target;
 
-static struct target_type *target_types[] = {
+static const struct target_type * const target_types[] = {
 	&arm7tdmi_target,
 	&arm9tdmi_target,
 	&arm920t_target,
@@ -1221,7 +1221,7 @@ static int target_init_one(struct command_context *cmd_ctx,
 {
 	target_reset_examined(target);
 
-	struct target_type *type = target->type;
+	const struct target_type *type = target->type;
 
 	assert(type->init_target != NULL);
 
@@ -5277,10 +5277,7 @@ static int target_create(Jim_GetOptInfo *goi)
 	target->target_number = new_target_number();
 	cmd_ctx->current_target = target->target_number;
 
-	/* allocate memory for each unique target type */
-	target->type = calloc(1, sizeof(struct target_type));
-
-	memcpy(target->type, target_types[x], sizeof(struct target_type));
+	target->type = target_types[x];
 
 	/* will be set by "-endian" */
 	target->endianness = TARGET_ENDIAN_UNKNOWN;
@@ -5333,7 +5330,6 @@ static int target_create(Jim_GetOptInfo *goi)
 	}
 
 	if (e != JIM_OK) {
-		free(target->type);
 		free(target);
 		return e;
 	}

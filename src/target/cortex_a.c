@@ -3463,7 +3463,7 @@ static const struct command_registration cortex_a_command_handlers[] = {
 	COMMAND_REGISTRATION_DONE
 };
 
-struct target_type cortexa_target = {
+const struct target_type cortexa_target = {
 	.name = "cortex_a",
 	.deprecated_name = "cortex_a8",
 
@@ -3552,7 +3552,7 @@ static const struct command_registration cortex_r4_command_handlers[] = {
 	COMMAND_REGISTRATION_DONE
 };
 
-struct target_type cortexr4_target = {
+const struct target_type cortexr4_target = {
 	.name = "cortex_r4",
 
 	.poll = cortex_a_poll,

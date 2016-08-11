@@ -788,7 +788,7 @@ const struct command_registration arm926ejs_command_handlers[] = {
 };
 
 /** Holds methods for ARM926 targets. */
-struct target_type arm926ejs_target = {
+const struct target_type arm926ejs_target = {
 	.name = "arm926ejs",
 
 	.poll = arm7_9_poll,

@@ -546,7 +546,7 @@ static const struct command_registration arm720t_command_handlers[] = {
 };
 
 /** Holds methods for ARM720 targets. */
-struct target_type arm720t_target = {
+const struct target_type arm720t_target = {
 	.name = "arm720t",
 
 	.poll = arm7_9_poll,

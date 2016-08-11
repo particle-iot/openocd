@@ -222,7 +222,7 @@ static int ls1_sap_write_memory(struct target *target, uint32_t address,
 	return jtag_execute_queue();
 }
 
-struct target_type ls1_sap_target = {
+const struct target_type ls1_sap_target = {
 	.name = "ls1_sap",
 
 	.target_create = ls1_sap_target_create,

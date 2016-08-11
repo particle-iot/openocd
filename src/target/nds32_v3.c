@@ -468,7 +468,7 @@ static int nds32_v3_examine(struct target *target)
 }
 
 /** Holds methods for Andes1337 targets. */
-struct target_type nds32_v3_target = {
+const struct target_type nds32_v3_target = {
 	.name = "nds32_v3",
 
 	.poll = nds32_poll,

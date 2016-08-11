@@ -591,7 +591,7 @@ int avr32_ap7k_get_gdb_reg_list(struct target *target, struct reg **reg_list[],
 	return ERROR_FAIL;
 }
 
-struct target_type avr32_ap7k_target = {
+const struct target_type avr32_ap7k_target = {
 	.name = "avr32_ap7k",
 
 	.poll = avr32_ap7k_poll,

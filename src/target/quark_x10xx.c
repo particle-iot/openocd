@@ -69,7 +69,7 @@ int quark_x10xx_init_target(struct command_context *cmd_ctx, struct target *t)
 	return lakemont_init_target(cmd_ctx, t);
 }
 
-struct target_type quark_x10xx_target = {
+const struct target_type quark_x10xx_target = {
 	.name = "quark_x10xx",
 	/* Quark X1000 SoC */
 	.target_create = quark_x10xx_target_create,

@@ -1424,7 +1424,7 @@ static const struct command_registration or1k_command_handlers[] = {
 };
 
 
-struct target_type or1k_target = {
+const struct target_type or1k_target = {
 	.name = "or1k",
 
 	.poll = or1k_poll,

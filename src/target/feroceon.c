@@ -694,7 +694,7 @@ static int feroceon_examine(struct target *target)
 	return ERROR_OK;
 }
 
-struct target_type feroceon_target = {
+const struct target_type feroceon_target = {
 	.name = "feroceon",
 
 	.poll = arm7_9_poll,
@@ -731,7 +731,7 @@ struct target_type feroceon_target = {
 	.examine = feroceon_examine,
 };
 
-struct target_type dragonite_target = {
+const struct target_type dragonite_target = {
 	.name = "dragonite",
 
 	.poll = arm7_9_poll,

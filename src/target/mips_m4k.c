@@ -1403,7 +1403,7 @@ const struct command_registration mips_m4k_command_handlers[] = {
 	COMMAND_REGISTRATION_DONE
 };
 
-struct target_type mips_m4k_target = {
+const struct target_type mips_m4k_target = {
 	.name = "mips_m4k",
 
 	.poll = mips_m4k_poll,

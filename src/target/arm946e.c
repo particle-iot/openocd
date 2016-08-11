@@ -740,7 +740,7 @@ const struct command_registration arm946e_command_handlers[] = {
 };
 
 /** Holds methods for ARM946 targets. */
-struct target_type arm946e_target = {
+const struct target_type arm946e_target = {
 	.name = "arm946e",
 
 	.poll = arm7_9_poll,

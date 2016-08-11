@@ -61,7 +61,7 @@ static int testee_reset_deassert(struct target *target)
 	target->state = TARGET_RUNNING;
 	return ERROR_OK;
 }
-struct target_type testee_target = {
+const struct target_type testee_target = {
 	.name = "testee",
 	.commands = testee_command_handlers,
 

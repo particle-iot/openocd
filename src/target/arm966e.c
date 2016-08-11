@@ -243,7 +243,7 @@ const struct command_registration arm966e_command_handlers[] = {
 };
 
 /** Holds methods for ARM966 targets. */
-struct target_type arm966e_target = {
+const struct target_type arm966e_target = {
 	.name = "arm966e",
 
 	.poll = arm7_9_poll,
