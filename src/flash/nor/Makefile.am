@@ -38,7 +38,6 @@ NOR_DRIVERS = \
 	non_cfi.c \
 	nrf51.c \
 	numicro.c \
-	ocl.c \
 	pic32mx.c \
 	psoc4.c \
 	sim3x.c \
@@ -63,7 +62,6 @@ noinst_HEADERS = \
 	driver.h \
 	imp.h \
 	non_cfi.h \
-	ocl.h \
 	spi.h
 
 MAINTAINERCLEANFILES = $(srcdir)/Makefile.in

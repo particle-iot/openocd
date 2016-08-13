@@ -10,12 +10,11 @@ to execute code on the target.
 This needs to be handled in some CPU independent
 manner.
 
-The ocl and ecos flash drivers compile the flash
+The ecos flash drivers compile the flash
 driver code to run on the target on the developer
 machine.
 
-The ocl and ecos flash drivers should be unified
-and instructions should be written on how to
+Instructions should be written on how to
 compile the target flash drivers. Perhaps
 using automake?
 

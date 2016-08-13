@@ -49,7 +49,6 @@ extern struct flash_driver mrvlqspi_flash;
 extern struct flash_driver niietcm4_flash;
 extern struct flash_driver nrf51_flash;
 extern struct flash_driver numicro_flash;
-extern struct flash_driver ocl_flash;
 extern struct flash_driver pic32mx_flash;
 extern struct flash_driver psoc4_flash;
 extern struct flash_driver sim3x_flash;
@@ -101,7 +100,6 @@ static struct flash_driver *flash_drivers[] = {
 	&niietcm4_flash,
 	&nrf51_flash,
 	&numicro_flash,
-	&ocl_flash,
 	&pic32mx_flash,
 	&psoc4_flash,
 	&sim3x_flash,
