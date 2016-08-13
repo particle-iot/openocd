@@ -1,0 +1,11 @@
+Verified+1: jenkins
+Code-Review+1: Harry Zhurov <harry.zhurov@gmail.com>
+Code-Review+1: Anton Gusev
+Code-Review+1: Михаил Цивинский <mtsivinsky@gmail.com>
+Code-Review+1: Andreas Färber <afaerber@suse.de>
+Code-Review+2: Andreas Fritiofson <andreas.fritiofson@gmail.com>
+Submitted-by: Andreas Fritiofson <andreas.fritiofson@gmail.com>
+Submitted-at: Sat, 13 Aug 2016 23:57:25 +0100
+Reviewed-on: http://openocd.zylin.com/3394
+Project: openocd
+Branch: refs/heads/master
