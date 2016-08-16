@@ -502,6 +502,39 @@ static bool adjust_swd_buffer_size(void)
 	return true;
 }
 
+static int jaylink_log_handler(const struct jaylink_context *ctx, int level,
+		const char *format, va_list args, void *user_data)
+{
+	enum log_levels tmp;
+
+	(void)ctx;
+	(void)user_data;
+
+	switch (level) {
+	case JAYLINK_LOG_LEVEL_ERROR:
+		tmp = LOG_LVL_ERROR;
+		break;
+	case JAYLINK_LOG_LEVEL_WARNING:
+		tmp = LOG_LVL_WARNING;
+		break;
+	case JAYLINK_LOG_LEVEL_INFO:
+	case JAYLINK_LOG_LEVEL_DEBUG:
+		tmp = LOG_LVL_DEBUG;
+		break;
+	default:
+		tmp = LOG_LVL_WARNING;
+	}
+
+	if (tmp > debug_level)
+		return 0;
+
+	fprintf(stderr, "jaylink: ");
+	vfprintf(stderr, format, args);
+	fprintf(stderr, "\n");
+
+	return 0;
+}
+
 static int jlink_init(void)
 {
 	int ret;
@@ -520,6 +553,15 @@ static int jlink_init(void)
 	if (ret != JAYLINK_OK) {
 		LOG_ERROR("jaylink_init() failed: %s.",
 			jaylink_strerror_name(ret));
+		return ERROR_JTAG_INIT_FAILED;
+	}
+
+	ret = jaylink_log_set_callback(jayctx, &jaylink_log_handler, NULL);
+
+	if (ret != JAYLINK_OK) {
+		LOG_ERROR("jaylink_log_set_callback() failed: %s.",
+			jaylink_strerror_name(ret));
+		jaylink_exit(jayctx);
 		return ERROR_JTAG_INIT_FAILED;
 	}
 
