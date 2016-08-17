@@ -4323,6 +4323,7 @@ enum target_cfg_param {
 	TCFG_CHAIN_POSITION,
 	TCFG_DBGBASE,
 	TCFG_RTOS,
+	TCFG_AP_NUM,
 };
 
 static Jim_Nvp nvp_config_opts[] = {
@@ -4337,6 +4338,7 @@ static Jim_Nvp nvp_config_opts[] = {
 	{ .name = "-chain-position",   .value = TCFG_CHAIN_POSITION },
 	{ .name = "-dbgbase",          .value = TCFG_DBGBASE },
 	{ .name = "-rtos",             .value = TCFG_RTOS },
+	{ .name = "-ap-num",           .value = TCFG_AP_NUM },
 	{ .name = NULL, .value = -1 }
 };
 
@@ -4609,6 +4611,20 @@ no_params:
 				if (result != JIM_OK)
 					return result;
 			}
+			/* loop for more */
+			break;
+		case TCFG_AP_NUM:
+			/* Configure AP number so that it doesn't have to be detected */
+			if (goi->isconfigure) {
+				e = Jim_GetOpt_Wide(goi, &w);
+				if (e != JIM_OK)
+					return e;
+				target->ap_num = (int)w;
+			} else {
+				if (goi->argc != 0)
+					goto no_params;
+			}
+			Jim_SetResult(goi->interp, Jim_NewIntObj(goi->interp, target->ap_num));
 			/* loop for more */
 			break;
 		}
@@ -5339,6 +5355,8 @@ static int target_create(Jim_GetOptInfo *goi)
 
 	target->rtos = NULL;
 	target->rtos_auto_detect = false;
+
+	target->ap_num = -1;
 
 	/* Do the rest as "configure" options */
 	goi->isconfigure = 1;
