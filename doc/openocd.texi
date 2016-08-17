@@ -3726,6 +3726,12 @@ a TAP doesn't conform to the JTAG specification.
 to verify that instruction scans work correctly.
 Such scans are not used by OpenOCD except to verify that
 there seems to be no problems with JTAG scan chain operations.
+@item @code{-ignore-syspwrupack}
+@*Specify this to ignore the CSYSPWRUPACK bit in the ARM DAP DP CTRL/STAT
+register during initial examination. This bit is normally checked after
+setting the CSYSPWRUPREQ bit, but some Qualcomm devices do not set the ack
+bit until later in the boot process and so the check will fail during initial
+examination.
 @end itemize
 @end deffn
 

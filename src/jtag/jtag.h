@@ -155,6 +155,10 @@ struct jtag_tap {
 	struct jtag_tap *next_tap;
 	/* dap instance if some null if no instance , initialized to 0 by calloc*/
 	struct adiv5_dap *dap;
+	/** Flag saying whether to ignore the syspwrupack flag in DAP. Some devices
+	 *  do not set this bit until later in the bringup sequence */
+	bool ignore_syspwrupack;
+
 	/* private pointer to support none-jtag specific functions */
 	void *priv;
 };
