@@ -1898,11 +1898,19 @@ int cortex_m_examine(struct target *target)
 			return retval;
 		}
 
-		/* Search for the MEM-AP */
-		retval = dap_find_ap(swjdp, AP_TYPE_AHB_AP, &armv7m->debug_ap);
-		if (retval != ERROR_OK) {
-			LOG_ERROR("Could not find MEM-AP to control the core");
-			return retval;
+		/* Search for the MEM-AP if location wasn't configured */
+		if (target->ap_num == -1) {
+			retval = dap_find_ap(swjdp,
+						AP_TYPE_AHB_AP,
+						&armv7m->debug_ap);
+			if (retval != ERROR_OK) {
+				LOG_ERROR("Could not find MEM-AP to control the core");
+				return retval;
+			} else {
+				target->ap_num = armv7m->debug_ap->ap_num;
+			}
+		} else {
+			armv7m->debug_ap = &swjdp->ap[target->ap_num];
 		}
 
 		/* Leave (only) generic DAP stuff for debugport_init(); */

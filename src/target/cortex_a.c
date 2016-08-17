@@ -2955,7 +2955,8 @@ static int cortex_a_examine_first(struct target *target)
 	struct adiv5_dap *swjdp = armv7a->arm.dap;
 	int i;
 	int retval = ERROR_OK;
-	uint32_t didr, ctypr, ttypr, cpuid, dbg_osreg;
+	uint32_t didr, ctypr, ttypr, cpuid, dbg_osreg, impl_id, part_id;
+	uint32_t qc_subpart_id;
 
 	retval = dap_dp_init(swjdp);
 	if (retval != ERROR_OK) {
@@ -3059,30 +3060,22 @@ static int cortex_a_examine_first(struct target *target)
 	cortex_a->ttypr = ttypr;
 	cortex_a->didr = didr;
 
-	/* Unlocking the debug registers */
-	if ((cpuid & CORTEX_A_MIDR_PARTNUM_MASK) >> CORTEX_A_MIDR_PARTNUM_SHIFT ==
-		CORTEX_A15_PARTNUM) {
+	impl_id = (cpuid & CORTEX_A_MIDR_IMPLEMENTER_MASK) >> CORTEX_A_MIDR_IMPLEMENTER_SHIFT;
+	part_id = (cpuid & CORTEX_A_MIDR_PARTNUM_MASK) >> CORTEX_A_MIDR_PARTNUM_SHIFT;
+	qc_subpart_id = (part_id & CORTEX_A_MIDR_QC_SUBPARTNUM_MASK) >> CORTEX_A_MIDR_QC_SUBPARTNUM_SHIFT;
 
+	/* Unlocking the debug registers for various different devices */
+	if ((part_id == CORTEX_A15_PARTNUM)
+		|| (part_id == CORTEX_A7_PARTNUM)
+		|| ((impl_id == QUALCOMM_IMPLEMENTER_ID)
+			&& (qc_subpart_id == QUALCOMM_KRAIT_SUBPARTNUM))) {
 		retval = mem_ap_write_atomic_u32(armv7a->debug_ap,
 						     armv7a->debug_base + CPUDBG_OSLAR,
 						     0);
-
 		if (retval != ERROR_OK)
 			return retval;
-
 	}
-	/* Unlocking the debug registers */
-	if ((cpuid & CORTEX_A_MIDR_PARTNUM_MASK) >> CORTEX_A_MIDR_PARTNUM_SHIFT ==
-		CORTEX_A7_PARTNUM) {
 
-		retval = mem_ap_write_atomic_u32(armv7a->debug_ap,
-						     armv7a->debug_base + CPUDBG_OSLAR,
-						     0);
-
-		if (retval != ERROR_OK)
-			return retval;
-
-	}
 	retval = mem_ap_read_atomic_u32(armv7a->debug_ap,
 					    armv7a->debug_base + CPUDBG_PRSR, &dbg_osreg);
 
