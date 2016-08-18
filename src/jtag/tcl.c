@@ -452,6 +452,7 @@ static int jim_newtap_expected_id(Jim_Nvp *n, Jim_GetOptInfo *goi,
 #define NTAP_OPT_DISABLED  4
 #define NTAP_OPT_EXPECTED_ID 5
 #define NTAP_OPT_VERSION   6
+#define NTAP_OPT_SYSPWRUPACK 7
 
 static int jim_newtap_ir_param(Jim_Nvp *n, Jim_GetOptInfo *goi,
 	struct jtag_tap *pTap)
@@ -514,6 +515,7 @@ static int jim_newtap_cmd(Jim_GetOptInfo *goi)
 		{ .name = "-disable",       .value = NTAP_OPT_DISABLED },
 		{ .name = "-expected-id",       .value = NTAP_OPT_EXPECTED_ID },
 		{ .name = "-ignore-version",       .value = NTAP_OPT_VERSION },
+		{ .name = "-ignore-syspwrupack",       .value = NTAP_OPT_SYSPWRUPACK },
 		{ .name = NULL,       .value = -1 },
 	};
 
@@ -598,6 +600,12 @@ static int jim_newtap_cmd(Jim_GetOptInfo *goi)
 			    break;
 		    case NTAP_OPT_VERSION:
 			    pTap->ignore_version = true;
+			    break;
+		    case NTAP_OPT_SYSPWRUPACK:
+			    /* This means that we have an ARM ADI v5 DAP attached */
+			    pTap->dap = dap_init();
+			    pTap->dap->tap = pTap;
+			    pTap->dap->ignore_syspwrupack = true;
 			    break;
 		}	/* switch (n->value) */
 	}	/* while (goi->argc) */
@@ -864,6 +872,7 @@ static const struct command_registration jtag_subcommand_handlers[] = {
 			"['-enable'|'-disable'] "
 			"['-expected_id' number] "
 			"['-ignore-version'] "
+			"['-ignore-syspwrupack'] "
 			"['-ircapture' number] "
 			"['-mask' number] ",
 	},
