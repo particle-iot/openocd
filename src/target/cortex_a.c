@@ -2963,11 +2963,17 @@ static int cortex_a_examine_first(struct target *target)
 		return retval;
 	}
 
-	/* Search for the APB-AP - it is needed for access to debug registers */
-	retval = dap_find_ap(swjdp, AP_TYPE_APB_AP, &armv7a->debug_ap);
-	if (retval != ERROR_OK) {
-		LOG_ERROR("Could not find APB-AP for debug access");
-		return retval;
+	/* Search for the APB-AP if location wasn't configured.
+	 * It is needed for access to debug registers */
+	if (target->ap_num == -1) {
+		retval = dap_find_ap(swjdp, AP_TYPE_APB_AP, &armv7a->debug_ap);
+		if (retval != ERROR_OK) {
+			LOG_ERROR("Could not find APB-AP for debug access");
+			return retval;
+		}
+	} else {
+		armv7a->debug_ap = &swjdp->ap[target->ap_num];
+		LOG_DEBUG("Configured Cortex-A APB-AP at AP index: %d", target->ap_num);
 	}
 
 	retval = mem_ap_init(armv7a->debug_ap);

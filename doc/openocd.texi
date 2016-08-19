@@ -4223,6 +4223,9 @@ The value should normally correspond to a static mapping for the
 @option{FreeRTOS}|@option{linux}|@option{ChibiOS}|@option{embKernel}|@option{mqx}
 @xref{gdbrtossupport,,RTOS Support}.
 
+@item @code{-ap-num} @var{num} -- choose the AP to use for this target. This works for both
+cortex_m and cortex_a.
+
 @end itemize
 @end deffn
 

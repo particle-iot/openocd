@@ -186,6 +186,7 @@ struct target {
 										 * and must be detected when symbols are offered */
 	struct backoff_timer backoff;
 	int smp;							/* add some target attributes for smp support */
+	int ap_num;					/* Which AP in a DAP */
 	struct target_list *head;
 	/* the gdb service is there in case of smp, we have only one gdb server
 	 * for all smp target
