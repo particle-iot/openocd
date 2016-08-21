@@ -63,9 +63,9 @@ int arm7a_l2x_flush_all_data(struct target *target)
 
 	l2_way_val = (1 << l2x_cache->way) - 1;
 
-	return target_write_phys_memory(target,
+	return target_write_phys_u32(target,
 			l2x_cache->base + L2X0_CLEAN_INV_WAY,
-			4, 1, (uint8_t *)&l2_way_val);
+			l2_way_val);
 }
 
 int armv7a_l2x_cache_flush_virt(struct target *target, uint32_t virt,
@@ -90,9 +90,8 @@ int armv7a_l2x_cache_flush_virt(struct target *target, uint32_t virt,
 		if (retval != ERROR_OK)
 			goto done;
 
-		retval = target_write_phys_memory(target,
-				l2x_cache->base + L2X0_CLEAN_INV_LINE_PA,
-				4, 1, (uint8_t *)&pa);
+		retval = target_write_phys_u32(target,
+				l2x_cache->base + L2X0_CLEAN_INV_LINE_PA, pa);
 		if (retval != ERROR_OK)
 			goto done;
 	}
@@ -126,9 +125,8 @@ static int armv7a_l2x_cache_inval_virt(struct target *target, uint32_t virt,
 		if (retval != ERROR_OK)
 			goto done;
 
-		retval = target_write_phys_memory(target,
-				l2x_cache->base + L2X0_INV_LINE_PA,
-				4, 1, (uint8_t *)&pa);
+		retval = target_write_phys_u32(target,
+				l2x_cache->base + L2X0_INV_LINE_PA, pa);
 		if (retval != ERROR_OK)
 			goto done;
 	}
@@ -162,9 +160,8 @@ static int armv7a_l2x_cache_clean_virt(struct target *target, uint32_t virt,
 		if (retval != ERROR_OK)
 			goto done;
 
-		retval = target_write_phys_memory(target,
-				l2x_cache->base + L2X0_CLEAN_LINE_PA,
-				4, 1, (uint8_t *)&pa);
+		retval = target_write_phys_u32(target,
+				l2x_cache->base + L2X0_CLEAN_LINE_PA, pa);
 		if (retval != ERROR_OK)
 			goto done;
 	}
