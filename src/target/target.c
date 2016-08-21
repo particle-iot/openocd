@@ -2369,6 +2369,27 @@ int target_write_u8(struct target *target, uint32_t address, uint8_t value)
 	return retval;
 }
 
+int target_write_phys_u32(struct target *target, uint32_t address, uint32_t value)
+{
+	int retval;
+	uint8_t value_buf[4];
+	if (!target_was_examined(target)) {
+		LOG_ERROR("Target not examined yet");
+		return ERROR_FAIL;
+	}
+
+	LOG_DEBUG("address: 0x%8.8" PRIx32 ", value: 0x%8.8" PRIx32 "",
+			  address,
+			  value);
+
+	target_buffer_set_u32(target, value_buf, value);
+	retval = target_write_phys_memory(target, address, 4, 1, value_buf);
+	if (retval != ERROR_OK)
+		LOG_DEBUG("failed: %i", retval);
+
+	return retval;
+}
+
 static int find_target(struct command_context *cmd_ctx, const char *name)
 {
 	struct target *target = get_target(name);

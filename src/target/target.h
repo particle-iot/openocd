@@ -664,6 +664,8 @@ int target_write_u32(struct target *target, uint32_t address, uint32_t value);
 int target_write_u16(struct target *target, uint32_t address, uint16_t value);
 int target_write_u8(struct target *target, uint32_t address, uint8_t value);
 
+int target_write_phys_u32(struct target *target, uint32_t address, uint32_t value);
+
 /* Issues USER() statements with target state information */
 int target_arch_state(struct target *target);
 
