@@ -976,16 +976,8 @@ static int cortex_m_assert_reset(struct target *target)
 		return ERROR_OK;
 	}
 
-	/* some cores support connecting while srst is asserted
-	 * use that mode is it has been configured */
-
-	bool srst_asserted = false;
-
-	if ((jtag_reset_config & RESET_HAS_SRST) &&
-	    (jtag_reset_config & RESET_SRST_NO_GATING)) {
-		adapter_assert_reset();
-		srst_asserted = true;
-	}
+	/* Some cores support connecting while srst is asserted.
+	 * If RESET_HAS_SRST and RESET_SRST_NO_GATING are configured, core is under SRST now */
 
 	/* Enable debug requests */
 	int retval;
@@ -1029,10 +1021,6 @@ static int cortex_m_assert_reset(struct target *target)
 	}
 
 	if (jtag_reset_config & RESET_HAS_SRST) {
-		/* default to asserting srst */
-		if (!srst_asserted)
-			adapter_assert_reset();
-
 		/* srst is asserted, ignore AP access errors */
 		retval = ERROR_OK;
 	} else {
