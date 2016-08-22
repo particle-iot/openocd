@@ -1491,9 +1491,10 @@ int swd_init_reset(struct command_context *cmd_ctx)
 
 	LOG_DEBUG("Initializing with hard SRST reset");
 
-	if (jtag_reset_config & RESET_HAS_SRST)
+	if ((jtag_reset_config & (RESET_HAS_SRST|RESET_SRST_NO_GATING)) == (RESET_HAS_SRST|RESET_SRST_NO_GATING))
 		swd_add_reset(1);
-	swd_add_reset(0);
+	/* leave SRST asserted if SWD trasport is usable in reset state */
+
 	retval = jtag_execute_queue();
 	return retval;
 }
@@ -1539,15 +1540,14 @@ int jtag_init_reset(struct command_context *cmd_ctx)
 	}
 
 	/* some targets enable us to connect with srst asserted */
-	if (jtag_reset_config & RESET_CNCT_UNDER_SRST) {
-		if (jtag_reset_config & RESET_SRST_NO_GATING)
-			jtag_add_reset(0, 1);
-		else {
+	if (jtag_reset_config & RESET_SRST_NO_GATING)
+		jtag_add_reset(0, 1);
+	else {
+		if (jtag_reset_config & RESET_CNCT_UNDER_SRST)
 			LOG_WARNING("\'srst_nogate\' reset_config option is required");
-			jtag_add_reset(0, 0);
-		}
-	} else
 		jtag_add_reset(0, 0);
+	}
+
 	retval = jtag_execute_queue();
 	if (retval != ERROR_OK)
 		return retval;

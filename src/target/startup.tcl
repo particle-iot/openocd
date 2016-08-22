@@ -83,6 +83,7 @@ proc ocd_process_reset_inner { MODE } {
 			$t arp_reset assert $halt
 		}
 	}
+	reset_assert_final $MODE
 	foreach t $targets {
 		$t invoke-event reset-assert-post
 	}
@@ -92,6 +93,7 @@ proc ocd_process_reset_inner { MODE } {
 	foreach t $targets {
 		$t invoke-event reset-deassert-pre
 	}
+	reset_deassert_initial $MODE
 	foreach t $targets {
 		# Again, de-assert code needs to know if we 'halt'
 		if {![using_jtag] || [jtag tapisenabled [$t cget -chain-position]]} {
