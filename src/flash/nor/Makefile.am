@@ -18,6 +18,7 @@ NOR_DRIVERS = \
 	at91sam7.c \
 	atsamv.c \
 	avrf.c \
+	cc13xx_26xx_rom.c \
 	cfi.c \
 	dsp5680xx_flash.c \
 	efm32.c \
