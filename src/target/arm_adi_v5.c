@@ -1595,6 +1595,20 @@ COMMAND_HANDLER(dap_apreg_command)
 	return retval;
 }
 
+COMMAND_HANDLER(dap_reconnect_command)
+{
+	struct target *target = get_current_target(CMD_CTX);
+	struct arm *arm = target_to_arm(target);
+	struct adiv5_dap *dap = arm->dap;
+
+	if (CMD_ARGC > 0)
+		return ERROR_COMMAND_SYNTAX_ERROR;
+
+	dap->do_reconnect = true;
+
+	return ERROR_OK;
+}
+
 COMMAND_HANDLER(dap_ti_be_32_quirks_command)
 {
 	struct target *target = get_current_target(CMD_CTX);
@@ -1677,6 +1691,12 @@ static const struct command_registration dap_commands[] = {
 		.help = "set/get number of extra tck for MEM-AP memory "
 			"bus access [0-255]",
 		.usage = "[cycles]",
+	},
+	{
+		.name = "arp_req_reconnect",
+		.handler = dap_reconnect_command,
+		.mode = COMMAND_EXEC,
+		.help = "request SWD reconnect at next access (no op for JTAG)",
 	},
 	{
 		.name = "ti_be_32_quirks",
