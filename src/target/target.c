@@ -2390,7 +2390,8 @@ static int find_target(struct command_context *cmd_ctx, const char *name)
 COMMAND_HANDLER(handle_polling_interval_command)
 {
 	int retval = ERROR_OK;
-	if (CMD_ARGC == 1) COMMAND_PARSE_NUMBER(uint, CMD_ARGV[0], polling_interval);
+	if (CMD_ARGC == 1) 
+		COMMAND_PARSE_NUMBER(uint, CMD_ARGV[0], polling_interval);
 
 	command_print(CMD_CTX, "polling_interval: %d", polling_interval);
 	return retval;
