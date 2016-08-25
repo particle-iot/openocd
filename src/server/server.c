@@ -679,7 +679,7 @@ static const struct command_registration server_command_handlers[] = {
 		.handler = &handle_poll_period_command,
 		.mode = COMMAND_ANY,
 		.usage = "",
-		.help = "set the servers polling period",
+		.help = "set the servers polling period for the TCP connection",
 	},
 	{
 		.name = "bindto",

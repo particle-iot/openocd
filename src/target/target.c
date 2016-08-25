@@ -143,7 +143,7 @@ static struct target_event_callback *target_event_callbacks;
 static struct target_timer_callback *target_timer_callbacks;
 LIST_HEAD(target_reset_callback_list);
 LIST_HEAD(target_trace_callback_list);
-static const int polling_interval = 100;
+static int polling_interval = 100;
 
 static const Jim_Nvp nvp_assert[] = {
 	{ .name = "assert", NVP_ASSERT },
@@ -2387,6 +2387,15 @@ static int find_target(struct command_context *cmd_ctx, const char *name)
 	return ERROR_OK;
 }
 
+COMMAND_HANDLER(handle_polling_interval_command)
+{
+	int retval = ERROR_OK;
+	if (CMD_ARGC == 1)
+		COMMAND_PARSE_NUMBER(int, CMD_ARGV[0], polling_interval);
+
+	command_print(CMD_CTX, "polling_interval: %d", polling_interval);
+	return retval;
+}
 
 COMMAND_HANDLER(handle_targets_command)
 {
@@ -2564,7 +2573,9 @@ static int handle_target(void *priv)
 		if (target->backoff.times > target->backoff.count) {
 			/* do not poll this time as we failed previously */
 			target->backoff.count++;
-			continue;
+			/* do not wait if polling interval has been set to 0*/
+			if (polling_interval)
+				continue;
 		}
 		target->backoff.count = 0;
 
@@ -2584,7 +2595,7 @@ static int handle_target(void *priv)
 				 */
 				target_call_event_callbacks(target, TARGET_EVENT_GDB_HALT);
 			}
-			if (target->backoff.times > 0) {
+			if (target->backoff.times > 0 && polling_interval) {
 				LOG_USER("Polling target %s failed, trying to reexamine", target_name(target));
 				target_reset_examined(target);
 				retval = target_examine_one(target);
@@ -6195,6 +6206,13 @@ static const struct command_registration target_exec_command_handlers[] = {
 		.mode = COMMAND_EXEC,
 		.help = "Test the target's memory access functions",
 		.usage = "size",
+	},
+	{
+		.name = "target_polling_interval",
+		.handler = handle_polling_interval_command,
+		.mode = COMMAND_EXEC,
+		.help =	"display or set the polling interval for the jtag target",
+		.usage = "[interval]",
 	},
 
 	COMMAND_REGISTRATION_DONE
