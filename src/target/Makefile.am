@@ -168,6 +168,7 @@ noinst_HEADERS = \
 	armv7m.h \
 	armv7m_trace.h \
 	armv8.h \
+	armv8_opcodes.h \
 	avrt.h \
 	dsp563xx.h \
 	dsp563xx_once.h \
