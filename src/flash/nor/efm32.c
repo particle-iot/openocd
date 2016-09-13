@@ -49,6 +49,7 @@
 #define EZR_FAMILY_ID_WONDER_GECKO		120
 #define EZR_FAMILY_ID_LEOPARD_GECKO		121
 #define EZR_FAMILY_ID_HAPPY_GECKO               122
+#define EFR_FAMILY_ID_MIGHTY_GECKO              16
 
 #define EFM32_FLASH_ERASE_TMO           100
 #define EFM32_FLASH_WDATAREADY_TMO      100
@@ -71,7 +72,7 @@
 #define EFM32_MSC_DI_PART_FAMILY        (EFM32_MSC_DEV_INFO+0x1fe)
 #define EFM32_MSC_DI_PROD_REV           (EFM32_MSC_DEV_INFO+0x1ff)
 
-#define EFM32_MSC_REGBASE               0x400c0000
+#define EFM32_MSC_REGBASE               0x400e0000
 #define EFM32_MSC_WRITECTRL             (EFM32_MSC_REGBASE+0x008)
 #define EFM32_MSC_WRITECTRL_WREN_MASK   0x1
 #define EFM32_MSC_WRITECMD              (EFM32_MSC_REGBASE+0x00c)
@@ -87,7 +88,7 @@
 #define EFM32_MSC_STATUS_WDATAREADY_MASK 0x8
 #define EFM32_MSC_STATUS_WORDTIMEOUT_MASK 0x10
 #define EFM32_MSC_STATUS_ERASEABORTED_MASK 0x20
-#define EFM32_MSC_LOCK                  (EFM32_MSC_REGBASE+0x03c)
+#define EFM32_MSC_LOCK                  (EFM32_MSC_REGBASE+0x040)
 #define EFM32_MSC_LOCK_LOCKKEY          0x1b71
 
 struct efm32x_flash_bank {
@@ -220,6 +221,11 @@ static int efm32x_read_info(struct flash_bank *bank,
 			LOG_ERROR("Invalid page size %u", efm32_info->page_size);
 			return ERROR_FAIL;
 		}
+	} else if (EFR_FAMILY_ID_MIGHTY_GECKO == efm32_info->part_family) {
+		efm32_info->page_size = 2048;
+		/* always 2048 according to efr32 reference manual ("EFR32xG1 Wireless
+		 * Gecko Reference Manual") rev 0.6 p28. alternatively, we
+		 * could inspect MEMINFO bits FLASH_PAGE_SIZE. */
 	} else {
 		LOG_ERROR("Unknown MCU family %d", efm32_info->part_family);
 		return ERROR_FAIL;
@@ -598,10 +604,7 @@ static int efm32x_write_block(struct flash_bank *bank, const uint8_t *buf,
 		/* #define EFM32_MSC_ADDRB_OFFSET          0x010 */
 		/* #define EFM32_MSC_WDATA_OFFSET          0x018 */
 		/* #define EFM32_MSC_STATUS_OFFSET         0x01c */
-		/* #define EFM32_MSC_LOCK_OFFSET           0x03c */
 
-			0x15, 0x4e,    /* ldr     r6, =#0x1b71 */
-			0xc6, 0x63,    /* str     r6, [r0, #EFM32_MSC_LOCK_OFFSET] */
 			0x01, 0x26,    /* movs    r6, #1 */
 			0x86, 0x60,    /* str     r6, [r0, #EFM32_MSC_WRITECTRL_OFFSET] */
 
@@ -660,9 +663,6 @@ static int efm32x_write_block(struct flash_bank *bank, const uint8_t *buf,
 		/* exit: */
 			0x30, 0x46,    /* mov     r0, r6 */
 			0x00, 0xbe,    /* bkpt    #0 */
-
-		/* LOCKKEY */
-			0x71, 0x1b, 0x00, 0x00
 	};
 
 	/* flash write code */
