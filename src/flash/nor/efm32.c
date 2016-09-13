@@ -49,6 +49,7 @@
 #define EZR_FAMILY_ID_WONDER_GECKO		120
 #define EZR_FAMILY_ID_LEOPARD_GECKO		121
 #define EZR_FAMILY_ID_HAPPY_GECKO               122
+#define EFR_FAMILY_ID_MIGHTY_GECKO              16
 
 #define EFM32_FLASH_ERASE_TMO           100
 #define EFM32_FLASH_WDATAREADY_TMO      100
@@ -63,7 +64,13 @@
 #define EFM32_MSC_LOCK_BITS             (EFM32_MSC_INFO_BASE+0x4000)
 #define EFM32_MSC_DEV_INFO              (EFM32_MSC_INFO_BASE+0x8000)
 
-/* PAGE_SIZE is only present in Leopard, Giant and Wonder Gecko MCUs */
+/* PAGE_SIZE is only present in Leopard, Giant and Wonder Gecko MCUs
+ *
+ * Note that the addresses also work for EFR32xG1 devices, but are expressed
+ * differently in its handbook (EFM32_MSC_DEV_INFO would be
+ * (EFM32_MSC_INFO_BASE+0x8aB0), and _DI_PAGE_SIZE would be +0x37), but are
+ * numerically the same.
+ * */
 #define EFM32_MSC_DI_PAGE_SIZE          (EFM32_MSC_DEV_INFO+0x1e7)
 #define EFM32_MSC_DI_FLASH_SZ           (EFM32_MSC_DEV_INFO+0x1f8)
 #define EFM32_MSC_DI_RAM_SZ             (EFM32_MSC_DEV_INFO+0x1fa)
@@ -71,28 +78,32 @@
 #define EFM32_MSC_DI_PART_FAMILY        (EFM32_MSC_DEV_INFO+0x1fe)
 #define EFM32_MSC_DI_PROD_REV           (EFM32_MSC_DEV_INFO+0x1ff)
 
-#define EFM32_MSC_REGBASE               0x400c0000
-#define EFM32_MSC_WRITECTRL             (EFM32_MSC_REGBASE+0x008)
+#define _EFM32_MSC_REGBASE_DEFAULT      0x400c0000
+#define _EFM32_MSC_REGBASE_MIGHTYGECKO  0x400e0000
+#define EFM32_MSC_REGBASE(bank)               (((struct efm32x_flash_bank *)(bank->driver_priv))->regbase)
+#define EFM32_MSC_WRITECTRL(bank)             (EFM32_MSC_REGBASE(bank)+0x008)
 #define EFM32_MSC_WRITECTRL_WREN_MASK   0x1
-#define EFM32_MSC_WRITECMD              (EFM32_MSC_REGBASE+0x00c)
+#define EFM32_MSC_WRITECMD(bank)              (EFM32_MSC_REGBASE(bank)+0x00c)
 #define EFM32_MSC_WRITECMD_LADDRIM_MASK 0x1
 #define EFM32_MSC_WRITECMD_ERASEPAGE_MASK 0x2
 #define EFM32_MSC_WRITECMD_WRITEONCE_MASK 0x8
-#define EFM32_MSC_ADDRB                 (EFM32_MSC_REGBASE+0x010)
-#define EFM32_MSC_WDATA                 (EFM32_MSC_REGBASE+0x018)
-#define EFM32_MSC_STATUS                (EFM32_MSC_REGBASE+0x01c)
+#define EFM32_MSC_ADDRB(bank)                 (EFM32_MSC_REGBASE(bank)+0x010)
+#define EFM32_MSC_WDATA(bank)                 (EFM32_MSC_REGBASE(bank)+0x018)
+#define EFM32_MSC_STATUS(bank)                (EFM32_MSC_REGBASE(bank)+0x01c)
 #define EFM32_MSC_STATUS_BUSY_MASK      0x1
 #define EFM32_MSC_STATUS_LOCKED_MASK    0x2
 #define EFM32_MSC_STATUS_INVADDR_MASK   0x4
 #define EFM32_MSC_STATUS_WDATAREADY_MASK 0x8
 #define EFM32_MSC_STATUS_WORDTIMEOUT_MASK 0x10
 #define EFM32_MSC_STATUS_ERASEABORTED_MASK 0x20
-#define EFM32_MSC_LOCK                  (EFM32_MSC_REGBASE+0x03c)
+/* FIXME this needs to be made variable too */
+#define EFM32_MSC_LOCK(bank)                  (EFM32_MSC_REGBASE(bank)+0x040)
 #define EFM32_MSC_LOCK_LOCKKEY          0x1b71
 
 struct efm32x_flash_bank {
 	int probed;
 	uint32_t lb_page[LOCKBITS_PAGE_SZ/4];
+	uint32_t regbase;
 };
 
 struct efm32_info {
@@ -220,6 +231,17 @@ static int efm32x_read_info(struct flash_bank *bank,
 			LOG_ERROR("Invalid page size %u", efm32_info->page_size);
 			return ERROR_FAIL;
 		}
+	} else if (EFR_FAMILY_ID_MIGHTY_GECKO == efm32_info->part_family) {
+		efm32_info->page_size = 2048;
+		/* always 2048 according to efr32 reference manual ("EFR32xG1 Wireless
+		 * Gecko Reference Manual") rev 0.6 p28. alternatively, we
+		 * could inspect MEMINFO bits FLASH_PAGE_SIZE. */
+
+		/* Is this OK to be done here, or should the regbase info be
+		 * passed out via efm32_info and transferred over where
+		 * `.probed` is set? */
+		struct efm32x_flash_bank *efm32x_info = bank->driver_priv;
+		efm32x_info->regbase = _EFM32_MSC_REGBASE_MIGHTYGECKO;
 	} else {
 		LOG_ERROR("Unknown MCU family %d", efm32_info->part_family);
 		return ERROR_FAIL;
@@ -276,6 +298,9 @@ static int efm32x_decode_info(struct efm32_info *info, char *buf, int buf_size)
 		case EZR_FAMILY_ID_HAPPY_GECKO:
 			printed = snprintf(buf, buf_size, "Happy Gecko");
 			break;
+		case EFR_FAMILY_ID_MIGHTY_GECKO:
+			printed = snprintf(buf, buf_size, "Mighty Gecko");
+			break;
 	}
 
 	buf += printed;
@@ -308,6 +333,7 @@ FLASH_BANK_COMMAND_HANDLER(efm32x_flash_bank_command)
 	bank->driver_priv = efm32x_info;
 	efm32x_info->probed = 0;
 	memset(efm32x_info->lb_page, 0xff, LOCKBITS_PAGE_SZ);
+	efm32x_info->regbase = _EFM32_MSC_REGBASE_DEFAULT;
 
 	return ERROR_OK;
 }
@@ -333,13 +359,13 @@ static int efm32x_set_reg_bits(struct flash_bank *bank, uint32_t reg,
 
 static int efm32x_set_wren(struct flash_bank *bank, int write_enable)
 {
-	return efm32x_set_reg_bits(bank, EFM32_MSC_WRITECTRL,
+	return efm32x_set_reg_bits(bank, EFM32_MSC_WRITECTRL(bank),
 		EFM32_MSC_WRITECTRL_WREN_MASK, write_enable);
 }
 
 static int efm32x_msc_lock(struct flash_bank *bank, int lock)
 {
-	return target_write_u32(bank->target, EFM32_MSC_LOCK,
+	return target_write_u32(bank->target, EFM32_MSC_LOCK(bank),
 		(lock ? 0 : EFM32_MSC_LOCK_LOCKKEY));
 }
 
@@ -350,7 +376,7 @@ static int efm32x_wait_status(struct flash_bank *bank, int timeout,
 	uint32_t status = 0;
 
 	while (1) {
-		ret = target_read_u32(bank->target, EFM32_MSC_STATUS, &status);
+		ret = target_read_u32(bank->target, EFM32_MSC_STATUS(bank), &status);
 		if (ERROR_OK != ret)
 			break;
 
@@ -389,16 +415,16 @@ static int efm32x_erase_page(struct flash_bank *bank, uint32_t addr)
 
 	LOG_DEBUG("erasing flash page at 0x%08" PRIx32, addr);
 
-	ret = target_write_u32(bank->target, EFM32_MSC_ADDRB, addr);
+	ret = target_write_u32(bank->target, EFM32_MSC_ADDRB(bank), addr);
 	if (ERROR_OK != ret)
 		return ret;
 
-	ret = efm32x_set_reg_bits(bank, EFM32_MSC_WRITECMD,
+	ret = efm32x_set_reg_bits(bank, EFM32_MSC_WRITECMD(bank),
 		EFM32_MSC_WRITECMD_LADDRIM_MASK, 1);
 	if (ERROR_OK != ret)
 		return ret;
 
-	ret = target_read_u32(bank->target, EFM32_MSC_STATUS, &status);
+	ret = target_read_u32(bank->target, EFM32_MSC_STATUS(bank), &status);
 	if (ERROR_OK != ret)
 		return ret;
 
@@ -412,7 +438,7 @@ static int efm32x_erase_page(struct flash_bank *bank, uint32_t addr)
 		return ERROR_FAIL;
 	}
 
-	ret = efm32x_set_reg_bits(bank, EFM32_MSC_WRITECMD,
+	ret = efm32x_set_reg_bits(bank, EFM32_MSC_WRITECMD(bank),
 		EFM32_MSC_WRITECMD_ERASEPAGE_MASK, 1);
 	if (ERROR_OK != ret)
 		return ret;
@@ -598,10 +624,7 @@ static int efm32x_write_block(struct flash_bank *bank, const uint8_t *buf,
 		/* #define EFM32_MSC_ADDRB_OFFSET          0x010 */
 		/* #define EFM32_MSC_WDATA_OFFSET          0x018 */
 		/* #define EFM32_MSC_STATUS_OFFSET         0x01c */
-		/* #define EFM32_MSC_LOCK_OFFSET           0x03c */
 
-			0x15, 0x4e,    /* ldr     r6, =#0x1b71 */
-			0xc6, 0x63,    /* str     r6, [r0, #EFM32_MSC_LOCK_OFFSET] */
 			0x01, 0x26,    /* movs    r6, #1 */
 			0x86, 0x60,    /* str     r6, [r0, #EFM32_MSC_WRITECTRL_OFFSET] */
 
@@ -660,9 +683,6 @@ static int efm32x_write_block(struct flash_bank *bank, const uint8_t *buf,
 		/* exit: */
 			0x30, 0x46,    /* mov     r0, r6 */
 			0x00, 0xbe,    /* bkpt    #0 */
-
-		/* LOCKKEY */
-			0x71, 0x1b, 0x00, 0x00
 	};
 
 	/* flash write code */
@@ -697,7 +717,7 @@ static int efm32x_write_block(struct flash_bank *bank, const uint8_t *buf,
 	init_reg_param(&reg_params[3], "r3", 32, PARAM_OUT);	/* buffer end */
 	init_reg_param(&reg_params[4], "r4", 32, PARAM_IN_OUT);	/* target address */
 
-	buf_set_u32(reg_params[0].value, 0, 32, EFM32_MSC_REGBASE);
+	buf_set_u32(reg_params[0].value, 0, 32, EFM32_MSC_REGBASE(bank));
 	buf_set_u32(reg_params[1].value, 0, 32, count);
 	buf_set_u32(reg_params[2].value, 0, 32, source->address);
 	buf_set_u32(reg_params[3].value, 0, 32, source->address + source->size);
@@ -762,16 +782,16 @@ static int efm32x_write_word(struct flash_bank *bank, uint32_t addr,
 	/* if not called, GDB errors will be reported during large writes */
 	keep_alive();
 
-	ret = target_write_u32(bank->target, EFM32_MSC_ADDRB, addr);
+	ret = target_write_u32(bank->target, EFM32_MSC_ADDRB(bank), addr);
 	if (ERROR_OK != ret)
 		return ret;
 
-	ret = efm32x_set_reg_bits(bank, EFM32_MSC_WRITECMD,
+	ret = efm32x_set_reg_bits(bank, EFM32_MSC_WRITECMD(bank),
 		EFM32_MSC_WRITECMD_LADDRIM_MASK, 1);
 	if (ERROR_OK != ret)
 		return ret;
 
-	ret = target_read_u32(bank->target, EFM32_MSC_STATUS, &status);
+	ret = target_read_u32(bank->target, EFM32_MSC_STATUS(bank), &status);
 	if (ERROR_OK != ret)
 		return ret;
 
@@ -792,13 +812,13 @@ static int efm32x_write_word(struct flash_bank *bank, uint32_t addr,
 		return ret;
 	}
 
-	ret = target_write_u32(bank->target, EFM32_MSC_WDATA, val);
+	ret = target_write_u32(bank->target, EFM32_MSC_WDATA(bank), val);
 	if (ERROR_OK != ret) {
 		LOG_ERROR("WDATA write failed");
 		return ret;
 	}
 
-	ret = target_write_u32(bank->target, EFM32_MSC_WRITECMD,
+	ret = target_write_u32(bank->target, EFM32_MSC_WRITECMD(bank),
 		EFM32_MSC_WRITECMD_WRITEONCE_MASK);
 	if (ERROR_OK != ret) {
 		LOG_ERROR("WRITECMD write failed");
