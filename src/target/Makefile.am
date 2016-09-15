@@ -88,6 +88,7 @@ ARMV7_SRC = \
 
 ARMV8_SRC = \
 	armv8_dpm.c \
+	armv8_opcodes.c \
 	aarch64.c \
 	armv8.c \
 	armv8_cache.c
