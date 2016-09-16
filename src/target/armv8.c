@@ -826,7 +826,7 @@ static const struct {
 	{ ARMV8_R31, "sp", 64, REG_TYPE_DATA_PTR, "general", "org.gnu.gdb.aarch64.core" },
 	{ ARMV8_PC,  "pc", 64, REG_TYPE_CODE_PTR, "general", "org.gnu.gdb.aarch64.core" },
 
-	{ ARMV8_xPSR, "CPSR", 64, REG_TYPE_INT, "general", "org.gnu.gdb.aarch64.core" },
+	{ ARMV8_xPSR, "CPSR", 32, REG_TYPE_INT, "general", "org.gnu.gdb.aarch64.core" },
 };
 
 #define ARMV8_NUM_REGS ARRAY_SIZE(armv8_regs)
@@ -901,7 +901,7 @@ struct reg_cache *armv8_build_reg_cache(struct target *target)
 
 		reg_list[i].name = armv8_regs[i].name;
 		reg_list[i].size = armv8_regs[i].bits;
-		reg_list[i].value = calloc(1, 4);
+		reg_list[i].value = calloc(1, 8);
 		reg_list[i].dirty = 0;
 		reg_list[i].valid = 0;
 		reg_list[i].type = &armv8_reg_type;
