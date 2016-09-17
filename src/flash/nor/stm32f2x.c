@@ -106,8 +106,8 @@
  *
  */
 
-/* Erase time can be as high as 1000ms, 10x this and it's toast... */
-#define FLASH_ERASE_TIMEOUT 10000
+/* Erase time can be as high as 32 s for full erase in x8 mode. */
+#define FLASH_ERASE_TIMEOUT 33000
 #define FLASH_WRITE_TIMEOUT 5
 
 #define STM32_FLASH_BASE    0x40023c00
