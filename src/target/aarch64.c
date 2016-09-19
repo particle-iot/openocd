@@ -2236,10 +2236,14 @@ static int aarch64_examine_first(struct target *target)
 	struct aarch64_common *aarch64 = target_to_aarch64(target);
 	struct armv8_common *armv8 = &aarch64->armv8_common;
 	struct adiv5_dap *swjdp = armv8->arm.dap;
-	int i;
-	int retval = ERROR_OK;
+	int32_t coreidx = target->coreid;
 	uint64_t debug, ttypr, cpuid;
 	uint32_t tmp0, tmp1;
+	uint32_t dbgbase;
+	uint32_t apid;
+	int i;
+	int retval = ERROR_OK;
+
 	debug = ttypr = cpuid = 0;
 
 	/* We do one extra read to ensure DAP is configured,
@@ -2264,14 +2268,12 @@ static int aarch64_examine_first(struct target *target)
 
 	armv8->debug_ap->memaccess_tck = 80;
 
+	/* Get ROM Table base */
+	retval = dap_get_debugbase(armv8->debug_ap, &dbgbase, &apid);
+	if (retval != ERROR_OK)
+		return retval;
+
 	if (!target->dbgbase_set) {
-		uint32_t dbgbase;
-		/* Get ROM Table base */
-		uint32_t apid;
-		int32_t coreidx = target->coreid;
-		retval = dap_get_debugbase(armv8->debug_ap, &dbgbase, &apid);
-		if (retval != ERROR_OK)
-			return retval;
 		/* Lookup 0x15 -- Processor DAP */
 		retval = dap_lookup_cs_component(armv8->debug_ap, dbgbase, 0x15,
 				&armv8->debug_base, &coreidx);
@@ -2282,11 +2284,18 @@ static int aarch64_examine_first(struct target *target)
 	} else
 		armv8->debug_base = target->dbgbase;
 
-	LOG_DEBUG("Target ctibase is 0x%x", target->ctibase);
-	if (target->ctibase == 0)
-		armv8->cti_base = target->ctibase = armv8->debug_base + 0x1000;
-	else
+	if (!target->ctibase_set) {
+		/* Lookup type 0x14, CTI */
+		retval = dap_lookup_cs_component(armv8->debug_ap, dbgbase, 0x14,
+				&target->ctibase, &coreidx);
+		if (retval == ERROR_TARGET_RESOURCE_NOT_AVAILABLE)
+			LOG_ERROR("Unable to detect CTI base for core %i, use \"target create ... -ctibase <address>\" to set", coreidx);
+		if (retval != ERROR_OK)
+			return ERROR_FAIL;
+	} else
 		armv8->cti_base = target->ctibase;
+
+	LOG_DEBUG("Target ctibase is 0x%" PRIx32, target->ctibase);
 
 	retval = mem_ap_write_atomic_u32(armv8->debug_ap,
 			armv8->debug_base + CPUV8_DBG_LOCKACCESS, 0xC5ACCE55);
