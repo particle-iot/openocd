@@ -89,7 +89,8 @@ ARMV7_SRC = \
 ARMV8_SRC = \
 	armv8_dpm.c \
 	aarch64.c \
-	armv8.c
+	armv8.c \
+	armv8_cache.c
 
 ARM_DEBUG_SRC = \
 	arm_dpm.c \
@@ -171,6 +172,7 @@ noinst_HEADERS = \
 	armv8.h \
 	armv8_dpm.h \
 	armv8_opcodes.h \
+	armv8_cache.h \
 	avrt.h \
 	dsp563xx.h \
 	dsp563xx_once.h \
