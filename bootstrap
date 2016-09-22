@@ -25,7 +25,7 @@ fi
 (
 set -x
 aclocal
-${libtoolize} --automake --copy
+${libtoolize} --copy
 autoconf
 autoheader
 automake --gnu --add-missing --copy

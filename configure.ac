@@ -3,7 +3,7 @@ AC_INIT([openocd], [0.10.0-dev],
   [OpenOCD Mailing List <openocd-devel@lists.sourceforge.net>])
 AC_CONFIG_SRCDIR([src/openocd.c])
 
-m4_include([config_subdir.m4])dnl
+AC_CONFIG_MACRO_DIRS([m4])
 
 # check for makeinfo before calling AM_INIT_AUTOMAKE
 AC_CHECK_PROG([MAKEINFO], [makeinfo], [makeinfo])
@@ -26,8 +26,8 @@ AC_LANG_C
 AC_PROG_CC
 AC_PROG_CC_C99
 AM_PROG_CC_C_O
-AC_PROG_RANLIB
 PKG_PROG_PKG_CONFIG([0.23])
+LT_INIT
 
 dnl disable checks for C++, Fortran and GNU Java Compiler
 m4_defun([_LT_AC_LANG_CXX_CONFIG], [:])
