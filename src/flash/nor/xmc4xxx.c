@@ -1088,8 +1088,8 @@ static int xmc4xxx_temp_unprotect(struct flash_bank *bank, int user_level)
 
 static int xmc4xxx_flash_unprotect(struct flash_bank *bank, int32_t level)
 {
-	uint32_t addr;
-	int res;
+	uint32_t addr = 0;
+	int res = ERROR_FAIL;
 
 	if ((level < 0) || (level > 1)) {
 		LOG_ERROR("Invalid user level. Must be 0-1");
