@@ -1621,6 +1621,124 @@ COMMAND_HANDLER(dap_ti_be_32_quirks_command)
 	return 0;
 }
 
+COMMAND_HANDLER(dap_dpread_command)
+{
+	struct target *target = get_current_target(CMD_CTX);
+	struct arm *arm = target_to_arm(target);
+	struct adiv5_dap *dap = arm->dap;
+
+	int retval;
+	uint8_t regnum;
+	uint32_t regval;
+
+	switch (CMD_ARGC) {
+	case 1:
+		COMMAND_PARSE_NUMBER(u8, CMD_ARGV[0], regnum);
+		break;
+	default:
+		return ERROR_COMMAND_SYNTAX_ERROR;
+	}
+
+	retval = dap_queue_dp_read(dap, regnum, &regval);
+	if (retval != ERROR_OK)
+		return retval;
+	retval = dap_run(dap);
+	if (retval != ERROR_OK)
+		return retval;
+	command_print(CMD_CTX, "R DP reg 0x%02" PRIx8 " value 0x%08" PRIx32, regnum, regval);
+
+	return retval;
+}
+
+COMMAND_HANDLER(dap_dpwrite_command)
+{
+	struct target *target = get_current_target(CMD_CTX);
+	struct arm *arm = target_to_arm(target);
+	struct adiv5_dap *dap = arm->dap;
+
+	int retval;
+	uint8_t regnum;
+	uint32_t regval;
+
+	switch (CMD_ARGC) {
+	case 2:
+		COMMAND_PARSE_NUMBER(u8, CMD_ARGV[0], regnum);
+		COMMAND_PARSE_NUMBER(u32, CMD_ARGV[1], regval);
+		break;
+	default:
+		return ERROR_COMMAND_SYNTAX_ERROR;
+	}
+
+	retval = dap_queue_dp_write(dap, regnum, regval);
+	if (retval != ERROR_OK)
+		return retval;
+	retval = dap_run(dap);
+	if (retval != ERROR_OK)
+		return retval;
+	command_print(CMD_CTX, "W DP reg 0x%02" PRIx8 " value 0x%08" PRIx32, regnum, regval);
+
+	return retval;
+}
+
+COMMAND_HANDLER(dap_apread_command)
+{
+	struct target *target = get_current_target(CMD_CTX);
+	struct arm *arm = target_to_arm(target);
+	struct adiv5_dap *dap = arm->dap;
+
+	int retval;
+	uint8_t regnum;
+	uint32_t regval;
+
+	switch (CMD_ARGC) {
+	case 1:
+		COMMAND_PARSE_NUMBER(u8, CMD_ARGV[0], regnum);
+		break;
+	default:
+		return ERROR_COMMAND_SYNTAX_ERROR;
+	}
+
+	retval = dap_queue_ap_read(dap_ap(dap, dap->apsel), regnum, &regval);
+	if (retval != ERROR_OK)
+		return retval;
+	retval = dap_run(dap);
+	if (retval != ERROR_OK)
+		return retval;
+	command_print(CMD_CTX, "R AP reg 0x%02" PRIx8 " value 0x%08" PRIx32, regnum, regval);
+
+	return retval;
+}
+
+COMMAND_HANDLER(dap_apwrite_command)
+{
+	struct target *target = get_current_target(CMD_CTX);
+	struct arm *arm = target_to_arm(target);
+	struct adiv5_dap *dap = arm->dap;
+
+	int retval;
+	uint8_t regnum;
+	uint32_t regval;
+
+	switch (CMD_ARGC) {
+	case 2:
+		COMMAND_PARSE_NUMBER(u8, CMD_ARGV[0], regnum);
+		COMMAND_PARSE_NUMBER(u32, CMD_ARGV[1], regval);
+		break;
+	default:
+		return ERROR_COMMAND_SYNTAX_ERROR;
+	}
+
+	retval = dap_queue_ap_write(dap_ap(dap, dap->apsel), regnum, regval);
+	if (retval != ERROR_OK)
+		return retval;
+	retval = dap_run(dap);
+	if (retval != ERROR_OK)
+		return retval;
+	command_print(CMD_CTX, "W AP reg 0x%02" PRIx8 " value 0x%08" PRIx32, regnum, regval);
+
+	return retval;
+}
+
 static const struct command_registration dap_commands[] = {
 	{
 		.name = "info",
@@ -1684,6 +1802,34 @@ static const struct command_registration dap_commands[] = {
 		.mode = COMMAND_CONFIG,
 		.help = "set/get quirks mode for TI TMS450/TMS570 processors",
 		.usage = "[enable]",
+	},
+	{
+		.name = "dpread",
+		.handler = dap_dpread_command,
+		.mode = COMMAND_EXEC,
+		.help = "read DP register",
+		.usage = "[reg]",
+	},
+	{
+		.name = "dpwrite",
+		.handler = dap_dpwrite_command,
+		.mode = COMMAND_EXEC,
+		.help = "write DP register",
+		.usage = "[reg] [value]",
+	},
+	{
+		.name = "apread",
+		.handler = dap_apread_command,
+		.mode = COMMAND_EXEC,
+		.help = "read AP register",
+		.usage = "[reg]",
+	},
+	{
+		.name = "apwrite",
+		.handler = dap_apwrite_command,
+		.mode = COMMAND_EXEC,
+		.help = "write AP register",
+		.usage = "[reg] [value]",
 	},
 	COMMAND_REGISTRATION_DONE
 };
