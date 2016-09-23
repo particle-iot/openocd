@@ -7921,6 +7921,31 @@ Set/get quirks mode for TI TMS450/TMS570 processors
 Disabled by default
 @end deffn
 
+@deffn Command {dap dpread} reg
+Read from DP register address @var{reg}. If banked register, select
+bank automatically. For example:
+@example
+Read RDBUFF register:
+dap dpread 0x0c
+@end example
+@end deffn
+
+@deffn Command {dap dpwrite} reg value
+Write @var{value} to DP register address @var{reg}.
+@end deffn
+
+@deffn Command {dap apread} reg
+Read from AP register address @var{reg}. If banked register, select
+bank automatically. For example:
+@example
+Read IDR register:
+dap apread 0xfc
+@end example
+@end deffn
+
+@deffn Command {dap apwrite} reg
+Write @var{value} to AP register address @var{reg}. Select bank automatically if any.
+@end deffn
 
 @subsection ARMv7-A specific commands
 @cindex Cortex-A
