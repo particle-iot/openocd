@@ -990,8 +990,9 @@ static int cmsis_dap_quit(void)
 
 static void cmsis_dap_execute_reset(struct jtag_command *cmd)
 {
-	int retval = cmsis_dap_cmd_DAP_SWJ_Pins(cmd->cmd.reset->srst ? 0 : (1 << 7), \
-			(1 << 7), 0, NULL);
+	int retval = cmsis_dap_cmd_DAP_SWJ_Pins((cmd->cmd.reset->srst ? 0 : (1 << 7)) |
+			(cmd->cmd.reset->trst ? 0 : (1 << 5)), \
+			(1 << 7) | (1 << 5), 0, NULL);
 	if (retval != ERROR_OK)
 		LOG_ERROR("CMSIS-DAP: Interface reset failed");
 }
