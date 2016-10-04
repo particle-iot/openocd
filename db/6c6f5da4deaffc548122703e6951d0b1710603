@@ -1,0 +1,9 @@
+Code-Review+2: Andreas Fritiofson <andreas.fritiofson@gmail.com>
+Code-Review+1: Andreas Färber <afaerber@suse.de>
+Verified+1: jenkins
+Code-Review+1: Oleksij Rempel <linux@rempel-privat.de>
+Submitted-by: Spencer Oliver <spen@spen-soft.co.uk>
+Submitted-at: Tue, 04 Oct 2016 11:51:31 +0100
+Reviewed-on: http://openocd.zylin.com/3419
+Project: openocd
+Branch: refs/heads/master
