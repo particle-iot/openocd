@@ -50,6 +50,9 @@ ATTRS{idVendor}=="0403", ATTRS{idProduct}=="c141", MODE="664", GROUP="plugdev"
 # Amontec JTAGkey and JTAGkey-tiny
 ATTRS{idVendor}=="0403", ATTRS{idProduct}=="cff8", MODE="664", GROUP="plugdev"
 
+# TI XDS110-ET
+ATTRS{idVendor}=="0451", ATTRS{idProduct}=="bef3", MODE="664", GROUP="plugdev"
+
 # TI ICDI
 ATTRS{idVendor}=="0451", ATTRS{idProduct}=="c32a", MODE="664", GROUP="plugdev"
 
