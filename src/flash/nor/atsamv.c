@@ -369,6 +369,9 @@ static int samv_probe(struct flash_bank *bank)
 		case 14:
 			bank->size = 2048 * 1024;
 			break;
+        case 10:
+            bank->size = 512 * 512;
+            break;
 		default:
 			LOG_ERROR("unrecognized flash size code: %d", nvm_size_code);
 			return ERROR_FAIL;
