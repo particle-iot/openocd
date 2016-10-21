@@ -41,6 +41,8 @@
 #include <target/breakpoints.h>
 #include <target/target_request.h>
 #include <target/register.h>
+#include <target/target.h>
+#include <target/target_type.h>
 #include "server.h"
 #include <flash/nor/core.h>
 #include "gdb_server.h"
@@ -107,6 +109,8 @@ static char *gdb_port_next;
 
 static void gdb_log_callback(void *priv, const char *file, unsigned line,
 		const char *function, const char *string);
+
+static void gdb_sig_halted(struct connection *connection);
 
 /* number of gdb connections, mainly to suppress gdb related debugging spam
  * in helper/log.c when no gdb connections are actually active */
@@ -2355,7 +2359,7 @@ static int gdb_query_packet(struct connection *connection,
 			&buffer,
 			&pos,
 			&size,
-			"PacketSize=%x;qXfer:memory-map:read%c;qXfer:features:read%c;QStartNoAckMode+",
+			"PacketSize=%x;qXfer:memory-map:read%c;qXfer:features:read%c;QStartNoAckMode+;vContSupported+",
 			(GDB_BUFFER_SIZE - 1),
 			((gdb_use_memory_map == 1) && (flash_get_bank_count() > 0)) ? '+' : '-',
 			(gdb_target_desc_supported == 1) ? '+' : '-');
@@ -2419,6 +2423,45 @@ static int gdb_v_packet(struct connection *connection,
 	struct gdb_connection *gdb_connection = connection->priv;
 	struct gdb_service *gdb_service = connection->service->priv;
 	int result;
+
+	if (packet_size > 5 && strncmp(packet, "vCont", 5) == 0) {
+		struct target *target = gdb_service->target;
+		char const *parse = packet + 5;
+		bool handled = true;
+		int retval;
+
+		if (*parse == '?') {
+			if (target->type->step != NULL)
+				gdb_put_packet(connection, "vCont;c;C;s;S", 13);
+			else
+				handled = false;
+		} else if (packet_size > 6 && parse[0] == ';') {
+			if (parse[1] == 's') {
+				LOG_DEBUG("target %s single-step", target_name(target));
+				retval = target_step(target, 1, 0, 0);
+				if (retval == ERROR_OK) {
+					gdb_sig_halted(connection);
+					/* stop forwarding log packets! */
+					log_remove_callback(gdb_log_callback, connection);
+				}
+			} else if (parse[1] == 'c') {
+				LOG_DEBUG("target %s continue", target_name(target));
+				log_add_callback(gdb_log_callback, connection);
+				retval = target_resume(target, 1, 0, 0, 0);
+				if (retval == ERROR_OK) {
+					gdb_connection->frontend_state = TARGET_RUNNING;
+					target_call_event_callbacks(target, TARGET_EVENT_GDB_START);
+				}
+			} else
+				handled = false;
+		} else
+			handled = false;
+
+		if (!handled)
+			gdb_put_packet(connection, "", 0);
+
+		return ERROR_OK;
+	}
 
 	/* if flash programming disabled - send a empty reply */
 
