@@ -477,13 +477,9 @@ AC_ARG_ENABLE([presto_ftd2xx],
   AS_HELP_STRING([--enable-presto_ftd2xx], [Enable building support for ASIX Presto Programmer using the FTD2XX driver]),
   [build_presto_ftd2xx=$enableval], [build_presto_ftd2xx=no])
 
-AC_ARG_ENABLE([openjtag_ftd2xx],
-  AS_HELP_STRING([--enable-openjtag_ftd2xx], [Enable building support for the OpenJTAG Programmer with ftd2xx driver]),
-  [build_openjtag_ftd2xx=$enableval], [build_openjtag_ftd2xx=no])
-
-AC_ARG_ENABLE([openjtag_ftdi],
-  AS_HELP_STRING([--enable-openjtag_ftdi], [Enable building support for the OpenJTAG Programmer with ftdi driver]),
-  [build_openjtag_ftdi=$enableval], [build_openjtag_ftdi=no])
+AC_ARG_ENABLE([openjtag],
+  AS_HELP_STRING([--enable-openjtag], [Enable building support for the OpenJTAG Programmer with ftdi driver]),
+  [build_openjtag=$enableval], [build_openjtag=no])
 
 AC_ARG_ENABLE([oocd_trace],
   AS_HELP_STRING([--enable-oocd_trace],
@@ -759,17 +755,10 @@ else
   AC_DEFINE([BUILD_BITQ], [0], [0 if you don't want a bitq interface.])
 fi
 
-AC_DEFINE([BUILD_OPENJTAG], [0], [0 if you don't want the OpenJTAG driver.])
-AC_DEFINE([BUILD_OPENJTAG_FTD2XX], [0], [0 if you don't want the OpenJTAG driver with FTD2XX driver.])
-AC_DEFINE([BUILD_OPENJTAG_LIBFTDI], [0], [0 if you don't want to build OpenJTAG driver with libftdi.])
-
-if test $build_openjtag_ftd2xx = yes; then
-  AC_DEFINE([BUILD_OPENJTAG], [1], [1 if you want the OpenJTAG driver.])
-  AC_DEFINE([BUILD_OPENJTAG_FTD2XX], [1], [1 if you want the OpenJTAG driver with FTD2XX driver.])
-fi
-if test $build_openjtag_ftdi = yes; then
-  AC_DEFINE([BUILD_OPENJTAG], [1], [1 if you want the OpenJTAG drvier.])
-  AC_DEFINE([BUILD_OPENJTAG_LIBFTDI], [1], [1 if you want to build OpenJTAG with FTDI driver.])
+if test $build_openjtag = yes; then
+  AC_DEFINE([BUILD_OPENJTAG], [1], [1 if you want to build OpenJTAG with FTDI driver.])
+else
+  AC_DEFINE([BUILD_OPENJTAG], [0], [0 if you don't want to build OpenJTAG driver with libftdi.])
 fi
 
 if test $build_oocd_trace = yes; then
@@ -826,7 +815,7 @@ then
   AC_MSG_ERROR([The option: with_ftd2xx_linux_tardir is for LINUX only.])
 fi
 
-if test $build_ft2232_ftd2xx = yes -o $build_presto_ftd2xx = yes -o $build_usb_blaster_ftd2xx = yes -o $build_openjtag_ftd2xx = yes; then
+if test $build_ft2232_ftd2xx = yes -o $build_presto_ftd2xx = yes -o $build_usb_blaster_ftd2xx = yes; then
   AC_MSG_CHECKING([for ftd2xx.lib exists (win32)])
 
   # if we are given a zipdir...
@@ -896,7 +885,7 @@ then
    AC_MSG_ERROR([The option: --with-ftd2xx-win32-zipdir is for win32 only])
 fi
 
-if test $build_ft2232_ftd2xx = yes -o $build_presto_ftd2xx = yes -o $build_usb_blaster_ftd2xx = yes -o $build_openjtag_ftd2xx = yes; then
+if test $build_ft2232_ftd2xx = yes -o $build_presto_ftd2xx = yes -o $build_usb_blaster_ftd2xx = yes; then
    # Must be linux
    if test $host_os != linux-gnu && test $host_os != linux ; then
       AC_MSG_ERROR([The (linux) ftd2xx library from FTDICHIP.com is linux only. Try --enable-ft2232-libftdi instead])
@@ -1044,7 +1033,7 @@ CFLAGS=$CFLAGS_SAVE
 fi
 
 if test $build_ft2232_libftdi = yes -o $build_usb_blaster_libftdi = yes -o \
-  $build_openjtag_ftdi = yes -o $build_presto_libftdi = yes; then
+  $build_openjtag = yes -o $build_presto_libftdi = yes; then
 
   # we can have libftdi or libftdi1, so check it and use the latest one
   PKG_CHECK_MODULES([LIBFTDI], [libftdi1], [use_libftdi=yes], [use_libftdi=no])
@@ -1183,11 +1172,10 @@ PROCESS_ADAPTERS([USB_ADAPTERS], [$use_libusb1 = yes -o $use_libusb0 = yes], [li
 PROCESS_ADAPTERS([USB0_ADAPTERS], [$use_libusb0 = yes], [libusb-0.1])
 PROCESS_ADAPTERS([HIDAPI_ADAPTERS], [$use_hidapi = yes], [hidapi])
 
-if test $build_openjtag_ftd2xx = yes -o $build_openjtag_ftdi = yes; then
+if test $build_openjtag = yes; then
 	if test $use_libusb1 != yes -a $use_libusb0 != yes; then
 		AC_MSG_ERROR([libusb-1.x or libusb-0.1 is required for the OpenJTAG Programmer])
-		build_openjtag_ftd2xx=no
-		build_openjtag_ftdi=no
+		build_openjtag=no
 	fi
 fi
 
@@ -1227,7 +1215,7 @@ AM_CONDITIONAL([AMTJTAGACCEL], [test $build_amtjtagaccel = yes])
 AM_CONDITIONAL([GW16012], [test $build_gw16012 = yes])
 AM_CONDITIONAL([PRESTO_LIBFTDI], [test $build_presto_libftdi = yes])
 AM_CONDITIONAL([PRESTO_DRIVER], [test $build_presto_ftd2xx = yes -o $build_presto_libftdi = yes])
-AM_CONDITIONAL([OPENJTAG], [test $build_openjtag_ftd2xx = yes -o $build_openjtag_ftdi = yes])
+AM_CONDITIONAL([OPENJTAG], [test $build_openjtag = yes])
 AM_CONDITIONAL([OOCD_TRACE], [test $build_oocd_trace = yes])
 AM_CONDITIONAL([REMOTE_BITBANG], [test $build_remote_bitbang = yes])
 AM_CONDITIONAL([BUSPIRATE], [test $build_buspirate = yes])
