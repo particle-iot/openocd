@@ -209,7 +209,8 @@ m4_define([USB1_ADAPTERS],
 	[[vsllink], [Versaloon-Link JTAG Programmer], [VSLLINK]]])
 
 m4_define([USB_ADAPTERS],
-	[[[osbdm], [OSBDM (JTAG only) Programmer], [OSBDM]],
+	[[[openjtag], [OpenJTAG JTAG Programmer], [OPENJTAG]],
+	[[osbdm], [OSBDM (JTAG only) Programmer], [OSBDM]],
 	[[opendous], [eStick/opendous JTAG Programmer], [OPENDOUS]],
 	[[aice], [Andes JTAG Programmer], [AICE]]])
 
@@ -476,10 +477,6 @@ AC_ARG_ENABLE([presto_libftdi],
 AC_ARG_ENABLE([presto_ftd2xx],
   AS_HELP_STRING([--enable-presto_ftd2xx], [Enable building support for ASIX Presto Programmer using the FTD2XX driver]),
   [build_presto_ftd2xx=$enableval], [build_presto_ftd2xx=no])
-
-AC_ARG_ENABLE([openjtag],
-  AS_HELP_STRING([--enable-openjtag], [Enable building support for the OpenJTAG Programmer with ftdi driver]),
-  [build_openjtag=$enableval], [build_openjtag=no])
 
 AC_ARG_ENABLE([oocd_trace],
   AS_HELP_STRING([--enable-oocd_trace],
@@ -755,12 +752,6 @@ else
   AC_DEFINE([BUILD_BITQ], [0], [0 if you don't want a bitq interface.])
 fi
 
-if test $build_openjtag = yes; then
-  AC_DEFINE([BUILD_OPENJTAG], [1], [1 if you want to build OpenJTAG with FTDI driver.])
-else
-  AC_DEFINE([BUILD_OPENJTAG], [0], [0 if you don't want to build OpenJTAG driver with libftdi.])
-fi
-
 if test $build_oocd_trace = yes; then
   AC_DEFINE([BUILD_OOCD_TRACE], [1], [1 if you want the OpenOCD+trace ETM capture driver.])
 else
@@ -1033,7 +1024,7 @@ CFLAGS=$CFLAGS_SAVE
 fi
 
 if test $build_ft2232_libftdi = yes -o $build_usb_blaster_libftdi = yes -o \
-  $build_openjtag = yes -o $build_presto_libftdi = yes; then
+  $build_presto_libftdi = yes; then
 
   # we can have libftdi or libftdi1, so check it and use the latest one
   PKG_CHECK_MODULES([LIBFTDI], [libftdi1], [use_libftdi=yes], [use_libftdi=no])
@@ -1172,13 +1163,6 @@ PROCESS_ADAPTERS([USB_ADAPTERS], [$use_libusb1 = yes -o $use_libusb0 = yes], [li
 PROCESS_ADAPTERS([USB0_ADAPTERS], [$use_libusb0 = yes], [libusb-0.1])
 PROCESS_ADAPTERS([HIDAPI_ADAPTERS], [$use_hidapi = yes], [hidapi])
 
-if test $build_openjtag = yes; then
-	if test $use_libusb1 != yes -a $use_libusb0 != yes; then
-		AC_MSG_ERROR([libusb-1.x or libusb-0.1 is required for the OpenJTAG Programmer])
-		build_openjtag=no
-	fi
-fi
-
 if test $enable_stlink != no -o $enable_ti_icdi != no; then
 	AC_DEFINE([BUILD_HLADAPTER], [1], [1 if you want the High Level JTAG driver.])
 else
@@ -1215,7 +1199,6 @@ AM_CONDITIONAL([AMTJTAGACCEL], [test $build_amtjtagaccel = yes])
 AM_CONDITIONAL([GW16012], [test $build_gw16012 = yes])
 AM_CONDITIONAL([PRESTO_LIBFTDI], [test $build_presto_libftdi = yes])
 AM_CONDITIONAL([PRESTO_DRIVER], [test $build_presto_ftd2xx = yes -o $build_presto_libftdi = yes])
-AM_CONDITIONAL([OPENJTAG], [test $build_openjtag = yes])
 AM_CONDITIONAL([OOCD_TRACE], [test $build_oocd_trace = yes])
 AM_CONDITIONAL([REMOTE_BITBANG], [test $build_remote_bitbang = yes])
 AM_CONDITIONAL([BUSPIRATE], [test $build_buspirate = yes])

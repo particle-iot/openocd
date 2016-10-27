@@ -1,6 +1,9 @@
 /*******************************************************************************
  *   Driver for OpenJTAG Project (www.openjtag.org)                            *
- *   Compatible with libftdi and ftd2xx drivers.                               *
+ *                                                                             *
+ *   Port to libusb                                                            *
+ *   Copyright (C) 2016 Ricardo Ribalda, Qtechnology A/S                       *
+ *                      <ricardo.ribalda@gmail.com>                            *
  *                                                                             *
  *   Cypress CY7C65215 support                                                 *
  *   Copyright (C) 2015 Vianney le Clément de Saint-Marcq, Essensium NV        *
@@ -81,16 +84,13 @@ typedef enum openjtag_tap_state {
 	OPENJTAG_TAP_UPDATE_IR  = 15,
 } openjtag_tap_state_t;
 
-/* OPENJTAG access library includes */
-#include <ftdi.h>
-
 /* OpenJTAG vid/pid */
-static uint16_t openjtag_vid = 0x0403;
-static uint16_t openjtag_pid = 0x6001;
+static const uint16_t standard_vids[] = {0x0403, 0};
+static const uint16_t standard_pids[] = {0x6001, 0};
+static const uint16_t cy7c65215_vids[] = {0x04b4, 0};
+static const uint16_t cy7c65215_pids[] = {0x0007, 0};
 
 static char *openjtag_device_desc;
-
-static struct ftdi_context ftdic;
 
 #define OPENJTAG_BUFFER_SIZE        504
 #define OPENJTAG_MAX_PENDING_RESULTS    256
@@ -112,6 +112,18 @@ static struct openjtag_scan_result openjtag_scan_result_buffer[OPENJTAG_MAX_PEND
 static int openjtag_scan_result_count;
 
 static jtag_libusb_device_handle *usbh;
+static unsigned int ep_in, ep_out, usb_timeout;
+
+/* Standard model*/
+#define FTDI_DEVICE_OUT_REQTYPE		0x40
+#define SIO_RESET_REQUEST		0x00
+#define SIO_RESET_SIO			0x00
+#define SIO_SET_LATENCY_TIMER_REQUEST	0x09
+#define SIO_SET_BITMODE_REQUEST		0x0B
+#define SIO_RESET_PURGE_RX		0x01
+#define SIO_RESET_PURGE_TX		0x02
+#define SIO_SET_BAUDRATE_REQUEST	0x03
+#define STANDARD_USB_TIMEOUT		5000
 
 /* CY7C65215 model only */
 #define CY7C65215_JTAG_REQUEST  0x40  /* bmRequestType: vendor host-to-device */
@@ -122,13 +134,8 @@ static jtag_libusb_device_handle *usbh;
 
 #define CY7C65215_USB_TIMEOUT   100
 
-static const uint16_t cy7c65215_vids[] = {0x04b4, 0};
-static const uint16_t cy7c65215_pids[] = {0x0007, 0};
-
 #define CY7C65215_JTAG_CLASS     0xff
 #define CY7C65215_JTAG_SUBCLASS  0x04
-
-static unsigned int ep_in, ep_out;
 
 #ifdef _DEBUG_USB_COMMS_
 
@@ -214,27 +221,7 @@ static int8_t openjtag_get_tap_state(int8_t state)
 	}
 }
 
-static int openjtag_buf_write_standard(
-	uint8_t *buf, int size, uint32_t *bytes_written)
-{
-	int retval;
-#ifdef _DEBUG_USB_COMMS_
-	openjtag_debug_buffer(buf, size, DEBUG_TYPE_WRITE);
-#endif
-
-	retval = ftdi_write_data(&ftdic, buf, size);
-	if (retval < 0) {
-		*bytes_written = 0;
-		LOG_ERROR("ftdi_write_data: %s", ftdi_get_error_string(&ftdic));
-		return ERROR_JTAG_DEVICE_ERROR;
-	}
-
-	*bytes_written += retval;
-
-	return ERROR_OK;
-}
-
-static int openjtag_buf_write_cy7c65215(
+static int openjtag_buf_write(
 	uint8_t *buf, int size, uint32_t *bytes_written)
 {
 	int ret;
@@ -248,16 +235,17 @@ static int openjtag_buf_write_cy7c65215(
 		return ERROR_OK;
 	}
 
-	ret = jtag_libusb_control_transfer(usbh, CY7C65215_JTAG_REQUEST,
-									   CY7C65215_JTAG_WRITE, size, 0,
-									   NULL, 0, CY7C65215_USB_TIMEOUT);
-	if (ret < 0) {
-		LOG_ERROR("vendor command failed, error %d", ret);
-		return ERROR_JTAG_DEVICE_ERROR;
+	if (openjtag_variant == OPENJTAG_VARIANT_CY7C65215) {
+		ret = jtag_libusb_control_transfer(usbh, CY7C65215_JTAG_REQUEST,
+				CY7C65215_JTAG_WRITE, size, 0,
+				NULL, 0, CY7C65215_USB_TIMEOUT);
+		if (ret < 0) {
+			LOG_ERROR("vendor command failed, error %d", ret);
+			return ERROR_JTAG_DEVICE_ERROR;
+		}
 	}
 
-	ret = jtag_libusb_bulk_write(usbh, ep_out, (char *)buf, size,
-								 CY7C65215_USB_TIMEOUT);
+	ret = jtag_libusb_bulk_write(usbh, ep_out, (char *)buf, size, usb_timeout);
 	if (ret < 0) {
 		LOG_ERROR("bulk write failed, error %d", ret);
 		return ERROR_JTAG_DEVICE_ERROR;
@@ -267,33 +255,31 @@ static int openjtag_buf_write_cy7c65215(
 	return ERROR_OK;
 }
 
-static int openjtag_buf_write(
-	uint8_t *buf, int size, uint32_t *bytes_written)
-{
-	switch (openjtag_variant) {
-	case OPENJTAG_VARIANT_CY7C65215:
-		return openjtag_buf_write_cy7c65215(buf, size, bytes_written);
-	default:
-		return openjtag_buf_write_standard(buf, size, bytes_written);
-	}
-}
-
-static int openjtag_buf_read_standard(
+static int openjtag_buf_read(
 	uint8_t *buf, uint32_t qty, uint32_t *bytes_read)
 {
-
 	int retval;
-	int timeout = 5;
+	int retries = 5;
+
+	if (openjtag_variant == OPENJTAG_VARIANT_CY7C65215) {
+		retval = jtag_libusb_control_transfer(usbh, CY7C65215_JTAG_REQUEST,
+				CY7C65215_JTAG_READ, qty, 0,
+				NULL, 0, CY7C65215_USB_TIMEOUT);
+		if (retval < 0) {
+			LOG_ERROR("vendor command failed, error %d", retval);
+			return ERROR_JTAG_DEVICE_ERROR;
+		}
+
+		retries = 1;
+	}
 
 	*bytes_read = 0;
-
-	while ((*bytes_read < qty) && timeout--) {
-		retval = ftdi_read_data(&ftdic, buf + *bytes_read,
-				qty - *bytes_read);
+	while ((*bytes_read < qty) && retries--) {
+		retval = jtag_libusb_bulk_read(usbh, ep_in, (char *)buf + *bytes_read,
+					       qty - *bytes_read, usb_timeout);
 		if (retval < 0) {
 			*bytes_read = 0;
-			DEBUG_JTAG_IO("ftdi_read_data: %s",
-					ftdi_get_error_string(&ftdic));
+			LOG_ERROR("bulk read failed, error %d", retval);
 			return ERROR_JTAG_DEVICE_ERROR;
 		}
 		*bytes_read += retval;
@@ -304,50 +290,6 @@ static int openjtag_buf_read_standard(
 #endif
 
 	return ERROR_OK;
-}
-
-static int openjtag_buf_read_cy7c65215(
-	uint8_t *buf, uint32_t qty, uint32_t *bytes_read)
-{
-	int ret;
-
-	if (qty == 0) {
-		*bytes_read = 0;
-		goto out;
-	}
-
-	ret = jtag_libusb_control_transfer(usbh, CY7C65215_JTAG_REQUEST,
-									   CY7C65215_JTAG_READ, qty, 0,
-									   NULL, 0, CY7C65215_USB_TIMEOUT);
-	if (ret < 0) {
-		LOG_ERROR("vendor command failed, error %d", ret);
-		return ERROR_JTAG_DEVICE_ERROR;
-	}
-
-	ret = jtag_libusb_bulk_read(usbh, ep_in, (char *)buf, qty,
-								CY7C65215_USB_TIMEOUT);
-	if (ret < 0) {
-		LOG_ERROR("bulk read failed, error %d", ret);
-		return ERROR_JTAG_DEVICE_ERROR;
-	}
-	*bytes_read = ret;
-
-out:
-#ifdef _DEBUG_USB_COMMS_
-	openjtag_debug_buffer(buf, *bytes_read, DEBUG_TYPE_READ);
-#endif
-
-	return ERROR_OK;
-}
-
-static int openjtag_buf_read(uint8_t *buf, uint32_t qty, uint32_t *bytes_read)
-{
-	switch (openjtag_variant) {
-	case OPENJTAG_VARIANT_CY7C65215:
-		return openjtag_buf_read_cy7c65215(buf, qty, bytes_read);
-	default:
-		return openjtag_buf_read_standard(buf, qty, bytes_read);
-	}
 }
 
 static int openjtag_sendcommand(uint8_t cmd)
@@ -396,54 +338,76 @@ static int openjtag_speed(int speed)
 
 static int openjtag_init_standard(void)
 {
-	uint8_t latency_timer;
+	int ret;
 
-	/* Open by device description */
+	/* TODO: Open by device description */
 	if (openjtag_device_desc == NULL) {
 		LOG_WARNING("no openjtag device description specified, "
 				"using default 'Open JTAG Project'");
 		openjtag_device_desc = "Open JTAG Project";
 	}
 
-	if (ftdi_init(&ftdic) < 0)
-		return ERROR_JTAG_INIT_FAILED;
-
-	/* context, vendor id, product id, description, serial id */
-	if (ftdi_usb_open_desc(&ftdic, openjtag_vid, openjtag_pid, openjtag_device_desc, NULL) < 0) {
-		LOG_ERROR("unable to open ftdi device: %s", ftdic.error_str);
+	usbh = NULL;
+	ret = jtag_libusb_open(standard_vids, standard_pids, NULL, &usbh);
+	if (ret != ERROR_OK) {
+		LOG_ERROR("unable to open cy7c65215 device");
 		return ERROR_JTAG_INIT_FAILED;
 	}
 
-	if (ftdi_usb_reset(&ftdic) < 0) {
-		LOG_ERROR("unable to reset ftdi device");
-		return ERROR_JTAG_INIT_FAILED;
+	if (jtag_libusb_claim_interface(usbh, 0) < 0) {
+		LOG_ERROR("unable to claim JTAG interface");
+		goto err;
 	}
 
-	if (ftdi_set_latency_timer(&ftdic, 2) < 0) {
+	/* USB reset */
+	if (jtag_libusb_control_transfer(usbh, FTDI_DEVICE_OUT_REQTYPE,
+					 SIO_RESET_REQUEST, SIO_RESET_SIO, 1,
+					 NULL, 0, STANDARD_USB_TIMEOUT) < 0) {
+		LOG_ERROR("unable to reset jtag device");
+		goto err;
+	}
+
+	/* Set latency timer */
+	if (jtag_libusb_control_transfer(usbh, FTDI_DEVICE_OUT_REQTYPE,
+					 SIO_SET_LATENCY_TIMER_REQUEST, 2, 1,
+					 NULL, 0, STANDARD_USB_TIMEOUT) < 0) {
 		LOG_ERROR("unable to set latency timer");
-		return ERROR_JTAG_INIT_FAILED;
+		goto err;
 	}
 
-	if (ftdi_get_latency_timer(&ftdic, &latency_timer) < 0) {
-		LOG_ERROR("unable to get latency timer");
-		return ERROR_JTAG_INIT_FAILED;
-	}
-	LOG_DEBUG("current latency timer: %u", latency_timer);
+	/* Disable bitbang*/
+	jtag_libusb_control_transfer(usbh, FTDI_DEVICE_OUT_REQTYPE,
+				     SIO_SET_BITMODE_REQUEST, 0, 1,
+				     NULL, 0, STANDARD_USB_TIMEOUT);
 
-	ftdi_disable_bitbang(&ftdic);
-	/* was (3000000 / 4) with a comment about a bug in libftdi when using high baudrate */
-	if (ftdi_set_baudrate(&ftdic, 3000000) < 0) {
-		LOG_ERROR("Can't set baud rate to max: %s",
-			ftdi_get_error_string(&ftdic));
-		return ERROR_JTAG_DEVICE_ERROR;
+	/* Set baudrate to max */
+	if (jtag_libusb_control_transfer(usbh, FTDI_DEVICE_OUT_REQTYPE,
+					 SIO_SET_BAUDRATE_REQUEST, 0, 1,
+					 NULL, 0, STANDARD_USB_TIMEOUT) < 0) {
+		LOG_ERROR("Can't set baud rate to max");
+		goto err;
 	}
 
-	if (ftdi_usb_purge_buffers(&ftdic) < 0) {
-		LOG_ERROR("ftdi_purge_buffers: %s", ftdic.error_str);
-		return ERROR_JTAG_INIT_FAILED;
+	/*Purge buffers*/
+	if ((jtag_libusb_control_transfer(usbh, FTDI_DEVICE_OUT_REQTYPE,
+					 SIO_RESET_REQUEST, SIO_RESET_PURGE_RX, 1,
+					 NULL, 0, STANDARD_USB_TIMEOUT) < 0) ||
+	    (jtag_libusb_control_transfer(usbh, FTDI_DEVICE_OUT_REQTYPE,
+					 SIO_RESET_REQUEST, SIO_RESET_PURGE_TX, 1,
+					 NULL, 0, STANDARD_USB_TIMEOUT) < 0)) {
+		LOG_ERROR("Error purging buffers");
+		goto err;
 	}
+
+	usb_timeout = STANDARD_USB_TIMEOUT;
+	ep_in = 0x81;
+	ep_out = 0x02;
 
 	return ERROR_OK;
+
+err:
+	jtag_libusb_close(usbh);
+	return ERROR_JTAG_INIT_FAILED;
 }
 
 static int openjtag_init_cy7c65215(void)
@@ -473,6 +437,8 @@ static int openjtag_init_cy7c65215(void)
 		LOG_ERROR("could not enable JTAG module");
 		goto err;
 	}
+
+	usb_timeout = CY7C65215_USB_TIMEOUT;
 
 	return ERROR_OK;
 
@@ -506,38 +472,22 @@ static int openjtag_init(void)
 	return ERROR_OK;
 }
 
-static int openjtag_quit_standard(void)
-{
-	ftdi_usb_close(&ftdic);
-	ftdi_deinit(&ftdic);
-
-	return ERROR_OK;
-}
-
-static int openjtag_quit_cy7c65215(void)
+static int openjtag_quit(void)
 {
 	int ret;
 
-	ret = jtag_libusb_control_transfer(usbh,
-									   CY7C65215_JTAG_REQUEST,
-									   CY7C65215_JTAG_DISABLE,
-									   0, 0, NULL, 0, CY7C65215_USB_TIMEOUT);
-	if (ret < 0)
-		LOG_WARNING("could not disable JTAG module");
+	if (openjtag_variant == OPENJTAG_VARIANT_CY7C65215) {
+		ret = jtag_libusb_control_transfer(usbh,
+				CY7C65215_JTAG_REQUEST,
+				CY7C65215_JTAG_DISABLE,
+				0, 0, NULL, 0, CY7C65215_USB_TIMEOUT);
+		if (ret < 0)
+			LOG_WARNING("could not disable JTAG module");
+	}
 
 	jtag_libusb_close(usbh);
 
 	return ERROR_OK;
-}
-
-static int openjtag_quit(void)
-{
-	switch (openjtag_variant) {
-	case OPENJTAG_VARIANT_CY7C65215:
-		return openjtag_quit_cy7c65215();
-	default:
-		return openjtag_quit_standard();
-	}
 }
 
 static void openjtag_write_tap_buffer(void)
