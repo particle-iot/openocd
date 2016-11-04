@@ -719,6 +719,7 @@ AM_CONDITIONAL([IS_WIN32], [test "x$is_win32" = "xyes"])
 AM_CONDITIONAL([IS_DARWIN], [test "x$is_darwin" = "xyes"])
 AM_CONDITIONAL([BITQ], [test "x$build_bitq" = "xyes"])
 AM_CONDITIONAL([USE_LIBFTDI], [test "x$use_libftdi" = "xyes"])
+AM_CONDITIONAL([USE_HIDAPI], [test "x$use_hidapi" = "xyes"])
 
 AM_CONDITIONAL([MINIDRIVER], [test "x$build_minidriver" = "xyes"])
 AM_CONDITIONAL([MINIDRIVER_DUMMY], [test "x$build_minidriver_dummy" = "xyes"])
@@ -778,25 +779,6 @@ AS_IF([test "x$gcc_warnings" = "xyes"], [
 
 AC_CONFIG_FILES([
   Makefile
-  src/Makefile
-  src/helper/Makefile
-  src/jtag/Makefile
-  src/jtag/drivers/Makefile
-  src/jtag/drivers/usb_blaster/Makefile
-  src/jtag/hla/Makefile
-  src/jtag/aice/Makefile
-  src/transport/Makefile
-  src/target/openrisc/Makefile
-  src/xsvf/Makefile
-  src/svf/Makefile
-  src/target/Makefile
-  src/rtos/Makefile
-  src/server/Makefile
-  src/flash/Makefile
-  src/flash/nor/Makefile
-  src/flash/nand/Makefile
-  src/pld/Makefile
-  doc/Makefile
 ])
 AC_OUTPUT
 
