@@ -1,0 +1,9 @@
+Verified+1: jenkins
+Code-Review+1: Tom Rini <trini@konsulko.com>
+Code-Review+2: Paul Fertser <fercerpav@gmail.com>
+Code-Review-1: Matthias Welwarsky <matthias@welwarsky.de>
+Submitted-by: Freddie Chopin <freddie.chopin@gmail.com>
+Submitted-at: Fri, 04 Nov 2016 21:22:32 +0000
+Reviewed-on: http://openocd.zylin.com/3391
+Project: openocd
+Branch: refs/heads/master
