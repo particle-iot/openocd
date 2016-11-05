@@ -178,15 +178,19 @@ int parse_cmdline_args(struct command_context *cmd_ctx, int argc, char *argv[])
 			case 'd':		/* --debug | -d */
 			{
 				char *command = alloc_printf("debug_level %s", optarg ? optarg : "3");
-				command_run_line(cmd_ctx, command);
+				int retval = command_run_line(cmd_ctx, command);
 				free(command);
+				if (retval != ERROR_OK)
+					return retval;
 				break;
 			}
 			case 'l':		/* --log_output | -l */
 				if (optarg) {
 					char *command = alloc_printf("log_output %s", optarg);
-					command_run_line(cmd_ctx, command);
+					int retval = command_run_line(cmd_ctx, command);
 					free(command);
+					if (retval != ERROR_OK)
+						return retval;
 				}
 				break;
 			case 'c':		/* --command | -c */
@@ -200,7 +204,16 @@ int parse_cmdline_args(struct command_context *cmd_ctx, int argc, char *argv[])
 				LOG_WARNING("deprecated option: -p/--pipe. Use '-c \"gdb_port pipe; "
 						"log_output openocd.log\"' instead.");
 				break;
+			default:  /* '?' */
+				/* getopt will emit an error message, all we have to do is bail. */
+				return ERROR_FAIL;
 		}
+	}
+
+	if (optind < argc) {
+		/* Catch extra arguments on the command line. */
+		LOG_OUTPUT("Unexpected command line argument: %s\n", argv[optind]);
+		return ERROR_FAIL;
 	}
 
 	if (help_flag) {
@@ -209,7 +222,8 @@ int parse_cmdline_args(struct command_context *cmd_ctx, int argc, char *argv[])
 		LOG_OUTPUT("--version    | -v\tdisplay OpenOCD version\n");
 		LOG_OUTPUT("--file       | -f\tuse configuration file <name>\n");
 		LOG_OUTPUT("--search     | -s\tdir to search for config files and scripts\n");
-		LOG_OUTPUT("--debug      | -d\tset debug level <0-3>\n");
+		LOG_OUTPUT("--debug      | -d\tset debug level to 3\n");
+		LOG_OUTPUT("             | -d<n>\tset debug level to <level>\n");
 		LOG_OUTPUT("--log_output | -l\tredirect log output to file <name>\n");
 		LOG_OUTPUT("--command    | -c\trun <command>\n");
 		exit(-1);
