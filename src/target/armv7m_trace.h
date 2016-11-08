@@ -32,6 +32,11 @@ enum trace_config_type {
 	INTERNAL	/**< trace output is handled by OpenOCD adapter driver */
 };
 
+enum trace_display_type {
+	RAW,	/**< trace is outputed in raw data format */
+	ASCII	/**< trace is ascii formatted */
+};
+
 enum tpio_pin_protocol {
 	SYNC,			/**< synchronous trace output */
 	ASYNC_MANCHESTER,	/**< asynchronous output with Manchester coding */
@@ -75,6 +80,8 @@ struct armv7m_trace_config {
 	unsigned int trace_freq;
 	/** Handle to output trace data in INTERNAL capture mode */
 	FILE *trace_file;
+	/** Output format for INTERNAL capture mode */
+	enum trace_display_type display_type;
 };
 
 extern const struct command_registration armv7m_trace_command_handlers[];

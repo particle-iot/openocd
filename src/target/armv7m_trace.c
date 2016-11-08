@@ -27,9 +27,168 @@
 
 #define TRACE_BUF_SIZE	4096
 
-static int armv7m_poll_trace(void *target)
+#define TRACE_HEADER_SYNC0			0x00
+#define TRACE_HEADER_SYNC0_MASK		0xFF
+#define TRACE_HEADER_SYNC1			0x80
+#define TRACE_HEADER_SYNC1_MASK		0xFF
+#define TRACE_HEADER_OVERFLOW		0x70
+#define TRACE_HEADER_OVERFLOW_MASK	0xFF
+#define TRACE_HEADER_TIMESTAMP		0x00
+#define TRACE_HEADER_TIMESTAMP_MASK	0x0F
+#define TRACE_HEADER_RESERVED		0x04
+#define TRACE_HEADER_RESERVED_MASK	0x0F
+#define TRACE_HEADER_SWIT			0x00
+#define TRACE_HEADER_SWIT_MASK		0x04
+
+#define TRACE_TIMESTAMP_CONT_MASK	0x80
+#define TRACE_RESERVED_CONT_MASK	0x80
+#define TRACE_SWIT_DATA_MASK		0x03
+#define TRACE_SWIT_DATA_SHIFT		0
+
+#define TRACE_TIMESTAMP_MAX_LENGTH	4
+#define TRACE_RESERVED_MAX_LENGTH	4
+#define TRACE_PAYLOAD_SIZE			4
+
+enum trace_state {
+	STATE_HEADER = 0,
+	STATE_TIMESTAMP,
+	STATE_RESERVED,
+	STATE_SWIT
+};
+
+struct trace_parser {
+	enum trace_state state;
+
+	size_t payload_length;
+	size_t payload_index;
+	uint8_t payload[TRACE_PAYLOAD_SIZE];
+};
+
+static int armv7m_trace_parse_header(uint8_t header, struct trace_parser *parser)
+{
+	if (((header & TRACE_HEADER_SYNC0_MASK) == TRACE_HEADER_SYNC0) ||
+		((header & TRACE_HEADER_SYNC1_MASK) == TRACE_HEADER_SYNC1)) {
+		parser->state = STATE_HEADER;
+
+	} else if ((header & TRACE_HEADER_OVERFLOW_MASK) == TRACE_HEADER_OVERFLOW) {
+		parser->state = STATE_HEADER;
+
+	} else if ((header & TRACE_HEADER_TIMESTAMP_MASK) == TRACE_HEADER_TIMESTAMP) {
+		parser->payload_length = ((header & TRACE_TIMESTAMP_CONT_MASK) == TRACE_TIMESTAMP_CONT_MASK) ? 1 : 0;
+		parser->payload_index = 0;
+		if (parser->payload_length != 0)
+			parser->state = STATE_TIMESTAMP;
+		else
+			parser->state = STATE_HEADER;
+
+	} else if ((header & TRACE_HEADER_RESERVED_MASK) == TRACE_HEADER_RESERVED) {
+		parser->payload_length = ((header & TRACE_RESERVED_CONT_MASK) == TRACE_RESERVED_CONT_MASK) ? 1 : 0;
+		parser->payload_index = 0;
+		if (parser->payload_length != 0)
+			parser->state = STATE_RESERVED;
+		else
+			parser->state = STATE_HEADER;
+
+	} else if ((header & TRACE_HEADER_SWIT_MASK) == TRACE_HEADER_SWIT) {
+		parser->payload_length = (header & TRACE_SWIT_DATA_MASK) >> TRACE_SWIT_DATA_SHIFT;
+		parser->payload_index = 0;
+		if (parser->payload_length == 0) {
+			LOG_ERROR("Error trace SWIT length");
+			return ERROR_FAIL;
+		}
+
+		parser->state = STATE_SWIT;
+	}
+	return ERROR_OK;
+}
+
+static int armv7m_trace_to_ascii_file(const uint8_t data[TRACE_BUF_SIZE], size_t len, FILE *trace_file)
+{
+	static struct trace_parser parser = {
+		.state = STATE_HEADER,
+		.payload_length = 0,
+		.payload_index = 0
+	};
+
+	for (size_t index = 0; index < len; index++) {
+
+		uint8_t *data_to_output = 0;
+		size_t size_of_output = 0;
+
+		if (parser.state == STATE_HEADER) {
+			if (armv7m_trace_parse_header(data[index], &parser) != ERROR_OK)
+				return ERROR_FAIL;
+
+		} else if (parser.state == STATE_TIMESTAMP) {
+			parser.payload[parser.payload_index] = data[index];
+			parser.payload_index++;
+
+			if (((data[index] & TRACE_TIMESTAMP_CONT_MASK) == TRACE_TIMESTAMP_CONT_MASK) &&
+				(parser.payload_length <= TRACE_TIMESTAMP_MAX_LENGTH))
+				parser.payload_length++;
+
+			if (parser.payload_index == parser.payload_length)
+				parser.state = STATE_HEADER;
+
+		} else if (parser.state == STATE_RESERVED) {
+			parser.payload[parser.payload_index] = data[index];
+			parser.payload_index++;
+
+			if (((data[index] & TRACE_RESERVED_CONT_MASK) == TRACE_RESERVED_CONT_MASK) &&
+				(parser.payload_length <= TRACE_RESERVED_MAX_LENGTH))
+				parser.payload_length++;
+
+			if (parser.payload_index == parser.payload_length)
+				parser.state = STATE_HEADER;
+
+		} else if (parser.state == STATE_SWIT) {
+			parser.payload[parser.payload_index] = data[index];
+			parser.payload_index++;
+
+			if (parser.payload_index == parser.payload_length) {
+				data_to_output = parser.payload;
+				size_of_output = parser.payload_length;
+
+				parser.state = STATE_HEADER;
+			}
+		}
+
+		if ((size_of_output > 0) && (data_to_output != NULL)) {
+			if (fwrite(data_to_output, 1, size_of_output, trace_file) != size_of_output)
+				return ERROR_FAIL;
+		}
+	}
+
+	return ERROR_OK;
+}
+
+static int armv7m_trace_to_file(struct target *target, size_t len, const uint8_t data[TRACE_BUF_SIZE])
 {
 	struct armv7m_common *armv7m = target_to_armv7m(target);
+
+	if (armv7m->trace_config.trace_file != NULL) {
+		if (armv7m->trace_config.display_type == RAW) {
+			if (fwrite(data, 1, len, armv7m->trace_config.trace_file) == len)
+				fflush(armv7m->trace_config.trace_file);
+			else {
+				LOG_ERROR("Error writing to the trace destination file");
+				return ERROR_FAIL;
+			}
+		} else if (armv7m->trace_config.display_type == ASCII) {
+			if (armv7m_trace_to_ascii_file(data, len, armv7m->trace_config.trace_file) == ERROR_OK)
+				fflush(armv7m->trace_config.trace_file);
+			else {
+				LOG_ERROR("Error processing trace");
+				return ERROR_FAIL;
+			}
+		}
+	}
+
+	return ERROR_OK;
+}
+
+static int armv7m_poll_trace(void *target)
+{
 	uint8_t buf[TRACE_BUF_SIZE];
 	size_t size = sizeof(buf);
 	int retval;
@@ -40,14 +199,9 @@ static int armv7m_poll_trace(void *target)
 
 	target_call_trace_callbacks(target, size, buf);
 
-	if (armv7m->trace_config.trace_file != NULL) {
-		if (fwrite(buf, 1, size, armv7m->trace_config.trace_file) == size)
-			fflush(armv7m->trace_config.trace_file);
-		else {
-			LOG_ERROR("Error writing to the trace destination file");
-			return ERROR_FAIL;
-		}
-	}
+	retval = armv7m_trace_to_file(target, size, buf);
+	if (retval != ERROR_OK)
+		return retval;
 
 	return ERROR_OK;
 }
@@ -190,12 +344,22 @@ COMMAND_HANDLER(handle_tpiu_config_command)
 				return ERROR_COMMAND_SYNTAX_ERROR;
 
 			armv7m->trace_config.config_type = INTERNAL;
+			armv7m->trace_config.display_type = RAW;
 
 			if (strcmp(CMD_ARGV[cmd_idx], "-") != 0) {
 				armv7m->trace_config.trace_file = fopen(CMD_ARGV[cmd_idx], "ab");
 				if (!armv7m->trace_config.trace_file) {
 					LOG_ERROR("Can't open trace destination file");
 					return ERROR_FAIL;
+				}
+				if (CMD_ARGC != (cmd_idx + 1)) {
+					if (!strcmp(CMD_ARGV[cmd_idx + 1], "ascii")) {
+						cmd_idx++;
+						armv7m->trace_config.display_type = ASCII;
+					} else if (!strcmp(CMD_ARGV[cmd_idx + 1], "raw")) {
+						cmd_idx++;
+						armv7m->trace_config.display_type = RAW;
+					}
 				}
 			}
 		}
@@ -307,7 +471,7 @@ static const struct command_registration tpiu_command_handlers[] = {
 		.mode = COMMAND_ANY,
 		.help = "Configure TPIU features",
 		.usage = "(disable | "
-		"((external | internal <filename>) "
+		"((external | internal (<filename> | -) [raw | ascii]) "
 		"(sync <port width> | ((manchester | uart) <formatter enable>)) "
 		"<TRACECLKIN freq> [<trace freq>]))",
 	},
