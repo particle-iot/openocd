@@ -4216,6 +4216,10 @@ The value should normally correspond to a static mapping for the
 @option{FreeRTOS}|@option{linux}|@option{ChibiOS}|@option{embKernel}|@option{mqx}
 @xref{gdbrtossupport,,RTOS Support}.
 
+@item @code{-ap-num} @var{ap_number} -- set DAP access port for target,
+@var{ap_number} is the numeric index of the DAP AP the target is connected to.
+Use this option with systems where multiple, independent cores are connected
+to separate access ports of the same DAP.
 @end itemize
 @end deffn
 
