@@ -113,6 +113,7 @@ AC_CHECK_HEADERS([sys/ioctl.h])
 AC_CHECK_HEADERS([sys/param.h])
 AC_CHECK_HEADERS([sys/select.h])
 AC_CHECK_HEADERS([sys/stat.h])
+AC_CHECK_HEADERS([sys/sysctl.h])
 AC_CHECK_HEADERS([sys/time.h])
 AC_CHECK_HEADERS([sys/types.h])
 AC_CHECK_HEADERS([unistd.h])
@@ -142,6 +143,7 @@ AC_CHECK_FUNCS([strnlen])
 AC_CHECK_FUNCS([gettimeofday])
 AC_CHECK_FUNCS([usleep])
 AC_CHECK_FUNCS([vasprintf])
+AC_CHECK_FUNCS([realpath])
 
 build_bitbang=no
 build_bitq=no
