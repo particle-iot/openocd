@@ -142,6 +142,7 @@ AC_CHECK_FUNCS([strnlen])
 AC_CHECK_FUNCS([gettimeofday])
 AC_CHECK_FUNCS([usleep])
 AC_CHECK_FUNCS([vasprintf])
+AC_CHECK_FUNCS([realpath])
 
 build_bitbang=no
 build_bitq=no
