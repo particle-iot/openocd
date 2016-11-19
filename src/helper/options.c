@@ -201,6 +201,64 @@ static void test_find_relative_path(void)
 			"");
 }
 
+static void add_user_dirs(void)
+{
+	char *path;
+
+#if IS_WIN32
+	const char *appdata = getenv("APPDATA");
+
+	if (appdata) {
+		path = alloc_printf("%s/OpenOCD", appdata);
+		if (path) {
+			/* Convert path separators to UNIX style, should work on Windows also. */
+			for (char *p = path; *p; p++) {
+				if (*p == '\\')
+					*p = '/';
+			}
+			add_script_search_dir(path);
+			free(path);
+		}
+	}
+	/* WIN32 may also have HOME defined, particularly under Cygwin, so add those paths below too */
+#endif
+
+	const char *home = getenv("HOME");
+#if IS_DARWIN
+	if (home) {
+		path = alloc_printf("%s/Library/Preferences/org.openocd", home);
+		if (path) {
+			add_script_search_dir(path);
+			free(path);
+		}
+	}
+#else
+	const char *xdg_config = getenv("XDG_CONFIG_HOME");
+
+	if (xdg_config) {
+		path = alloc_printf("%s/openocd", xdg_config);
+		if (path) {
+			add_script_search_dir(path);
+			free(path);
+		}
+	} else if (home) {
+		path = alloc_printf("%s/.config/openocd", home);
+		if (path) {
+			add_script_search_dir(path);
+			free(path);
+		}
+	}
+
+	if (home) {
+		path = alloc_printf("%s/.openocd", home);
+		if (path) {
+			add_script_search_dir(path);
+			free(path);
+		}
+	}
+#endif
+}
+
 static void add_default_dirs(void)
 {
 	char *path;
@@ -220,32 +278,11 @@ static void add_default_dirs(void)
 	 * listed last in the built-in search order, so the user can
 	 * override these scripts with site-specific customizations.
 	 */
-	const char *home = getenv("HOME");
-
-	if (home) {
-		path = alloc_printf("%s/.openocd", home);
-		if (path) {
-			add_script_search_dir(path);
-			free(path);
-		}
-	}
-
 	path = getenv("OPENOCD_SCRIPTS");
-
 	if (path)
 		add_script_search_dir(path);
 
-#ifdef _WIN32
-	const char *appdata = getenv("APPDATA");
-
-	if (appdata) {
-		path = alloc_printf("%s/OpenOCD", appdata);
-		if (path) {
-			add_script_search_dir(path);
-			free(path);
-		}
-	}
-#endif
+	add_user_dirs();
 
 	path = alloc_printf("%s/%s/%s", exepath, bin2data, "site");
 	if (path) {
