@@ -306,11 +306,14 @@ struct jtag_interface {
 	 * @param port_size Trace port width for sync mode
 	 * @param trace_freq A pointer to the configured trace
 	 * frequency; if it points to 0, the adapter driver must write
-	 * its maximum supported rate there
+	 * aits maximum supported rate there
+	 * @param prescaler Pointer to the SWO prescaler calculated by the
+	 * adapter
 	 * @returns ERROR_OK on success, an error code on failure.
 	 */
 	int (*config_trace)(bool enabled, enum tpio_pin_protocol pin_protocol,
-			    uint32_t port_size, unsigned int *trace_freq);
+		uint32_t port_size, unsigned int *trace_freq,
+		unsigned int traceclkin_freq, uint16_t *prescaler);
 
 	/**
 	 * Poll for new trace data
@@ -329,7 +332,8 @@ extern const char * const jtag_only[];
 void adapter_assert_reset(void);
 void adapter_deassert_reset(void);
 int adapter_config_trace(bool enabled, enum tpio_pin_protocol pin_protocol,
-			 uint32_t port_size, unsigned int *trace_freq);
+		uint32_t port_size, unsigned int *trace_freq,
+		unsigned int traceclkin_freq, uint16_t *prescaler);
 int adapter_poll_trace(uint8_t *buf, size_t *size);
 
 #endif /* OPENOCD_JTAG_INTERFACE_H */
