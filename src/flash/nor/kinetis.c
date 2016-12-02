@@ -212,6 +212,7 @@
 #define KINETIS_SDID_FAMILYID_K6X   0x60000000
 #define KINETIS_SDID_FAMILYID_K7X   0x70000000
 #define KINETIS_SDID_FAMILYID_K8X   0x80000000
+#define KINETIS_SDID_FAMILYID_KL8X  0x90000000
 
 #define KINETIS_SDID_PROJECTID_MASK  0x00000F80
 #define KINETIS_SDID_PROJECTID_KE1xF 0x00000080
@@ -244,6 +245,7 @@ struct kinetis_flash_bank {
 		FS_INVALIDATE_CACHE_K = 8,	/* using FMC->PFB0CR/PFB01CR */
 		FS_INVALIDATE_CACHE_L = 0x10,	/* using MCM->PLACR */
 		FS_INVALIDATE_CACHE_MSCM = 0x20,
+		FS_NO_CMD_BLOCKSTAT = 0x40,
 	} flash_support;
 };
 
@@ -848,6 +850,12 @@ static int kinetis_ftfx_decode_error(uint8_t fstat)
 	return ERROR_FLASH_OPERATION_FAILED;
 }
 
+static int kinetis_ftfx_clear_error(struct target *target)
+{
+	/* reset error flags */
+	return target_write_u8(target, FTFx_FSTAT, 0x70);
+}
+
 
 static int kinetis_ftfx_prepare(struct target *target)
 {
@@ -870,7 +878,7 @@ static int kinetis_ftfx_prepare(struct target *target)
 	}
 	if (fstat != 0x80) {
 		/* reset error flags */
-		result = target_write_u8(target, FTFx_FSTAT, 0x70);
+		result = kinetis_ftfx_clear_error(target);
 	}
 	return result;
 }
@@ -1703,7 +1711,15 @@ static int kinetis_probe(struct flash_bank *bank)
 				/* K80FN256, K81FN256, K82FN256 */
 				pflash_sector_size_bytes = 4<<10;
 				num_blocks = 1;
-				kinfo->flash_support = FS_PROGRAM_LONGWORD | FS_INVALIDATE_CACHE_K;
+				kinfo->flash_support = FS_PROGRAM_LONGWORD | FS_INVALIDATE_CACHE_K | FS_NO_CMD_BLOCKSTAT;
+				break;
+
+			case KINETIS_SDID_FAMILYID_KL8X | KINETIS_SDID_SUBFAMID_KX1:
+			case KINETIS_SDID_FAMILYID_KL8X | KINETIS_SDID_SUBFAMID_KX2:
+				/* KL81Z128, KL82Z128 */
+				pflash_sector_size_bytes = 2<<10;
+				num_blocks = 1;
+				kinfo->flash_support = FS_PROGRAM_LONGWORD | FS_INVALIDATE_CACHE_L | FS_NO_CMD_BLOCKSTAT;
 				break;
 
 			default:
@@ -2093,23 +2109,26 @@ static int kinetis_blank_check(struct flash_bank *bank)
 		return result;
 
 	if (kinfo->flash_class == FC_PFLASH || kinfo->flash_class == FC_FLEX_NVM) {
-		bool block_dirty = false;
+		bool block_dirty = true;
+		bool use_block_cmd = !(kinfo->flash_support & FS_NO_CMD_BLOCKSTAT);
 		uint8_t ftfx_fstat;
 
-		if (kinfo->flash_class == FC_FLEX_NVM) {
+		if (use_block_cmd && kinfo->flash_class == FC_FLEX_NVM) {
 			uint8_t fcfg1_depart = (uint8_t)((kinfo->sim_fcfg1 >> 8) & 0x0f);
 			/* block operation cannot be used on FlexNVM when EEPROM backup partition is set */
 			if (fcfg1_depart != 0xf && fcfg1_depart != 0)
-				block_dirty = true;
+				use_block_cmd = false;
 		}
 
-		if (!block_dirty) {
+		if (use_block_cmd) {
 			/* check if whole bank is blank */
 			result = kinetis_ftfx_command(bank->target, FTFx_CMD_BLOCKSTAT, kinfo->prog_base,
 							 0, 0, 0, 0,  0, 0, 0, 0, &ftfx_fstat);
 
-			if (result != ERROR_OK || (ftfx_fstat & 0x01))
-				block_dirty = true;
+			if (result != ERROR_OK)
+				kinetis_ftfx_clear_error(bank->target);
+			else if ((ftfx_fstat & 0x01) == 0)
+				block_dirty = false;
 		}
 
 		if (block_dirty) {
@@ -2125,6 +2144,7 @@ static int kinetis_blank_check(struct flash_bank *bank)
 					bank->sectors[i].is_erased = !(ftfx_fstat & 0x01);
 				} else {
 					LOG_DEBUG("Ignoring errored PFlash sector blank-check");
+					kinetis_ftfx_clear_error(bank->target);
 					bank->sectors[i].is_erased = -1;
 				}
 			}
