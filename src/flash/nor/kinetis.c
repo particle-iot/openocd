@@ -209,6 +209,7 @@
 #define KINETIS_SDID_FAMILYID_K2X   0x20000000
 #define KINETIS_SDID_FAMILYID_K3X   0x30000000
 #define KINETIS_SDID_FAMILYID_K4X   0x40000000
+#define KINETIS_SDID_FAMILYID_K5X   0x50000000
 #define KINETIS_SDID_FAMILYID_K6X   0x60000000
 #define KINETIS_SDID_FAMILYID_K7X   0x70000000
 #define KINETIS_SDID_FAMILYID_K8X   0x80000000
@@ -227,10 +228,6 @@ struct kinetis_flash_bank {
 					/* same as bank->base for pflash, differs for FlexNVM */
 	uint32_t protection_block;	/* number of first protection block in this bank */
 
-	uint32_t sim_sdid;
-	uint32_t sim_fcfg1;
-	uint32_t sim_fcfg2;
-
 	enum {
 		FC_AUTO = 0,
 		FC_PFLASH,
@@ -247,6 +244,13 @@ struct kinetis_flash_bank {
 		FS_INVALIDATE_CACHE_MSCM = 0x20,
 		FS_NO_CMD_BLOCKSTAT = 0x40,
 	} flash_support;
+
+	/* device parameters - should be same for all probed banks of one device */
+	uint32_t sim_sdid;
+	uint32_t sim_fcfg1;
+	uint32_t sim_fcfg2;
+
+	uint32_t progr_accel_ram;
 };
 
 #define MDM_AP			1
@@ -1250,7 +1254,7 @@ static int kinetis_erase(struct flash_bank *bank, int first, int last)
 
 		bank->sectors[i].is_erased = 1;
 
-		if (bank->base == 0
+		if (kinfo->prog_base == 0
 			&& bank->sectors[i].offset <= FCF_ADDRESS
 			&& bank->sectors[i].offset + bank->sectors[i].size > FCF_ADDRESS + FCF_SIZE) {
 			if (allow_fcf_writes) {
@@ -1260,7 +1264,7 @@ static int kinetis_erase(struct flash_bank *bank, int first, int last)
 				uint8_t fcf_buffer[FCF_SIZE];
 
 				kinetis_fill_fcf(bank, fcf_buffer);
-				result = kinetis_write_inner(bank, fcf_buffer, FCF_ADDRESS, FCF_SIZE);
+				result = kinetis_write_inner(bank, fcf_buffer, bank->base + FCF_ADDRESS, FCF_SIZE);
 				if (result != ERROR_OK)
 					LOG_WARNING("Flash Configuration Field write failed");
 				bank->sectors[i].is_erased = 0;
@@ -1345,13 +1349,13 @@ static int kinetis_write_sections(struct flash_bank *bank, const uint8_t *buffer
 			memset(buffer_aligned, 0xff, size_aligned);
 			memcpy(buffer_aligned + align_begin, buffer, size);
 
-			result = target_write_memory(bank->target, FLEXRAM,
+			result = target_write_memory(bank->target, kinfo->progr_accel_ram,
 						4, size_aligned / 4, buffer_aligned);
 
 			LOG_DEBUG("section @ %08" PRIx32 " aligned begin %" PRIu32 ", end %" PRIu32,
 					bank->base + offset, align_begin, align_end);
 		} else
-			result = target_write_memory(bank->target, FLEXRAM,
+			result = target_write_memory(bank->target, kinfo->progr_accel_ram,
 						4, size_aligned / 4, buffer);
 
 		LOG_DEBUG("write section @ %08" PRIx32 " with length %" PRIu32 " bytes",
@@ -1487,6 +1491,7 @@ static int kinetis_write(struct flash_bank *bank, const uint8_t *buffer,
 	int result;
 	bool set_fcf = false;
 	int sect = 0;
+	struct kinetis_flash_bank *kinfo = bank->driver_priv;
 
 	result = kinetis_check_run_mode(bank->target);
 	if (result != ERROR_OK)
@@ -1497,12 +1502,12 @@ static int kinetis_write(struct flash_bank *bank, const uint8_t *buffer,
 	if (result != ERROR_OK)
 		return result;
 
-	if (bank->base == 0 && !allow_fcf_writes) {
+	if (kinfo->prog_base == 0 && !allow_fcf_writes) {
 		if (bank->sectors[1].offset <= FCF_ADDRESS)
 			sect = 1;	/* 1kb sector, FCF in 2nd sector */
 
-		if (offset < bank->sectors[sect].offset + bank->sectors[sect].size
-			&& offset + count > bank->sectors[sect].offset)
+		if (offset < bank->base + bank->sectors[sect].offset + bank->sectors[sect].size
+			&& offset + count > bank->base + bank->sectors[sect].offset)
 			set_fcf = true; /* write to any part of sector with FCF */
 	}
 
@@ -1514,7 +1519,7 @@ static int kinetis_write(struct flash_bank *bank, const uint8_t *buffer,
 
 		if (offset < FCF_ADDRESS) {
 			/* write part preceding FCF */
-			result = kinetis_write_inner(bank, buffer, offset, FCF_ADDRESS - offset);
+			result = kinetis_write_inner(bank, buffer, offset, bank->base + FCF_ADDRESS - offset);
 			if (result != ERROR_OK)
 				return result;
 		}
@@ -1525,7 +1530,7 @@ static int kinetis_write(struct flash_bank *bank, const uint8_t *buffer,
 
 		if (set_fcf) {
 			/* write FCF if differs from flash - eliminate multiple writes */
-			result = kinetis_write_inner(bank, fcf_buffer, FCF_ADDRESS, FCF_SIZE);
+			result = kinetis_write_inner(bank, fcf_buffer, bank->base + FCF_ADDRESS, FCF_SIZE);
 			if (result != ERROR_OK)
 				return result;
 		}
@@ -1536,7 +1541,7 @@ static int kinetis_write(struct flash_bank *bank, const uint8_t *buffer,
 		if (offset + count > FCF_ADDRESS + FCF_SIZE) {
 			uint32_t delta = FCF_ADDRESS + FCF_SIZE - offset;
 			/* write part after FCF */
-			result = kinetis_write_inner(bank, buffer + delta, FCF_ADDRESS + FCF_SIZE, count - delta);
+			result = kinetis_write_inner(bank, buffer + delta, bank->base + FCF_ADDRESS + FCF_SIZE, count - delta);
 		}
 		return result;
 
@@ -1553,11 +1558,13 @@ static int kinetis_probe(struct flash_bank *bank)
 	uint8_t fcfg2_maxaddr0, fcfg2_pflsh, fcfg2_maxaddr1;
 	uint32_t nvm_size = 0, pf_size = 0, df_size = 0, ee_size = 0;
 	unsigned num_blocks = 0, num_pflash_blocks = 0, num_nvm_blocks = 0, first_nvm_bank = 0,
-			pflash_sector_size_bytes = 0, nvm_sector_size_bytes = 0;
+			pflash_sector_size_bytes = 0, nvm_sector_size_bytes = 0,
+			maxaddr_shift = 13;
 	struct target *target = bank->target;
 	struct kinetis_flash_bank *kinfo = bank->driver_priv;
 
 	kinfo->probed = false;
+	kinfo->progr_accel_ram = FLEXRAM;
 
 	result = target_read_u32(target, SIM_SDID, &kinfo->sim_sdid);
 	if (result != ERROR_OK)
@@ -1770,6 +1777,19 @@ static int kinetis_probe(struct flash_bank *bank)
 				kinfo->flash_support = FS_PROGRAM_LONGWORD | FS_INVALIDATE_CACHE_K;
 				break;
 
+			case KINETIS_SDID_FAMILYID_K5X | KINETIS_SDID_SUBFAMID_KX6:
+			case KINETIS_SDID_FAMILYID_K5X | KINETIS_SDID_SUBFAMID_KX8:
+				/* KV5x: FTFE, 8kB sectors */
+				pflash_sector_size_bytes = 8<<10;
+				maxaddr_shift = 14;
+				kinfo->max_flash_prog_size = 1<<10;
+				num_blocks = 1;
+				kinfo->flash_support = FS_PROGRAM_PHRASE | FS_PROGRAM_SECTOR | FS_INVALIDATE_CACHE_K;
+				bank->base = 0x10000000;
+				kinfo->prog_base = 0;
+				kinfo->progr_accel_ram = 0x18000000;
+				break;
+
 			default:
 				LOG_ERROR("Unsupported KV FAMILYID SUBFAMID");
 			}
@@ -1930,9 +1950,9 @@ static int kinetis_probe(struct flash_bank *bank)
 		 * Checking fcfg2_maxaddr0 later in this routine is pointless then
 		 */
 		if (fcfg2_pflsh)
-			pf_size = ((uint32_t)fcfg2_maxaddr0 << 13) * num_blocks;
+			pf_size = ((uint32_t)fcfg2_maxaddr0 << maxaddr_shift) * num_blocks;
 		else
-			pf_size = ((uint32_t)fcfg2_maxaddr0 << 13) * num_blocks / 2;
+			pf_size = ((uint32_t)fcfg2_maxaddr0 << maxaddr_shift) * num_blocks / 2;
 		if (pf_size != 2048<<10)
 			LOG_WARNING("SIM_FCFG1 PFSIZE = 0xf: please check if pflash is %u KB", pf_size>>10);
 
@@ -1958,8 +1978,10 @@ static int kinetis_probe(struct flash_bank *bank)
 		/* pflash, banks start at address zero */
 		kinfo->flash_class = FC_PFLASH;
 		bank->size = (pf_size / num_pflash_blocks);
-		bank->base = 0x00000000 + bank->size * bank->bank_number;
-		kinfo->prog_base = bank->base;
+		if (bank->base == 0) {
+			bank->base = 0x00000000 + bank->size * bank->bank_number;
+			kinfo->prog_base = bank->base;
+		}
 		kinfo->sector_size = pflash_sector_size_bytes;
 		/* pflash is divided into 32 protection areas for
 		 * parts with more than 32K of PFlash. For parts with
@@ -2012,16 +2034,16 @@ static int kinetis_probe(struct flash_bank *bank)
 		return ERROR_FLASH_BANK_INVALID;
 	}
 
-	if (bank->bank_number == 0 && ((uint32_t)fcfg2_maxaddr0 << 13) != bank->size)
+	if (bank->bank_number == 0 && ((uint32_t)fcfg2_maxaddr0 << maxaddr_shift) != bank->size)
 		LOG_WARNING("MAXADDR0 0x%02" PRIx8 " check failed,"
 				" please report to OpenOCD mailing list", fcfg2_maxaddr0);
 	if (fcfg2_pflsh) {
-		if (bank->bank_number == 1 && ((uint32_t)fcfg2_maxaddr1 << 13) != bank->size)
+		if (bank->bank_number == 1 && ((uint32_t)fcfg2_maxaddr1 << maxaddr_shift) != bank->size)
 			LOG_WARNING("MAXADDR1 0x%02" PRIx8 " check failed,"
 				" please report to OpenOCD mailing list", fcfg2_maxaddr1);
 	} else {
 		if ((unsigned)bank->bank_number == first_nvm_bank
-				&& ((uint32_t)fcfg2_maxaddr1 << 13) != df_size)
+				&& ((uint32_t)fcfg2_maxaddr1 << maxaddr_shift) != df_size)
 			LOG_WARNING("FlexNVM MAXADDR1 0x%02" PRIx8 " check failed,"
 				" please report to OpenOCD mailing list", fcfg2_maxaddr1);
 	}
