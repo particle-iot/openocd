@@ -1825,7 +1825,8 @@ int stlink_config_trace(void *handle, bool enabled,
 	struct stlink_usb_handle_s *h = handle;
 	uint16_t presc;
 
-	if (enabled && (h->jtag_api < 2 || pin_protocol != ASYNC_UART)) {
+	if (enabled && (h->jtag_api < 2 || \
+			pin_protocol != TPIU_PIN_PROTOCOL_ASYNC_UART)) {
 		LOG_ERROR("The attached ST-LINK version doesn't support this trace mode");
 		return ERROR_FAIL;
 	}
