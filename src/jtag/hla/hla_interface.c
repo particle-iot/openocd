@@ -186,7 +186,7 @@ int hl_interface_override_target(const char **targetname)
 	return ERROR_FAIL;
 }
 
-int hl_interface_config_trace(bool enabled, enum tpio_pin_protocol pin_protocol,
+int hl_interface_config_trace(bool enabled, enum tpiu_pin_protocol pin_protocol,
 		uint32_t port_size, unsigned int *trace_freq,
 		unsigned int traceclkin_freq, uint16_t *prescaler)
 {

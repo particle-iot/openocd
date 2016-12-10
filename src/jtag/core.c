@@ -1829,7 +1829,7 @@ void adapter_deassert_reset(void)
 		LOG_ERROR("transport is not selected");
 }
 
-int adapter_config_trace(bool enabled, enum tpio_pin_protocol pin_protocol,
+int adapter_config_trace(bool enabled, enum tpiu_pin_protocol pin_protocol,
 		uint32_t port_size, unsigned int *trace_freq,
 		unsigned int traceclkin_freq, uint16_t *prescaler)
 {

@@ -1267,7 +1267,7 @@ static bool detect_swo_freq_and_prescaler(struct jaylink_swo_speed speed,
 	return false;
 }
 
-static int config_trace(bool enabled, enum tpio_pin_protocol pin_protocol,
+static int config_trace(bool enabled, enum tpiu_pin_protocol pin_protocol,
 		uint32_t port_size, unsigned int *trace_freq,
 		unsigned int traceclkin_freq, uint16_t *prescaler)
 {
