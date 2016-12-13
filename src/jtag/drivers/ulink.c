@@ -191,8 +191,8 @@ int ulink_execute_queued_commands(struct ulink *device, int timeout);
 const char *ulink_cmd_id_string(uint8_t id);
 void ulink_print_command(struct ulink_cmd *ulink_cmd);
 void ulink_print_queue(struct ulink *device);
-static int ulink_calculate_frequency(enum ulink_delay_type type, int delay, long *f);
 #endif
+static long ulink_calculate_frequency(enum ulink_delay_type type, int delay);
 
 int ulink_append_scan_cmd(struct ulink *device,
 		enum scan_type scan_type,
@@ -1367,7 +1367,6 @@ int ulink_calculate_delay(enum ulink_delay_type type, long f, int *delay)
 	return ERROR_OK;
 }
 
-#ifdef _DEBUG_JTAG_IO_
 /**
  * Calculate frequency for a given delay value.
  *
@@ -1382,12 +1381,12 @@ int ulink_calculate_delay(enum ulink_delay_type type, long f, int *delay)
  * @return on success: ERROR_OK
  * @return on failure: ERROR_FAIL
  */
-static int ulink_calculate_frequency(enum ulink_delay_type type, int delay, long *f)
+static long ulink_calculate_frequency(enum ulink_delay_type type, int delay)
 {
-	float t, f_float, f_rounded;
+	float t, f_float;
 
 	if (delay > 255)
-		return ERROR_FAIL;
+		return 0;
 
 	switch (type) {
 	    case DELAY_CLOCK_TCK:
@@ -1421,17 +1420,12 @@ static int ulink_calculate_frequency(enum ulink_delay_type type, int delay, long
 			    t = (float)(4E-6) * (float)(delay) + (float)(1.3132E-5);
 		    break;
 	    default:
-		    return ERROR_FAIL;
-		    break;
+		    return 0;
 	}
 
 	f_float = 1.0 / t;
-	f_rounded = roundf(f_float);
-	*f = (long)f_rounded;
-
-	return ERROR_OK;
+	return roundf(f_float);
 }
-#endif
 
 /******************* Interface between OpenULINK and OpenOCD ******************/
 
@@ -2065,31 +2059,21 @@ static int ulink_khz(int khz, int *jtag_speed)
 			return ret;
 	}
 
-#ifdef _DEBUG_JTAG_IO_
-	long f_tck = 0, f_tms = 0, f_scan_in = 0, f_scan_out = 0, f_scan_io = 0;
-
-	ulink_calculate_frequency(DELAY_CLOCK_TCK, ulink_handle->delay_clock_tck,
-		&f_tck);
-	ulink_calculate_frequency(DELAY_CLOCK_TMS, ulink_handle->delay_clock_tms,
-		&f_tms);
-	ulink_calculate_frequency(DELAY_SCAN_IN, ulink_handle->delay_scan_in,
-		&f_scan_in);
-	ulink_calculate_frequency(DELAY_SCAN_OUT, ulink_handle->delay_scan_out,
-		&f_scan_out);
-	ulink_calculate_frequency(DELAY_SCAN_IO, ulink_handle->delay_scan_io,
-		&f_scan_io);
-
 	DEBUG_JTAG_IO("ULINK TCK setup: delay_tck      = %i (%li Hz),",
-		ulink_handle->delay_clock_tck, f_tck);
+		ulink_handle->delay_clock_tck,
+		ulink_calculate_frequency(DELAY_CLOCK_TCK, ulink_handle->delay_clock_tck));
 	DEBUG_JTAG_IO("                 delay_tms      = %i (%li Hz),",
-		ulink_handle->delay_clock_tms, f_tms);
+		ulink_handle->delay_clock_tms,
+		ulink_calculate_frequency(DELAY_CLOCK_TMS, ulink_handle->delay_clock_tms));
 	DEBUG_JTAG_IO("                 delay_scan_in  = %i (%li Hz),",
-		ulink_handle->delay_scan_in, f_scan_in);
+		ulink_handle->delay_scan_in,
+		ulink_calculate_frequency(DELAY_SCAN_IN, ulink_handle->delay_scan_in));
 	DEBUG_JTAG_IO("                 delay_scan_out = %i (%li Hz),",
-		ulink_handle->delay_scan_out, f_scan_out);
+		ulink_handle->delay_scan_out,
+		ulink_calculate_frequency(DELAY_SCAN_OUT, ulink_handle->delay_scan_out));
 	DEBUG_JTAG_IO("                 delay_scan_io  = %i (%li Hz),",
-		ulink_handle->delay_scan_io, f_scan_io);
-#endif
+		ulink_handle->delay_scan_io,
+		ulink_calculate_frequency(DELAY_SCAN_IO, ulink_handle->delay_scan_io));
 
 	/* Configure the ULINK device with the new delay values */
 	ret = ulink_append_configure_tck_cmd(ulink_handle,
