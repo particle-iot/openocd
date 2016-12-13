@@ -13,6 +13,7 @@ noinst_LTLIBRARIES += %D%/libhelper.la
 	%D%/replacements.c \
 	%D%/fileio.c \
 	%D%/util.c \
+	%D%/math_util.c \
 	%D%/jep106.c \
 	%D%/jim-nvp.c \
 	%D%/binarybuffer.h \
