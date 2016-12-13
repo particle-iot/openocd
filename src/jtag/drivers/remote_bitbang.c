@@ -104,7 +104,11 @@ static int remote_bitbang_read(void)
 
 static void remote_bitbang_write(int tck, int tms, int tdi)
 {
-	char c = '0' + ((tck ? 0x4 : 0x0) | (tms ? 0x2 : 0x0) | (tdi ? 0x1 : 0x0));
+	char c;
+	if (swd_mode)
+		c = '0' + ((tck ? 0x4 : 0x0) | (tdi ? 0x2 : 0x0));
+	else
+		c = '0' + ((tck ? 0x4 : 0x0) | (tms ? 0x2 : 0x0) | (tdi ? 0x1 : 0x0));
 	remote_bitbang_putc(c);
 }
 
@@ -120,11 +124,25 @@ static void remote_bitbang_blink(int on)
 	remote_bitbang_putc(c);
 }
 
+static int remote_bitbang_swdio_read(void)
+{
+	remote_bitbang_putc('G');
+	return remote_bitbang_rread();
+}
+
+static void remote_bitbang_swdio_drive(bool on)
+{
+	char c = on ? 'D' : 'd';
+	remote_bitbang_putc(c);
+}
+
 static struct bitbang_interface remote_bitbang_bitbang = {
 	.read = &remote_bitbang_read,
 	.write = &remote_bitbang_write,
 	.reset = &remote_bitbang_reset,
 	.blink = &remote_bitbang_blink,
+	.swdio_read = &remote_bitbang_swdio_read,
+	.swdio_drive = &remote_bitbang_swdio_drive,
 };
 
 static int remote_bitbang_init_tcp(void)
@@ -271,9 +289,13 @@ static const struct command_registration remote_bitbang_command_handlers[] = {
 	COMMAND_REGISTRATION_DONE,
 };
 
+static const char * const remote_bitbang_transports[] = { "jtag", "swd", NULL };
+
 struct jtag_interface remote_bitbang_interface = {
 	.name = "remote_bitbang",
 	.execute_queue = &bitbang_execute_queue,
+	.transports = remote_bitbang_transports,
+	.swd = &bitbang_swd,
 	.commands = remote_bitbang_command_handlers,
 	.init = &remote_bitbang_init,
 	.quit = &remote_bitbang_quit,
