@@ -103,7 +103,7 @@ static int bitbang_execute_tms(struct jtag_command *cmd)
 	unsigned num_bits = cmd->cmd.tms->num_bits;
 	const uint8_t *bits = cmd->cmd.tms->bits;
 
-	DEBUG_JTAG_IO("TMS: %d bits", num_bits);
+	LOG_DEBUG_IO("TMS: %d bits", num_bits);
 
 	int tms = 0;
 	for (unsigned i = 0; i < num_bits; i++) {
@@ -265,22 +265,18 @@ int bitbang_execute_queue(void)
 	while (cmd) {
 		switch (cmd->type) {
 			case JTAG_RESET:
-#ifdef _DEBUG_JTAG_IO_
-				LOG_DEBUG("reset trst: %i srst %i",
-				cmd->cmd.reset->trst,
-				cmd->cmd.reset->srst);
-#endif
+				LOG_DEBUG_IO("reset trst: %i srst %i",
+						cmd->cmd.reset->trst,
+						cmd->cmd.reset->srst);
 				if ((cmd->cmd.reset->trst == 1) ||
 						(cmd->cmd.reset->srst && (jtag_get_reset_config() & RESET_SRST_PULLS_TRST)))
 					tap_set_state(TAP_RESET);
 				bitbang_interface->reset(cmd->cmd.reset->trst, cmd->cmd.reset->srst);
 				break;
 			case JTAG_RUNTEST:
-#ifdef _DEBUG_JTAG_IO_
-				LOG_DEBUG("runtest %i cycles, end in %s",
+				LOG_DEBUG_IO("runtest %i cycles, end in %s",
 						cmd->cmd.runtest->num_cycles,
 						tap_state_name(cmd->cmd.runtest->end_state));
-#endif
 				bitbang_end_state(cmd->cmd.runtest->end_state);
 				bitbang_runtest(cmd->cmd.runtest->num_cycles);
 				break;
@@ -293,27 +289,21 @@ int bitbang_execute_queue(void)
 				break;
 
 			case JTAG_TLR_RESET:
-#ifdef _DEBUG_JTAG_IO_
-				LOG_DEBUG("statemove end in %s",
+				LOG_DEBUG_IO("statemove end in %s",
 						tap_state_name(cmd->cmd.statemove->end_state));
-#endif
 				bitbang_end_state(cmd->cmd.statemove->end_state);
 				bitbang_state_move(0);
 				break;
 			case JTAG_PATHMOVE:
-#ifdef _DEBUG_JTAG_IO_
-				LOG_DEBUG("pathmove: %i states, end in %s",
+				LOG_DEBUG_IO("pathmove: %i states, end in %s",
 						cmd->cmd.pathmove->num_states,
 						tap_state_name(cmd->cmd.pathmove->path[cmd->cmd.pathmove->num_states - 1]));
-#endif
 				bitbang_path_move(cmd->cmd.pathmove);
 				break;
 			case JTAG_SCAN:
-#ifdef _DEBUG_JTAG_IO_
-				LOG_DEBUG("%s scan end in %s",
+				LOG_DEBUG_IO("%s scan end in %s",
 						(cmd->cmd.scan->ir_scan) ? "IR" : "DR",
 					tap_state_name(cmd->cmd.scan->end_state));
-#endif
 				bitbang_end_state(cmd->cmd.scan->end_state);
 				scan_size = jtag_build_buffer(cmd->cmd.scan, &buffer);
 				type = jtag_scan_type(cmd->cmd.scan);
@@ -324,9 +314,7 @@ int bitbang_execute_queue(void)
 					free(buffer);
 				break;
 			case JTAG_SLEEP:
-#ifdef _DEBUG_JTAG_IO_
-				LOG_DEBUG("sleep %" PRIi32, cmd->cmd.sleep->us);
-#endif
+				LOG_DEBUG_IO("sleep %" PRIi32, cmd->cmd.sleep->us);
 				jtag_sleep(cmd->cmd.sleep->us);
 				break;
 			case JTAG_TMS:
