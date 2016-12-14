@@ -46,6 +46,8 @@
 #define EFM_FAMILY_ID_WONDER_GECKO      75
 #define EFM_FAMILY_ID_ZERO_GECKO        76
 #define EFM_FAMILY_ID_HAPPY_GECKO	77
+#define EFM_FAMILY_ID_PEARL_GECKO       81
+#define EFM_FAMILY_ID_JADE_GECKO        83
 #define EZR_FAMILY_ID_WONDER_GECKO		120
 #define EZR_FAMILY_ID_LEOPARD_GECKO		121
 
@@ -70,23 +72,23 @@
 #define EFM32_MSC_DI_PART_FAMILY        (EFM32_MSC_DEV_INFO+0x1fe)
 #define EFM32_MSC_DI_PROD_REV           (EFM32_MSC_DEV_INFO+0x1ff)
 
-#define EFM32_MSC_REGBASE               0x400c0000
-#define EFM32_MSC_WRITECTRL             (EFM32_MSC_REGBASE+0x008)
+static uint32_t efm32_msc_regbase = 0x400c0000;
+#define EFM32_MSC_WRITECTRL             (efm32_msc_regbase+0x008)
 #define EFM32_MSC_WRITECTRL_WREN_MASK   0x1
-#define EFM32_MSC_WRITECMD              (EFM32_MSC_REGBASE+0x00c)
+#define EFM32_MSC_WRITECMD              (efm32_msc_regbase+0x00c)
 #define EFM32_MSC_WRITECMD_LADDRIM_MASK 0x1
 #define EFM32_MSC_WRITECMD_ERASEPAGE_MASK 0x2
 #define EFM32_MSC_WRITECMD_WRITEONCE_MASK 0x8
-#define EFM32_MSC_ADDRB                 (EFM32_MSC_REGBASE+0x010)
-#define EFM32_MSC_WDATA                 (EFM32_MSC_REGBASE+0x018)
-#define EFM32_MSC_STATUS                (EFM32_MSC_REGBASE+0x01c)
+#define EFM32_MSC_ADDRB                 (efm32_msc_regbase+0x010)
+#define EFM32_MSC_WDATA                 (efm32_msc_regbase+0x018)
+#define EFM32_MSC_STATUS                (efm32_msc_regbase+0x01c)
 #define EFM32_MSC_STATUS_BUSY_MASK      0x1
 #define EFM32_MSC_STATUS_LOCKED_MASK    0x2
 #define EFM32_MSC_STATUS_INVADDR_MASK   0x4
 #define EFM32_MSC_STATUS_WDATAREADY_MASK 0x8
 #define EFM32_MSC_STATUS_WORDTIMEOUT_MASK 0x10
 #define EFM32_MSC_STATUS_ERASEABORTED_MASK 0x20
-#define EFM32_MSC_LOCK                  (EFM32_MSC_REGBASE+0x03c)
+#define EFM32_MSC_LOCK                  (efm32_msc_regbase+0x03c)
 #define EFM32_MSC_LOCK_LOCKKEY          0x1b71
 
 struct efm32x_flash_bank {
@@ -204,6 +206,16 @@ static int efm32x_read_info(struct flash_bank *bank,
 			LOG_ERROR("Invalid page size %u", efm32_info->page_size);
 			return ERROR_FAIL;
 		}
+	} else if (EFM_FAMILY_ID_PEARL_GECKO == efm32_info->part_family ||
+			EFM_FAMILY_ID_JADE_GECKO == efm32_info->part_family) {
+		uint8_t pg_size = 0;
+		efm32_msc_regbase = 0x400e0000;
+		ret = target_read_u8(bank->target, EFM32_MSC_DI_PAGE_SIZE,
+			&pg_size);
+		if (ERROR_OK != ret)
+			return ret;
+
+		efm32_info->page_size = (1 << ((pg_size+10) & 0xff));
 	} else if (EFM_FAMILY_ID_WONDER_GECKO == efm32_info->part_family ||
 			EZR_FAMILY_ID_WONDER_GECKO == efm32_info->part_family ||
 			EZR_FAMILY_ID_LEOPARD_GECKO == efm32_info->part_family) {
@@ -271,6 +283,12 @@ static int efm32x_decode_info(struct efm32_info *info, char *buf, int buf_size)
 			break;
 		case EFM_FAMILY_ID_HAPPY_GECKO:
 			printed = snprintf(buf, buf_size, "Happy Gecko");
+			break;
+		case EFM_FAMILY_ID_PEARL_GECKO:
+			printed = snprintf(buf, buf_size, "Pearl Gecko");
+			break;
+		case EFM_FAMILY_ID_JADE_GECKO:
+			printed = snprintf(buf, buf_size, "Jade Gecko");
 			break;
 	}
 
@@ -693,7 +711,7 @@ static int efm32x_write_block(struct flash_bank *bank, const uint8_t *buf,
 	init_reg_param(&reg_params[3], "r3", 32, PARAM_OUT);	/* buffer end */
 	init_reg_param(&reg_params[4], "r4", 32, PARAM_IN_OUT);	/* target address */
 
-	buf_set_u32(reg_params[0].value, 0, 32, EFM32_MSC_REGBASE);
+	buf_set_u32(reg_params[0].value, 0, 32, efm32_msc_regbase);
 	buf_set_u32(reg_params[1].value, 0, 32, count);
 	buf_set_u32(reg_params[2].value, 0, 32, source->address);
 	buf_set_u32(reg_params[3].value, 0, 32, source->address + source->size);
