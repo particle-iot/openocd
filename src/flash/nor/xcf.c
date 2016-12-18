@@ -881,17 +881,17 @@ static const struct command_registration xcf_command_handlers[] = {
 };
 
 struct flash_driver xcf_flash = {
-	.name                           = "xcf",
-	.usage                          = NULL,
-	.commands                       = xcf_command_handlers,
+	.name               = "xcf",
+	.usage              = NULL,
+	.commands           = xcf_command_handlers,
 	.flash_bank_command = xcf_flash_bank_command,
-	.erase                          = xcf_erase,
-	.protect                        = xcf_protect,
-	.write                          = xcf_write,
-	.read                           = xcf_read,
-	.probe                          = xcf_probe,
-	.auto_probe                     = xcf_auto_probe,
-	.erase_check            = xcf_erase_check,
-	.protect_check          = xcf_protect_check,
-	.info                           = xcf_info
+	.erase              = xcf_erase,
+	.protect            = xcf_protect,
+	.write              = xcf_write,
+	.read               = xcf_read,
+	.probe              = xcf_probe,
+	.auto_probe         = xcf_auto_probe,
+	.erase_check        = xcf_erase_check,
+	.protect_check      = xcf_protect_check,
+	.info               = xcf_info
 };
