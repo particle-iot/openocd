@@ -3008,7 +3008,7 @@ static int cortex_a_examine_first(struct target *target)
 	cortex_a->cpuid = cpuid;
 
 	retval = mem_ap_read_atomic_u32(armv7a->debug_ap,
-				    armv7a->debug_base + CPUDBG_PRSR, &dbg_osreg);
+			armv7a->debug_base + CPUDBG_PRSR, &dbg_osreg);
 	if (retval != ERROR_OK)
 		return retval;
 	LOG_DEBUG("target->coreid %" PRId32 " DBGPRSR  0x%" PRIx32, target->coreid, dbg_osreg);
@@ -3024,7 +3024,7 @@ static int cortex_a_examine_first(struct target *target)
 
 	/* Read DBGOSLSR and check if OSLK is implemented */
 	retval = mem_ap_read_atomic_u32(armv7a->debug_ap,
-				armv7a->debug_base + CPUDBG_OSLSR, &dbg_osreg);
+			armv7a->debug_base + CPUDBG_OSLSR, &dbg_osreg);
 	if (retval != ERROR_OK)
 		return retval;
 	LOG_DEBUG("target->coreid %" PRId32 " DBGOSLSR 0x%" PRIx32, target->coreid, dbg_osreg);
@@ -3372,10 +3372,11 @@ static const struct command_registration cortex_a_exec_command_handlers[] = {
 		.usage = "",
 	},
 	{   .name = "smp_off",
-	    .handler = cortex_a_handle_smp_off_command,
-	    .mode = COMMAND_EXEC,
-	    .help = "Stop smp handling",
-	    .usage = "",},
+		.handler = cortex_a_handle_smp_off_command,
+		.mode = COMMAND_EXEC,
+		.help = "Stop smp handling",
+		.usage = "",
+	},
 	{
 		.name = "smp_on",
 		.handler = cortex_a_handle_smp_on_command,
