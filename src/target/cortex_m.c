@@ -39,6 +39,8 @@
 #include "arm_opcodes.h"
 #include "arm_semihosting.h"
 #include <helper/time_support.h>
+#include <rtt/rtt.h>
+#include "rtt.h"
 
 /* NOTE:  most of this should work fine for the Cortex-M1 and
  * Cortex-M0 cores too, although they're ARMv6-M not ARMv7-M.
@@ -1697,6 +1699,7 @@ static int cortex_m_init_target(struct command_context *cmd_ctx,
 {
 	armv7m_build_reg_cache(target);
 	arm_semihosting_init(target);
+
 	return ERROR_OK;
 }
 
