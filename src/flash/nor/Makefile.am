@@ -43,6 +43,10 @@ NOR_DRIVERS = \
 	%D%/sim3x.c \
 	%D%/spi.c \
 	%D%/stmsmi.c \
+<<<<<<< HEAD
+=======
+	%D%/stmqspi.c \
+>>>>>>> 5ae6e98... Flash driver for QUADSPI interface in various STM32 variants.
 	%D%/stellaris.c \
 	%D%/stm32f1x.c \
 	%D%/stm32f2x.c \
