@@ -4930,7 +4930,7 @@ quite board specific (that's why booting from this memory is not possible) and
 the flash driver infers all parameters from current controller register values.
 
 Normal OpenOCD commands like @command{mdw} can be used to display
-the flash content, but only after proper controller initialzation.
+the flash content, but only after proper controller initialization.
 
 @example
 flash bank $_FLASHNAME stmqspi 0x90000000 0 0 0 $_TARGETNAME

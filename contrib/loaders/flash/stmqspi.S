@@ -1,6 +1,6 @@
 
 /***************************************************************************
- *   Copyright (C) 2015 by Andreas Bolsch                                  *
+ *   Copyright (C) 2016 by Andreas Bolsch                                  *
  *   andreas.bolsch@mni.thm.de                                             *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
@@ -34,14 +34,17 @@
  */
 
 /* Params:
- * r0 - total count (bytes)
+ * r0 - total count (bytes), status (out)
  * r1 - flash page size
- * r2 - adress offset into flash
+ * r2 - address offset into flash
  * r3 - QSPI io_base
+ * r8 - fifo start
+ * r9 - fifo end + 1
+
  * Clobbered:
- * r4 - QSPI DR address
- * r5 - ptr into buffer
- * r6 - single / dual
+ * r4 - rp
+ * r5 - offset of QSPI_DR
+ * r6 - single 0x0 / dual 0x1
  * r7 - tmp
  */
 
@@ -49,120 +52,130 @@
 
 	.macro	wait_busy
 0:
-	ldr		r7, [r3, #QSPI_SR]		/* load status */
-	lsrs	r7, r7, #(QSPI_BUSY+1)	/* shift BUSY into C */
-	bcs		0b						/* loop till BUSY cleared */
-	movs	r7, #(1<<QSPI_TCF)		/* TCF bitmask */
-	str		r7, [r3, #QSPI_FCR]		/* clear TCF flag */
-	.endm
-
-	.macro	wait_fifo
-1:
-	ldr		r7,	[r3, #QSPI_SR]		/* load status */
-	lsrs	r7, #(QSPI_FTF+1)		/* wait for FTF to be set */
-	bcc		1b						/* if not, then test again */
+	ldr		r7, [r3, #QSPI_SR]			/* load status */
+	lsrs	r7, r7, #(QSPI_BUSY+1)		/* shift BUSY into C */
+	bcs		0b							/* loop till BUSY cleared */
+	movs	r7, #(1<<QSPI_TCF)			/* TCF bitmask */
+	str		r7, [r3, #QSPI_FCR]			/* clear TCF flag */
 	.endm
 
 start:
-	subs	r0, #1					/* decrement count for DLR */
-	subs	r1, #1					/* page size mask and for DLR */
-	movs	r4, r3					/* copy base address */
-	adds	r4, #QSPI_DR			/* QSPI DR address */
-	adr		r5, buffer				/* buffer start address */
-	movs	r6, #0					/* one byte per default */
-	ldr		r7, [r3, #QSPI_CR]		/* get QSPI CR register */
-	lsrs	r7, #(QSPI_DUAL_FLASH+1)	/* dual bit into carry */
-	bcc		wip_loop				/* skip if single */
-	adds	r6, #1					/* two bytes for dual */
+	subs	r0, #1						/* decrement count for DLR */
+	subs	r1, #1						/* page size mask and for DLR */
+	ldr		r4, rp						/* load rp */
+	ldr		r6, [r3, #QSPI_CR]			/* get QSPI_CR register */
+	lsls	r6, r6, #(31-QSPI_DUAL_FLASH)	/* clear higher order bits */
+	lsrs	r6, r6, #31					/* DUAL_FLASH bit into bit 0 */
+
+abort:
+	movs	r5, #(1<<QSPI_ABORT)		/* abort bit mask */
+	ldr		r7, [r3, #QSPI_CR]			/* get QSPI_CR register */
+	orrs	r7,	r5						/* set abort bit */
+	str		r7, [r3, #QSPI_CR]			/* store new CR register */
+	movs	r5, #QSPI_DR				/* load QSPI_DR address offset */
 
 wip_loop:
 	wait_busy
-	str		r6, [r3, #QSPI_DLR]		/* one or two bytes */
-	ldr		r7, ccr_read_status		/* CCR for status read */
-	str		r7, [r3, #QSPI_CCR]		/* initiate status read */
-	wait_fifo
-	ldrb	r7, [r4, #0]			/* get first status register */
-	lsrs	r7, #(SPIFLASH_WIP+1)	/* if first flash busy, */
-	bcs		wip_loop				/* then poll again */
-	tst		r6, r6					/* dual flash? */
-	beq		write_enable			/* no, then ok */
-	wait_fifo
-	ldrb	r7, [r4, #0]			/* get second status register */
-	lsrs	r7, #(SPIFLASH_WIP+1)	/* if second flash busy, */
-	bcs		wip_loop				/* then poll again */
+	str		r6, [r3, #QSPI_DLR]			/* one or two (for dual) bytes */
+	ldr		r7, ccr_read_status			/* CCR for status read */
+	str		r7, [r3, #QSPI_CCR]			/* initiate status read */
+	ldr		r7, [r3, #QSPI_SR]			/* delay for fifo startup */
+	ldrb	r7, [r3, r5]				/* get first status register */
+	lsrs	r7, r7, #(SPIFLASH_WIP+1)	/* if first flash busy, */
+	bcs		abort						/* then poll again */
+	tst		r6, r6						/* dual mode ? */
+	beq		write_enable				/* not dual, then ok */
+	ldrb	r7, [r3, r5]				/* get second status register */
+	lsrs	r7, r7, #(SPIFLASH_WIP+1)	/* if second flash busy, */
+	bcs		abort						/* then poll again */
 
 write_enable:
+	tst		r0, r0						/* test residual count */
+	bmi		exit						/* if negative, then finished */
 	wait_busy
-	ldr		r7, ccr_write_enable	/* CCR for write enable */
-	str		r7, [r3, #QSPI_CCR]		/* initiate write enable */
-
-is_enabled:
+	ldr		r7, ccr_write_enable		/* CCR for write enable */
+	str		r7, [r3, #QSPI_CCR]			/* initiate write enable */
 	wait_busy
-	str		r6, [r3, #QSPI_DLR]		/* one or two bytes */
-	ldr		r7, ccr_read_status		/* CCR for status read */
-	str		r7, [r3, #QSPI_CCR]		/* initiate status read */
-	wait_fifo
-	ldrb	r7, [r4, #0]			/* get first status register */
-	lsrs	r7, #(SPIFLASH_WEL+1)	/* if first flash */
-	bcc		error					/* not enabled, then error */
-	tst		r6, r6					/* dual flash? */
-	beq		busy_loop				/* no, then ok */
-	wait_fifo
-	ldrb	r7, [r4, #0]			/* get second status register */
-	lsrs	r7, #(SPIFLASH_WEL+1)	/* if second flash */
-	bcc		error					/* not enabled, then error */
-
-busy_loop:
-	wait_busy
-	cmp		r0, r1					/* if count > page size */
-	bhi		page_write				/* then write one page only */
-	str		r0, [r3, #QSPI_DLR]		/* remaining count in DLR register */
-	b		start_write
-
-page_write:
-	str		r1, [r3, #QSPI_DLR]		/* page size in DLR register */
+	str		r6, [r3, #QSPI_DLR]			/* one or two (for dual) bytes */
+	ldr		r7, ccr_read_status			/* CCR for status read */
+	str		r7, [r3, #QSPI_CCR]			/* initiate status read */
+	ldr		r7, [r3, #QSPI_SR]			/* delay for fifo startup */
+	ldrb	r7, [r3, r5]				/* get first status register */
+	lsrs	r7, r7, #(SPIFLASH_WEL+1)	/* if first flash not */
+	bcc		error						/* write enabled, then error */
+	tst		r6, r6						/* dual mode ? */
+	beq		start_write					/* not dual, then ok */
+	ldrb	r7, [r3, r5]				/* get second status register */
+	lsrs	r7, r7, #(SPIFLASH_WEL+1)	/* if second flash not */
+	bcc		error						/* write enabled, then error */
 
 start_write:
-	ldr		r7, ccr_page_write		/* CCR for page write */
-	str		r7, [r3, #QSPI_CCR]		/* initiate transfer */
-	str		r2, [r3, #QSPI_AR]		/* store SPI start address */
+	mov		r7, r0						/* get remaining count */
+	cmp		r0, r1						/* if count <= page size */
+	bls		write_dlr					/* then write all remaining */
+	mov		r7, r1						/* else exactly one page */
+write_dlr:
+	str		r7, [r3, #QSPI_DLR]			/* size-1 in DLR register */
+	ldr		r7, ccr_page_write			/* CCR for page write */
+	str		r7, [r3, #QSPI_CCR]			/* initiate transfer */
+	str		r2, [r3, #QSPI_AR]			/* store SPI start address */
 
 write_loop:
-	wait_fifo
-	ldrb	r7,[r5, #0]				/* load and */
-	strb	r7,[r4, #0]				/* store next byte */
-	adds	r5, #1					/* increment buffer ptr */
-	adds	r2, #1					/* increment address */
-	subs	r0, #1					/* decrement count */
-	bmi		page_end				/* stop if no data left */
-	tst		r2, r1					/* page end ? */
-	bne		write_loop				/* if not, then next byte */
-
+	ldr		r7, wp						/* get wp */
+	cmp		r7, #0						/* if wp equals 0 */
+	beq		exit						/* then abort */
+	cmp		r4, r7						/* check if fifo empty */
+	beq		write_loop					/* wait till not empty */
+	ldrb	r7, [r4, #0]				/* read next byte */
+	strb	r7, [r3, r5]				/* write next byte to DR */
+	adds	r2, #1						/* increment address */
+	adds	r4, #1						/* increment internal rp */
+	cmp		r4, r9						/* internal rp beyond end? */
+	blo		write_loop1					/* if no, the ok */
+	mov		r4, r8						/* else wrap around */
+write_loop1:
+	subs	r0, #1						/* decrement count */
+	bmi		page_end					/* stop if no data left */
+	tst		r2, r1						/* page end ? */
+	bne		write_loop					/* if not, then next byte */
 page_end:
-	ldr		r7, [r3, #QSPI_SR]		/* load status */
-	lsrs	r7, r7, #(QSPI_TCF+1)	/* shift TCF into C */
-	bcc		page_end				/* wait till TCF set */
-	movs	r0, r0					/* test residual count */
-	bpl		wip_loop				/* if non-negative, then next page */
-	adds	r0, #1					/* correct count */
-	b		exit
+	ldr		r7, [r3, #QSPI_SR]			/* load status */
+	lsrs	r7, r7, #(QSPI_TCF+1)		/* shift TCF into C */
+	bcc		page_end					/* wait till TCF set */
+	adr		r7, rp						/* get address of rp */
+	str		r4, [r7, #0]				/* store updated rp */
+
+	movs	r7, r1						/* one iteration per byte */
+wait:
+	subs	r7, #1						/* short delay loop */
+	bne		wait						/* before testing WIP flag */
+	b		wip_loop					/* then next page */
 
 error:
-	movs	r0, #0
-	subs	r0, #1					/* return 0xFFFFFFFF for error */
-
+	movs	r0, #0						/* return 0xFFFFFFFF */
+	subs	r0, #2						/* for error */
 exit:
-	.align	2						/* align to word, bkpt is 4 words */
-	bkpt	#0						/* before code end for exit_point */
-	.align	2						/* align to word */
+	adds	r0, #1						/* correct count */
+	movs	r6, #(1<<QSPI_ABORT)		/* abort bit mask */
+	ldr		r7, [r3, #QSPI_CR]			/* get QSPI CR register */
+	orrs	r7,	r6						/* set abort bit */
+	str		r7, [r3, #QSPI_CR]			/* store new CR register */
+
+	.align	2							/* align to word, bkpt is 4 words */
+	bkpt	#0							/* before code end for exit_point */
+	.align	2							/* align to word */
 
 ccr_read_status:
-	.space	4						/* QSPI_CCR value for READ_STATUS command */
+	.space	4							/* QSPI_CCR value for READ_STATUS command */
 
 ccr_write_enable:
-	.space	4						/* QSPI_CCR value for WRITE_ENABLE command */
+	.space	4							/* QSPI_CCR value for WRITE_ENABLE command */
 
 ccr_page_write:
-	.space	4						/* QSPI_CCR value for PAGE_WRITE command */
+	.space	4							/* QSPI_CCR value for PAGE_WRITE command */
 
-buffer:								/* buffer follows right away */
+	.equ wp, .							/* wp, uint32_t */
+
+	.equ rp, wp + 4						/* rp, uint32_t */
+
+	.equ buffer, rp + 4					/* buffer follows right away */
