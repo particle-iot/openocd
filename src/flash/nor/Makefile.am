@@ -43,6 +43,7 @@ NOR_DRIVERS = \
 	%D%/sim3x.c \
 	%D%/spi.c \
 	%D%/stmsmi.c \
+	%D%/stmqspi.c \
 	%D%/stellaris.c \
 	%D%/stm32f1x.c \
 	%D%/stm32f2x.c \
