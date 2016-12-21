@@ -22,6 +22,8 @@
 #ifndef OPENOCD_FLASH_NOR_SPI_H
 #define OPENOCD_FLASH_NOR_SPI_H
 
+#ifndef __ASSEMBLER__
+
 /* data structure to maintain flash ids from different vendors */
 struct flash_device {
 	char *name;
@@ -46,9 +48,13 @@ struct flash_device {
 
 extern const struct flash_device flash_devices[];
 
+#endif
+
 /* fields in SPI flash status register */
-#define SPIFLASH_BSY_BIT		0x00000001 /* WIP Bit of SPI SR on SMI SR */
-#define SPIFLASH_WE_BIT			0x00000002 /* WEL Bit of SPI SR on SMI SR */
+#define	SPIFLASH_BSY			0
+#define SPIFLASH_BSY_BIT		(1 << SPIFLASH_BSY) /* WIP Bit of SPI SR on SMI SR */
+#define	SPIFLASH_WE				1
+#define SPIFLASH_WE_BIT			(1 << SPIFLASH_WE)	/* WEL Bit of SPI SR on SMI SR */
 
 /* SPI Flash Commands */
 #define SPIFLASH_READ_ID		0x9F /* Read Flash Identification */
