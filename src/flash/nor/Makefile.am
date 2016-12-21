@@ -43,6 +43,7 @@ NOR_DRIVERS = \
 	%D%/sim3x.c \
 	%D%/spi.c \
 	%D%/stmsmi.c \
+	%D%/stmqspi.c \
 	%D%/stellaris.c \
 	%D%/stm32f1x.c \
 	%D%/stm32f2x.c \
@@ -63,4 +64,6 @@ NORHEADERS = \
 	%D%/imp.h \
 	%D%/non_cfi.h \
 	%D%/ocl.h \
-	%D%/spi.h
+	%D%/spi.h \
+	%D%/stmqspi.h
+
