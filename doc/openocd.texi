@@ -4990,6 +4990,41 @@ flash bank $_FLASHNAME stmsmi 0xf8000000 0 0 0 $_TARGETNAME
 
 @end deffn
 
+@deffn {Flash Driver} stmqspi
+@cindex STMicroelectronics QuadSPI Interface
+@cindex QuadSPI
+@cindex stmqspi
+Some devices form STMicroelectronics (e.g. STM32F7 and STM32L4 MCU family)
+include a proprietary ``QuadSPI Interface'' controller able to drive one
+or even two (dual mode) external SPI flash devices.
+
+QuadSPI makes the flash content directly accessible in the CPU address
+space; in case of dual mode both devices must be of the same type and are
+mapped in the same memory bank (even and odd adresses interleaved).
+CPU can directly read data, execute code (but not boot) from QuadSPI bank.
+
+The setup command only requires the @var{base} parameter in order
+to identify the memory bank. All other parameters are ignored.
+
+The QuadSPI controller must be initialized after each reset, the setup is
+quite board specific (that's why booting from this memory is not possible) and
+the flash driver infers all parameters from current controller register values.
+
+Normal OpenOCD commands like @command{mdw} can be used to display
+the flash content, but only after proper controller initialization.
+
+@example
+flash bank $_FLASHNAME stmqspi 0x90000000 0 0 0 $_TARGETNAME
+@end example
+
+There is one specific command
+@deffn Command {stmqspi mass_erase} num
+Clears the block protect bits and performs a mass erase. Works only if
+there is no chip specific write protection engaged.
+@end deffn
+
+@end deffn
+
 @deffn {Flash Driver} mrvlqspi
 This driver supports QSPI flash controller of Marvell's Wireless
 Microcontroller platform.
