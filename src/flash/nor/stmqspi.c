@@ -166,7 +166,10 @@ struct stmqspi_target {
 
 static const struct stmqspi_target target_devices[] = {
 	/* name,				device_id, qspi_base,   io_base */
-	{ "stm32l4x6",			0x415,	0x90000000,	0xA0001000 },
+	{ "stm32l431_433_443",	0x435,	0x90000000,	0xA0001000 },
+	{ "stm32l4x1_4x5_4x6",	0x415,	0x90000000,	0xA0001000 },
+	{ "stm32f412",			0x441,	0x90000000,	0xA0001000 },
+	{ "stm32f413_423",		0x463,	0x90000000,	0xA0001000 },
 	{ "stm32f446",			0x421,	0x90000000,	0xA0001000 },
 	{ "stm32f469_479",		0x434,	0x90000000,	0xA0001000 },
 	{ "stm32f74x_75x",		0x449,	0x90000000,	0xA0001000 },
@@ -291,7 +294,7 @@ static int wait_till_ready(struct flash_bank *bank, int timeout)
 
 		if ((status & (((1<<SPIFLASH_WIP)<<8) || (1<<SPIFLASH_WIP))) == 0)
 			return ERROR_OK;
-		alive_sleep(1);
+		alive_sleep(25);
 	} while (timeval_ms() < endtime);
 
 	LOG_ERROR("timeout");
@@ -334,6 +337,7 @@ static int qspi_write_enable(struct flash_bank *bank)
 		LOG_ERROR("Cannot enable write to flash2. Status=0x%08" PRIx32, status);
 		return ERROR_FAIL;
 	}
+
 	return ERROR_OK;
 }
 
@@ -344,7 +348,7 @@ COMMAND_HANDLER(stmqspi_handle_mass_erase_command)
 	struct stmqspi_flash_bank *stmqspi_info;
 	struct duration bench;
 	uint32_t io_base, status;
-	int retval, sector, dual;
+	int retval, sector;
 
 	LOG_DEBUG("%s", __func__);
 
@@ -387,21 +391,6 @@ COMMAND_HANDLER(stmqspi_handle_mass_erase_command)
 	retval = qspi_write_enable(bank);
 	if (retval != ERROR_OK)
 		return retval;
-
-	dual = (stmqspi_info->dual_mask & (1<<QSPI_DUAL_FLASH)) ? 1 : 0;
-
-	/* Clear block protect bits */
-	QSPI_WRITE_REG(QSPI_CCR, QSPI_CCR_WRITE_STATUS);
-	QSPI_WRITE_REG(QSPI_DLR, dual);
-	QSPI_WRITE_REG(QSPI_DR, (1<<SPIFLASH_WEL));
-	if (dual)
-		QSPI_WRITE_REG(QSPI_DR, (1<<SPIFLASH_WEL));
-
-	/* Wait for busy to be cleared */
-	QSPI_POLL_BUSY(QSPI_PROBE_TIMEOUT);
-
-	/* clear transmit finished flag */
-	QSPI_CLEAR_TCF();
 
 	retval = qspi_write_enable(bank);
 	if (retval != ERROR_OK)
@@ -482,7 +471,7 @@ static int qspi_erase_sector(struct flash_bank *bank, int sector)
 	retval = wait_till_ready(bank, QSPI_MAX_TIMEOUT);
 
 	/* erasure takes a long time, so some sort of progress message is a good idea */
-	LOG_USER("sector %4d erased", sector);
+	LOG_DEBUG("sector %4d erased", sector);
 
 	/* Switch to memory mapped mode before return to prompt */
 	QSPI_SET_MM_MODE();
@@ -532,6 +521,9 @@ static int stmqspi_erase(struct flash_bank *bank, int first, int last)
 		keep_alive();
 	}
 
+	if (retval != ERROR_OK)
+		LOG_ERROR("Flash sector_erase failed on sector %d", sector);
+
 	return retval;
 }
 
@@ -545,101 +537,40 @@ static int stmqspi_protect(struct flash_bank *bank, int set,
 	return ERROR_OK;
 }
 
-static int qspi_write_buffer(struct flash_bank *bank, struct working_area *write_algorithm,
-	const uint32_t code_len, const uint32_t flash_offset, const uint32_t page_size,
-	uint32_t count, const uint8_t *buffer)
+static int qspi_write_block(struct flash_bank *bank, const uint8_t *buffer,
+		uint32_t offset, uint32_t count)
 {
 	struct target *target = bank->target;
 	struct stmqspi_flash_bank *stmqspi_info = bank->driver_priv;
 	uint32_t io_base = stmqspi_info->io_base;
-	struct reg_param reg_params[4];
+	struct reg_param reg_params[6];
 	struct armv7m_algorithm armv7m_info;
+	struct working_area *write_algorithm;
+	uint32_t page_size, fifo_start, fifo_size, buffer_size;
 	uint32_t exit_point, remaining;
-	int retval = ERROR_OK;
+	int dual, retval = ERROR_OK;
 
 	LOG_DEBUG("%s: offset=0x%08" PRIx32 " len=0x%08" PRIx32,
-		__func__, flash_offset, count);
-
-	/* after breakpoint instruction (halfword) one nop (halfword) and
-	 * 3 words follow till end of code, that makes exactly 4 words */
-	exit_point = write_algorithm->address + code_len - 4 * sizeof(uint32_t);
-	target_write_buffer(target, write_algorithm->address + code_len,
-		count, buffer);
-
-	init_reg_param(&reg_params[0], "r0", 32, PARAM_IN_OUT); /* count (in), count (out) */
-	init_reg_param(&reg_params[1], "r1", 32, PARAM_OUT);	/* page_size */
-	init_reg_param(&reg_params[2], "r2", 32, PARAM_OUT);	/* offset into flash address */
-	init_reg_param(&reg_params[3], "r3", 32, PARAM_OUT);	/* QSPI io_base */
-
-	buf_set_u32(reg_params[0].value, 0, 32, count);
-	buf_set_u32(reg_params[1].value, 0, 32, page_size);
-	buf_set_u32(reg_params[2].value, 0, 32, flash_offset);
-	buf_set_u32(reg_params[3].value, 0, 32, io_base);
-
-	armv7m_info.common_magic = ARMV7M_COMMON_MAGIC;
-	armv7m_info.core_mode = ARM_MODE_THREAD;
-
-	retval = target_start_algorithm(target, 0, NULL,
-		sizeof(reg_params) / sizeof(struct reg_param), reg_params,
-		write_algorithm->address, exit_point, &armv7m_info);
-
-	retval = target_wait_algorithm(target, 0, NULL,
-		sizeof(reg_params) / sizeof(struct reg_param), reg_params,
-		exit_point, QSPI_MAX_TIMEOUT, &armv7m_info);
-
-	remaining = buf_get_u32(reg_params[0].value, 0, 32);
-	if ((retval == ERROR_OK) && remaining)
-		retval = ERROR_FLASH_OPERATION_FAILED;
-	if (retval != ERROR_OK) {
-		LOG_ERROR("flash write failed at address 0x%" PRIx32 ", remaining 0x%" PRIx32,
-			flash_offset, remaining);
-	} else {
-		/* programming takes a long time, so some sort of progress message is a good idea */
-		LOG_USER("pages %6d to %6d programmed", flash_offset / page_size,
-			(flash_offset + count - 1) / page_size);
-	}
-
-	destroy_reg_param(&reg_params[0]);
-	destroy_reg_param(&reg_params[1]);
-	destroy_reg_param(&reg_params[2]);
-	destroy_reg_param(&reg_params[3]);
-
-	/* Switch to memory mapped mode before return to prompt */
-	QSPI_SET_MM_MODE();
-
-	return retval;
-}
-
-static int stmqspi_write(struct flash_bank *bank, const uint8_t *buffer,
-	uint32_t flash_offset, uint32_t count)
-{
-	struct target *target = bank->target;
-	struct stmqspi_flash_bank *stmqspi_info = bank->driver_priv;
-	struct working_area *write_algorithm;
-	uint32_t io_base = stmqspi_info->io_base;
-	uint32_t cur_count, page_size, buffer_size;
-	int sector;
-	int dual;
-	int retval = ERROR_OK;
+		__func__, offset, count);
 
 	/* see contrib/loaders/flash/stmqspi.S for src */
 	static const uint8_t stmqspi_flash_write_code[] = {
-		0x01, 0x38, 0x01, 0x39, 0x1c, 0x00, 0x20, 0x34, 0x30, 0xa5, 0x00, 0x26,
-		0x1f, 0x68, 0xff, 0x09, 0x00, 0xd3, 0x01, 0x36, 0x9f, 0x68, 0xbf, 0x09,
-		0xfc, 0xd2, 0x02, 0x27, 0xdf, 0x60, 0x1e, 0x61, 0x27, 0x4f, 0x5f, 0x61,
-		0x9f, 0x68, 0xff, 0x08, 0xfc, 0xd3, 0x27, 0x78, 0x7f, 0x08, 0xf1, 0xd2,
-		0x36, 0x42, 0x05, 0xd0, 0x9f, 0x68, 0xff, 0x08, 0xfc, 0xd3, 0x27, 0x78,
-		0x7f, 0x08, 0xe9, 0xd2, 0x9f, 0x68, 0xbf, 0x09, 0xfc, 0xd2, 0x02, 0x27,
-		0xdf, 0x60, 0x1e, 0x4f, 0x5f, 0x61, 0x9f, 0x68, 0xbf, 0x09, 0xfc, 0xd2,
-		0x02, 0x27, 0xdf, 0x60, 0x1e, 0x61, 0x19, 0x4f, 0x5f, 0x61, 0x9f, 0x68,
-		0xff, 0x08, 0xfc, 0xd3, 0x27, 0x78, 0xbf, 0x08, 0x26, 0xd3, 0x36, 0x42,
-		0x05, 0xd0, 0x9f, 0x68, 0xff, 0x08, 0xfc, 0xd3, 0x27, 0x78, 0xbf, 0x08,
-		0x1e, 0xd3, 0x9f, 0x68, 0xbf, 0x09, 0xfc, 0xd2, 0x02, 0x27, 0xdf, 0x60,
-		0x88, 0x42, 0x01, 0xd8, 0x18, 0x61, 0x00, 0xe0, 0x19, 0x61, 0x0e, 0x4f,
-		0x5f, 0x61, 0x9a, 0x61, 0x9f, 0x68, 0xff, 0x08, 0xfc, 0xd3, 0x2f, 0x78,
-		0x27, 0x70, 0x01, 0x35, 0x01, 0x32, 0x01, 0x38, 0x01, 0xd4, 0x0a, 0x42,
-		0xf4, 0xd1, 0x9f, 0x68, 0xbf, 0x08, 0xfc, 0xd3, 0x00, 0x00, 0xaf, 0xd5,
-		0x01, 0x30, 0x01, 0xe0, 0x00, 0x20, 0x01, 0x38, 0x00, 0xbe, 0xc0, 0x46,
+		0x01, 0x38, 0x01, 0x39, 0x32, 0x4c, 0x1e, 0x68, 0x76, 0x06, 0xf6, 0x0f,
+		0x02, 0x25, 0x1f, 0x68, 0x2f, 0x43, 0x1f, 0x60, 0x20, 0x25, 0x9f, 0x68,
+		0xbf, 0x09, 0xfc, 0xd2, 0x02, 0x27, 0xdf, 0x60, 0x1e, 0x61, 0x27, 0x4f,
+		0x5f, 0x61, 0x9f, 0x68, 0x5f, 0x5d, 0x7f, 0x08, 0xee, 0xd2, 0x36, 0x42,
+		0x02, 0xd0, 0x5f, 0x5d, 0x7f, 0x08, 0xe9, 0xd2, 0x00, 0x42, 0x3a, 0xd4,
+		0x9f, 0x68, 0xbf, 0x09, 0xfc, 0xd2, 0x02, 0x27, 0xdf, 0x60, 0x1f, 0x4f,
+		0x5f, 0x61, 0x9f, 0x68, 0xbf, 0x09, 0xfc, 0xd2, 0x02, 0x27, 0xdf, 0x60,
+		0x1e, 0x61, 0x1a, 0x4f, 0x5f, 0x61, 0x9f, 0x68, 0x5f, 0x5d, 0xbf, 0x08,
+		0x25, 0xd3, 0x36, 0x42, 0x02, 0xd0, 0x5f, 0x5d, 0xbf, 0x08, 0x20, 0xd3,
+		0x07, 0x46, 0x88, 0x42, 0x00, 0xd9, 0x0f, 0x46, 0x1f, 0x61, 0x14, 0x4f,
+		0x5f, 0x61, 0x9a, 0x61, 0x13, 0x4f, 0x00, 0x2f, 0x17, 0xd0, 0xbc, 0x42,
+		0xfa, 0xd0, 0x27, 0x78, 0x5f, 0x55, 0x01, 0x32, 0x01, 0x34, 0x4c, 0x45,
+		0x00, 0xd3, 0x44, 0x46, 0x01, 0x38, 0x01, 0xd4, 0x0a, 0x42, 0xef, 0xd1,
+		0x9f, 0x68, 0xbf, 0x08, 0xfc, 0xd3, 0x0b, 0xa7, 0x3c, 0x60, 0x0f, 0x00,
+		0x01, 0x3f, 0xfd, 0xd1, 0xb3, 0xe7, 0x00, 0x20, 0x02, 0x38, 0x01, 0x30,
+		0x02, 0x26, 0x1f, 0x68, 0x37, 0x43, 0x1f, 0x60, 0x00, 0xbe, 0xc0, 0x46,
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 	};
 
@@ -650,47 +581,14 @@ static int stmqspi_write(struct flash_bank *bank, const uint8_t *buffer,
 		h_to_le_32(QSPI_CCR_PAGE_WRITE),
 	};
 
-	LOG_DEBUG("%s: offset=0x%08" PRIx32 " count=0x%08" PRIx32,
-		__func__, flash_offset, count);
-
-	if (target->state != TARGET_HALTED) {
-		LOG_ERROR("Target not halted");
-		return ERROR_TARGET_NOT_HALTED;
-	}
-
-	if (flash_offset + count > stmqspi_info->dev->size_in_bytes) {
-		LOG_WARNING("Write past end of flash. Extra data discarded.");
-		count = stmqspi_info->dev->size_in_bytes - flash_offset;
-	}
-
-	/* Check sector protection */
-	for (sector = 0; sector < bank->num_sectors; sector++) {
-		/* Start offset in or before this sector? */
-		/* End offset in or behind this sector? */
-		if ((flash_offset < (bank->sectors[sector].offset + bank->sectors[sector].size))
-			&& ((flash_offset + count - 1) >= bank->sectors[sector].offset)
-			&& bank->sectors[sector].is_protected) {
-			LOG_ERROR("Flash sector %d protected", sector);
-			return ERROR_FAIL;
-		}
-	}
-
-	dual = (stmqspi_info->dual_mask & (1<<QSPI_DUAL_FLASH)) ? 1 : 0;
-	if (dual & ((flash_offset & 1) != 0 || (count & 1) != 0)) {
-		LOG_ERROR("For dual-QSPI writes must be two byte aligned: "
-			"%s: address=0x%08" PRIx32 " len=0x%08" PRIx32, __func__,
-			flash_offset, count);
-		return ERROR_FAIL;
-	}
-	page_size = stmqspi_info->dev->pagesize << dual;
-
 	/* memory buffer, we assume sectorsize to be a power of 2 times page_size */
-	buffer_size = stmqspi_info->dev->sectorsize << dual;
-	while (target_alloc_working_area_try(target,
-			sizeof(stmqspi_flash_write_code) + buffer_size,
-			&write_algorithm) != ERROR_OK) {
-		buffer_size /= 2;
-		if (buffer_size < page_size) {
+	dual = (stmqspi_info->dual_mask & (1<<QSPI_DUAL_FLASH)) ? 1 : 0;
+	page_size = stmqspi_info->dev->pagesize << dual;
+	fifo_size = stmqspi_info->dev->sectorsize << dual;
+	while (buffer_size = sizeof(stmqspi_flash_write_code) + 2 * sizeof(uint32_t) + fifo_size,
+			target_alloc_working_area_try(target, buffer_size, &write_algorithm) != ERROR_OK) {
+		fifo_size /= 2;
+		if (fifo_size < page_size) {
 			/* we already allocated the writing code, but failed to get a
 			 * buffer, free the algorithm */
 			target_free_working_area(target, write_algorithm);
@@ -714,49 +612,107 @@ static int stmqspi_write(struct flash_bank *bank, const uint8_t *buffer,
 	if (retval != ERROR_OK)
 		goto err;
 
-	/* Abort any previous operation */
-	QSPI_WRITE_REG(QSPI_CR, QSPI_READ_REG(QSPI_CR) | (1<<QSPI_ABORT));
+	/* target buffer starts right after flash_write_code, i. e.
+	 * wp and rp are implicitly included in buffer!!! */
+	fifo_start = write_algorithm->address + sizeof(stmqspi_flash_write_code)
+		+ 2 * sizeof(uint32_t);
 
-	/* buffer head not aligned to page size */
-	if (count > 0 && (flash_offset & (page_size - 1)) != 0) {
-		cur_count = page_size - (flash_offset & (page_size - 1));
-		if (cur_count > count)
-			cur_count = count;
-		retval = qspi_write_buffer(bank, write_algorithm,
-			sizeof(stmqspi_flash_write_code), flash_offset,
-			page_size, cur_count, buffer);
-		if (retval != ERROR_OK)
-			goto err;
-		flash_offset += cur_count;
-		buffer += cur_count;
-		count -= cur_count;
+	init_reg_param(&reg_params[0], "r0", 32, PARAM_IN_OUT); /* count (in), status (out) */
+	init_reg_param(&reg_params[1], "r1", 32, PARAM_OUT);	/* page_size */
+	init_reg_param(&reg_params[2], "r2", 32, PARAM_IN_OUT);	/* offset into flash address */
+	init_reg_param(&reg_params[3], "r3", 32, PARAM_OUT);	/* QSPI io_base */
+	init_reg_param(&reg_params[4], "r8", 32, PARAM_OUT);	/* fifo start */
+	init_reg_param(&reg_params[5], "r9", 32, PARAM_OUT);	/* fifo end + 1 */
+
+	buf_set_u32(reg_params[0].value, 0, 32, count);
+	buf_set_u32(reg_params[1].value, 0, 32, page_size);
+	buf_set_u32(reg_params[2].value, 0, 32, offset);
+	buf_set_u32(reg_params[3].value, 0, 32, io_base);
+	buf_set_u32(reg_params[4].value, 0, 32, fifo_start);
+	buf_set_u32(reg_params[5].value, 0, 32, fifo_start + fifo_size);
+
+	armv7m_info.common_magic = ARMV7M_COMMON_MAGIC;
+	armv7m_info.core_mode = ARM_MODE_THREAD;
+
+	/* after breakpoint instruction (halfword) one nop (halfword) and
+	 * 3 words follow till end of code, that makes exactly 4 words */
+	exit_point = write_algorithm->address
+		+ sizeof(stmqspi_flash_write_code) - 4 * sizeof(uint32_t);
+
+	retval = target_run_flash_async_algorithm(target, buffer, count, 1,
+			0, NULL,
+			6, reg_params,
+			write_algorithm->address + sizeof(stmqspi_flash_write_code),
+			fifo_size + 2 * sizeof(uint32_t),
+			write_algorithm->address, exit_point,
+			&armv7m_info);
+
+	remaining = buf_get_u32(reg_params[0].value, 0, 32);
+	if ((retval == ERROR_OK) && remaining)
+		retval = ERROR_FLASH_OPERATION_FAILED;
+	if (retval != ERROR_OK) {
+		offset = buf_get_u32(reg_params[2].value, 0, 32);
+		LOG_ERROR("flash write failed at address 0x%" PRIx32 ", remaining 0x%" PRIx32,
+			offset, remaining);
 	}
 
-	/* central part, aligned to page size */
-	while (count > 0) {
-		/* clip block at buffer_size */
-		if (count > buffer_size)
-			cur_count = buffer_size;
-		else
-			cur_count = count;
-
-		retval = qspi_write_buffer(bank, write_algorithm,
-			sizeof(stmqspi_flash_write_code), flash_offset,
-			page_size, cur_count, buffer);
-		if (retval != ERROR_OK)
-			goto err;
-
-		flash_offset += cur_count;
-		buffer += cur_count;
-		count -= cur_count;
-
-		keep_alive();
-	}
+	destroy_reg_param(&reg_params[0]);
+	destroy_reg_param(&reg_params[1]);
+	destroy_reg_param(&reg_params[2]);
+	destroy_reg_param(&reg_params[3]);
+	destroy_reg_param(&reg_params[4]);
+	destroy_reg_param(&reg_params[5]);
 
 err:
 	target_free_working_area(target, write_algorithm);
 
+	/* Switch to memory mapped mode before return to prompt */
+	QSPI_SET_MM_MODE();
+
 	return retval;
+}
+
+static int stmqspi_write(struct flash_bank *bank, const uint8_t *buffer,
+	uint32_t offset, uint32_t count)
+{
+	struct target *target = bank->target;
+	struct stmqspi_flash_bank *stmqspi_info = bank->driver_priv;
+	int sector, dual;
+
+	LOG_DEBUG("%s: offset=0x%08" PRIx32 " count=0x%08" PRIx32,
+		__func__, offset, count);
+
+	if (target->state != TARGET_HALTED) {
+		LOG_ERROR("Target not halted");
+		return ERROR_TARGET_NOT_HALTED;
+	}
+
+	if (offset + count > stmqspi_info->dev->size_in_bytes) {
+		LOG_WARNING("Write beyond end of flash. Extra data discarded.");
+		count = stmqspi_info->dev->size_in_bytes - offset;
+	}
+
+	/* Check sector protection */
+	for (sector = 0; sector < bank->num_sectors; sector++) {
+		/* Start offset in or before this sector? */
+		/* End offset in or behind this sector? */
+		if ((offset < (bank->sectors[sector].offset + bank->sectors[sector].size))
+			&& ((offset + count - 1) >= bank->sectors[sector].offset)
+			&& bank->sectors[sector].is_protected) {
+			LOG_ERROR("Flash sector %d protected", sector);
+			return ERROR_FAIL;
+		}
+	}
+
+	dual = (stmqspi_info->dual_mask & (1<<QSPI_DUAL_FLASH)) ? 1 : 0;
+	if (dual & ((offset & 1) != 0 || (count & 1) != 0)) {
+		LOG_ERROR("For dual-QSPI writes must be two byte aligned: "
+			"%s: address=0x%08" PRIx32 " len=0x%08" PRIx32, __func__,
+			offset, count);
+		return ERROR_FAIL;
+	}
+
+	return qspi_write_block(bank, buffer, offset, count);
 }
 
 /* Return ID of flash device(s) */
@@ -773,6 +729,7 @@ static int read_flash_id(struct flash_bank *bank, uint32_t *id1, uint32_t *id2)
 		return ERROR_TARGET_NOT_HALTED;
 	}
 
+	QSPI_WRITE_REG(QSPI_CR, QSPI_READ_REG(QSPI_CR) | (1<<QSPI_ABORT));
 	/* poll WIP */
 	retval = wait_till_ready(bank, QSPI_PROBE_TIMEOUT);
 	if (retval != ERROR_OK)
@@ -788,6 +745,9 @@ static int read_flash_id(struct flash_bank *bank, uint32_t *id1, uint32_t *id2)
 	QSPI_WRITE_REG(QSPI_CCR, (QSPI_READ_REG(QSPI_CCR) & 0xF0000000) |
 	   ((QSPI_READ_MODE | QSPI_1LINE_MODE | QSPI_ADDR3 | SPIFLASH_READ_ID) & QSPI_NO_ADDR));
 
+	/* Three address bytes, could be dummy for some chips */
+	QSPI_WRITE_REG(QSPI_AR, 0);
+
 	/* Poll transmit finished flag */
 	QSPI_POLL_TCF(QSPI_CMD_TIMEOUT);
 
@@ -799,26 +759,32 @@ static int read_flash_id(struct flash_bank *bank, uint32_t *id1, uint32_t *id2)
 		if ((stmqspi_info->dual_mask & ((1<<QSPI_DUAL_FLASH) |
 			(1<<QSPI_FSEL_FLASH))) != (1<<QSPI_FSEL_FLASH)) {
 			*id1 |= (QSPI_READ_REGB(QSPI_DR) << shift);
-			if (!*id1) {
-				LOG_ERROR("No response from QSPI flash1");
-				return ERROR_FAIL;
-			}
-
 		}
 		if ((stmqspi_info->dual_mask & ((1<<QSPI_DUAL_FLASH) |
 			(1<<QSPI_FSEL_FLASH))) != 0) {
 			*id2 |= (QSPI_READ_REGB(QSPI_DR) << shift);
-			if (!*id2) {
-				LOG_ERROR("No response from QSPI flash2");
-				return ERROR_FAIL;
-			}
+		}
+	}
+
+	if ((stmqspi_info->dual_mask & ((1<<QSPI_DUAL_FLASH) |
+		(1<<QSPI_FSEL_FLASH))) != (1<<QSPI_FSEL_FLASH)) {
+		if (!*id1) {
+			LOG_ERROR("No response from QSPI flash1");
+			retval = ERROR_FAIL;
+		}
+	}
+	if ((stmqspi_info->dual_mask & ((1<<QSPI_DUAL_FLASH) |
+		(1<<QSPI_FSEL_FLASH))) != 0) {
+		if (!*id2) {
+			LOG_ERROR("No response from QSPI flash2");
+			retval = ERROR_FAIL;
 		}
 	}
 
 	/* Switch to memory mapped mode before return to prompt */
 	QSPI_SET_MM_MODE();
 
-	return ERROR_OK;
+	return retval;
 }
 
 static int stmqspi_probe(struct flash_bank *bank)
@@ -830,8 +796,7 @@ static int stmqspi_probe(struct flash_bank *bank)
 	uint32_t id1 = 0, id2 = 0;
 	const struct stmqspi_target *target_device;
 	const struct flash_device *p;
-	int dual;
-	int retval;
+	int dual, fsize, retval;
 
 	if (stmqspi_info->probed)
 		free(bank->sectors);
@@ -849,17 +814,15 @@ static int stmqspi_probe(struct flash_bank *bank)
 
 	if (!target_device->name) {
 		LOG_ERROR("Device ID 0x%" PRIx32 " is not known as STM QSPI capable",
-				target->tap->idcode);
+			target->tap->idcode);
 		return ERROR_FAIL;
 	}
 
-	switch (bank->base - target_device->qspi_base) {
-		case 0*QSPI_BANK_SIZE:
-			stmqspi_info->bank_num = QSPI_SEL_BANK0;
-			break;
-		default:
-			LOG_ERROR("Invalid QSPI base address 0x%" PRIx32, bank->base);
-			return ERROR_FAIL;
+	if (bank->base == target_device->qspi_base) {
+		stmqspi_info->bank_num = QSPI_SEL_BANK0;
+	} else {
+		LOG_ERROR("Invalid QSPI base address 0x%" PRIx32, bank->base);
+		return ERROR_FAIL;
 	}
 	io_base = target_device->io_base;
 	stmqspi_info->io_base = io_base;
@@ -868,8 +831,8 @@ static int stmqspi_probe(struct flash_bank *bank)
 	stmqspi_info->dual_mask = QSPI_READ_REG(QSPI_CR);
 	/* save current QSPI_CCR value */;
 	stmqspi_info->saved_ccr = QSPI_READ_REG(QSPI_CCR);
-	LOG_DEBUG("Valid QSPI on device %s at 0x%" PRIx32 ", QSPI_CR 0x%"
-		PRIx32 ", QSPI_CCR 0x%" PRIx32 ",%s", target_device->name,
+	LOG_DEBUG("Valid QSPI in device %s at 0x%" PRIx32 ", QSPI_CR 0x%"
+		PRIx32 ", QSPI_CCR 0x%" PRIx32 ", %s", target_device->name,
 		bank->base, stmqspi_info->dual_mask, stmqspi_info->saved_ccr,
 		(QSPI_ADDR_MASK == QSPI_ADDR4) ? "4 byte addr" : " 3 byte addr");
 
@@ -886,22 +849,24 @@ static int stmqspi_probe(struct flash_bank *bank)
 	for (p = flash_devices; id1 && p->name ; p++) {
 		if (p->device_id == id1) {
 			stmqspi_info->dev = p;
-			LOG_INFO("Found flash1 device \'%s\' (ID 0x%06" PRIx32 ")",
-				p->name, id1);
+			LOG_INFO("flash1 \'%s\' id = 0x%06" PRIx32
+				 "\nflash1 size = %lukbytes",
+				 p->name, id1, p->size_in_bytes>>10);
 			break;
 		}
 	}
 
 	if (id1 && !p->name) {
-		LOG_ERROR("Unknown flash1 device (ID 0x%06" PRIx32 ")", id1);
+		LOG_ERROR("Unknown flash1 device id = 0x%06" PRIx32, id1);
 		return ERROR_FAIL;
 	}
 
 	/* identify flash2 */
 	for (p = flash_devices; id2 && p->name ; p++) {
 		if (p->device_id == id2) {
-			LOG_INFO("Found flash2 device \'%s\' (ID 0x%06" PRIx32 ")",
-				p->name, id2);
+			LOG_INFO("flash2 \'%s\' id = 0x%06" PRIx32
+				 "\nflash2 size = %lukbytes",
+				 p->name, id2, p->size_in_bytes>>10);
 
 			if (!stmqspi_info->dev)
 				stmqspi_info->dev = p;
@@ -920,14 +885,20 @@ static int stmqspi_probe(struct flash_bank *bank)
 	}
 
 	if (id2 && !p->name) {
-		LOG_ERROR("Unknown flash2 device (ID 0x%06" PRIx32 ")", id2);
+		LOG_ERROR("Unknown flash2 device id = 0x%06" PRIx32, id2);
 		return ERROR_FAIL;
 	}
 
-	dual = (stmqspi_info->dual_mask & (1<<QSPI_DUAL_FLASH)) ? 1 : 0;
-
 	/* Set correct size value */
+	dual = (stmqspi_info->dual_mask & (1<<QSPI_DUAL_FLASH)) ? 1 : 0;
 	bank->size = stmqspi_info->dev->size_in_bytes << dual;
+
+	fsize = (QSPI_READ_REG(QSPI_DCR)>>QSPI_FSIZE0) & ((1<<QSPI_FSIZE_LEN) - 1);
+	LOG_DEBUG("FSIZE = 0x%04x", fsize);
+	if (bank->size != (1U<<(fsize + 1))) {
+		LOG_ERROR("FSIZE field in QSPI_DCR doesn't match actual capacity. Initialzation error?");
+		return ERROR_FAIL;
+	}
 
 	/* create and fill sectors array */
 	bank->num_sectors =
@@ -942,7 +913,7 @@ static int stmqspi_probe(struct flash_bank *bank)
 		sectors[sector].offset = sector * (stmqspi_info->dev->sectorsize << dual);
 		sectors[sector].size = (stmqspi_info->dev->sectorsize << dual);
 		sectors[sector].is_erased = -1;
-		sectors[sector].is_protected = 1;
+		sectors[sector].is_protected = 0;
 	}
 
 	bank->sectors = sectors;
@@ -954,6 +925,7 @@ static int stmqspi_probe(struct flash_bank *bank)
 static int stmqspi_auto_probe(struct flash_bank *bank)
 {
 	struct stmqspi_flash_bank *stmqspi_info = bank->driver_priv;
+
 	if (stmqspi_info->probed)
 		return ERROR_OK;
 	return stmqspi_probe(bank);
@@ -975,9 +947,8 @@ static int get_stmqspi_info(struct flash_bank *bank, char *buf, int buf_size)
 		return ERROR_OK;
 	}
 
-	snprintf(buf, buf_size, "\nQSPI flash information:"
-		" Device \'%s\' (ID 0x%06" PRIx32 ")\n",
-		stmqspi_info->dev->name, stmqspi_info->dev->device_id);
+	snprintf(buf, buf_size, "\'%s\' %dkbytes id = 0x%06" PRIx32,
+		stmqspi_info->dev->name, bank->size>>10, stmqspi_info->dev->device_id);
 
 	return ERROR_OK;
 }
@@ -1017,5 +988,4 @@ struct flash_driver stmqspi_flash = {
 	.erase_check = default_flash_blank_check,
 	.protect_check = stmqspi_protect_check,
 	.info = get_stmqspi_info,
-	.usage = "",
 };
