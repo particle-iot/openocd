@@ -100,7 +100,9 @@
 #define SIM_SOPT1	0x40047000
 #define SIM_FCFG1	0x4004804c
 #define SIM_FCFG2	0x40048050
+#define SIM_COPC	0x40048100
 #define WDOG_STCTRH	0x40052000
+#define WDOG32_KE1X	0x40052000
 #define SMC_PMCTRL	0x4007E001
 #define SMC_PMSTAT	0x4007E003
 #define MCM_PLACR	0xF000300C
@@ -269,12 +271,24 @@ struct kinetis_chip {
 		FS_PROGRAM_SECTOR = 1,
 		FS_PROGRAM_LONGWORD = 2,
 		FS_PROGRAM_PHRASE = 4,		/* Unsupported */
-		FS_INVALIDATE_CACHE_K = 8,	/* using FMC->PFB0CR/PFB01CR */
-		FS_INVALIDATE_CACHE_L = 0x10,	/* using MCM->PLACR */
-		FS_INVALIDATE_CACHE_MSCM = 0x20,
+
 		FS_NO_CMD_BLOCKSTAT = 0x40,
 		FS_WIDTH_256BIT = 0x80,
 	} flash_support;
+
+	enum {
+		KINETIS_CACHE_NONE,
+		KINETIS_CACHE_K,	/* invalidate using FMC->PFB0CR/PFB01CR */
+		KINETIS_CACHE_L,	/* invalidate using MCM->PLACR */
+		KINETIS_CACHE_MSCM,	/* devices like KE1xF, invalidate MSCM->OCMDR0 */
+	} cache_type;
+
+	enum {
+		KINETIS_WDOG_NONE,
+		KINETIS_WDOG_K,
+		KINETIS_WDOG_COP,
+		KINETIS_WDOG32_KE1X,
+	} watchdog_type;
 
 	char name[40];
 
@@ -361,6 +375,7 @@ static bool create_banks;
 struct flash_driver kinetis_flash;
 static int kinetis_write_inner(struct flash_bank *bank, const uint8_t *buffer,
 			uint32_t offset, uint32_t count);
+static int kinetis_probe_chip(struct kinetis_chip *k_chip);
 static int kinetis_auto_probe(struct flash_bank *bank);
 
 
@@ -934,8 +949,11 @@ static int kinetis_create_missing_banks(struct kinetis_chip *k_chip)
 }
 
 
-/* Disable the watchdog on Kinetis devices */
-int kinetis_disable_wdog(struct target *target, uint32_t sim_sdid)
+/* Disable the watchdog on Kinetis devices
+ * Standard Kx WDOG peripheral checks timing and therefore requires to run algo.
+ * Other types can be disabled safely only immediately after reset.
+ */
+static int kinetis_disable_wdog_kx(struct target *target)
 {
 	struct working_area *wdog_algorithm;
 	struct armv7m_algorithm armv7m_info;
@@ -946,13 +964,6 @@ int kinetis_disable_wdog(struct target *target, uint32_t sim_sdid)
 #include "../../../contrib/loaders/watchdog/armv7m_kinetis_wdog.inc"
 	};
 
-	/* Decide whether the connected device needs watchdog disabling.
-	 * Disable for all Kx and KVx devices, return if it is a KLx */
-
-	if ((sim_sdid & KINETIS_SDID_SERIESID_MASK) == KINETIS_SDID_SERIESID_KL)
-		return ERROR_OK;
-
-	/* The connected device requires watchdog disabling. */
 	retval = target_read_u16(target, WDOG_STCTRH, &wdog);
 	if (retval != ERROR_OK)
 		return retval;
@@ -961,7 +972,7 @@ int kinetis_disable_wdog(struct target *target, uint32_t sim_sdid)
 		/* watchdog already disabled */
 		return ERROR_OK;
 	}
-	LOG_INFO("Disabling Kinetis watchdog (initial WDOG_STCTRLH = 0x%x)", wdog);
+	LOG_INFO("Disabling Kinetis watchdog (initial WDOG_STCTRLH = 0x%04" PRIx16 ")", wdog);
 
 	if (target->state != TARGET_HALTED) {
 		LOG_ERROR("Target not halted");
@@ -992,29 +1003,111 @@ int kinetis_disable_wdog(struct target *target, uint32_t sim_sdid)
 	retval = target_read_u16(target, WDOG_STCTRH, &wdog);
 	if (retval != ERROR_OK)
 		return retval;
-	LOG_INFO("WDOG_STCTRLH = 0x%x", wdog);
+	LOG_INFO("WDOG_STCTRLH = 0x%04" PRIx16, wdog);
 
 	target_free_working_area(target, wdog_algorithm);
 
 	return retval;
 }
 
+static int kinetis_disable_wdog32(struct target *target, uint32_t wdog_base)
+{
+	uint32_t wdog_cs;
+	int retval;
+
+	retval = target_read_u32(target, wdog_base, &wdog_cs);
+	if (retval != ERROR_OK)
+		return retval;
+
+	if ((wdog_cs & 0x80) == 0)
+		return ERROR_OK; /* watchdog already disabled */
+
+	if ((wdog_cs & 0x800) == 0) {
+		/* TODO: run algo to issue unlock sequence */
+		LOG_ERROR("Cannot disable Kinetis watchdog (initial WDOG_CS 0x%08" PRIx32 "), issue 'reset init'", wdog_cs);
+		return ERROR_FAIL;
+	}
+
+	LOG_INFO("Disabling Kinetis watchdog (initial WDOG_CS 0x%08" PRIx32 ")", wdog_cs);
+	retval = target_write_u32(target, wdog_base, wdog_cs & ~0x80);
+	if (retval != ERROR_OK)
+		return retval;
+
+	retval = target_write_u32(target, wdog_base + 8, 0x400);
+	if (retval != ERROR_OK)
+		return retval;
+
+	retval = target_read_u32(target, wdog_base, &wdog_cs);
+	if (retval != ERROR_OK)
+		return retval;
+
+	if ((wdog_cs & 0x80) == 0)
+		return ERROR_OK; /* watchdog disabled successfully */
+
+	LOG_ERROR("Cannot disable Kinetis watchdog (WDOG_CS 0x%08" PRIx32 "), issue 'reset init'", wdog_cs);
+	return ERROR_FAIL;
+}
+
+static int kinetis_disable_wdog(struct kinetis_chip *k_chip)
+{
+	struct target *target = k_chip->target;
+	uint8_t sim_copc;
+	int retval;
+
+	if (!k_chip->probed) {
+		retval = kinetis_probe_chip(k_chip);
+		if (retval != ERROR_OK)
+			return retval;
+	}
+
+	switch (k_chip->watchdog_type) {
+	case KINETIS_WDOG_K:
+		return kinetis_disable_wdog_kx(target);
+
+	case KINETIS_WDOG_COP:
+		retval = target_read_u8(target, SIM_COPC, &sim_copc);
+		if (retval != ERROR_OK)
+			return retval;
+
+		if ((sim_copc & 0xc) == 0)
+			return ERROR_OK; /* watchdog already disabled */
+
+		LOG_INFO("Disabling Kinetis watchdog (initial SIM_COPC 0x%02" PRIx8 ")", sim_copc);
+		retval = target_write_u8(target, SIM_COPC, sim_copc & ~0xc);
+		if (retval != ERROR_OK)
+			return retval;
+
+		retval = target_read_u8(target, SIM_COPC, &sim_copc);
+		if (retval != ERROR_OK)
+			return retval;
+
+		if ((sim_copc & 0xc) == 0)
+			return ERROR_OK; /* watchdog disabled successfully */
+
+		LOG_ERROR("Cannot disable Kinetis watchdog (SIM_COPC 0x%02" PRIx8 "), issue 'reset init'", sim_copc);
+		return ERROR_FAIL;
+
+	case KINETIS_WDOG32_KE1X:
+		return kinetis_disable_wdog32(target, WDOG32_KE1X);
+
+	default:
+		return ERROR_OK;
+	}
+}
+
 COMMAND_HANDLER(kinetis_disable_wdog_handler)
 {
 	int result;
-	uint32_t sim_sdid;
 	struct target *target = get_current_target(CMD_CTX);
+	struct kinetis_chip *k_chip = kinetis_get_chip(target);
+
+	if (k_chip == NULL)
+		return ERROR_FAIL;
 
 	if (CMD_ARGC > 0)
 		return ERROR_COMMAND_SYNTAX_ERROR;
 
-	result = target_read_u32(target, SIM_SDID, &sim_sdid);
-	if (result != ERROR_OK) {
-		LOG_ERROR("Failed to read SIMSDID");
-		return result;
-	}
-
-	result = kinetis_disable_wdog(target, sim_sdid);
+	result = kinetis_disable_wdog(k_chip);
 	return result;
 }
 
@@ -1393,20 +1486,26 @@ static void kinetis_invalidate_flash_cache(struct kinetis_chip *k_chip)
 {
 	struct target *target = k_chip->target;
 
-	if (k_chip->flash_support & FS_INVALIDATE_CACHE_K)
+	switch (k_chip->cache_type) {
+	case KINETIS_CACHE_K:
 		target_write_u8(target, FMC_PFB01CR + 2, 0xf0);
 		/* Set CINV_WAY bits - request invalidate of all cache ways */
 		/* FMC_PFB0CR has same address and CINV_WAY bits as FMC_PFB01CR */
+		break;
 
-	else if (k_chip->flash_support & FS_INVALIDATE_CACHE_L)
+	case KINETIS_CACHE_L:
 		target_write_u8(target, MCM_PLACR + 1, 0x04);
 		/* set bit CFCC - Clear Flash Controller Cache */
+		break;
 
-	else if (k_chip->flash_support & FS_INVALIDATE_CACHE_MSCM)
+	case KINETIS_CACHE_MSCM:
 		target_write_u32(target, MSCM_OCMDR0, 0x30);
 		/* disable data prefetch and flash speculate */
+		break;
 
-	return;
+	default:
+		break;
+	}
 }
 
 
@@ -1640,7 +1739,7 @@ static int kinetis_write_inner(struct flash_bank *bank, const uint8_t *buffer,
 
 		uint32_t words_remaining = count / 4;
 
-		kinetis_disable_wdog(bank->target, k_chip->sim_sdid);
+		kinetis_disable_wdog(k_chip);
 
 		/* try using a block write */
 		result = kinetis_write_block(bank, buffer, offset, words_remaining);
@@ -1784,6 +1883,8 @@ static int kinetis_probe_chip(struct kinetis_chip *k_chip)
 	if ((k_chip->sim_sdid & (~KINETIS_SDID_K_SERIES_MASK)) == 0) {
 		/* older K-series MCU */
 		uint32_t mcu_type = k_chip->sim_sdid & KINETIS_K_SDID_TYPE_MASK;
+		k_chip->cache_type = KINETIS_CACHE_K;
+		k_chip->watchdog_type = KINETIS_WDOG_K;
 
 		switch (mcu_type) {
 		case KINETIS_K_SDID_K10_M50:
@@ -1792,7 +1893,7 @@ static int kinetis_probe_chip(struct kinetis_chip *k_chip)
 			k_chip->pflash_sector_size = 1<<10;
 			k_chip->nvm_sector_size = 1<<10;
 			num_blocks = 2;
-			k_chip->flash_support = FS_PROGRAM_LONGWORD | FS_PROGRAM_SECTOR | FS_INVALIDATE_CACHE_K;
+			k_chip->flash_support = FS_PROGRAM_LONGWORD | FS_PROGRAM_SECTOR;
 			break;
 		case KINETIS_K_SDID_K10_M72:
 		case KINETIS_K_SDID_K20_M72:
@@ -1805,7 +1906,7 @@ static int kinetis_probe_chip(struct kinetis_chip *k_chip)
 			k_chip->pflash_sector_size = 2<<10;
 			k_chip->nvm_sector_size = 1<<10;
 			num_blocks = 2;
-			k_chip->flash_support = FS_PROGRAM_LONGWORD | FS_PROGRAM_SECTOR | FS_INVALIDATE_CACHE_K;
+			k_chip->flash_support = FS_PROGRAM_LONGWORD | FS_PROGRAM_SECTOR;
 			k_chip->max_flash_prog_size = 1<<10;
 			break;
 		case KINETIS_K_SDID_K10_M100:
@@ -1821,7 +1922,7 @@ static int kinetis_probe_chip(struct kinetis_chip *k_chip)
 			k_chip->pflash_sector_size = 2<<10;
 			k_chip->nvm_sector_size = 2<<10;
 			num_blocks = 2;
-			k_chip->flash_support = FS_PROGRAM_LONGWORD | FS_PROGRAM_SECTOR | FS_INVALIDATE_CACHE_K;
+			k_chip->flash_support = FS_PROGRAM_LONGWORD | FS_PROGRAM_SECTOR;
 			break;
 		case KINETIS_K_SDID_K21_M120:
 		case KINETIS_K_SDID_K22_M120:
@@ -1830,7 +1931,7 @@ static int kinetis_probe_chip(struct kinetis_chip *k_chip)
 			k_chip->max_flash_prog_size = 1<<10;
 			k_chip->nvm_sector_size = 4<<10;
 			num_blocks = 2;
-			k_chip->flash_support = FS_PROGRAM_PHRASE | FS_PROGRAM_SECTOR | FS_INVALIDATE_CACHE_K;
+			k_chip->flash_support = FS_PROGRAM_PHRASE | FS_PROGRAM_SECTOR;
 			break;
 		case KINETIS_K_SDID_K10_M120:
 		case KINETIS_K_SDID_K20_M120:
@@ -1840,7 +1941,7 @@ static int kinetis_probe_chip(struct kinetis_chip *k_chip)
 			k_chip->pflash_sector_size = 4<<10;
 			k_chip->nvm_sector_size = 4<<10;
 			num_blocks = 4;
-			k_chip->flash_support = FS_PROGRAM_PHRASE | FS_PROGRAM_SECTOR | FS_INVALIDATE_CACHE_K;
+			k_chip->flash_support = FS_PROGRAM_PHRASE | FS_PROGRAM_SECTOR;
 			break;
 		default:
 			LOG_ERROR("Unsupported K-family FAMID");
@@ -1862,12 +1963,15 @@ static int kinetis_probe_chip(struct kinetis_chip *k_chip)
 		switch (k_chip->sim_sdid & KINETIS_SDID_SERIESID_MASK) {
 		case KINETIS_SDID_SERIESID_K:
 			use_nvm_marking = true;
+			k_chip->cache_type = KINETIS_CACHE_K;
+			k_chip->watchdog_type = KINETIS_WDOG_K;
+
 			switch (k_chip->sim_sdid & (KINETIS_SDID_FAMILYID_MASK | KINETIS_SDID_SUBFAMID_MASK)) {
 			case KINETIS_SDID_FAMILYID_K0X | KINETIS_SDID_SUBFAMID_KX2:
 				/* K02FN64, K02FN128: FTFA, 2kB sectors */
 				k_chip->pflash_sector_size = 2<<10;
 				num_blocks = 1;
-				k_chip->flash_support = FS_PROGRAM_LONGWORD | FS_INVALIDATE_CACHE_K;
+				k_chip->flash_support = FS_PROGRAM_LONGWORD;
 				cpu_mhz = 100;
 				break;
 
@@ -1883,7 +1987,7 @@ static int kinetis_probe_chip(struct kinetis_chip *k_chip)
 					/* MK24FN1M */
 					k_chip->pflash_sector_size = 4<<10;
 					num_blocks = 2;
-					k_chip->flash_support = FS_PROGRAM_PHRASE | FS_PROGRAM_SECTOR | FS_INVALIDATE_CACHE_K;
+					k_chip->flash_support = FS_PROGRAM_PHRASE | FS_PROGRAM_SECTOR;
 					k_chip->max_flash_prog_size = 1<<10;
 					subfamid = 4; /* errata 1N83J fix */
 					break;
@@ -1894,7 +1998,7 @@ static int kinetis_probe_chip(struct kinetis_chip *k_chip)
 					/* K22 with new-style SDID - smaller pflash with FTFA, 2kB sectors */
 					k_chip->pflash_sector_size = 2<<10;
 					/* autodetect 1 or 2 blocks */
-					k_chip->flash_support = FS_PROGRAM_LONGWORD | FS_INVALIDATE_CACHE_K;
+					k_chip->flash_support = FS_PROGRAM_LONGWORD;
 					break;
 				}
 				LOG_ERROR("Unsupported Kinetis K22 DIEID");
@@ -1905,12 +2009,12 @@ static int kinetis_probe_chip(struct kinetis_chip *k_chip)
 				if ((k_chip->sim_sdid & (KINETIS_SDID_DIEID_MASK)) == KINETIS_SDID_DIEID_K24FN256) {
 					/* K24FN256 - smaller pflash with FTFA */
 					num_blocks = 1;
-					k_chip->flash_support = FS_PROGRAM_LONGWORD | FS_INVALIDATE_CACHE_K;
+					k_chip->flash_support = FS_PROGRAM_LONGWORD;
 					break;
 				}
 				/* K24FN1M without errata 7534 */
 				num_blocks = 2;
-				k_chip->flash_support = FS_PROGRAM_PHRASE | FS_PROGRAM_SECTOR | FS_INVALIDATE_CACHE_K;
+				k_chip->flash_support = FS_PROGRAM_PHRASE | FS_PROGRAM_SECTOR;
 				k_chip->max_flash_prog_size = 1<<10;
 				break;
 
@@ -1925,7 +2029,7 @@ static int kinetis_probe_chip(struct kinetis_chip *k_chip)
 				k_chip->nvm_sector_size = 4<<10;
 				k_chip->max_flash_prog_size = 1<<10;
 				num_blocks = 2;
-				k_chip->flash_support = FS_PROGRAM_PHRASE | FS_PROGRAM_SECTOR | FS_INVALIDATE_CACHE_K;
+				k_chip->flash_support = FS_PROGRAM_PHRASE | FS_PROGRAM_SECTOR;
 				break;
 
 			case KINETIS_SDID_FAMILYID_K2X | KINETIS_SDID_SUBFAMID_KX6:
@@ -1936,7 +2040,7 @@ static int kinetis_probe_chip(struct kinetis_chip *k_chip)
 				k_chip->nvm_sector_size = 4<<10;
 				k_chip->max_flash_prog_size = 1<<10;
 				num_blocks = 4;
-				k_chip->flash_support = FS_PROGRAM_PHRASE | FS_PROGRAM_SECTOR | FS_INVALIDATE_CACHE_K;
+				k_chip->flash_support = FS_PROGRAM_PHRASE | FS_PROGRAM_SECTOR;
 				cpu_mhz = 180;
 				break;
 
@@ -1946,7 +2050,7 @@ static int kinetis_probe_chip(struct kinetis_chip *k_chip)
 				/* K80FN256, K81FN256, K82FN256 */
 				k_chip->pflash_sector_size = 4<<10;
 				num_blocks = 1;
-				k_chip->flash_support = FS_PROGRAM_LONGWORD | FS_INVALIDATE_CACHE_K | FS_NO_CMD_BLOCKSTAT;
+				k_chip->flash_support = FS_PROGRAM_LONGWORD | FS_NO_CMD_BLOCKSTAT;
 				cpu_mhz = 150;
 				break;
 
@@ -1955,7 +2059,9 @@ static int kinetis_probe_chip(struct kinetis_chip *k_chip)
 				/* KL81Z128, KL82Z128 */
 				k_chip->pflash_sector_size = 2<<10;
 				num_blocks = 1;
-				k_chip->flash_support = FS_PROGRAM_LONGWORD | FS_INVALIDATE_CACHE_L | FS_NO_CMD_BLOCKSTAT;
+				k_chip->flash_support = FS_PROGRAM_LONGWORD | FS_NO_CMD_BLOCKSTAT;
+				k_chip->cache_type = KINETIS_CACHE_L;
+
 				use_nvm_marking = false;
 				snprintf(name, sizeof(name), "MKL8%uZ%%s7",
 					 subfamid);
@@ -1975,7 +2081,9 @@ static int kinetis_probe_chip(struct kinetis_chip *k_chip)
 			k_chip->pflash_sector_size = 1<<10;
 			k_chip->nvm_sector_size = 1<<10;
 			/* autodetect 1 or 2 blocks */
-			k_chip->flash_support = FS_PROGRAM_LONGWORD | FS_INVALIDATE_CACHE_L;
+			k_chip->flash_support = FS_PROGRAM_LONGWORD;
+			k_chip->cache_type = KINETIS_CACHE_L;
+			k_chip->watchdog_type = KINETIS_WDOG_COP;
 
 			cpu_mhz = 48;
 			if (subfamid == 3 && (familyid == 1 || familyid == 2))
@@ -1986,12 +2094,14 @@ static int kinetis_probe_chip(struct kinetis_chip *k_chip)
 
 		case KINETIS_SDID_SERIESID_KV:
 			/* KV-series */
+			k_chip->watchdog_type = KINETIS_WDOG_K;
 			switch (k_chip->sim_sdid & (KINETIS_SDID_FAMILYID_MASK | KINETIS_SDID_SUBFAMID_MASK)) {
 			case KINETIS_SDID_FAMILYID_K1X | KINETIS_SDID_SUBFAMID_KX0:
 				/* KV10: FTFA, 1kB sectors */
 				k_chip->pflash_sector_size = 1<<10;
 				num_blocks = 1;
-				k_chip->flash_support = FS_PROGRAM_LONGWORD | FS_INVALIDATE_CACHE_L;
+				k_chip->flash_support = FS_PROGRAM_LONGWORD;
+				k_chip->cache_type = KINETIS_CACHE_L;
 				strcpy(name, "MKV10Z%s7");
 				break;
 
@@ -1999,7 +2109,8 @@ static int kinetis_probe_chip(struct kinetis_chip *k_chip)
 				/* KV11: FTFA, 2kB sectors */
 				k_chip->pflash_sector_size = 2<<10;
 				num_blocks = 1;
-				k_chip->flash_support = FS_PROGRAM_LONGWORD | FS_INVALIDATE_CACHE_L;
+				k_chip->flash_support = FS_PROGRAM_LONGWORD;
+				k_chip->cache_type = KINETIS_CACHE_L;
 				strcpy(name, "MKV11Z%s7");
 				break;
 
@@ -2009,7 +2120,8 @@ static int kinetis_probe_chip(struct kinetis_chip *k_chip)
 				/* KV31: FTFA, 2kB sectors, 2 blocks */
 				k_chip->pflash_sector_size = 2<<10;
 				/* autodetect 1 or 2 blocks */
-				k_chip->flash_support = FS_PROGRAM_LONGWORD | FS_INVALIDATE_CACHE_K;
+				k_chip->flash_support = FS_PROGRAM_LONGWORD;
+				k_chip->cache_type = KINETIS_CACHE_K;
 				break;
 
 			case KINETIS_SDID_FAMILYID_K4X | KINETIS_SDID_SUBFAMID_KX2:
@@ -2018,7 +2130,8 @@ static int kinetis_probe_chip(struct kinetis_chip *k_chip)
 				/* KV4x: FTFA, 4kB sectors */
 				k_chip->pflash_sector_size = 4<<10;
 				num_blocks = 1;
-				k_chip->flash_support = FS_PROGRAM_LONGWORD | FS_INVALIDATE_CACHE_K;
+				k_chip->flash_support = FS_PROGRAM_LONGWORD;
+				k_chip->cache_type = KINETIS_CACHE_K;
 				cpu_mhz = 168;
 				break;
 
@@ -2046,6 +2159,7 @@ static int kinetis_probe_chip(struct kinetis_chip *k_chip)
 
 		case KINETIS_SDID_SERIESID_KE:
 			/* KE1x-series */
+			k_chip->watchdog_type = KINETIS_WDOG32_KE1X;
 			switch (k_chip->sim_sdid &
 				(KINETIS_SDID_FAMILYID_MASK | KINETIS_SDID_SUBFAMID_MASK | KINETIS_SDID_PROJECTID_MASK)) {
 			case KINETIS_SDID_FAMILYID_K1X | KINETIS_SDID_SUBFAMID_KX4 | KINETIS_SDID_PROJECTID_KE1xZ:
@@ -2055,7 +2169,8 @@ static int kinetis_probe_chip(struct kinetis_chip *k_chip)
 				k_chip->nvm_sector_size = 2<<10;
 				k_chip->max_flash_prog_size = 1<<9;
 				num_blocks = 2;
-				k_chip->flash_support = FS_PROGRAM_PHRASE | FS_PROGRAM_SECTOR | FS_INVALIDATE_CACHE_L;
+				k_chip->flash_support = FS_PROGRAM_PHRASE | FS_PROGRAM_SECTOR;
+				k_chip->cache_type = KINETIS_CACHE_L;
 
 				cpu_mhz = 72;
 				snprintf(name, sizeof(name), "MKE%u%uZ%%s%u",
@@ -2070,7 +2185,8 @@ static int kinetis_probe_chip(struct kinetis_chip *k_chip)
 				k_chip->nvm_sector_size = 2<<10;
 				k_chip->max_flash_prog_size = 1<<10;
 				num_blocks = 2;
-				k_chip->flash_support = FS_PROGRAM_PHRASE | FS_PROGRAM_SECTOR | FS_INVALIDATE_CACHE_MSCM;
+				k_chip->flash_support = FS_PROGRAM_PHRASE | FS_PROGRAM_SECTOR;
+				k_chip->cache_type = KINETIS_CACHE_MSCM;
 
 				cpu_mhz = 168;
 				snprintf(name, sizeof(name), "MKE%u%uF%%s%u",
