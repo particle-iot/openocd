@@ -56,7 +56,7 @@ unsigned int dump_swit;
  * NOTE that this specific encoding could be space-optimized; and that
  * trace data streams could also be history-sensitive.
  */
-static void show_task(int port, unsigned data)
+static void show_task(unsigned port, unsigned data)
 {
 	unsigned code = data >> 16;
 	char buf[16];
@@ -242,8 +242,8 @@ static void show_hard(FILE *f, int c)
  * REVISIT there can be up to 256 trace ports, via "ITM Extension" packets
  */
 struct {
-	int port;
-	void (*show)(int port, unsigned data);
+	unsigned port;
+	void (*show)(unsigned port, unsigned data);
 } format[] = {
 	{ .port = 31,  .show = show_task, },
 };
