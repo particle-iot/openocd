@@ -290,7 +290,6 @@ static void show_timestamp(FILE *f, int c)
 {
 	unsigned counter = 0;
 	char *label = "";
-	bool delayed = false;
 
 	if (dump_swit)
 		return;
@@ -322,15 +321,12 @@ static void show_timestamp(FILE *f, int c)
 		break;
 	case 0xd:
 		label = ", timestamp delayed";
-		delayed = true;
 		break;
 	case 0xe:
 		label = ", packet delayed";
-		delayed = true;
 		break;
 	case 0xf:
 		label = ", packet and timetamp delayed";
-		delayed = true;
 		break;
 	}
 
@@ -399,7 +395,6 @@ int main(int argc, char **argv)
 	/* Parse data ... records have a header then data bytes.
 	 * NOTE: we assume getc() deals in 8-bit bytes.
 	 */
-	bool overflow = false;
 
 	while ((c = getc(f)) != EOF) {
 
@@ -429,11 +424,9 @@ bad_sync:
 			/* REVISIT later, report just what overflowed!
 			 * Timestamp and SWIT can happen.  Non-ITM too?
 			 */
-			overflow = true;
 			printf("OVERFLOW ...\n");
 			continue;
 		}
-		overflow = false;
 
 		switch (c & 0x0f) {
 		case 0x00:		/* Timestamp */
