@@ -108,7 +108,7 @@ static void show_reserved(FILE *f, char *label, int c)
 	printf("\n");
 }
 
-static bool read_varlen(FILE *f, int c, unsigned *value)
+static unsigned read_varlen(FILE *f, int c, unsigned *value)
 {
 	unsigned size;
 	unsigned char buf[4];
@@ -127,7 +127,7 @@ static bool read_varlen(FILE *f, int c, unsigned *value)
 		break;
 	default:
 		printf("INVALID SIZE\n");
-		return false;
+		return 0;
 	}
 
 	memset(buf, 0, sizeof buf);
@@ -138,11 +138,11 @@ static bool read_varlen(FILE *f, int c, unsigned *value)
 		+ (buf[2] << 16)
 		+ (buf[1] << 8)
 		+ (buf[0] << 0);
-	return true;
+	return size;
 
 err:
 	printf("(ERROR %d - %s)\n", errno, strerror(errno));
-	return false;
+	return 0;
 }
 
 static void show_hard(FILE *f, int c)
@@ -254,9 +254,12 @@ static void show_swit(FILE *f, int c)
 	unsigned i;
 
 	if (port + 1 == dump_swit) {
-		if (!read_varlen(f, c, &value))
-			return;
-		printf("%c", value);
+		unsigned size = read_varlen(f, c, &value);
+
+		for (i = 0; i < size; ++i) {
+			printf("%c", value);
+			value >>= 8;
+		}
 		return;
 	}
 
