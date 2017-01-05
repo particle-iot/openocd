@@ -40,6 +40,7 @@
 #include <errno.h>
 #include <libgen.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
 #include <unistd.h>
@@ -55,7 +56,7 @@ unsigned int dump_swit;
  * NOTE that this specific encoding could be space-optimized; and that
  * trace data streams could also be history-sensitive.
  */
-static void show_task(int port, unsigned data)
+static void show_task(unsigned port, unsigned data)
 {
 	unsigned code = data >> 16;
 	char buf[16];
@@ -108,7 +109,7 @@ static void show_reserved(FILE *f, char *label, int c)
 	printf("\n");
 }
 
-static bool read_varlen(FILE *f, int c, unsigned *value)
+static unsigned read_varlen(FILE *f, int c, unsigned *value)
 {
 	unsigned size;
 	unsigned char buf[4];
@@ -127,7 +128,7 @@ static bool read_varlen(FILE *f, int c, unsigned *value)
 		break;
 	default:
 		printf("INVALID SIZE\n");
-		return false;
+		return 0;
 	}
 
 	memset(buf, 0, sizeof buf);
@@ -138,11 +139,11 @@ static bool read_varlen(FILE *f, int c, unsigned *value)
 		+ (buf[2] << 16)
 		+ (buf[1] << 8)
 		+ (buf[0] << 0);
-	return true;
+	return size;
 
 err:
 	printf("(ERROR %d - %s)\n", errno, strerror(errno));
-	return false;
+	return 0;
 }
 
 static void show_hard(FILE *f, int c)
@@ -241,8 +242,8 @@ static void show_hard(FILE *f, int c)
  * REVISIT there can be up to 256 trace ports, via "ITM Extension" packets
  */
 struct {
-	int port;
-	void (*show)(int port, unsigned data);
+	unsigned port;
+	void (*show)(unsigned port, unsigned data);
 } format[] = {
 	{ .port = 31,  .show = show_task, },
 };
@@ -254,9 +255,12 @@ static void show_swit(FILE *f, int c)
 	unsigned i;
 
 	if (port + 1 == dump_swit) {
-		if (!read_varlen(f, c, &value))
-			return;
-		printf("%c", value);
+		unsigned size = read_varlen(f, c, &value);
+
+		for (i = 0; i < size; ++i) {
+			printf("%c", value);
+			value >>= 8;
+		}
 		return;
 	}
 
@@ -286,7 +290,6 @@ static void show_timestamp(FILE *f, int c)
 {
 	unsigned counter = 0;
 	char *label = "";
-	bool delayed = false;
 
 	if (dump_swit)
 		return;
@@ -318,15 +321,12 @@ static void show_timestamp(FILE *f, int c)
 		break;
 	case 0xd:
 		label = ", timestamp delayed";
-		delayed = true;
 		break;
 	case 0xe:
 		label = ", packet delayed";
-		delayed = true;
 		break;
 	case 0xf:
 		label = ", packet and timetamp delayed";
-		delayed = true;
 		break;
 	}
 
@@ -395,7 +395,6 @@ int main(int argc, char **argv)
 	/* Parse data ... records have a header then data bytes.
 	 * NOTE: we assume getc() deals in 8-bit bytes.
 	 */
-	bool overflow = false;
 
 	while ((c = getc(f)) != EOF) {
 
@@ -425,11 +424,9 @@ bad_sync:
 			/* REVISIT later, report just what overflowed!
 			 * Timestamp and SWIT can happen.  Non-ITM too?
 			 */
-			overflow = true;
 			printf("OVERFLOW ...\n");
 			continue;
 		}
-		overflow = false;
 
 		switch (c & 0x0f) {
 		case 0x00:		/* Timestamp */
