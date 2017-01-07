@@ -591,7 +591,7 @@ static int cortex_m_halt(struct target *target)
 		LOG_WARNING("target was in unknown state when halt was requested");
 
 	if (target->state == TARGET_RESET) {
-		if ((jtag_get_reset_config() & RESET_SRST_PULLS_TRST) && jtag_get_srst()) {
+		if ((jtag_get_reset_config() & RESET_SRST_PULLS_TRST) && jtag_get_srst() == 1) {
 			LOG_ERROR("can't request a halt while in reset if nSRST pulls nTRST");
 			return ERROR_TARGET_FAILURE;
 		} else {
