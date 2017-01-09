@@ -407,6 +407,9 @@ static int cmsis_dap_cmd_DAP_SWJ_Clock(uint32_t swj_clock)
 	int retval;
 	uint8_t *buffer = cmsis_dap_handle->packet_buffer;
 
+	if (swj_clock == 0)
+		return ERROR_OK;	/* use adapter default / last set clock */
+
 	/* set clock in Hz */
 	swj_clock *= 1000;
 	buffer[0] = 0;	/* report number */
@@ -1499,15 +1502,11 @@ static int cmsis_dap_execute_queue(void)
 
 static int cmsis_dap_speed(int speed)
 {
-	if (speed > DAP_MAX_CLOCK) {
-		LOG_INFO("reduce speed request: %dkHz to %dkHz maximum", speed, DAP_MAX_CLOCK);
-		speed = DAP_MAX_CLOCK;
-	}
+	if (speed > DAP_MAX_CLOCK)
+		LOG_INFO("High speed (adapter_khz %d) may be limited by adapter firmware.", speed);
 
-	if (speed == 0) {
-		LOG_INFO("RTCK not supported");
-		return ERROR_JTAG_NOT_IMPLEMENTED;
-	}
+	if (speed == 0)
+		LOG_WARNING("RTCK not supported. Set adapter_khz or adapter uses its default.");
 
 	return cmsis_dap_cmd_DAP_SWJ_Clock(speed);
 }
