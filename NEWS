@@ -3,7 +3,7 @@ source archive release.
 
 JTAG Layer:
 	* New driver for J-Link adapters based on libjaylink
-          (including support for FPGA configuration and EMUCOM)
+          (including support for FPGA configuration, SWO and EMUCOM)
 	* FTDI improvements to work at 30MHz clock
 	* BCM2835 native driver SWD and Raspberry Pi2 support
 	* BCM2835 is set to 4ma drive, slow slew rate
