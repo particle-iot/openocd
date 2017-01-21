@@ -18,6 +18,7 @@ noinst_LTLIBRARIES += %D%/libtarget.la
 	$(ARM_MISC_SRC) \
 	$(AVR32_SRC) \
 	$(MIPS32_SRC) \
+	$(STM8_SRC) \
 	$(NDS32_SRC) \
 	$(INTEL_IA32_SRC) \
 	%D%/avrt.c \
@@ -99,6 +100,9 @@ MIPS32_SRC = \
 	%D%/mips32_pracc.c \
 	%D%/mips32_dmaacc.c \
 	%D%/mips_ejtag.c
+
+STM8_SRC = \
+	%D%/stm8.c
 
 NDS32_SRC = \
 	%D%/nds32.c \
