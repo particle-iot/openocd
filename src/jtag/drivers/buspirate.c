@@ -1367,7 +1367,7 @@ static uint8_t buspirate_swd_write_header(uint8_t cmd)
 	buspirate_serial_read(buspirate_fd, tmp, 2); /* drop pirate command ret vals */
 	buspirate_serial_read(buspirate_fd, tmp, to_send - 2); /* ack bits */
 
-	return (tmp[2] << 2 | tmp[1] << 1 | tmp[0]);
+	return tmp[2] << 2 | tmp[1] << 1 | tmp[0];
 }
 
 static void buspirate_swd_idle_clocks(uint32_t no_bits)
@@ -1381,7 +1381,8 @@ static void buspirate_swd_idle_clocks(uint32_t no_bits)
 	/* unfortunately bus pirate misbehaves when clocks are sent in parts
 	 * so we need to limit at 128 clock cycles
 	 */
-	if (no_bytes > 16) no_bytes = 16;
+	if (no_bytes > 16)
+		no_bytes = 16;
 
 	while (no_bytes) {
 		uint8_t to_send = no_bytes > 16 ? 16 : no_bytes;
