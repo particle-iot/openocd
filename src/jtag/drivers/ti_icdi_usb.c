@@ -688,14 +688,14 @@ static int icdi_usb_open(struct hl_interface_param_s *param, void **fd)
 	}
 
 	LOG_DEBUG("transport: %d vid: 0x%04x pid: 0x%04x", param->transport,
-		param->vid, param->pid);
+		  param->vid[0], param->pid[0]);
 
 	if (libusb_init(&h->usb_ctx) != 0) {
 		LOG_ERROR("libusb init failed");
 		goto error_open;
 	}
 
-	h->usb_dev = libusb_open_device_with_vid_pid(h->usb_ctx, param->vid, param->pid);
+	h->usb_dev = libusb_open_device_with_vid_pid(h->usb_ctx, param->vid[0], param->pid[0]);
 	if (!h->usb_dev) {
 		LOG_ERROR("open failed");
 		goto error_open;
