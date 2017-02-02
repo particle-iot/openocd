@@ -559,8 +559,8 @@ int server_preinit(void)
 	SetConsoleCtrlHandler(ControlHandler, TRUE);
 
 	signal(SIGBREAK, sig_handler);
-#endif
 	signal(SIGINT, sig_handler);
+#endif
 	signal(SIGTERM, sig_handler);
 	signal(SIGABRT, sig_handler);
 
