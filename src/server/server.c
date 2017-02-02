@@ -2,7 +2,7 @@
  *   Copyright (C) 2005 by Dominic Rath                                    *
  *   Dominic.Rath@gmx.de                                                   *
  *                                                                         *
- *   Copyright (C) 2007-2010 Øyvind Harboe                                 *
+ *   Copyright (C) 2007-2010 Øyvind Harboe                                *
  *   oyvind.harboe@zylin.com                                               *
  *                                                                         *
  *   Copyright (C) 2008 by Spencer Oliver                                  *
@@ -522,21 +522,36 @@ int server_loop(struct command_context *command_context)
 	return shutdown_openocd != 2 ? ERROR_OK : ERROR_FAIL;
 }
 
+void sig_handler(int sig)
+{
+	/* store only first signal that hits us */
+	if (!shutdown_openocd) {
+		last_signal = sig;
+        shutdown_openocd = 1;
+        LOG_DEBUG("Terminating on Signal %d", sig);
+    } else
+    	LOG_DEBUG("Ignored extra Signal %d", sig);
+}
+
+
 #ifdef _WIN32
 BOOL WINAPI ControlHandler(DWORD dwCtrlType)
 {
 	shutdown_openocd = 1;
 	return TRUE;
 }
+#else
+static void sigkey_handler(int sig)
+{
+    /* ignore keystroke generated signals if not in foreground process group */
+
+	if (tcgetpgrp(STDIN_FILENO)>0)
+    	sig_handler(sig);
+    else
+    	LOG_DEBUG("Ignored Signal %d", sig);
+}
 #endif
 
-void sig_handler(int sig)
-{
-	/* store only first signal that hits us */
-	if (!last_signal)
-		last_signal = sig;
-	shutdown_openocd = 1;
-}
 
 int server_preinit(void)
 {
@@ -559,8 +574,12 @@ int server_preinit(void)
 	SetConsoleCtrlHandler(ControlHandler, TRUE);
 
 	signal(SIGBREAK, sig_handler);
+#else
+	signal(SIGHUP, sig_handler);
+	signal(SIGPIPE, sig_handler);
+    signal(SIGQUIT, sigkey_handler);
 #endif
-	signal(SIGINT, sig_handler);
+	signal(SIGINT, sigkey_handler);
 	signal(SIGTERM, sig_handler);
 	signal(SIGABRT, sig_handler);
 
