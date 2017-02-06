@@ -40,7 +40,14 @@ struct debug_msg_receiver {
 	struct debug_msg_receiver *next;
 };
 
+/*
+  if target==NULL,
+    returns the number of additional words required to fulfill the request
+  used by some adapters to avoid blocking
+*/
 int target_request(struct target *target, uint32_t request);
+
+
 int delete_debug_msg_receiver(struct command_context *cmd_ctx,
 		struct target *target);
 int target_request_register_commands(struct command_context *cmd_ctx);
