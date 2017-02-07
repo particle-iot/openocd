@@ -876,6 +876,12 @@ static int stm32x_probe(struct flash_bank *bank)
 		max_flash_size_in_kb = 128;
 		break;
 
+	case 0x463: /* F413/423 */
+		max_flash_size_in_kb = 1536;
+		stm32x_info->has_extra_options = true;
+		/* TODO: implement 15 bit protection */
+		break;
+
 	case 0x449:	/* F74x/75x */
 		max_flash_size_in_kb = 1024;
 		max_sector_size_in_kb = 256;
@@ -957,6 +963,12 @@ static int stm32x_probe(struct flash_bank *bank)
 			max_sector_size_in_kb >>= 1; /* sector size divided by 2 in dual-bank mode */
 			LOG_INFO("Dual Bank %d kiB STM32F76x/77x found", flash_size_in_kb);
 		}
+	}
+
+	/* F413/423 have no dual bank */
+	if ((device_id & 0xfff) == 0x463) {
+		stm32x_info->has_large_mem = false;
+		LOG_INFO("Single Bank %d kiB STM32F41x/42x found", flash_size_in_kb);
 	}
 
 	/* calculate numbers of pages */
@@ -1126,6 +1138,16 @@ static int get_stm32x_info(struct flash_bank *bank, char *buf, int buf_size)
 
 	case 0x451:
 		device_str = "STM32F7[6|7]x";
+
+		switch (rev_id) {
+		case 0x1000:
+			rev_str = "A";
+			break;
+		}
+		break;
+
+	case 0x463:
+		device_str = "STM32F4[1|2]3x";
 
 		switch (rev_id) {
 		case 0x1000:
