@@ -108,6 +108,9 @@ extern struct jtag_interface hl_interface;
 #if BUILD_OSBDM == 1
 extern struct jtag_interface osbdm_interface;
 #endif
+#if BUILD_PEMU == 1
+extern struct jtag_interface pemu_interface;
+#endif
 #if BUILD_OPENDOUS == 1
 extern struct jtag_interface opendous_interface;
 #endif
@@ -200,6 +203,9 @@ struct jtag_interface *jtag_interfaces[] = {
 #endif
 #if BUILD_OSBDM == 1
 		&osbdm_interface,
+#endif
+#if BUILD_PEMU == 1
+		&pemu_interface,
 #endif
 #if BUILD_OPENDOUS == 1
 		&opendous_interface,
