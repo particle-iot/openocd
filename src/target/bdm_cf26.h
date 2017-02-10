@@ -19,8 +19,8 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef __BDM_CF26_H__
-#define __BDM_CF26_H__
+#ifndef OPENOCD_TARGET_BDM_CF26_H
+#define OPENOCD_TARGET_BDM_CF26_H
 
 
 enum pemu_commands {
@@ -356,4 +356,4 @@ struct bdm_cf26_driver {
 	int (*get_all_cpu_regs)(const struct bdm_cf26_driver *, uint8_t **);
 };
 
-#endif
+#endif /* OPENOCD_TARGET_BDM_CF26_H */

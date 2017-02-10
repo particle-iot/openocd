@@ -19,8 +19,8 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef __MCF5441X_H__
-#define __MCF5441X_H__
+#ifndef OPENOCD_TARGET_MCF5441X_H
+#define OPENOCD_TARGET_MCF5441X_H
 
 /**
  * Represents a coldfire v4 core
@@ -95,4 +95,4 @@ static int mcf5441x_set_breakpoint(struct target *target,
 static int mcf5441x_unset_breakpoint(struct target *target,
 				 struct breakpoint *breakpoint);
 
-#endif
+#endif /* OPENOCD_TARGET_MCF5441X_H */

@@ -73,28 +73,7 @@ enum {
 	CMD_PEMU_GET_VERSION_STR = 0x0b,
 };
 
-struct pemu_hdr {
-	uint16_t pkt_type;
-	uint16_t len;
-} __attribute__ ((packed));
-
-struct pemu_pkt {
-	struct pemu_hdr hdr;
-	uint8_t cmd_type;
-	uint8_t cmd_pemu;
-	uint8_t payload[PEMU_MAX_PKT_SIZE - (sizeof(struct pemu_hdr) + 1)];
-};
-
-struct pemu_pkt_wmem {
-	struct pemu_hdr hdr;
-	uint8_t cmd_type;
-	uint8_t cmd_pemu;
-	uint16_t dlen;
-	uint32_t address;
-};
-
 struct pemu {
-	/* this driver struct must be the first struct field */
 	struct bdm_cf26_driver bdm_cf26;
 	/* usb handle */
 	struct jtag_libusb_device_handle *devh;
@@ -107,7 +86,7 @@ struct pemu {
 	unsigned int endpoint_out;
 };
 
-#define OFFS_BDM_BUFF	sizeof(struct pemu_hdr) + 1
+#define OFFS_BDM_BUFF	5
 
 /* pemu instance */
 static struct pemu pemu_context;
@@ -117,10 +96,10 @@ extern struct jtag_interface pemu_interface;
 static int_least32_t pemu_read_pc(const struct bdm_cf26_driver *bdm);
 static int pemu_write_pc(const struct bdm_cf26_driver *bdm, uint32_t value);
 
-static int get_version_field(char *buff, int pos, char *res)
+static int get_version_field(uint8_t *buff, int pos, char *res)
 {
 	int p = 0;
-	char *c = buff, *q;
+	char *c = (char*)buff, *q;
 
 	for (pos--; p < pos; p++) {
 		c = strchr(c, ',');
@@ -162,7 +141,6 @@ static int pemu_send_and_recv(struct pemu *pemu)
 	return ERROR_OK;
 }
 
-
 static int pemu_open(struct pemu *pemu)
 {
 	(void)memset(pemu, 0, sizeof(*pemu));
@@ -190,13 +168,9 @@ static inline uint8_t * pemu_get_bdm_buff(struct pemu *bdev)
 
 static int pemu_send_generic(struct pemu *bdev, uint8_t cmd_type, uint16_t len)
 {
-	struct pemu_pkt *pb = (struct pemu_pkt *)bdev->buffer;
-
-	h_u16_to_be((uint8_t *)&pb->hdr.pkt_type, PEMU_PT_CMD);
-	h_u16_to_be((uint8_t *)&pb->hdr.len, len + 1);
-
-	pb->cmd_type = cmd_type;
-
+	h_u16_to_be(&bdev->buffer[0], PEMU_PT_CMD);
+	h_u16_to_be(&bdev->buffer[2], len + 1);
+	bdev->buffer[4] = cmd_type;
 	bdev->count = PEMU_STD_PKT_SIZE;
 
 	if (pemu_send_and_recv(bdev) != ERROR_OK)
@@ -207,7 +181,7 @@ static int pemu_send_generic(struct pemu *bdev, uint8_t cmd_type, uint16_t len)
 
 static int pemu_assert_reset(const struct bdm_cf26_driver *bdm)
 {
-	struct pemu *bdev = (struct pemu *)bdm;
+	struct pemu *bdev = container_of(bdm, struct pemu, bdm_cf26);
 	uint8_t *buff = pemu_get_bdm_buff(bdev);
 
 	buff[0] = CMD_PEMU_RESET;
@@ -218,7 +192,7 @@ static int pemu_assert_reset(const struct bdm_cf26_driver *bdm)
 
 static int pemu_deassert_reset(const struct bdm_cf26_driver *bdm)
 {
-	struct pemu *bdev = (struct pemu *)bdm;
+	struct pemu *bdev = container_of(bdm, struct pemu, bdm_cf26);
 	uint8_t *buff = pemu_get_bdm_buff(bdev);
 
 	buff[0] = CMD_PEMU_RESET;
@@ -229,7 +203,7 @@ static int pemu_deassert_reset(const struct bdm_cf26_driver *bdm)
 
 static int pemu_halt(const struct bdm_cf26_driver *bdm)
 {
-	struct pemu *bdev = (struct pemu *)bdm;
+	struct pemu *bdev = container_of(bdm, struct pemu, bdm_cf26);
 	uint8_t *buff = pemu_get_bdm_buff(bdev);
 
 	buff[0] = CMD_PEMU_RESET;
@@ -240,45 +214,44 @@ static int pemu_halt(const struct bdm_cf26_driver *bdm)
 
 static int pemu_go(const struct bdm_cf26_driver *bdm)
 {
-	struct pemu *bdev = (struct pemu *)bdm;
+	struct pemu *bdev = container_of(bdm, struct pemu, bdm_cf26);
 	uint8_t *buff = pemu_get_bdm_buff(bdev);
 
 	buff[0] = CMD_PEMU_GO;
 	buff[1] =  0xfc;
-	h_u16_to_be((uint8_t *)&buff[2], CMD_BDM_GO);
+	h_u16_to_be(&buff[2], CMD_BDM_GO);
 
 	pemu_send_generic(bdev, CMD_TYPE_DATA, 4);
 
 	buff[0] = CMD_PEMU_BDM_REG_R;
-	h_u16_to_be((uint8_t *)&buff[1], CMD_BDM_READ_BDM_REG);
+	h_u16_to_be(&buff[1], CMD_BDM_READ_BDM_REG);
 
 	pemu_send_generic(bdev, CMD_TYPE_DATA, 3);
 
 	return ERROR_OK;
 }
 
-static int pemu_get_versions(struct pemu *pemu)
+static int pemu_get_versions(struct pemu *bdev)
 {
 	char version_fw[16];
-	struct pemu_pkt *pb = (struct pemu_pkt *)pemu_context.buffer;
 
-	h_u16_to_be((uint8_t *)&pb->hdr.pkt_type, PEMU_PT_GENERIC);
-	h_u16_to_be((uint8_t *)&pb->hdr.len, 2);
-	pb->cmd_type = CMD_TYPE_GENERIC;
-	pb->cmd_pemu = CMD_PEMU_GET_VERSION_STR;
+	h_u16_to_be(&bdev->buffer[0], PEMU_PT_GENERIC);
+	h_u16_to_be(&bdev->buffer[2], 2);
+	bdev->buffer[4] = CMD_TYPE_GENERIC;
+	bdev->buffer[5] = CMD_PEMU_GET_VERSION_STR;
 
-	pemu_context.count = PEMU_STD_PKT_SIZE;
+	bdev->count = PEMU_STD_PKT_SIZE;
 
-	if (pemu_send_and_recv(&pemu_context) != ERROR_OK)
+	if (pemu_send_and_recv(bdev) != ERROR_OK)
 		return ERROR_FAIL;
 
-	if (memcmp(pemu_context.buffer,
+	if (memcmp(bdev->buffer,
 		REP_VERSION_INFO, sizeof(REP_VERSION_INFO)) != 0) {
-		LOG_ERROR("PEMU communication error: can't get version info");
+		LOG_ERROR("PEMU communication error: can't get version msg");
 		return ERROR_FAIL;
 	}
 
-	if (get_version_field((char *)&pemu_context.buffer[PEMU_CMD_REPLY_LEN],
+	if (get_version_field(&bdev->buffer[PEMU_CMD_REPLY_LEN],
 		7, version_fw) != ERROR_OK) {
 		LOG_ERROR("PEMU communication error: can't get version info");
 		return ERROR_FAIL;
@@ -300,12 +273,12 @@ static int_least32_t pemu_read_scr_reg(const struct bdm_cf26_driver *bdm,
 				      uint16_t reg)
 {
 	uint32_t value;
-	struct pemu *bdev = (struct pemu *)bdm;
+	struct pemu *bdev = container_of(bdm, struct pemu, bdm_cf26);
 	uint8_t *buff = pemu_get_bdm_buff(bdev);
 
 	buff[0] = CMD_PEMU_BDM_MEM_R;
-	h_u16_to_be((uint8_t *)&buff[1], CMD_BDM_READ_SCM_REG);
-	h_u32_to_be((uint8_t *)&buff[3], reg);
+	h_u16_to_be(&buff[1], CMD_BDM_READ_SCM_REG);
+	h_u32_to_be(&buff[3], reg);
 
 	pemu_send_generic(bdev, CMD_TYPE_DATA, 7);
 
@@ -317,13 +290,13 @@ static int_least32_t pemu_read_scr_reg(const struct bdm_cf26_driver *bdm,
 static int pemu_write_scr_reg(const struct bdm_cf26_driver *bdm,
 				      uint16_t reg, uint32_t value)
 {
-	struct pemu *bdev = (struct pemu *)bdm;
+	struct pemu *bdev = container_of(bdm, struct pemu, bdm_cf26);
 	uint8_t *buff = pemu_get_bdm_buff(bdev);
 
 	buff[0] = CMD_PEMU_BDM_SCR_W;
-	h_u16_to_be((uint8_t *)&buff[1], CMD_BDM_WRITE_SCM_REG);
-	h_u32_to_be((uint8_t *)&buff[3], reg);
-	h_u32_to_be((uint8_t *)&buff[7], value);
+	h_u16_to_be(&buff[1], CMD_BDM_WRITE_SCM_REG);
+	h_u32_to_be(&buff[3], reg);
+	h_u32_to_be(&buff[7], value);
 
 	pemu_send_generic(bdev, CMD_TYPE_DATA, 11);
 
@@ -349,14 +322,14 @@ static int pemu_write_pc(const struct bdm_cf26_driver *bdm,
 static int pemu_read_all_cpu_regs(const struct bdm_cf26_driver *bdm,
 				  uint8_t **reg_buf)
 {
-	struct pemu *bdev = (struct pemu *)bdm;
-	struct pemu_pkt *pkt = (struct pemu_pkt *)bdev->buffer;
+	struct pemu *bdev = container_of(bdm, struct pemu, bdm_cf26);
+	uint8_t *buff = pemu_get_bdm_buff(bdev);
 
-	pkt->cmd_pemu = CMD_PEMU_GET_ALL_CPU_REGS;
+	buff[0] = CMD_PEMU_GET_ALL_CPU_REGS;
 
 	if (pemu_send_generic(bdev, CMD_TYPE_DATA, 1) == ERROR_OK) {
 
-		*reg_buf = &bdev->buffer[5];
+		*reg_buf = buff;
 
 		return ERROR_OK;
 	}
@@ -373,18 +346,15 @@ static int pemu_read_all_cpu_regs(const struct bdm_cf26_driver *bdm,
 static int_least32_t pemu_read_dm_reg(const struct bdm_cf26_driver *bdm,
 				      uint8_t reg)
 {
-	uint32_t value;
-	struct pemu *bdev = (struct pemu *)bdm;
+	struct pemu *bdev = container_of(bdm, struct pemu, bdm_cf26);
 	uint8_t *buff = pemu_get_bdm_buff(bdev);
 
 	buff[0] = CMD_PEMU_BDM_REG_R;
-	h_u16_to_be((uint8_t *)&buff[1], CMD_BDM_READ_BDM_REG | reg);
+	h_u16_to_be(&buff[1], CMD_BDM_READ_BDM_REG | reg);
 
 	pemu_send_generic(bdev, CMD_TYPE_DATA, 3);
 
-	value = be_to_h_u32(buff);
-
-	return value;
+	return be_to_h_u32(buff);
 }
 
 /**
@@ -396,18 +366,15 @@ static int_least32_t pemu_read_dm_reg(const struct bdm_cf26_driver *bdm,
 static int_least32_t pemu_read_ad_reg(const struct bdm_cf26_driver *bdm,
 				      uint8_t reg)
 {
-	uint32_t value;
-	struct pemu *bdev = (struct pemu *)bdm;
+	struct pemu *bdev = container_of(bdm, struct pemu, bdm_cf26);
 	uint8_t *buff = pemu_get_bdm_buff(bdev);
 
 	buff[0] = CMD_PEMU_BDM_REG_R;
-	h_u16_to_be((uint8_t *)&buff[1], CMD_BDM_READ_CPU_AD_REG | reg);
+	h_u16_to_be(&buff[1], CMD_BDM_READ_CPU_AD_REG | reg);
 
 	pemu_send_generic(bdev, CMD_TYPE_DATA, 3);
 
-	value = be_to_h_u32(buff);
-
-	return value;
+	return be_to_h_u32(buff);;
 }
 
 /**
@@ -420,12 +387,12 @@ static int_least8_t pemu_read_mem_byte(const struct bdm_cf26_driver *bdm,
 					uint32_t address)
 {
 	int value;
-	struct pemu *bdev = (struct pemu *)bdm;
+	struct pemu *bdev = container_of(bdm, struct pemu, bdm_cf26);
 	uint8_t *buff = pemu_get_bdm_buff(bdev);
 
 	buff[0] = CMD_PEMU_BDM_MEM_R;
-	h_u16_to_be((uint8_t *)&buff[1], CMD_BDM_READ_MEM_BYTE);
-	h_u32_to_be((uint8_t *)&buff[3], address);
+	h_u16_to_be(&buff[1], CMD_BDM_READ_MEM_BYTE);
+	h_u32_to_be(&buff[3], address);
 
 	pemu_send_generic(bdev, CMD_TYPE_DATA, 7);
 
@@ -447,12 +414,12 @@ static int_least16_t pemu_read_mem_word(const struct bdm_cf26_driver *bdm,
 					uint32_t address)
 {
 	int value;
-	struct pemu *bdev = (struct pemu *)bdm;
+	struct pemu *bdev = container_of(bdm, struct pemu, bdm_cf26);
 	uint8_t *buff = pemu_get_bdm_buff(bdev);
 
 	buff[0] = CMD_PEMU_BDM_MEM_R;
-	h_u16_to_be((uint8_t *)&buff[1], CMD_BDM_READ_MEM_WORD);
-	h_u32_to_be((uint8_t *)&buff[3], address);
+	h_u16_to_be(&buff[1], CMD_BDM_READ_MEM_WORD);
+	h_u32_to_be(&buff[3], address);
 
 	pemu_send_generic(bdev, CMD_TYPE_DATA, 7);
 
@@ -473,12 +440,12 @@ static int_least16_t pemu_read_mem_word(const struct bdm_cf26_driver *bdm,
 static int_least32_t pemu_read_mem_long(const struct bdm_cf26_driver *bdm,
 					uint32_t address)
 {
-	struct pemu *bdev = (struct pemu *)bdm;
+	struct pemu *bdev = container_of(bdm, struct pemu, bdm_cf26);
 	uint8_t *buff = pemu_get_bdm_buff(bdev);
 
 	buff[0] = CMD_PEMU_BDM_MEM_R;
-	h_u16_to_be((uint8_t *)&buff[1], CMD_BDM_READ_MEM_LONG);
-	h_u32_to_be((uint8_t *)&buff[3], address);
+	h_u16_to_be(&buff[1], CMD_BDM_READ_MEM_LONG);
+	h_u32_to_be(&buff[3], address);
 
 	pemu_send_generic(bdev, CMD_TYPE_DATA, 7);
 
@@ -494,12 +461,12 @@ static int_least32_t pemu_read_mem_long(const struct bdm_cf26_driver *bdm,
 static int pemu_write_dm_reg(const struct bdm_cf26_driver *bdm,
 					uint8_t reg, uint32_t value)
 {
-	struct pemu *bdev = (struct pemu *)bdm;
+	struct pemu *bdev = container_of(bdm, struct pemu, bdm_cf26);
 	uint8_t *buff = pemu_get_bdm_buff(bdev);
 
 	buff[0] = CMD_PEMU_BDM_REG_W;
-	h_u16_to_be((uint8_t *)&buff[1], CMD_BDM_WRITE_BDM_REG | reg);
-	h_u32_to_be((uint8_t *)&buff[3], value);
+	h_u16_to_be(&buff[1], CMD_BDM_WRITE_BDM_REG | reg);
+	h_u32_to_be(&buff[3], value);
 
 	pemu_send_generic(bdev, CMD_TYPE_DATA, 7);
 
@@ -515,12 +482,12 @@ static int pemu_write_dm_reg(const struct bdm_cf26_driver *bdm,
 static int pemu_write_ad_reg(const struct bdm_cf26_driver *bdm,
 					uint8_t reg, uint32_t value)
 {
-	struct pemu *bdev = (struct pemu *)bdm;
+	struct pemu *bdev = container_of(bdm, struct pemu, bdm_cf26);
 	uint8_t *buff = pemu_get_bdm_buff(bdev);
 
 	buff[0] = CMD_PEMU_BDM_REG_W;
-	h_u16_to_be((uint8_t *)&buff[1], CMD_BDM_WRITE_CPU_AD_REG | reg);
-	h_u32_to_be((uint8_t *)&buff[3], value);
+	h_u16_to_be(&buff[1], CMD_BDM_WRITE_CPU_AD_REG | reg);
+	h_u32_to_be(&buff[3], value);
 
 	pemu_send_generic(bdev, CMD_TYPE_DATA, 7);
 
@@ -536,16 +503,16 @@ static int pemu_write_ad_reg(const struct bdm_cf26_driver *bdm,
 static int pemu_write_mem_byte(const struct bdm_cf26_driver *bdm,
 					uint32_t address, uint8_t value)
 {
-	struct pemu *bdev = (struct pemu *)bdm;
+	struct pemu *bdev = container_of(bdm, struct pemu, bdm_cf26);
 	uint8_t *buff = pemu_get_bdm_buff(bdev);
 
 	buff[0] = CMD_PEMU_BDM_MEM_W;
-	h_u16_to_be((uint8_t *)&buff[1], CMD_BDM_WRITE_MEM_BYTE);
-	h_u32_to_be((uint8_t *)&buff[3], address);
+	h_u16_to_be(&buff[1], CMD_BDM_WRITE_MEM_BYTE);
+	h_u32_to_be(&buff[3], address);
 	/*
 	 * heh, pemu wants a 16 bit value here
 	 */
-	h_u16_to_be((uint8_t *)&buff[7], value);
+	h_u16_to_be(&buff[7], value);
 
 	pemu_send_generic(bdev, CMD_TYPE_DATA, 11);
 
@@ -562,16 +529,16 @@ static int pemu_write_mem_byte(const struct bdm_cf26_driver *bdm,
 static int pemu_write_mem_word(const struct bdm_cf26_driver *bdm,
 					uint32_t address, uint16_t value)
 {
-	struct pemu *bdev = (struct pemu *)bdm;
+	struct pemu *bdev = container_of(bdm, struct pemu, bdm_cf26);
 	uint8_t *buff = pemu_get_bdm_buff(bdev);
 
 	buff[0] = CMD_PEMU_BDM_MEM_W;
-	h_u16_to_be((uint8_t *)&buff[1], CMD_BDM_WRITE_MEM_WORD);
-	h_u32_to_be((uint8_t *)&buff[3], address);
+	h_u16_to_be(&buff[1], CMD_BDM_WRITE_MEM_WORD);
+	h_u32_to_be(&buff[3], address);
 	/*
 	 * heh, pemu wants a 16 bit value here
 	 */
-	h_u16_to_be((uint8_t *)&buff[7], value);
+	h_u16_to_be(&buff[7], value);
 
 	pemu_send_generic(bdev, CMD_TYPE_DATA, 11);
 
@@ -588,13 +555,13 @@ static int pemu_write_mem_word(const struct bdm_cf26_driver *bdm,
 static int pemu_write_mem_long(const struct bdm_cf26_driver *bdm,
 					uint32_t address, uint32_t value)
 {
-	struct pemu *bdev = (struct pemu *)bdm;
+	struct pemu *bdev = container_of(bdm, struct pemu, bdm_cf26);
 	uint8_t *buff = pemu_get_bdm_buff(bdev);
 
 	buff[0] = CMD_PEMU_BDM_MEM_W;
-	h_u16_to_be((uint8_t *)&buff[1], CMD_BDM_WRITE_MEM_LONG);
-	h_u32_to_be((uint8_t *)&buff[3], address);
-	h_u32_to_be((uint8_t *)&buff[7], value);
+	h_u16_to_be(&buff[1], CMD_BDM_WRITE_MEM_LONG);
+	h_u32_to_be(&buff[3], address);
+	h_u32_to_be(&buff[7], value);
 
 	pemu_send_generic(bdev, CMD_TYPE_DATA, 11);
 
@@ -641,8 +608,7 @@ int pemu_read_memory (const struct bdm_cf26_driver *bdm, uint32_t address,
 static void pemu_send_bigbuff(const struct bdm_cf26_driver *bdm, uint32_t address,
 		    uint32_t dlen, const uint8_t *buffer)
 {
-	struct pemu *bdev = (struct pemu *)bdm;
-	struct pemu_pkt_wmem *pkt = (struct pemu_pkt_wmem *)bdev->buffer;
+	struct pemu *bdev = container_of(bdm, struct pemu, bdm_cf26);
 	uint16_t to_send, remainder;
 
 	remainder = dlen % 4;
@@ -654,15 +620,14 @@ static void pemu_send_bigbuff(const struct bdm_cf26_driver *bdm, uint32_t addres
 			to_send = dlen - remainder;
 		}
 
-		h_u16_to_be((uint8_t *)&pkt->hdr.pkt_type, PEMU_PT_WBLOCK);
-		pkt->cmd_type = CMD_TYPE_DATA;
-		pkt->cmd_pemu = CMD_PEMU_W_MEM_BLOCK;
-		h_u16_to_be((uint8_t *)&pkt->hdr.len, to_send + 8);
-		h_u16_to_be((uint8_t *)&pkt->dlen, to_send);
-		h_u32_to_be((uint8_t *)&pkt->address, address);
+		h_u16_to_be(&bdev->buffer[0], PEMU_PT_WBLOCK);
+		bdev->buffer[4] = CMD_TYPE_DATA;
+		bdev->buffer[5] = CMD_PEMU_W_MEM_BLOCK;
+		h_u16_to_be(&bdev->buffer[2], to_send + 8);
+		h_u16_to_be(&bdev->buffer[6], to_send);
+		h_u32_to_be(&bdev->buffer[8], address);
 
-		memcpy(bdev->buffer + sizeof(struct pemu_pkt_wmem),
-			       buffer, to_send);
+		memcpy(&bdev->buffer[12], buffer, to_send);
 
 		/* pemu wants a padded packet */
 		bdev->count = PEMU_MAX_PKT_SIZE;
