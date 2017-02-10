@@ -135,6 +135,9 @@ endif
 if OSBDM
 DRIVERFILES += %D%/osbdm.c
 endif
+if PEMU
+DRIVERFILES += %D%/pe_mu_usb.c
+endif
 if OPENDOUS
 DRIVERFILES += %D%/opendous.c
 endif

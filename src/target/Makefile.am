@@ -20,6 +20,7 @@ noinst_LTLIBRARIES += %D%/libtarget.la
 	$(MIPS32_SRC) \
 	$(NDS32_SRC) \
 	$(INTEL_IA32_SRC) \
+	$(BDM_CF26_SOURCES) \
 	%D%/avrt.c \
 	%D%/dsp563xx.c \
 	%D%/dsp563xx_once.c \
@@ -117,6 +118,10 @@ INTEL_IA32_SRC = \
 	%D%/quark_d20xx.c \
 	%D%/lakemont.c \
 	%D%/x86_32_common.c
+
+BDM_CF26_SOURCES = \
+	%D%/bdm_cf26.c \
+	%D%/mcf5441x.c
 
 %C%_libtarget_la_SOURCES += \
 	%D%/algorithm.h \
