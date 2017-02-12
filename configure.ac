@@ -118,6 +118,7 @@ m4_define([USB1_ADAPTERS],
 
 m4_define([USB_ADAPTERS],
 	[[[osbdm], [OSBDM (JTAG only) Programmer], [OSBDM]],
+	[[pemu], [P&E Multilink Universal BDM Programmer], [PEMU]],
 	[[opendous], [eStick/opendous JTAG Programmer], [OPENDOUS]],
 	[[aice], [Andes JTAG Programmer], [AICE]]])
 
