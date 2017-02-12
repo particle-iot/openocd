@@ -183,6 +183,8 @@ static inline tap_state_t jtag_debug_state_machine(const void *tms_buf,
 }
 #endif /* _DEBUG_JTAG_IO_ */
 
+struct bdm_cf26_driver;
+
 /**
  * Represents a driver for a debugging interface.
  *
@@ -209,6 +211,7 @@ struct jtag_interface {
 	const char * const *transports;
 
 	const struct swd_driver *swd;
+	const struct bdm_cf26_driver *bdm_cf26;
 
 	/**
 	 * Execute queued commands.
