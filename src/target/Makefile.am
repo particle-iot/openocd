@@ -106,7 +106,8 @@ AVR32_SRC = \
 	%D%/avr32_regs.c
 
 BDM_CF26_SRC = \
-	%D%/bdm_cf26.c
+	%D%/bdm_cf26.c \
+	%D%/mcf5441x.c
 
 MIPS32_SRC = \
 	%D%/mips32.c \
@@ -197,6 +198,7 @@ INTEL_IA32_SRC = \
 	%D%/avr32_mem.h \
 	%D%/avr32_regs.h \
 	%D%/bdm_cf26.h \
+	%D%/mcf5441x.h \
 	%D%/nds32.h \
 	%D%/nds32_cmd.h \
 	%D%/nds32_disassembler.h \
