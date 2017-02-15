@@ -40,6 +40,7 @@
 #include <target/cortex_m.h>
 
 #include "libusb_common.h"
+#include "unicode.h"
 
 #define ENDPOINT_IN  0x80
 #define ENDPOINT_OUT 0x00
@@ -2018,10 +2019,14 @@ static int stlink_usb_open(struct hl_interface_param_s *param, void **fd)
 
 	h->transport = param->transport;
 
+	char serial_text[256];
+
+	utf8_to_text((const uint8_t *)param->serial, serial_text, sizeof(serial_text));
+
 	for (unsigned i = 0; param->vid[i]; i++) {
 		LOG_DEBUG("transport: %d vid: 0x%04x pid: 0x%04x serial: %s",
 			  param->transport, param->vid[i], param->pid[i],
-			  param->serial ? param->serial : "");
+			  serial_text);
 	}
 
 	/*
@@ -2035,7 +2040,7 @@ static int stlink_usb_open(struct hl_interface_param_s *param, void **fd)
 	 */
 	do {
 		if (jtag_libusb_open(param->vid, param->pid, param->serial, &h->fd) != ERROR_OK) {
-			LOG_ERROR("open failed");
+			LOG_ERROR("open failed (no matching adapter found)");
 			goto error_open;
 		}
 
