@@ -42,6 +42,8 @@
 #define NEG16(v)						(((~(v)) + 1) & 0xFFFF)
 /*#define NEG18(v) (((~(v)) + 1) & 0x3FFFF)*/
 
+#define PRACC_BLOCK	128
+
 typedef struct {
 	uint32_t instr;
 	uint32_t addr;
@@ -49,9 +51,9 @@ typedef struct {
 
 struct pracc_queue_info {
 	int retval;
-	const int max_code;
 	int code_count;
 	int store_count;
+	int max_code;		/* max intstructions with currently allocated memory */
 	pa_list *pracc_list;	/* Code and store addresses at dmseg */
 };
 void pracc_queue_init(struct pracc_queue_info *ctx);
