@@ -66,12 +66,16 @@
 #define PROTOCOL_JTAG 0x00
 #define PROTOCOL_SWD  0x01
 
-#define DEVICE_PSOC4 0x00
-#define DEVICE_PSOC3 0x01
-#define DEVICE_PSOC5 0x03
+#define DEVICE_PSOC4   0x00
+#define DEVICE_PSOC3   0x01
+#define DEVICE_UNKNOWN 0x02
+#define DEVICE_PSOC5   0x03
 
 #define ACQUIRE_MODE_RESET       0x00
 #define ACQUIRE_MODE_POWER_CYCLE 0x01
+
+#define RESET_BUS_LINE_RESET  0x00
+#define RESET_BUS_JTAG_TO_SWD 0x01
 
 #define PROGRAMMER_NOK_NACK 0x00
 #define PROGRAMMER_OK_ACK   0x01
@@ -133,7 +137,7 @@ static int kitprog_acquire_psoc(uint8_t psoc_type, uint8_t acquire_mode,
 		uint8_t max_attempts);
 static int kitprog_reset_target(void);
 static int kitprog_swd_sync(void);
-static int kitprog_swd_reset(void);
+static int kitprog_swd_reset(uint8_t seq_type);
 
 static int kitprog_generic_acquire(void);
 
@@ -174,7 +178,7 @@ static int kitprog_init(void)
 		return ERROR_FAIL;
 
 	/* Reset the SWD bus */
-	if (kitprog_swd_reset() != ERROR_OK)
+	if (kitprog_swd_reset(RESET_BUS_LINE_RESET) != ERROR_OK)
 		return ERROR_FAIL;
 
 	if (kitprog_init_acquire_psoc) {
@@ -540,7 +544,7 @@ static int kitprog_swd_sync(void)
 	return ERROR_OK;
 }
 
-static int kitprog_swd_reset(void)
+static int kitprog_swd_reset(uint8_t seq_type)
 {
 	int transferred;
 	char status = PROGRAMMER_NOK_NACK;
@@ -549,7 +553,7 @@ static int kitprog_swd_reset(void)
 		LIBUSB_ENDPOINT_IN | LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_RECIPIENT_DEVICE,
 		CONTROL_TYPE_WRITE,
 		(CONTROL_MODE_RESET_SWD_BUS << 8) | CONTROL_COMMAND_PROGRAM,
-		0, &status, 1, 0);
+		seq_type, &status, 1, 0);
 
 	if (transferred == 0) {
 		LOG_DEBUG("Zero bytes transferred");
@@ -633,11 +637,13 @@ static int kitprog_swd_switch_seq(enum swd_special_seq seq)
 {
 	switch (seq) {
 		case JTAG_TO_SWD:
-			LOG_INFO("KitProg adapters do not support the JTAG-to-SWD sequence. An SWD line reset will be performed instead.");
-			/* Fall through to fix target reset issue */
+			LOG_DEBUG("JTAG to SWD");
+			if (kitprog_swd_reset(RESET_BUS_JTAG_TO_SWD) != ERROR_OK)
+				return ERROR_FAIL;
+			break;
 		case LINE_RESET:
 			LOG_DEBUG("SWD line reset");
-			if (kitprog_swd_reset() != ERROR_OK)
+			if (kitprog_swd_reset(RESET_BUS_LINE_RESET) != ERROR_OK)
 				return ERROR_FAIL;
 			break;
 		default:
