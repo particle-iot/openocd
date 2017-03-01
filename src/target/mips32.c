@@ -703,36 +703,40 @@ int mips32_checksum_memory(struct target *target, target_addr_t address,
 	struct working_area *crc_algorithm;
 	struct reg_param reg_params[2];
 	struct mips32_algorithm mips32_info;
+	struct mips32_common *mips32 = target_to_mips32(target);
+	struct mips_ejtag *ejtag_info = &mips32->ejtag_info;
+
 
 	/* see contrib/loaders/checksum/mips32.s for src */
+	uint32_t isa = ejtag_info->isa ? 1 : 0;	/* use same isa as in debug mode */
 
-	static const uint32_t mips_crc_code[] = {
-		0x248C0000,		/* addiu	$t4, $a0, 0 */
-		0x24AA0000,		/* addiu	$t2, $a1, 0 */
-		0x2404FFFF,		/* addiu	$a0, $zero, 0xffffffff */
-		0x10000010,		/* beq		$zero, $zero, ncomp */
-		0x240B0000,		/* addiu	$t3, $zero, 0 */
+	uint32_t mips_crc_code[] = {
+		MIPS32_ADDIU(isa, 12, 4, 0),			/* addiu	$t4, $a0, 0 */
+		MIPS32_ADDIU(isa, 10, 5, 0),			/* addiu	$t2, $a1, 0 */
+		MIPS32_ADDIU(isa, 4, 0, 0xFFFF),		/* addiu	$a0, $zero, 0xffff */
+		MIPS32_BEQ(isa, 0, 0, 16 << isa),		/* beq		$zero, $zero, ncomp */
+		MIPS32_ADDIU(isa, 11, 0, 0),			/* addiu	$t3, $zero, 0 */
 						/* nbyte: */
-		0x81850000,		/* lb		$a1, ($t4) */
-		0x218C0001,		/* addi		$t4, $t4, 1 */
-		0x00052E00,		/* sll		$a1, $a1, 24 */
-		0x3C0204C1,		/* lui		$v0, 0x04c1 */
-		0x00852026,		/* xor		$a0, $a0, $a1 */
-		0x34471DB7,		/* ori		$a3, $v0, 0x1db7 */
-		0x00003021,		/* addu		$a2, $zero, $zero */
-						/* loop: */
-		0x00044040,		/* sll		$t0, $a0, 1 */
-		0x24C60001,		/* addiu	$a2, $a2, 1 */
-		0x28840000,		/* slti		$a0, $a0, 0 */
-		0x01074826,		/* xor		$t1, $t0, $a3 */
-		0x0124400B,		/* movn		$t0, $t1, $a0 */
-		0x28C30008,		/* slti		$v1, $a2, 8 */
-		0x1460FFF9,		/* bne		$v1, $zero, loop */
-		0x01002021,		/* addu		$a0, $t0, $zero */
-						/* ncomp: */
-		0x154BFFF0,		/* bne		$t2, $t3, nbyte */
-		0x256B0001,		/* addiu	$t3, $t3, 1 */
-		0x7000003F,		/* sdbbp */
+		MIPS32_LB(isa, 5, 0, 12),			/* lb		$a1, ($t4) */
+		MIPS32_ADDI(isa, 12, 12, 1),			/* addi		$t4, $t4, 1 */
+		MIPS32_SLL(isa, 5, 5, 24),			/* sll		$a1, $a1, 24 */
+		MIPS32_LUI(isa, 2, 0x04c1),			/* lui		$v0, 0x04c1 */
+		MIPS32_XOR(isa, 4, 4, 5),			/* xor		$a0, $a0, $a1 */
+		MIPS32_ORI(isa, 7, 2, 0x1db7),			/* ori		$a3, $v0, 0x1db7 */
+		MIPS32_ADDU(isa, 6, 0, 0),			/* addu		$a2, $zero, $zero */
+						/* loop */
+		MIPS32_SLL(isa, 8, 4, 1),			/* sll		$t0, $a0, 1 */
+		MIPS32_ADDIU(isa, 6, 6, 1),			/* addiu	$a2, $a2, 1 */
+		MIPS32_SLTI(isa, 4, 4, 0),			/* slti		$a0, $a0, 0 */
+		MIPS32_XOR(isa, 9, 8, 7),			/* xor		$t1, $t0, $a3 */
+		MIPS32_MOVN(isa, 8, 9, 4),			/* movn		$t0, $t1, $a0 */
+		MIPS32_SLTI(isa, 3, 6, 8),			/* slti		$v1, $a2, 8 */
+		MIPS32_BNE(isa, 3, 0, NEG16(7 << isa)),		/* bne		$v1, $zero, loop */
+		MIPS32_ADDU(isa, 4, 8, 0),			/* addu		$a0, $t0, $zero */
+						/* ncomp */
+		MIPS32_BNE(isa, 10, 11, NEG16(16 << isa)),	/* bne		$t2, $t3, nbyte */
+		MIPS32_ADDIU(isa, 11, 11, 1),			/* addiu	$t3, $t3, 1 */
+		MIPS32_SDBBP(isa),
 	};
 
 	/* make sure we have a working area */
@@ -757,8 +761,8 @@ int mips32_checksum_memory(struct target *target, target_addr_t address,
 
 	int timeout = 20000 * (1 + (count / (1024 * 1024)));
 
-	int retval = target_run_algorithm(target, 0, NULL, 2, reg_params,
-			crc_algorithm->address, crc_algorithm->address + (sizeof(mips_crc_code) - 4), timeout,
+	int retval = target_run_algorithm(target, 0, NULL, 2, reg_params, crc_algorithm->address | isa,
+			(crc_algorithm->address + (sizeof(mips_crc_code) - 4)) | isa, timeout,
 			&mips32_info);
 
 	if (retval == ERROR_OK)
@@ -779,15 +783,18 @@ int mips32_blank_check_memory(struct target *target,
 	struct working_area *erase_check_algorithm;
 	struct reg_param reg_params[3];
 	struct mips32_algorithm mips32_info;
+	struct mips32_common *mips32 = target_to_mips32(target);
+	struct mips_ejtag *ejtag_info = &mips32->ejtag_info;
+	uint32_t isa = ejtag_info->isa ? 1 : 0;
 
-	static const uint32_t erase_check_code[] = {
+	uint32_t erase_check_code[] = {
 						/* nbyte: */
-		0x80880000,		/* lb		$t0, ($a0) */
-		0x00C83024,		/* and		$a2, $a2, $t0 */
-		0x24A5FFFF,		/* addiu	$a1, $a1, -1 */
-		0x14A0FFFC,		/* bne		$a1, $zero, nbyte */
-		0x24840001,		/* addiu	$a0, $a0, 1 */
-		0x7000003F		/* sdbbp */
+		MIPS32_LB(isa, 8, 0, 4),			/* lb		$t0, ($a0) */
+		MIPS32_AND(isa, 6, 6, 8),			/* and		$a2, $a2, $t0 */
+		MIPS32_ADDIU(isa, 5, 5, NEG16(1)),		/* addiu	$a1, $a1, -1 */
+		MIPS32_BNE(isa, 5, 0, NEG16(4 << isa)),		/* bne		$a1, $zero, nbyte */
+		MIPS32_ADDIU(isa, 4, 4, 1),			/* addiu	$a0, $a0, 1 */
+		MIPS32_SDBBP(isa)				/* sdbbp */
 	};
 
 	if (erased_value != 0xff) {
@@ -820,8 +827,8 @@ int mips32_blank_check_memory(struct target *target,
 	buf_set_u32(reg_params[2].value, 0, 32, erased_value);
 
 	int retval = target_run_algorithm(target, 0, NULL, 3, reg_params,
-			erase_check_algorithm->address,
-			erase_check_algorithm->address + (sizeof(erase_check_code) - 4),
+			erase_check_algorithm->address | isa,
+			(erase_check_algorithm->address + (sizeof(erase_check_code) - 4)) | isa,
 			10000, &mips32_info);
 
 	if (retval == ERROR_OK)
