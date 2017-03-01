@@ -40,6 +40,7 @@
 #define UPPER16(uint32_t)				(uint32_t >> 16)
 #define LOWER16(uint32_t)				(uint32_t & 0xFFFF)
 #define NEG16(v)						(((~(v)) + 1) & 0xFFFF)
+#define SWAP16(v)				((LOWER16(v) << 16) | (UPPER16(v)))
 /*#define NEG18(v) (((~(v)) + 1) & 0x3FFFF)*/
 
 #define PRACC_BLOCK	128	/* 1 Kbyte */
@@ -58,7 +59,7 @@ struct pracc_queue_info {
 };
 void pracc_queue_init(struct pracc_queue_info *ctx);
 void pracc_add(struct pracc_queue_info *ctx, uint32_t addr, uint32_t instr);
-void pracc_add_li32(struct pracc_queue_info *ctx, uint32_t reg_num, uint32_t data, bool optimize);
+void pracc_add_li32(struct pracc_queue_info *ctx, uint32_t isa, uint32_t reg_num, uint32_t data, bool optimize);
 void pracc_queue_free(struct pracc_queue_info *ctx);
 int mips32_pracc_queue_exec(struct mips_ejtag *ejtag_info,
 			    struct pracc_queue_info *ctx, uint32_t *buf, bool check_last);

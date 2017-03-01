@@ -386,6 +386,7 @@ int mips32_init_arch_info(struct target *target, struct mips32_common *mips32, s
 
 	mips32->ejtag_info.scan_delay = MIPS32_SCAN_DELAY_LEGACY_MODE;	/* Initial default value */
 	mips32->ejtag_info.mode = 0;			/* Initial default value */
+	mips32->ejtag_info.isa = 0;	/* initial value, updated by poll function */
 
 	return ERROR_OK;
 }
