@@ -44,6 +44,8 @@
 #define EFM32_MSC_ADDRB_OFFSET          0x010
 #define EFM32_MSC_WDATA_OFFSET          0x018
 #define EFM32_MSC_STATUS_OFFSET         0x01c
+
+/* This needs to be changed in 0x040 for EFR32-family */
 #define EFM32_MSC_LOCK_OFFSET           0x03c
 
 	/* unlock MSC */
