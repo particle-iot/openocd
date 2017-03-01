@@ -58,8 +58,11 @@
 
 /* forward-declare arm_cti struct */
 struct arm_cti;
+struct adiv5_ap;
 
-extern struct arm_cti *arm_cti_create(struct adiv5_ap *ap, uint32_t base);
+extern void arm_cti_dump_info(struct arm_cti *self);
+extern const char *arm_cti_name(struct arm_cti *self);
+extern struct arm_cti *cti_instance_by_jim_obj(Jim_Interp *interp, Jim_Obj *o);
 extern int arm_cti_enable(struct arm_cti *self, bool enable);
 extern int arm_cti_ack_events(struct arm_cti *self, uint32_t event);
 extern int arm_cti_gate_channel(struct arm_cti *self, uint32_t channel);
@@ -69,5 +72,7 @@ extern int arm_cti_read_reg(struct arm_cti *self, unsigned int reg, uint32_t *va
 extern int arm_cti_pulse_channel(struct arm_cti *self, uint32_t channel);
 extern int arm_cti_set_channel(struct arm_cti *self, uint32_t channel);
 extern int arm_cti_clear_channel(struct arm_cti *self, uint32_t channel);
+
+extern int cti_register_commands(struct command_context *cmd_ctx);
 
 #endif /* OPENOCD_TARGET_ARM_CTI_H */

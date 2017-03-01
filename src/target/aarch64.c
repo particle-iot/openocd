@@ -2096,7 +2096,6 @@ static int aarch64_examine_first(struct target *target)
 	struct aarch64_common *aarch64 = target_to_aarch64(target);
 	struct armv8_common *armv8 = &aarch64->armv8_common;
 	struct adiv5_dap *swjdp = armv8->arm.dap;
-	uint32_t cti_base;
 	int i;
 	int retval = ERROR_OK;
 	uint64_t debug, ttypr;
@@ -2207,16 +2206,10 @@ static int aarch64_examine_first(struct target *target)
 	LOG_DEBUG("ttypr = 0x%08" PRIx64, ttypr);
 	LOG_DEBUG("debug = 0x%08" PRIx64, debug);
 
-	if (target->ctibase == 0) {
-		/* assume a v8 rom table layout */
-		cti_base = armv8->debug_base + 0x10000;
-		LOG_INFO("Target ctibase is not set, assuming 0x%0" PRIx32, cti_base);
-	} else
-		cti_base = target->ctibase;
-
-	armv8->cti = arm_cti_create(armv8->debug_ap, cti_base);
-	if (armv8->cti == NULL)
+	if (target->cti == NULL)
 		return ERROR_FAIL;
+
+	armv8->cti = target->cti;
 
 	retval = aarch64_dpm_setup(aarch64, debug);
 	if (retval != ERROR_OK)
