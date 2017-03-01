@@ -54,6 +54,7 @@
 #include "image.h"
 #include "rtos/rtos.h"
 #include "transport/transport.h"
+#include "arm_cti.h"
 
 /* default halt wait timeout (ms) */
 #define DEFAULT_HALT_TIMEOUT 5000
@@ -4445,7 +4446,7 @@ enum target_cfg_param {
 	TCFG_COREID,
 	TCFG_CHAIN_POSITION,
 	TCFG_DBGBASE,
-	TCFG_CTIBASE,
+	TCFG_CTI,
 	TCFG_RTOS,
 	TCFG_DEFER_EXAMINE,
 };
@@ -4461,7 +4462,7 @@ static Jim_Nvp nvp_config_opts[] = {
 	{ .name = "-coreid",           .value = TCFG_COREID },
 	{ .name = "-chain-position",   .value = TCFG_CHAIN_POSITION },
 	{ .name = "-dbgbase",          .value = TCFG_DBGBASE },
-	{ .name = "-ctibase",          .value = TCFG_CTIBASE },
+	{ .name = "-cti",              .value = TCFG_CTI },
 	{ .name = "-rtos",             .value = TCFG_RTOS },
 	{ .name = "-defer-examine",    .value = TCFG_DEFER_EXAMINE },
 	{ .name = NULL, .value = -1 }
@@ -4728,18 +4729,23 @@ no_params:
 			Jim_SetResult(goi->interp, Jim_NewIntObj(goi->interp, target->dbgbase));
 			/* loop for more */
 			break;
-		case TCFG_CTIBASE:
+		case TCFG_CTI:
 			if (goi->isconfigure) {
-				e = Jim_GetOpt_Wide(goi, &w);
+				Jim_Obj *o_cti;
+				struct arm_cti *cti;
+				e = Jim_GetOpt_Obj(goi, &o_cti);
 				if (e != JIM_OK)
 					return e;
-				target->ctibase = (uint32_t)w;
-				target->ctibase_set = true;
+				cti = cti_instance_by_jim_obj(goi->interp, o_cti);
+				if (cti == NULL)
+					return JIM_ERR;
+				/* make this exactly 1 or 0 */
+				target->cti = cti;
 			} else {
 				if (goi->argc != 0)
 					goto no_params;
 			}
-			Jim_SetResult(goi->interp, Jim_NewIntObj(goi->interp, target->ctibase));
+			Jim_SetResultString(goi->interp, arm_cti_name(target->cti), -1);
 			/* loop for more */
 			break;
 		case TCFG_RTOS:
