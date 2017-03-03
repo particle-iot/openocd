@@ -2390,6 +2390,11 @@ Specifies the @var{serial} of the CMSIS-DAP device to use.
 If not specified, serial numbers are not considered.
 @end deffn
 
+@deffn {Config Command} {cmsis_dap_init_samd_cold_plug}
+Issues cold-plug reset sequence during OpenOCD init.
+Use for attaching to a secured Atmel SAMD/R/L/C device.
+@end deffn
+
 @deffn {Command} {cmsis-dap info}
 Display various device information, like hardware version, firmware version, current bus status.
 @end deffn
@@ -4999,12 +5004,17 @@ processor to be halted.
 @deffn Command {at91samd set-security}
 Secures the Flash via the Set Security Bit (SSB) command. This prevents access
 to the Flash and can only be undone by using the chip-erase command which
-erases the Flash contents and turns off the security bit. Warning: at this
-time, openocd will not be able to communicate with a secured chip and it is
-therefore not possible to chip-erase it without using another tool.
+erases the Flash contents and turns off the security bit.
 
 @example
 at91samd set-security enable
+@end example
+
+To erase a secured device using a CMSIS-DAP adapter run:
+@example
+openocd -f interface/cmsis-dap.cfg -c "transport select swd" -f at91samdXX.cfg \
+  -c cmsis_dap_init_samd_cold_plug -c "reset_config srst_only" -c init \
+  -c "at91samd chip-erase" -c shutdown
 @end example
 @end deffn
 

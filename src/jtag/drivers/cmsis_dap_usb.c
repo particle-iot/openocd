@@ -208,6 +208,9 @@ static int queued_retval;
 
 static struct cmsis_dap *cmsis_dap_handle;
 
+static bool samd_cold_plug;
+
+
 static int cmsis_dap_usb_open(void)
 {
 	hid_device *dev = NULL;
@@ -974,6 +977,18 @@ static int cmsis_dap_init(void)
 		}
 	}
 
+	if (samd_cold_plug) {
+		retval = cmsis_dap_cmd_DAP_SWJ_Pins(0, SWJ_PIN_SRST | SWJ_PIN_TCK, 100, NULL);
+		if (retval != ERROR_OK)
+			return ERROR_FAIL;
+
+		retval = cmsis_dap_cmd_DAP_SWJ_Pins(SWJ_PIN_SRST, SWJ_PIN_SRST | SWJ_PIN_TCK, 100, NULL);
+		if (retval != ERROR_OK)
+			return ERROR_FAIL;
+
+		LOG_INFO("SAMD reset cold-plug sequence issued, device is held in reset.");
+	}
+
 	cmsis_dap_cmd_DAP_LED(0x00);			/* Both LEDs off */
 
 	LOG_INFO("CMSIS-DAP: Interface ready");
@@ -1586,6 +1601,13 @@ COMMAND_HANDLER(cmsis_dap_handle_serial_command)
 	return ERROR_OK;
 }
 
+
+COMMAND_HANDLER(cmsis_dap_handle_samd_cold_plug_command)
+{
+	samd_cold_plug = true;
+	return ERROR_OK;
+}
+
 static const struct command_registration cmsis_dap_subcommand_handlers[] = {
 	{
 		.name = "info",
@@ -1618,6 +1640,13 @@ static const struct command_registration cmsis_dap_command_handlers[] = {
 		.mode = COMMAND_CONFIG,
 		.help = "set the serial number of the adapter",
 		.usage = "serial_string",
+	},
+	{
+		.name = "cmsis_dap_init_samd_cold_plug",
+		.handler = &cmsis_dap_handle_samd_cold_plug_command,
+		.mode = COMMAND_CONFIG,
+		.help = "issue SAMD/R/L/C cold-plug sequence during init to attach a secured device",
+		.usage = "",
 	},
 	COMMAND_REGISTRATION_DONE
 };
