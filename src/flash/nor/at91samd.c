@@ -36,6 +36,7 @@
 
 #define SAMD_DSU_STATUSA        1               /* DSU status register */
 #define SAMD_DSU_DID		0x18		/* Device ID register */
+#define SAMD_DSU_CTRL_EXT	0x100		/* CTRL register, external access */
 
 #define SAMD_NVMCTRL_CTRLA		0x00	/* NVM control A register */
 #define SAMD_NVMCTRL_CTRLB		0x04	/* NVM control B register */
@@ -859,15 +860,16 @@ COMMAND_HANDLER(samd_handle_info_command)
 COMMAND_HANDLER(samd_handle_chip_erase_command)
 {
 	struct target *target = get_current_target(CMD_CTX);
+	int res;
 
 	if (target) {
 		/* Enable access to the DSU by disabling the write protect bit */
 		target_write_u32(target, SAMD_PAC1, (1<<1));
 		/* Tell the DSU to perform a full chip erase.  It takes about 240ms to
 		 * perform the erase. */
-		target_write_u8(target, SAMD_DSU, (1<<4));
-
-		command_print(CMD_CTX, "chip erased");
+		res = target_write_u8(target, SAMD_DSU + SAMD_DSU_CTRL_EXT, (1<<4));
+		if (res == ERROR_OK)
+			command_print(CMD_CTX, "chip erased");
 	}
 
 	return ERROR_OK;
