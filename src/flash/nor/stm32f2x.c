@@ -59,9 +59,13 @@
  *
  * Sector sizes in kiBytes:
  * 1 MiByte part with 4 x 16, 1 x 64, 7 x 128.
+ * 1.5 MiByte part with 4 x 16, 1 x 64, 11 x 128.
  * 2 MiByte part with 4 x 16, 1 x 64, 7 x 128, 4 x 16, 1 x 64, 7 x 128.
  * 1 MiByte STM32F42x/43x part with DB1M Option set:
  *                    4 x 16, 1 x 64, 3 x 128, 4 x 16, 1 x 64, 3 x 128.
+ *
+ * STM32F7[2|3]
+ * 512 kiByte part with 4 x 16, 1 x 64, 3 x 128.
  *
  * STM32F7[4|5]
  * 1 MiByte part with 4 x 32, 1 x 128, 3 x 256.
@@ -93,6 +97,12 @@
  * RM0410
  * http://www.st.com/resource/en/reference_manual/dm00224583.pdf
  *
+ * RM0430
+ * http://www.st.com/resource/en/reference_manual/dm00305666.pdf
+ *
+ * RM0431
+ * http://www.st.com/resource/en/reference_manual/dm00305990.pdf
+ *
  * STM32F1x series - notice that this code was copy, pasted and knocked
  * into a stm32f2x driver, so in case something has been converted or
  * bugs haven't been fixed, here are the original manuals:
@@ -121,6 +131,7 @@
 #define STM32_FLASH_CR      0x40023c10
 #define STM32_FLASH_OPTCR   0x40023c14
 #define STM32_FLASH_OPTCR1  0x40023c18
+#define STM32_FLASH_OPTCR2  0x40023c1c
 
 /* FLASH_CR register bits */
 #define FLASH_PG       (1 << 0)
@@ -152,6 +163,10 @@
 #define OPTCR_START    (1 << 1)
 #define OPTCR_NDBANK   (1 << 29)	/* not dual bank mode */
 #define OPTCR_DB1M     (1 << 30)	/* 1 MiB devices dual flash bank option */
+#define OPTCR_SPRMOD   (1 << 31)	/* switches PCROPi/nWPRi interpretation */
+
+/* STM32_FLASH_OPTCR2 register bits */
+#define OPTCR2_PCROP_RDP	(1 << 31)	/* erase PCROP zone when decreasing RDP */
 
 /* register unlock keys */
 #define KEY1           0x45670123
@@ -166,14 +181,17 @@ struct stm32x_options {
 	uint16_t user_options;	/* bit 0-7 usual options, bit 8-11 extra options */
 	uint32_t protection;
 	uint32_t boot_addr;
+	uint32_t optcr2_pcrop;
 };
 
 struct stm32x_flash_bank {
 	struct stm32x_options option_bytes;
 	int probed;
 	bool has_large_mem;		/* F42x/43x/469/479/7xx in dual bank mode */
-	bool has_boot_addr;     /* F7xx */
 	bool has_extra_options; /* F42x/43x/469/479/7xx */
+	bool has_boot_addr;     /* F7xx */
+	bool has_optcr2_pcrop;	/* F72x/73x */
+	int protection_bits;	/* F413/423 */
 	uint32_t user_bank_size;
 };
 
@@ -328,11 +346,13 @@ static int stm32x_read_options(struct flash_bank *bank)
      * whereas F7 6 bits (IWDG_SW and WWDG_SW) in user_options */
 	stm32x_info->option_bytes.user_options = optiondata & 0xfc;
 	stm32x_info->option_bytes.RDP = (optiondata >> 8) & 0xff;
-	stm32x_info->option_bytes.protection = (optiondata >> 16) & 0xfff;
+	stm32x_info->option_bytes.protection =
+		(optiondata >> 16) & (~(0xffff << stm32x_info->protection_bits) & 0xffff);
 
 	if (stm32x_info->has_extra_options) {
 		/* F42x/43x/469/479 and 7xx have up to 4 bits of extra options */
-		stm32x_info->option_bytes.user_options |= (optiondata >> 20) & 0xf00;
+		stm32x_info->option_bytes.user_options |= (optiondata >> 20) &
+			((0xf00 << (stm32x_info->protection_bits - 12)) & 0xf00);
 	}
 
 	if (stm32x_info->has_large_mem || stm32x_info->has_boot_addr) {
@@ -348,6 +368,25 @@ static int stm32x_read_options(struct flash_bank *bank)
 			/* for F42x/43x/469/479 it contains 12 additional protection bits */
 			stm32x_info->option_bytes.protection |= (optiondata >> 4) & 0x00fff000;
 		}
+	} else if ((stm32x_info->protection_bits == 15) && (stm32x_info->protection_bits < bank->num_sectors)) {
+		/* F413/423 have 16 sectors but only 15 protection bits, so sectors 14 and 15
+		 * share a single protection bit ... that's quite an ugly hack
+		 * so we use a fake protection bit 15 which has to be kept identical to bit 14 */
+		stm32x_info->option_bytes.protection |= (stm32x_info->option_bytes.protection << 1) & (1 << 15);
+	}
+
+	if (stm32x_info->has_optcr2_pcrop) {
+		retval = target_read_u32(target, STM32_FLASH_OPTCR2, &optiondata);
+		if (retval != ERROR_OK)
+			return retval;
+
+		stm32x_info->option_bytes.optcr2_pcrop = optiondata;
+		if (stm32x_info->has_optcr2_pcrop &&
+			(stm32x_info->option_bytes.optcr2_pcrop & ~OPTCR2_PCROP_RDP)) {
+			LOG_INFO("PCROP Engaged");
+		}
+	} else {
+		stm32x_info->option_bytes.optcr2_pcrop = 0x0;
 	}
 
 	if (stm32x_info->option_bytes.RDP != 0xAA)
@@ -371,11 +410,13 @@ static int stm32x_write_options(struct flash_bank *bank)
 	/* rebuild option data */
 	optiondata = stm32x_info->option_bytes.user_options & 0xfc;
 	optiondata |= stm32x_info->option_bytes.RDP << 8;
-	optiondata |= (stm32x_info->option_bytes.protection & 0x0fff) << 16;
+	optiondata |= (stm32x_info->option_bytes.protection &
+		(~(0xffff << stm32x_info->protection_bits))) << 16;
 
 	if (stm32x_info->has_extra_options) {
 		/* F42x/43x/469/479 and 7xx have up to 4 bits of extra options */
-		optiondata |= (stm32x_info->option_bytes.user_options & 0xf00) << 20;
+		optiondata |= (stm32x_info->option_bytes.user_options &
+			((0xf00 << (stm32x_info->protection_bits - 12)) & 0xf00)) << 20;
 	}
 
 	if (stm32x_info->has_large_mem || stm32x_info->has_boot_addr) {
@@ -388,6 +429,14 @@ static int stm32x_write_options(struct flash_bank *bank)
 		}
 
 		retval = target_write_u32(target, STM32_FLASH_OPTCR1, optiondata2);
+		if (retval != ERROR_OK)
+			return retval;
+	}
+
+	/* program extra pcrop register */
+	if (stm32x_info->has_optcr2_pcrop) {
+		retval = target_write_u32(target, STM32_FLASH_OPTCR2,
+			stm32x_info->option_bytes.optcr2_pcrop);
 		if (retval != ERROR_OK)
 			return retval;
 	}
@@ -524,6 +573,12 @@ static int stm32x_protect(struct flash_bank *bank, int set, int first, int last)
 			first >>= 1;
 			last >>= 1;
 		}
+	} else if ((stm32x_info->protection_bits == 15) & (stm32x_info->protection_bits < bank->num_sectors)) {
+		/* F413/423: bit 14 protects both sectors 14 and 15 */
+		if ((first == stm32x_info->protection_bits) || (last == stm32x_info->protection_bits - 1))
+			LOG_ERROR("sectors %d and %d share a single protection bit",
+				stm32x_info->protection_bits - 1, stm32x_info->protection_bits);
+			return ERROR_FAIL;
 	}
 
 	for (int i = first; i <= last; i++) {
@@ -841,6 +896,8 @@ static int stm32x_probe(struct flash_bank *bank)
 	stm32x_info->has_large_mem = false;
 	stm32x_info->has_boot_addr = false;
 	stm32x_info->has_extra_options = false;
+	stm32x_info->has_optcr2_pcrop = false;
+	stm32x_info->protection_bits = 12;		/* max. number of nWRPi bits (in FLASH_OPTCR !!!) */
 
 	/* read stm32 device id register */
 	int retval = stm32x_get_device_id(bank, &device_id);
@@ -890,6 +947,22 @@ static int stm32x_probe(struct flash_bank *bank)
 		flash_size_reg = 0x1FF0F442;
 		stm32x_info->has_extra_options = true;
 		stm32x_info->has_boot_addr = true;
+		break;
+
+	case 0x452:	/* F72x/73x */
+		max_flash_size_in_kb = 512;
+		max_sector_size_in_kb = 128;
+		flash_size_reg = 0x1FF07A22;
+		stm32x_info->has_extra_options = true;
+		stm32x_info->has_boot_addr = true;
+		stm32x_info->has_optcr2_pcrop = true;
+		break;
+
+	case 0x463:	/* F413x/423x */
+		max_flash_size_in_kb = 1536;
+		max_sector_size_in_kb = 128;
+		stm32x_info->has_extra_options = true;
+		stm32x_info->protection_bits = 15;
 		break;
 
 	default:
@@ -1107,6 +1180,14 @@ static int get_stm32x_info(struct flash_bank *bank, char *buf, int buf_size)
 		case 0x1001:
 			rev_str = "Z";
 			break;
+
+		case 0x2000:
+			rev_str = "B";
+			break;
+
+		case 0x3000:
+			rev_str = "C";
+			break;
 		}
 		break;
 
@@ -1126,6 +1207,26 @@ static int get_stm32x_info(struct flash_bank *bank, char *buf, int buf_size)
 
 	case 0x451:
 		device_str = "STM32F7[6|7]x";
+
+		switch (rev_id) {
+		case 0x1000:
+			rev_str = "A";
+			break;
+		}
+		break;
+
+	case 0x452:
+		device_str = "STM32F7[2|3]x";
+
+		switch (rev_id) {
+		case 0x1000:
+			rev_str = "A";
+			break;
+		}
+		break;
+
+	case 0x463:
+		device_str = "STM32F4[1|2]3";
 
 		switch (rev_id) {
 		case 0x1000:
@@ -1164,8 +1265,8 @@ COMMAND_HANDLER(stm32x_handle_lock_command)
 	target = bank->target;
 
 	if (target->state != TARGET_HALTED) {
-		LOG_ERROR("Target not halted");
-		return ERROR_TARGET_NOT_HALTED;
+		LOG_INFO("Target not halted");
+		/* return ERROR_TARGET_NOT_HALTED; */
 	}
 
 	if (stm32x_read_options(bank) != ERROR_OK) {
@@ -1203,8 +1304,8 @@ COMMAND_HANDLER(stm32x_handle_unlock_command)
 	target = bank->target;
 
 	if (target->state != TARGET_HALTED) {
-		LOG_ERROR("Target not halted");
-		return ERROR_TARGET_NOT_HALTED;
+		LOG_INFO("Target not halted");
+		/* return ERROR_TARGET_NOT_HALTED; */
 	}
 
 	if (stm32x_read_options(bank) != ERROR_OK) {
@@ -1215,6 +1316,9 @@ COMMAND_HANDLER(stm32x_handle_unlock_command)
 	/* clear readout protection and complementary option bytes
 	 * this will also force a device unlock if set */
 	stm32x_info->option_bytes.RDP = 0xAA;
+	if (stm32x_info->has_optcr2_pcrop) {
+		stm32x_info->option_bytes.optcr2_pcrop = OPTCR2_PCROP_RDP | (~1 << bank->num_sectors);
+	}
 
 	if (stm32x_write_options(bank) != ERROR_OK) {
 		command_print(CMD_CTX, "%s failed to unlock device", bank->driver->name);
@@ -1327,6 +1431,10 @@ COMMAND_HANDLER(stm32f2x_handle_options_read_command)
 				" boot_add0 0x%04X, boot_add1 0x%04X",
 				stm32x_info->option_bytes.user_options,
 				boot_addr & 0xffff, (boot_addr & 0xffff0000) >> 16);
+			if (stm32x_info->has_optcr2_pcrop) {
+				command_print(CMD_CTX, "stm32f2x optcr2_pcrop 0x%08X",
+						stm32x_info->option_bytes.optcr2_pcrop);
+			}
 		} else {
 			command_print(CMD_CTX, "stm32f2x user_options 0x%03X,",
 				stm32x_info->option_bytes.user_options);
@@ -1345,7 +1453,7 @@ COMMAND_HANDLER(stm32f2x_handle_options_write_command)
 	int retval;
 	struct flash_bank *bank;
 	struct stm32x_flash_bank *stm32x_info = NULL;
-	uint16_t user_options, boot_addr0, boot_addr1;
+	uint16_t user_options, boot_addr0, boot_addr1, options_mask;
 
 	if (CMD_ARGC < 1) {
 		command_print(CMD_CTX, "stm32f2x options_write <bank> ...");
@@ -1378,9 +1486,11 @@ COMMAND_HANDLER(stm32f2x_handle_options_write_command)
 	}
 
 	COMMAND_PARSE_NUMBER(u16, CMD_ARGV[1], user_options);
-	if (user_options & (stm32x_info->has_extra_options ? ~0xffc : ~0xfc)) {
+	options_mask = !stm32x_info->has_extra_options ? ~0xfc :
+		~(((0xf00 << (stm32x_info->protection_bits - 12)) | 0xff) & 0xffc);
+	if (user_options & options_mask) {
 		command_print(CMD_CTX, "stm32f2x invalid user_options");
-		return ERROR_COMMAND_SYNTAX_ERROR;
+		return ERROR_COMMAND_ARGUMENT_INVALID;
 	}
 
 	stm32x_info->option_bytes.user_options = user_options;
@@ -1397,6 +1507,48 @@ COMMAND_HANDLER(stm32f2x_handle_options_write_command)
 	command_print(CMD_CTX, "stm32f2x write options complete.\n"
 				"INFO: a reset or power cycle is required "
 				"for the new settings to take effect.");
+	return retval;
+}
+
+COMMAND_HANDLER(stm32f2x_handle_optcr2_write_command)
+{
+	int retval;
+	struct flash_bank *bank;
+	struct stm32x_flash_bank *stm32x_info = NULL;
+	uint32_t optcr2_pcrop;
+
+	if (CMD_ARGC != 2) {
+		command_print(CMD_CTX, "stm32f2x optcr2_write <bank> <optcr2_value>");
+		return ERROR_COMMAND_SYNTAX_ERROR;
+	}
+
+	retval = CALL_COMMAND_HANDLER(flash_command_get_bank, 0, &bank);
+	if (ERROR_OK != retval)
+		return retval;
+
+	stm32x_info = bank->driver_priv;
+	if (!stm32x_info->has_optcr2_pcrop) {
+		command_print(CMD_CTX, "no optcr2 register");
+		return ERROR_COMMAND_ARGUMENT_INVALID;
+	}
+
+	command_print(CMD_CTX, "INFO: To disable PCROP, set PCROP_RDP"
+				" with PCROPi bits STILL SET, then\nlock device and"
+				" finally unlock it. Clears PCROP and mass erases flash.");
+
+	retval = stm32x_read_options(bank);
+	if (ERROR_OK != retval)
+		return retval;
+
+	COMMAND_PARSE_NUMBER(u32, CMD_ARGV[1], optcr2_pcrop);
+	stm32x_info->option_bytes.optcr2_pcrop = optcr2_pcrop;
+
+	if (stm32x_write_options(bank) != ERROR_OK) {
+		command_print(CMD_CTX, "stm32f2x failed to write options");
+		return ERROR_OK;
+	}
+
+	command_print(CMD_CTX, "stm32f2x optcr2_write complete.");
 	return retval;
 }
 
@@ -1433,9 +1585,17 @@ static const struct command_registration stm32x_exec_command_handlers[] = {
 		.name = "options_write",
 		.handler = stm32f2x_handle_options_write_command,
 		.mode = COMMAND_EXEC,
-		.usage = "bank_id user_options [ boot_add0 boot_add1]",
+		.usage = "bank_id user_options [ boot_add0 boot_add1 ]",
 		.help = "Write option bytes",
 	},
+	{
+		.name = "optcr2_write",
+		.handler = stm32f2x_handle_optcr2_write_command,
+		.mode = COMMAND_EXEC,
+		.usage = "bank_id optcr2",
+		.help = "Write optcr2 word",
+	},
+
 	COMMAND_REGISTRATION_DONE
 };
 
