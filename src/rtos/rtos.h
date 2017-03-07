@@ -77,7 +77,7 @@ struct stack_register_offset {
 };
 
 struct rtos_register_stacking {
-	unsigned char stack_registers_size;
+	unsigned short stack_registers_size;
 	signed char stack_growth_direction;
 	unsigned char num_output_registers;
 	/* Some targets require evaluating the stack to determine the

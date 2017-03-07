@@ -29,8 +29,10 @@
 #include "helper/types.h"
 #include "rtos_standard_stackings.h"
 
-static const struct rtos_register_stacking *get_stacking_info(const struct rtos *rtos, int64_t stack_ptr);
-static const struct rtos_register_stacking *get_stacking_info_arm926ejs(const struct rtos *rtos, int64_t stack_ptr);
+static const struct rtos_register_stacking *get_stacking_info(const struct rtos *rtos,
+		int64_t thread_id, int64_t stack_ptr);
+static const struct rtos_register_stacking *get_stacking_info_arm926ejs(const struct rtos *rtos,
+		int64_t thread_id, int64_t stack_ptr);
 
 static int is_thread_id_valid(const struct rtos *rtos, int64_t thread_id);
 static int is_thread_id_valid_arm926ejs(const struct rtos *rtos, int64_t thread_id);
@@ -84,9 +86,7 @@ static const struct stack_register_offset rtos_threadx_arm926ejs_stack_offsets_s
 	{ -1,   32 },		/* r12       */
 	{ -2,   32 },		/* sp (r13)  */
 	{ 0x28, 32 },		/* lr (r14)  */
-	{ -1,   32 },		/* pc (r15)  */
-	/*{ -1,   32 },*/		/* lr (r14)  */
-	/*{ 0x28, 32 },*/		/* pc (r15)  */
+	{ 0x28, 32 },		/* pc (r15)  */
 	{ 0x04, 32 },		/* xPSR      */
 };
 #define ARM926EJS_REGISTERS_SIZE_INTERRUPT (17 * 4)
@@ -127,6 +127,97 @@ const struct rtos_register_stacking rtos_threadx_arm926ejs_stacking[] = {
 },
 };
 
+#define CORTEXA_REGISTERS_SIZE_SOLICITED (11 * 4 + 196)
+static const struct stack_register_offset rtos_threadx_cortexa_stack_offsets_solicited[] = {
+	/* stack layout :
+	   interrupt flag
+	   xPSR
+	   if vfp_enabled
+	     {D8-D15}
+	     {D16-D31}
+	     FPSCR
+	   {r4-r11, lr}
+	   pc=lr
+	 */
+	{ -1,   32 },			/* r0        */
+	{ -1,   32 },			/* r1        */
+	{ -1,   32 },			/* r2        */
+	{ -1,   32 },			/* r3        */
+	{ 0x08 + 196, 32 },		/* r4        */
+	{ 0x0C + 196, 32 },		/* r5        */
+	{ 0x10 + 196, 32 },		/* r6        */
+	{ 0x14 + 196, 32 },		/* r7        */
+	{ 0x18 + 196, 32 },		/* r8        */
+	{ 0x1C + 196, 32 },		/* r9        */
+	{ 0x20 + 196, 32 },		/* r10       */
+	{ 0x24 + 196, 32 },		/* r11       */
+	{ -1,   32 },			/* r12       */
+	{ -2,   32 },			/* sp (r13)  */
+	{ 0x28 + 196, 32 },		/* lr (r14)  */
+	{ 0x28 + 196, 32 },		/* pc (r15)  */
+	{ 0x04, 32 },			/* xPSR      */
+};
+#define CORTEXA_REGISTERS_SIZE_INTERRUPT (17 * 4 + 260)
+static const struct stack_register_offset rtos_threadx_cortexa_stack_offsets_interrupt[] = {
+	/* stack layout :
+	   interrupt flag
+	   xPSR
+	   if vfp_enabled
+	     {D0-D15}
+	     {D16-D31}
+	     FPSCR
+	   {r0-r12, lr, pc}
+	 */
+	{ 0x08 + 260, 32 },		/* r0        */
+	{ 0x0C + 260, 32 },		/* r1        */
+	{ 0x10 + 260, 32 },		/* r2        */
+	{ 0x14 + 260, 32 },		/* r3        */
+	{ 0x18 + 260, 32 },		/* r4        */
+	{ 0x1C + 260, 32 },		/* r5        */
+	{ 0x20 + 260, 32 },		/* r6        */
+	{ 0x24 + 260, 32 },		/* r7        */
+	{ 0x28 + 260, 32 },		/* r8        */
+	{ 0x2C + 260, 32 },		/* r9        */
+	{ 0x30 + 260, 32 },		/* r10       */
+	{ 0x34 + 260, 32 },		/* r11       */
+	{ 0x38 + 260, 32 },		/* r12       */
+	{ -2,   32 },			/* sp (r13)  */
+	{ 0x3C + 260, 32 },		/* lr (r14)  */
+	{ 0x40 + 260, 32 },		/* pc (r15)  */
+	{ 0x04, 32 },			/* xPSR      */
+};
+
+const struct rtos_register_stacking rtos_threadx_cortexa_stacking[] = {
+{
+	ARM926EJS_REGISTERS_SIZE_SOLICITED,	/* stack_registers_size */
+	-1,									/* stack_growth_direction */
+	17,									/* num_output_registers */
+	NULL,								/* stack_alignment */
+	rtos_threadx_arm926ejs_stack_offsets_solicited	/* register_offsets */
+},
+{
+	ARM926EJS_REGISTERS_SIZE_INTERRUPT,	/* stack_registers_size */
+	-1,									/* stack_growth_direction */
+	17,									/* num_output_registers */
+	NULL,								/* stack_alignment */
+	rtos_threadx_arm926ejs_stack_offsets_interrupt	/* register_offsets */
+},
+{
+	CORTEXA_REGISTERS_SIZE_SOLICITED,	/* stack_registers_size */
+	-1,									/* stack_growth_direction */
+	17,									/* num_output_registers */
+	NULL,								/* stack_alignment */
+	rtos_threadx_cortexa_stack_offsets_solicited	/* register_offsets */
+},
+{
+	CORTEXA_REGISTERS_SIZE_INTERRUPT,	/* stack_registers_size */
+	-1,									/* stack_growth_direction */
+	17,									/* num_output_registers */
+	NULL,								/* stack_alignment */
+	rtos_threadx_cortexa_stack_offsets_interrupt	/* register_offsets */
+},
+};
+
 struct ThreadX_params {
 	const char *target_name;
 	unsigned char pointer_width;
@@ -134,9 +225,11 @@ struct ThreadX_params {
 	unsigned char thread_name_offset;
 	unsigned char thread_state_offset;
 	unsigned char thread_next_offset;
+	unsigned char thread_vfp_offset;
 	const struct rtos_register_stacking *stacking_info;
 	size_t stacking_info_nb;
-	const struct rtos_register_stacking* (*fn_get_stacking_info)(const struct rtos *rtos, int64_t stack_ptr);
+	const struct rtos_register_stacking* (*fn_get_stacking_info)(const struct rtos *rtos,
+			int64_t thread_id, int64_t stack_ptr);
 	int (*fn_is_thread_id_valid)(const struct rtos *rtos, int64_t thread_id);
 };
 
@@ -148,6 +241,7 @@ static const struct ThreadX_params ThreadX_params_list[] = {
 	40,							/* thread_name_offset; */
 	48,							/* thread_state_offset; */
 	136,						/* thread_next_offset */
+	0,							/* thread_vfp_offset */
 	&rtos_standard_Cortex_M3_stacking,	/* stacking_info */
 	1,							/* stacking_info_nb */
 	NULL,						/* fn_get_stacking_info */
@@ -160,6 +254,7 @@ static const struct ThreadX_params ThreadX_params_list[] = {
 	40,							/* thread_name_offset; */
 	48,							/* thread_state_offset; */
 	136,						/* thread_next_offset */
+	0,							/* thread_vfp_offset */
 	&rtos_standard_Cortex_R4_stacking,	/* stacking_info */
 	1,							/* stacking_info_nb */
 	NULL,						/* fn_get_stacking_info */
@@ -172,8 +267,22 @@ static const struct ThreadX_params ThreadX_params_list[] = {
 	40,							/* thread_name_offset; */
 	48,							/* thread_state_offset; */
 	136,						/* thread_next_offset */
+	0,							/* thread_vfp_offset */
 	rtos_threadx_arm926ejs_stacking,	/* stacking_info */
 	2,									/* stacking_info_nb */
+	get_stacking_info_arm926ejs,		/* fn_get_stacking_info */
+	is_thread_id_valid_arm926ejs,		/* fn_is_thread_id_valid */
+	},
+	{
+	"cortex_a",				/* target_name */
+	4,							/* pointer_width; */
+	8,							/* thread_stack_offset; */
+	40,							/* thread_name_offset; */
+	48,							/* thread_state_offset; */
+	136,						/* thread_next_offset */
+	144,						/* thread_vfp_offset */
+	rtos_threadx_cortexa_stacking,	/* stacking_info */
+	4,									/* stacking_info_nb */
 	get_stacking_info_arm926ejs,		/* fn_get_stacking_info */
 	is_thread_id_valid_arm926ejs,		/* fn_is_thread_id_valid */
 	},
@@ -204,12 +313,13 @@ const struct rtos_type ThreadX_rtos = {
 	.get_symbol_list_to_lookup = ThreadX_get_symbol_list_to_lookup,
 };
 
-static const struct rtos_register_stacking *get_stacking_info(const struct rtos *rtos, int64_t stack_ptr)
+static const struct rtos_register_stacking *get_stacking_info(const struct rtos *rtos,
+		int64_t thread_id, int64_t stack_ptr)
 {
 	const struct ThreadX_params *param = (const struct ThreadX_params *) rtos->rtos_specific_params;
 
 	if (param->fn_get_stacking_info != NULL)
-		return param->fn_get_stacking_info(rtos, stack_ptr);
+		return param->fn_get_stacking_info(rtos, thread_id, stack_ptr);
 
 	return param->stacking_info + 0;
 }
@@ -229,11 +339,13 @@ static int is_thread_id_valid(const struct rtos *rtos, int64_t thread_id)
 	return (thread_id != 0);
 }
 
-static const struct rtos_register_stacking *get_stacking_info_arm926ejs(const struct rtos *rtos, int64_t stack_ptr)
+static const struct rtos_register_stacking *get_stacking_info_arm926ejs(const struct rtos *rtos,
+		int64_t thread_id, int64_t stack_ptr)
 {
 	const struct ThreadX_params *param = (const struct ThreadX_params *) rtos->rtos_specific_params;
 	int	retval;
 	uint32_t flag;
+	uint32_t vfp_enabled = 0;
 
 	retval = target_read_buffer(rtos->target,
 			stack_ptr,
@@ -243,7 +355,32 @@ static const struct rtos_register_stacking *get_stacking_info_arm926ejs(const st
 		LOG_ERROR("Error reading stack data from ThreadX thread: stack_ptr=0x%" PRIx64, stack_ptr);
 		return NULL;
 	}
+	if (param->thread_vfp_offset) {
+		retval = target_read_buffer(rtos->target,
+				thread_id + param->thread_vfp_offset,
+				sizeof(vfp_enabled),
+				(uint8_t *)&vfp_enabled);
+		if (retval != ERROR_OK) {
+			LOG_ERROR("Error reading vfp enabled from ThreadX thread");
+			return NULL;
+		}
+	}
 
+	LOG_INFO("stack_ptr=0x%" PRIx64 "read 0x%x 0x%x", (uint64_t)stack_ptr, flag, vfp_enabled);
+
+	if (vfp_enabled) {
+		if (param->stacking_info_nb < 4) {
+			LOG_ERROR("Error invalid stacking_info");
+			return NULL;
+		}
+		if (flag == 0) {
+			LOG_DEBUG("  solicited stack vfp");
+			return param->stacking_info + 2;
+		} else {
+			LOG_DEBUG("  interrupt stack vfp: %u", flag);
+			return param->stacking_info + 3;
+		}
+	}
 	if (flag == 0) {
 		LOG_DEBUG("  solicited stack");
 		return param->stacking_info + 0;
@@ -470,7 +607,7 @@ static int ThreadX_get_thread_reg_list(struct rtos *rtos, int64_t thread_id, cha
 	}
 
 	const struct rtos_register_stacking *stacking_info =
-			get_stacking_info(rtos, stack_ptr);
+			get_stacking_info(rtos, thread_id, stack_ptr);
 
 	if (stacking_info == NULL) {
 		LOG_ERROR("Unknown stacking info for thread id=0x%" PRIx64, (uint64_t)thread_id);
