@@ -26,7 +26,7 @@
 #include <target/algorithm.h>
 #include <target/armv7m.h>
 
-/* device documets:
+/*	device documets:
 	PSoC(R) 6: PSoC CY8C6XXX Family Datasheet
 	Document Number:
 
@@ -42,106 +42,106 @@
  *Base addresses
  *--------------------------------------------------------------------------------------------
  */
-/* 256kB System RAM */
+/*	256kB System RAM */
 #define MEM_BASE_SRAM0							0x08000000u
-/* 1024kB FLASH Main Region */
+/*	1024kB FLASH Main Region */
 #define MEM_BASE_FLASH							0x10000000u
-/* Peripheral Interconnect */
+/*	Peripheral Interconnect */
 #define MEM_BASE_MMIO							0x40000000u
-/*  0x40200000: Core platform peripherals */
+/*	0x40200000: Core platform peripherals */
 #define MEM_BASE_MMIO2							(MEM_BASE_MMIO + 0x200000u)
-/* 0x40230000: Base address for IPC structs */
+/*	0x40230000: Base address for IPC structs */
 #define MEM_BASE_IPC							(MEM_BASE_MMIO2 + 0x30000u)
-/* 0x40231000: Base address for IPC_INTR struct */
+/*	0x40231000: Base address for IPC_INTR struct */
 #define MEM_BASE_IPCINTR						(MEM_BASE_MMIO2 + 0x31000u)
 
 #define PSOC6_CHIP_PROT_UNKNOWN					0x0u
 #define PSOC6_CHIP_PROT_VIRGIN					0x1u
-#define PSOC6_CHIP_PROT_NORMAL  				0x2u
+#define PSOC6_CHIP_PROT_NORMAL					0x2u
 #define PSOC6_CHIP_PROT_SECURE					0x3u
 #define PSOC6_CHIP_PROT_DEAD					0x4u
 
-/* Addresses for IPC_STRUCT and IPC_INTR_STRUCT */
+/*	Addresses for IPC_STRUCT and IPC_INTR_STRUCT */
 #define IPC_INTR_STRUCT_SIZE					0x20u
 #define IPC_STRUCT_SIZE							0x20u
-/* 0x40230000: CM0+ IPC_STRUCT absolute address */
+/*	0x40230000: CM0+ IPC_STRUCT absolute address */
 #define IPC_STRUCT0								MEM_BASE_IPC
-/* 0x40230020: CM4 IPC_STRUCT absolute address */
+/*	0x40230020: CM4 IPC_STRUCT absolute address */
 #define IPC_STRUCT1								(IPC_STRUCT0 + IPC_STRUCT_SIZE)
-/* 0x40230040: DAP IPC_STRUCT absolute address */
+/*	0x40230040: DAP IPC_STRUCT absolute address */
 #define IPC_STRUCT2								(IPC_STRUCT1 + IPC_STRUCT_SIZE)
-/* 0x40231000: IPC_INTR struct absolute address */
+/*	0x40231000: IPC_INTR struct absolute address */
 #define IPC_INTR_STRUCT							MEM_BASE_IPCINTR
 
 #define FLASH_SECTOR_LENGTH						256u
 #define PSOC6_SPCIF_GEOMETRY					(MEM_BASE_MMIO2+0x5f00cu)
 
-/* Registers offsets in IPC_STRUCT[x]
- * This register is used to acquire a lock. This register is NOT SW writable.*/
+/*	Registers offsets in IPC_STRUCT[x]
+ *	This register is used to acquire a lock. This register is NOT SW writable.*/
 #define IPC_STRUCT_ACQUIRE_OFFSET				0x00u
-/* This field allows for the generation of notification events to the IPC interrupt structures. */
+/*	This field allows for the generation of notification events to the IPC interrupt structures. */
 #define IPC_STRUCT_NOTIFY_OFFSET				0x08u
-/* This field holds a 32-bit data element that is associated with the IPC structure. */
+/*	This field holds a 32-bit data element that is associated with the IPC structure. */
 #define IPC_STRUCT_DATA_OFFSET					0x0Cu
-/* IPC lock status */
+/*	IPC lock status */
 #define IPC_STRUCT_LOCK_STATUS_OFFSET			0x10u
 
-/* Registers offsets in IPC_INTR_STRUCT
- * IPC interrupt mask */
+/*	Registers offsets in IPC_INTR_STRUCT
+ *	IPC interrupt mask */
 #define IPC_INTR_STRUCT_INTR_IPC_MASK_OFFSET	0x08u
-/* Specifies if the lock is successfully acquired or not: '0': Not successfully acquired, '1': Successfully acquired.*/
-#define IPC_STRUCT_ACQUIRE_SUCCESS_MSK	        0x80000000u
-/* Specifies if the lock is acquired. */
-#define IPC_STRUCT_LOCK_STATUS_ACQUIRED_MSK     0x80000000u
+/*	Specifies if the lock is successfully acquired or not: '0': Not successfully acquired, '1': Successfully acquired.*/
+#define IPC_STRUCT_ACQUIRE_SUCCESS_MSK			0x80000000u
+/*	Specifies if the lock is acquired. */
+#define IPC_STRUCT_LOCK_STATUS_ACQUIRED_MSK		0x80000000u
 
-/* Misc
- * Timeout attempts of IPC_STRUCT acuire*/
+/*	Misc
+ *	Timeout attempts of IPC_STRUCT acuire*/
 #define IPC_STRUCT_ACQUIRE_TIMEOUT_ATTEMPTS		250u
-/* Timeout attempts of IPC_STRUCT data */
+/*	Timeout attempts of IPC_STRUCT data */
 #define IPC_STRUCT_DATA_TIMEOUT_ATTEMPTS		250u
-/* 0x08001000: Address of SRAM where the API’s parameters are stored by SW. */
+/*	0x08001000: Address of SRAM where the API’s parameters are stored by SW.*/
 #define SRAM_SCRATCH_ADDR						(MEM_BASE_SRAM0 + 0x00001000u)
 #define ROW_SIZE								512u
-/* Timemout 10 ms */
-#define DELAY_10_MS							    10000u
+/*	Timemout 10 ms */
+#define DELAY_10_MS								10000u
 
 /*--------------------------------------------------------------------------------------------
  *SROM APIs
  *--------------------------------------------------------------------------------------------
  *SROM APIs masks
- *[0]: 1 - arguments are passed in IPC.DATA. 0 - arguments are passed in SRAM*/
-#define MXS40_SROMAPI_DATA_LOCATION_MSK	        0x00000001u
-/* Status Code: 4 bits [31:28] of the data register */
+ *	[0]: 1 - arguments are passed in IPC.DATA. 0 - arguments are passed in SRAM*/
+#define MXS40_SROMAPI_DATA_LOCATION_MSK			0x00000001u
+/*	Status Code: 4 bits [31:28] of the data register */
 #define MXS40_SROMAPI_STATUS_MSK				0xF0000000u
-/* Status Code = 0xA */
+/*	Status Code = 0xA*/
 #define MXS40_SROMAPI_STAT_SUCCESS				0xA0000000u
 
-/* Sys calls IDs (SROM API Op code)
- * [31:24]: Opcode = 0x00; [0]: 1 - arguments are passed in IPC.DATA*/
+/*	Sys calls IDs (SROM API Op code)
+ *	[31:24]: Opcode = 0x00; [0]: 1 - arguments are passed in IPC.DATA*/
 #define MXS40_SROMAPI_SILID_CODE				0x00000001u
-/* [15:8]: ID type */
-#define MXS40_SROMAPI_SILID_TYPE_MSK	        0x0000FF00u
-#define MXS40_SROMAPI_SILID_TYPE_ROL	        0x08u
-/* [15:8]: Family Id Hi */
-#define MXS40_SROMAPI_SILID_FAMID_HI_MSK        0x0000FF00u
-#define MXS40_SROMAPI_SILID_FAMID_HI_ROR        0x08u
- /* [7:0]: Family Id Lo */
-#define MXS40_SROMAPI_SILID_FAMID_LO_MSK        0x000000FFu
-#define MXS40_SROMAPI_SILID_FAMID_LO_ROR        0u
-/* [19:16]: Protection state */
-#define MXS40_SROMAPI_SILID_PROT_MSK	        0x000F0000u
-#define MXS40_SROMAPI_SILID_PROT_ROR	        0x10u
-/* [15:8]: Silicon Id Hi */
-#define MXS40_SROMAPI_SILID_SILID_HI_MSK        0x0000FF00u
-#define MXS40_SROMAPI_SILID_SILID_HI_ROR        0x08u
-/* [15:8]: Silicon Id Lo */
-#define MXS40_SROMAPI_SILID_SILID_LO_MSK        0x000000FFu
-#define MXS40_SROMAPI_SILID_SILID_LO_ROR        0x00u
-/* [31:24]: Opcode = 0x06; [0]: 0 - arguments are passed in SRAM */
-#define MXS40_SROMAPI_PROGRAMROW_CODE	        0x06000100u
-/* [31:24]: Opcode = 0x14; [0]: 0 - arguments are passed in SRAM */
-#define MXS40_SROMAPI_ERASESECTOR_CODE	        0x14000100u
-/* [31:24]: Opcode = 0x1C; [0]: 0 - arguments are passed in SRAM */
+/*	[15:8]: ID type*/
+#define MXS40_SROMAPI_SILID_TYPE_MSK			0x0000FF00u
+#define MXS40_SROMAPI_SILID_TYPE_ROL			0x08u
+/*	[15:8]: Family Id Hi*/
+#define MXS40_SROMAPI_SILID_FAMID_HI_MSK		0x0000FF00u
+#define MXS40_SROMAPI_SILID_FAMID_HI_ROR		0x08u
+/*	[7:0]: Family Id Lo*/
+#define MXS40_SROMAPI_SILID_FAMID_LO_MSK		0x000000FFu
+#define MXS40_SROMAPI_SILID_FAMID_LO_ROR		0u
+/*	[19:16]: Protection state*/
+#define MXS40_SROMAPI_SILID_PROT_MSK			0x000F0000u
+#define MXS40_SROMAPI_SILID_PROT_ROR			0x10u
+/*	[15:8]: Silicon Id Hi*/
+#define MXS40_SROMAPI_SILID_SILID_HI_MSK		0x0000FF00u
+#define MXS40_SROMAPI_SILID_SILID_HI_ROR		0x08u
+/*	[15:8]: Silicon Id Lo*/
+#define MXS40_SROMAPI_SILID_SILID_LO_MSK		0x000000FFu
+#define MXS40_SROMAPI_SILID_SILID_LO_ROR		0x00u
+/*	[31:24]: Opcode = 0x06; [0]: 0 - arguments are passed in SRAM*/
+#define MXS40_SROMAPI_PROGRAMROW_CODE			0x06000100u
+/*	[31:24]: Opcode = 0x14; [0]: 0 - arguments are passed in SRAM*/
+#define MXS40_SROMAPI_ERASESECTOR_CODE			0x14000100u
+/*	[31:24]: Opcode = 0x1C; [0]: 0 - arguments are passed in SRAM*/
 #define MXS40_SROMAPI_ERASEROW_CODE				0x1C000100u
 #define IPC_ID									2u
 #define LENGHT_SILICON_ID						16u
@@ -160,7 +160,7 @@
 #define DATA_OFFSET								0x10
 
 /*Offset for set pointer to the first data byte location*/
-#define POINTER_ON_FIRST_BYTE_LOCATION_OFFSET   0x0C
+#define POINTER_ON_FIRST_BYTE_LOCATION_OFFSET	0x0C
 
 struct Psoc6ChipDetails {
 	uint32_t id;
@@ -283,8 +283,8 @@ FLASH_BANK_COMMAND_HANDLER(psoc6_flash_bank_command)
  SROM APIs basics
 --------------------------------------------------------------------------------
 ******************************************************************************
-* Purpose:	Polls lock status of IPC structure
-* Parameter:
+*	Purpose:	Polls lock status of IPC structure
+*	Parameter:
 *			target - current target device
 *			ipcId - Id of IPC structure
 *								- 0: IPC_STRUCT0 (CM0+)
@@ -327,17 +327,17 @@ int Ipc_PollLockStatus(struct target *target, uint32_t ipcId, bool lockExpected,
 
 
 /*******************************************************************************
-* Purpose:	Acquires MXS40 IPC structure
-* Parameter:
-* 			target - current target device
-* 			ipcId - Id of IPC structure
-* 								- 0: IPC_STRUCT0 (CM0+)
-* 								- 1: IPC_STRUCT1 (CM4)
-* 								- 2: IPC_STRUCT2 (DAP)
-* 			timeOutAttempts - timeout
-* Return:
-* 		ERROR_OK: IPC structure acquired successfully
-* 		ERROR_FAIL: Cannon acquire IPC structure
+*	Purpose:	Acquires MXS40 IPC structure
+*	Parameter:
+*			target - current target device
+*			ipcId - Id of IPC structure
+*								- 0: IPC_STRUCT0 (CM0+)
+*								- 1: IPC_STRUCT1 (CM4)
+*								- 2: IPC_STRUCT2 (DAP)
+*			timeOutAttempts - timeout
+*	Return:
+*		ERROR_OK: IPC structure acquired successfully
+*		ERROR_FAIL: Cannon acquire IPC structure
 *******************************************************************************/
 int Ipc_Acquire(struct target *target, char ipcId, int timeOutAttempts)
 {
@@ -379,9 +379,9 @@ int Ipc_Acquire(struct target *target, char ipcId, int timeOutAttempts)
 /*******************************************************************************
 * Purpose:	Polls execution status of SROM API
 * Parameter:
-* 			target - current target device
-* 			address - Memory address of SROM API status word
-* 			timeOutAttempts - timeout
+*			target - current target device
+*			address - Memory address of SROM API status word
+*			timeOutAttempts - timeout
 *			dataOut - status word
 * Return:
 *			ERROR_OK: SROM API returned successful execution status
@@ -409,7 +409,7 @@ int PollSromApiStatus(struct target *target, int address, int timeOutAttempts, u
 				break;
 			}
 			usleep(DELAY_10_MS);
-			attemptsElapsed ++;
+			attemptsElapsed++;
 		}
 	} while (!isAcquired);
 
@@ -420,18 +420,18 @@ int PollSromApiStatus(struct target *target, int address, int timeOutAttempts, u
 
 /*******************************************************************************
 *	Purpose:
-*			 			Calls SROM API
-*			 			SROM APIs are executed by invoking a system call & providing
-*			 			the corresponding arguments.
-*			 			System calls can be performed by CM0+, CM4 or DAP.
-*			 			Each of them have a reserved IPC structure (used as a mailbox) through which
-*			 			they can request CM0+ to perform a system call.
-*			 			Each one acquires the specific mailbox, writes the opcode and
-*			 			argument to the data field of the mailbox and notifies a dedicated
-*			 			IPC interrupt structure. This results in an NMI interrupt in M0+.
-* Parameter:
-* 			target - current target device
-* 			callIdAndParams - OpCode of SROM API and params (in case all params are in IPC structure)
+*						Calls SROM API
+*						SROM APIs are executed by invoking a system call & providing
+*						the corresponding arguments.
+*						System calls can be performed by CM0+, CM4 or DAP.
+*						Each of them have a reserved IPC structure (used as a mailbox) through which
+*						they can request CM0+ to perform a system call.
+*						Each one acquires the specific mailbox, writes the opcode and
+*						argument to the data field of the mailbox and notifies a dedicated
+*						IPC interrupt structure. This results in an NMI interrupt in M0+.
+*	Parameter:
+*			target - current target device
+*			callIdAndParams - OpCode of SROM API and params (in case all params are in IPC structure)
 *			dataOut - status word
 * Return:
 *			ERROR_OK: SROM API returned successful execution status
@@ -482,14 +482,14 @@ int CallSromApi(struct target *target, uint32_t callIdAndParams, uint32_t *dataO
 
 
 /*******************************************************************************
-* Purpose:	Get Silicon ID for connected target
-* Parameter:
-* 			target - current target device
-* 			siliconId - value for Silicon ID
-* 			protection - value for protected state
-* Return:
-* 		ERROR_OK: Resault of get silicon id operation is OK
-* 		ERROR_FAIL: Resault of get silicon id operation is FAIL
+*	Purpose:	Get Silicon ID for connected target
+*	Parameter:
+*			target - current target device
+*			siliconId - value for Silicon ID
+*			protection - value for protected state
+*	Return:
+*		ERROR_OK: Resault of get silicon id operation is OK
+*		ERROR_FAIL: Resault of get silicon id operation is FAIL
 *******************************************************************************/
 static int Psoc6GetSiliconId(struct target *target, uint32_t *siliconId, uint8_t *protection)
 {
@@ -525,12 +525,12 @@ static int Psoc6GetSiliconId(struct target *target, uint32_t *siliconId, uint8_t
 
 
 /*******************************************************************************
-* Purpose:	Check if bank of flash in protected state
-* Parameter:
-* 			bank - flash bank
-* Return:
-* 		ERROR_OK: Resault of check operation is OK
-* 		ERROR_FAIL: Resault of check operation is FAIL
+*	Purpose:	Check if bank of flash in protected state
+*	Parameter:
+*			bank - flash bank
+*	Return:
+*		ERROR_OK: Resault of check operation is OK
+*		ERROR_FAIL: Resault of check operation is FAIL
 *******************************************************************************/
 static int Psoc6ProtectCheck(struct flash_bank *bank)
 {
@@ -540,15 +540,15 @@ static int Psoc6ProtectCheck(struct flash_bank *bank)
 
 
 /*******************************************************************************
-* Purpose:	Set protected state in bank of flash
-* Parameter:
-* 			bank - flash bank
-* 			set - protected value
-* 			first - first address with protected data
-* 			last - last address with protected data
-* Return:
-* 		ERROR_OK: Resault of protect operation is OK
-* 		ERROR_FAIL: Resault of protect operation is FAIL
+*	Purpose:	Set protected state in bank of flash
+*	Parameter:
+*			bank - flash bank
+*			set - protected value
+*			first - first address with protected data
+*			last - last address with protected data
+*	Return:
+*		ERROR_OK: Resault of protect operation is OK
+*		ERROR_FAIL: Resault of protect operation is FAIL
 *******************************************************************************/
 static int Psoc6Protect(struct flash_bank *bank, int set, int first, int last)
 {
@@ -558,12 +558,12 @@ static int Psoc6Protect(struct flash_bank *bank, int set, int first, int last)
 
 
 /*******************************************************************************
-* Purpose:	Detect device and get all main parameters
-* Parameter:
-* 			bank - flash bank
-* Return:
-* 		ERROR_OK: Resault of probe operation is OK
-* 		ERROR_FAIL: Resault of probe operation is FAIL
+*	Purpose:	Detect device and get all main parameters
+*	Parameter:
+*			bank - flash bank
+*	Return:
+*		ERROR_OK: Resault of probe operation is OK
+*		ERROR_FAIL: Resault of probe operation is FAIL
 *******************************************************************************/
 static int Psoc6Probe(struct flash_bank *bank)
 {
@@ -665,18 +665,18 @@ static int Psoc6Probe(struct flash_bank *bank)
 			psoc6Info->probed = 1;
 		}
 	}
-		
+
 	return hr;
 }
 
 
 /*******************************************************************************
-* Purpose:	Auto detect device and get all main parameters
-* Parameter:
-* 			bank - flash bank
-* Return:
-* 		ERROR_OK: Resault of probe operation is OK
-* 		ERROR_FAIL: Resault of probe operation is FAIL
+*	Purpose:	Auto detect device and get all main parameters
+*	Parameter:
+*			bank - flash bank
+*	Return:
+*		ERROR_OK: Resault of probe operation is OK
+*		ERROR_FAIL: Resault of probe operation is FAIL
 *******************************************************************************/
 static int Psoc6AutoProbe(struct flash_bank *bank)
 {
@@ -693,14 +693,14 @@ static int Psoc6AutoProbe(struct flash_bank *bank)
 
 
 /*******************************************************************************
-* Purpose:	Erase sector operation for connected target
-* Parameter:
-* 			target - current target device
-* 			first - first address which will be erased
-* 			last - last sector which will be erased
-* Return:
-* 		ERROR_OK: Resault of Erase sector operation is OK
-* 		ERROR_FAIL: Resault of Erase sector operation is FAIL
+*	Purpose:	Erase sector operation for connected target
+*	Parameter:
+*			target - current target device
+*			first - first address which will be erased
+*			last - last sector which will be erased
+*	Return:
+*		ERROR_OK: Resault of Erase sector operation is OK
+*		ERROR_FAIL: Resault of Erase sector operation is FAIL
 *******************************************************************************/
 static int EraseSector(struct target *target, int first, int last)
 {
@@ -736,12 +736,12 @@ static int EraseSector(struct target *target, int first, int last)
 
 
 /*******************************************************************************
-* Purpose:	Erase  all sectors operation for connected target
-* Parameter:
-* 			bank - flash bank
-* Return:
-* 		ERROR_OK: Resault of Erase sector operation is OK
-* 		ERROR_FAIL: Resault of Erase sector operation is FAIL
+*	Purpose:	Erase  all sectors operation for connected target
+*	Parameter:
+*			bank - flash bank
+*	Return:
+*		ERROR_OK: Resault of Erase sector operation is OK
+*		ERROR_FAIL: Resault of Erase sector operation is FAIL
 *******************************************************************************/
 static int psoc6_mass_erase(struct flash_bank *bank)
 {
@@ -765,14 +765,14 @@ static int psoc6_mass_erase(struct flash_bank *bank)
 
 
 /*******************************************************************************
-* Purpose:	Erase sector operation for connected target
-* Parameter:
-* 			bank - flash bank
-* 			first - first address which will be erased
-* 			last - last sector which will be erased
-* Return:
-* 		ERROR_OK: Resault of Erase sector operation is OK
-* 		ERROR_FAIL: Resault of Erase sector operation is FAIL
+*	Purpose:	Erase sector operation for connected target
+*	Parameter:
+*			bank - flash bank
+*			first - first address which will be erased
+*			last - last sector which will be erased
+*	Return:
+*		ERROR_OK: Resault of Erase sector operation is OK
+*		ERROR_FAIL: Resault of Erase sector operation is FAIL
 *******************************************************************************/
 static int Psoc6Erase(struct flash_bank *bank, int first, int last)
 {
@@ -794,15 +794,15 @@ static int Psoc6Erase(struct flash_bank *bank, int first, int last)
 
 
 /*******************************************************************************
-* Purpose:	Write row operation for connected target
-* Parameter:
-* 			target - current target device
-* 			address - start address for write data
-* 			buffer - buffer with all data which need write
-* 			count - lenght data
-* Return:
-* 		ERROR_OK: Resault of write row operation is OK
-* 		ERROR_FAIL: Resault of write row operation is FAIL
+*	Purpose:	Write row operation for connected target
+*	Parameter:
+*			target - current target device
+*			address - start address for write data
+*			buffer - buffer with all data which need write
+*			count - lenght data
+*	Return:
+*		ERROR_OK: Resault of write row operation is OK
+*		ERROR_FAIL: Resault of write row operation is FAIL
 *******************************************************************************/
 static int WriteRow(struct target *target, int address, const uint8_t * buffer, int count)
 {
@@ -851,15 +851,15 @@ static int WriteRow(struct target *target, int address, const uint8_t * buffer, 
 
 
 /*******************************************************************************
-* Purpose:	Write operation for connected target
-* Parameter:
-* 			bank - flash bank
-* 			buffer - buffer with all data which need write
-* 			offset - offset of address where need to write data
-* 			count - lenght data
-* Return:
-* 		ERROR_OK: Resault of write operation is OK
-* 		ERROR_FAIL: Resault of write operation is FAIL
+*	Purpose:	Write operation for connected target
+*	Parameter:
+*			bank - flash bank
+*			buffer - buffer with all data which need write
+*			offset - offset of address where need to write data
+*			count - lenght data
+*	Return:
+*		ERROR_OK: Resault of write operation is OK
+*		ERROR_FAIL: Resault of write operation is FAIL
 *******************************************************************************/
 static int Psoc6Write(struct flash_bank *bank, const uint8_t *buffer, uint32_t offset, uint32_t count)
 {
@@ -895,19 +895,19 @@ static int Psoc6Write(struct flash_bank *bank, const uint8_t *buffer, uint32_t o
 		address = address + size;
 		bytesRemaining -= size;
 	}
-	
+
 	return hr;
 }
 
 /*******************************************************************************
-* Purpose:	Get information about connected target
-* Parameter:
-* 			bank - flash bank
-* 			buf - buffer all information
-* 			buf_size - size for buffer
-* Return:
-* 		ERROR_OK: Resault of get info operation operation is OK
-* 		ERROR_FAIL: Resault of get info operation operation is FAIL
+*	Purpose:	Get information about connected target
+*	Parameter:
+*			bank - flash bank
+*			buf - buffer all information
+*			buf_size - size for buffer
+*	Return:
+*		ERROR_OK: Resault of get info operation operation is OK
+*		ERROR_FAIL: Resault of get info operation operation is FAIL
 *******************************************************************************/
 static int GetPsoc6Info(struct flash_bank *bank, char *buf, int buf_size)
 {
