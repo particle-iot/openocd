@@ -227,9 +227,8 @@ static const struct Psoc6ChipDetails *psoc6_details_by_id(uint32_t siliconId)
 	uint16_t i;
 	uint16_t id = siliconId >> LENGHT_SILICON_ID; /* ignore die revision */
 	for (i = 0; i < sizeof(psoc6Devices)/sizeof(psoc6Devices[0]); i++) {
-		if (p->id == id) {
+		if (p->id == id)
             chipInfo = p;
-        }
         p++;
 	}
 	LOG_INFO("Unknown PSoC 6 device silicon id 0x%08" PRIx32 ".", siliconId);
@@ -269,9 +268,9 @@ FLASH_BANK_COMMAND_HANDLER(psoc6_flash_bank_command)
 	struct psoc6FlashBank *psoc6_info;
 	int hr = ERROR_OK;
 
-	if (CMD_ARGC < 6){
+	if (CMD_ARGC < 6) {
 		hr = ERROR_COMMAND_SYNTAX_ERROR;
-	}else{
+	} else {
 		psoc6_info = calloc(1, sizeof(struct psoc6FlashBank));
 		bank->driver_priv = psoc6_info;
 		psoc6_info->userBankSize = bank->size;
@@ -306,7 +305,7 @@ int Ipc_PollLockStatus(struct target *target, uint32_t ipcId, bool lockExpected,
   uint32_t readData;  
   uint32_t ipcAddr = IPC_STRUCT0 + IPC_STRUCT_SIZE * ipcId;
   do {
-	   /* Check lock status*/
+	  /* Check lock status*/
 	  hr = target_read_u32(target, ipcAddr + IPC_STRUCT_LOCK_STATUS_OFFSET, &readData);
 	  if (hr == ERROR_OK) {
 		  bool isLocked = (readData & IPC_STRUCT_LOCK_STATUS_ACQUIRED_MSK) != 0;
@@ -314,7 +313,7 @@ int Ipc_PollLockStatus(struct target *target, uint32_t ipcId, bool lockExpected,
 	  }
 	  /* Check for timeout*/
 	  if (!isExpectedStatus) {
-		  if (attemptsElapsed > timeOutAttempts){
+		  if (attemptsElapsed > timeOutAttempts) {
 			  LOG_ERROR("Timeout polling lock status of IPC_STRUCT");
 			  hr = ERROR_FAIL;
 			  break;
@@ -348,18 +347,18 @@ int Ipc_Acquire(struct target *target, char ipcId, int timeOutAttempts)
   uint32_t readData;
   uint32_t ipcAddr = IPC_STRUCT0 + IPC_STRUCT_SIZE * ipcId;
 
-  do{
+  do {
 	  /* Acquire the lock in DAP IPC struct (IPC_STRUCT.ACQUIRE).*/
 	  hr = target_write_u32(target, ipcAddr + IPC_STRUCT_ACQUIRE_OFFSET, IPC_STRUCT_ACQUIRE_SUCCESS_MSK);
-	  if (hr == ERROR_OK){
+	  if (hr == ERROR_OK) {
 		  /* Check if data is writed on first step */
 		  hr = target_read_u32(target, ipcAddr + IPC_STRUCT_ACQUIRE_OFFSET, &readData);
-		  if (hr == ERROR_OK){
+		  if (hr == ERROR_OK) {
 			  isAcquired = (readData & IPC_STRUCT_ACQUIRE_SUCCESS_MSK) != 0;
 		  }
 	  }
 	   /* Check for timeout */
-	  if (!isAcquired){
+	  if (!isAcquired) {
 		  if (attemptsElapsed > timeOutAttempts){
 			  LOG_ERROR("Timeout acquiring IPC_STRUCT");
 			  hr = ERROR_FAIL;
@@ -370,7 +369,7 @@ int Ipc_Acquire(struct target *target, char ipcId, int timeOutAttempts)
 	  }
   } while (!isAcquired);
 
-  if (isAcquired){
+  if (isAcquired) {
 	  /* If IPC structure is acquired, the lock status should be set */
 	  hr = Ipc_PollLockStatus(target, ipcId, true, timeOutAttempts);
   }
@@ -396,15 +395,15 @@ int PollSromApiStatus(struct target *target, int address, int timeOutAttempts, u
   int attemptsElapsed = 0x00;
   bool isAcquired = false;
 
-  do{
+  do {
 	  /* Poll data */
 	  hr = target_read_u32(target, address, dataOut);
-	  if (hr == ERROR_OK){
+	  if (hr == ERROR_OK) {
 		  isAcquired = (*dataOut & MXS40_SROMAPI_STATUS_MSK) == MXS40_SROMAPI_STAT_SUCCESS;
 	  }
 	  /* Check for timeout */
-	  if (!isAcquired){
-		  if (attemptsElapsed > timeOutAttempts){
+	  if (!isAcquired) {
+		  if (attemptsElapsed > timeOutAttempts) {
 			  LOG_DEBUG("PollSromApiStatus - FAIL status - 0x%08x", (unsigned int)*dataOut);
 			  LOG_ERROR("Timeout waiting for SROM API execution complete");
 			  hr = ERROR_FAIL;
@@ -448,28 +447,28 @@ int CallSromApi(struct target *target, uint32_t callIdAndParams, uint32_t *dataO
   unsigned long IPC_STRUC = IPC_STRUCT2;
   /* Acquire IPC_STRUCT[0] for CM0+ */
   hr = Ipc_Acquire(target, IPC_ID, IPC_STRUCT_ACQUIRE_TIMEOUT_ATTEMPTS);
-  if (hr == ERROR_OK){
+  if (hr == ERROR_OK) {
 	  /* Write to IPC_STRUCT0.DATA - Sys call ID and Parameters
 		 OR address in SRAM, where they are located */
-	  if (isDataInRam){
+	  if (isDataInRam) {
 		  LOG_DEBUG("CallSromApi: isDataInRam = true: address -> 0x%x, data -> 0x%x", (unsigned int)(IPC_STRUC + IPC_STRUCT_DATA_OFFSET), SRAM_SCRATCH_ADDR);
 		  hr = target_write_u32(target, (unsigned int)(IPC_STRUC + IPC_STRUCT_DATA_OFFSET), SRAM_SCRATCH_ADDR);
-	  }else{
+	  } else {
 		  LOG_DEBUG("CallSromApi: isDataInRam = false: address -> 0x%x, data -> 0x%x", (unsigned int)(IPC_STRUC + IPC_STRUCT_DATA_OFFSET), callIdAndParams);
 		  hr = target_write_u32(target, (unsigned int)(IPC_STRUC + IPC_STRUCT_DATA_OFFSET), callIdAndParams);
 	  }
-	  if (hr == ERROR_OK){
+	  if (hr == ERROR_OK) {
 		  /* Enable notification interrupt of IPC_INTR_STRUCT0(CM0+) for IPC_STRUCT2 */
 		  hr = target_write_u32(target, (IPC_INTR_STRUCT + IPC_INTR_STRUCT_INTR_IPC_MASK_OFFSET), 1 << (16 + IPC_ID));
-		  if (hr == ERROR_OK){
+		  if (hr == ERROR_OK) {
 			  /* Notify to IPC_INTR_STRUCT0. IPC_STRUCT2.MASK <- Notify */
 			  hr = target_write_u32(target, IPC_STRUC + IPC_STRUCT_NOTIFY_OFFSET, 1);
-			  if (hr == ERROR_OK){
+			  if (hr == ERROR_OK) {
 				  /* Poll lock status */
 				  hr = Ipc_PollLockStatus(target, IPC_ID, false, IPC_STRUCT_ACQUIRE_TIMEOUT_ATTEMPTS);
-				  if (hr == ERROR_OK){
+				  if (hr == ERROR_OK) {
 					  /* Poll Data byte */
-					  if (isDataInRam){
+					  if (isDataInRam) {
 						  hr = PollSromApiStatus(target, SRAM_SCRATCH_ADDR, IPC_STRUCT_DATA_TIMEOUT_ATTEMPTS, dataOut);
 					  } else {
 						  hr = PollSromApiStatus(target, IPC_STRUC + IPC_STRUCT_DATA_OFFSET, IPC_STRUCT_DATA_TIMEOUT_ATTEMPTS, dataOut);
@@ -508,21 +507,17 @@ static int Psoc6GetSiliconId(struct target *target, uint32_t *siliconId, uint8_t
 	   SRAM_SCRATCH: OpCode */
 	params = MXS40_SROMAPI_SILID_CODE + (MXS40_SROMAPI_SILID_TYPE_MSK & (0 << MXS40_SROMAPI_SILID_TYPE_ROL));
 	hr = CallSromApi(target, params, &dataOut0);
-	if (hr == ERROR_OK)
-	{
+	if (hr == ERROR_OK) {
 		/* Type 1: Get Silicon ID and protection state */
 		params = (MXS40_SROMAPI_SILID_CODE + (MXS40_SROMAPI_SILID_TYPE_MSK & (1 << MXS40_SROMAPI_SILID_TYPE_ROL)));
 		hr = CallSromApi(target, params, &dataOut1);
-		if (hr == ERROR_OK)
-		{
+		if (hr == ERROR_OK) {
 			familyIdHi = (dataOut0 &  MXS40_SROMAPI_SILID_FAMID_HI_MSK) >> MXS40_SROMAPI_SILID_FAMID_HI_ROR;	/* Family ID High */
 			familyIdLo = (dataOut0 &  MXS40_SROMAPI_SILID_FAMID_LO_MSK) >> MXS40_SROMAPI_SILID_FAMID_LO_ROR;	/* Family ID Low */
 			siliconIdHi = (dataOut1 &  MXS40_SROMAPI_SILID_SILID_HI_MSK) >> MXS40_SROMAPI_SILID_SILID_HI_ROR;	/* Silicon ID High */
 			siliconIdLo = (dataOut1 &  MXS40_SROMAPI_SILID_SILID_LO_MSK) >> MXS40_SROMAPI_SILID_SILID_LO_ROR;	/* Silicon ID Low */
 			*protection = (dataOut1 &  MXS40_SROMAPI_SILID_PROT_MSK) >> MXS40_SROMAPI_SILID_PROT_ROR;			/* Protection state */
-		}
-		else
-		{
+		} else {
 			LOG_ERROR("Get Silicon ID and protection state has failed results");
 		}
 	}
@@ -590,29 +585,22 @@ static int Psoc6Probe(struct flash_bank *bank)
 	LOG_DEBUG("Status HALT - 0x%x", haltStatus);
 	psoc6Info->probed = 0;
 	hr = target_read_u32(target, PSOC6_SPCIF_GEOMETRY, &spcifGeometry);
-	if (hr == ERROR_OK)
-	{
+	if (hr == ERROR_OK) {
 		rowSize = ROW_SIZE;
 		flashSizeInKb = (FLASH_SECTOR_LENGTH * (((spcifGeometry >> 24) & 0xFF) + 1));
 		LOG_INFO("SPCIF geometry: %" PRIu32 " kb flash, row %" PRIu32 " bytes.", flashSizeInKb, rowSize);
 
 		/* Get silicon ID from target. */
 		hr = Psoc6GetSiliconId(target, &siliconId, &protection);
-		if (hr == ERROR_OK)
-		{
+		if (hr == ERROR_OK) {
 
 			const struct Psoc6ChipDetails *details = psoc6_details_by_id(siliconId);
-			if (details)
-			{
+			if (details) {
 				LOG_INFO("%s device detected.", details->type);
-				if (flashSizeInKb == 0)
-				{
+				if (flashSizeInKb == 0) {
 					flashSizeInKb = details->flashSizeInKb;
-				}
-				else
-				{
-					if (flashSizeInKb != details->flashSizeInKb)
-					{
+				} else {
+					if (flashSizeInKb != details->flashSizeInKb) {
 						LOG_ERROR("Flash size mismatch");
 					}
 				}
@@ -625,8 +613,7 @@ static int Psoc6Probe(struct flash_bank *bank)
 
 			/* failed reading flash size or flash size invalid (early silicon),
 			default to max target family */
-			if (hr != ERROR_OK || flashSizeInKb == 0xffff || flashSizeInKb == 0)
-			{
+			if (hr != ERROR_OK || flashSizeInKb == 0xffff || flashSizeInKb == 0) {
 				LOG_WARNING("PSoC 6 flash size failed, probe inaccurate - assuming %" PRIu32 " k flash",
 					maxFlashSizeInKb);
 				flashSizeInKb = maxFlashSizeInKb;
@@ -634,8 +621,7 @@ static int Psoc6Probe(struct flash_bank *bank)
 
 			/* if the user sets the size manually then ignore the probed value
 			this allows us to work around devices that have a invalid flash size register value */
-			if (psoc6Info->userBankSize)
-			{
+			if (psoc6Info->userBankSize) {
 				LOG_INFO("ignoring flash probed value, using configured bank size");
 				flashSizeInKb = psoc6Info->userBankSize / 1024;
 			}
@@ -649,8 +635,7 @@ static int Psoc6Probe(struct flash_bank *bank)
 			/* check that calculation result makes sense */
 			assert(num_rows > 0);
 
-			if (bank->sectors)
-			{
+			if (bank->sectors) {
 				free(bank->sectors);
 				bank->sectors = NULL;
 			}
@@ -664,8 +649,7 @@ static int Psoc6Probe(struct flash_bank *bank)
 			bank->default_padded_value = bank->erased_value = 0x00;
 
 			uint32_t i;
-			for (i = 0; i < num_rows; i++)
-			{
+			for (i = 0; i < num_rows; i++) {
 				bank->sectors[i].offset = i * rowSize;
 				bank->sectors[i].size = rowSize;
 				bank->sectors[i].is_erased = -1;
@@ -702,12 +686,9 @@ static int Psoc6AutoProbe(struct flash_bank *bank)
 	struct psoc6FlashBank *psoc6Info = bank->driver_priv;
 	int hr;
 
-	if (psoc6Info->probed)
-	{
+	if (psoc6Info->probed) {
 		hr = ERROR_OK;
-	}
-	else
-	{
+	} else {
 		hr = Psoc6Probe(bank);
 	}
 
@@ -730,33 +711,27 @@ static int EraseSector(struct target *target, int first, int last)
 	int hr;
 	LOG_DEBUG("first-> 0x%x, last-> 0x%x", first, last);
 
-	 for (int i = first; i < last; i++)
-	 {
+	 for (int i = first; i < last; i++) {
 		 int addr = MEM_BASE_FLASH + (i * FLASH_SECTOR_LENGTH * 1024);
 
 		 /* Prepare batch request. Skip immediate responses in batch mode.
 		    SRAM_SCRATCH: OpCode */
 		 hr = target_write_u32(target, SRAM_SCRATCH_ADDR, MXS40_SROMAPI_ERASESECTOR_CODE);
 		 if (hr != ERROR_OK)
-		 {
 			 break;
-		 }
 
 		 /* SRAM_SCRATCH + 0x04: Flash address to be erased (in 32-bit system address format) */
 		 hr = target_write_u32(target, SRAM_SCRATCH_ADDR + DATA_LOCATION_OFFSET, addr);
 		 if (hr != ERROR_OK)
-		 {
 			 break;
-		 }
 
 		 /* Send batch request */
 		 uint32_t dataOut;
 		 hr = CallSromApi(target, MXS40_SROMAPI_ERASESECTOR_CODE, &dataOut);
-		 if (hr != ERROR_OK)
-		 {
+		 if (hr != ERROR_OK) {
 			 LOG_ERROR("Sector \"%d\" from \"%d\" sectors are not erased.  Failed result for Erase operation.", i, last);
 			 break;
-		 }
+		}
 
 		 LOG_DEBUG("Sector -> 0x%x is Erased", addr);
 	 }
@@ -781,16 +756,14 @@ static int psoc6_mass_erase(struct flash_bank *bank)
 
 	LOG_INFO("sectors-> 0x%x", sectors);
 
-	if (bank->target->state != TARGET_HALTED)
-	{
+	if (bank->target->state != TARGET_HALTED) {
 		LOG_ERROR("Target not halted");
 		hr = ERROR_TARGET_NOT_HALTED;
 	}
 
 	if (hr == ERROR_OK)
-	{
 		hr = EraseSector(target, 0, sectors);
-	}
+
 	return hr;
 }
 
@@ -815,11 +788,9 @@ static int Psoc6Erase(struct flash_bank *bank, int first, int last)
 	LOG_DEBUG("Calc-> 0x%x", (psoc6Info->flashSizeInKb / FLASH_SECTOR_LENGTH));
 	LOG_DEBUG("first-> 0x%x, last-> 0x%x", first, last - 1);
 
-	if ((unsigned)(last - 1) != (psoc6Info->flashSizeInKb/FLASH_SECTOR_LENGTH))
-	{
+	if ((unsigned)(last - 1) != (psoc6Info->flashSizeInKb/FLASH_SECTOR_LENGTH)) {
 		LOG_INFO("Count of sector is more then real present");
-	}else
-	{
+	} else {
 		hr = EraseSector(target, first, last - 1);
 	}
 	return hr;
@@ -844,8 +815,7 @@ static int WriteRow(struct target *target, int address, const uint8_t * buffer, 
 	/* 1. Prepare data for SROM API - write it to SRAM ---
 	   SRAM_SCRATCH: OpCode*/
 	hr = target_write_u32(target, SRAM_SCRATCH_ADDR, MXS40_SROMAPI_PROGRAMROW_CODE);
-	if (hr == ERROR_OK)
-	{
+	if (hr == ERROR_OK) {
 
 		/* SRAM_SCRATCH + 0x04: Data location/size and Integrity check
 		   ---
@@ -857,27 +827,21 @@ static int WriteRow(struct target *target, int address, const uint8_t * buffer, 
 		   Data size* – 0 – 8b ,1-16b , 2 -32b ,3 – 64b , 4 – 128b , 5 – 256 b , 6 – 512b , 7)
 		   Data size is ignored for S40 SONOS FLASH as the lowest granularity for program operation equals page size. */
 		hr = target_write_u32(target, SRAM_SCRATCH_ADDR + DATA_LOCATION_OFFSET, DATA_LOCATION_OFFSET);
-		if (hr == ERROR_OK)
-		{
+		if (hr == ERROR_OK) {
 			/* SRAM_SCRATCH + 0x08:
 			Flash address to be programmed (in 32-bit system address format) */
 			hr = target_write_u32(target, SRAM_SCRATCH_ADDR + FLASH_ADDRESS_OFFSET, address);
-			if (hr == ERROR_OK)
-			{
+			if (hr == ERROR_OK) {
 				/* SRAM_SCRATCH + 0x10...n: Data word 0..n (Data provided should be proportional to data size provided, data to be programmed into LSB’s ) */
 				uint32_t dataRamAddr = SRAM_SCRATCH_ADDR + DATA_OFFSET;
 
 				/* SRAM_SCRATCH + 0x0C: Pointer to the first data byte location */
 				hr = target_write_u32(target, SRAM_SCRATCH_ADDR + POINTER_ON_FIRST_BYTE_LOCATION_OFFSET, dataRamAddr);
-				if (hr == ERROR_OK)
-				{
-					if (target_write_buffer(target, dataRamAddr, count, buffer) != ERROR_OK)
-					{
+				if (hr == ERROR_OK) {
+					if (target_write_buffer(target, dataRamAddr, count, buffer) != ERROR_OK) {
 						LOG_ERROR("Write to flash buffer failed");
 						hr = ERROR_FAIL;
-					}
-					else
-					{
+					} else {
 						LOG_DEBUG("PSOC6: WRITE_ROW: ADDRESS->0x%x, PARAMS->0x%x, DATARAMADDR->0x%x, COUNT->0x%x", address, DATA_LOCATION_OFFSET, dataRamAddr, count);
 						/* 2. Call SROM API --- */
 						hr = CallSromApi(target, MXS40_SROMAPI_PROGRAMROW_CODE, &dataOut);
@@ -915,27 +879,21 @@ static int Psoc6Write(struct flash_bank *bank, const uint8_t *buffer, uint32_t o
 	sourceOffset = 0;
 	address = bank->base + offset;
 	maxAdressSize = (address + count);
-	while (address < maxAdressSize)
-	{
+	while (address < maxAdressSize) {
 		LOG_DEBUG("PSOC6_WRITE: SOURCE_OFFSET->0x%x, ADDRESS->0x%x, ADDRESS+COUNT->0x%x, BYTES_REMAINING->0x%x", sourceOffset, address, maxAdressSize, bytesRemaining);
 		LOG_INFO("Write data in 0x%x address", address);
 		size = psoc6Info->rowSize;
-		if (bytesRemaining < psoc6Info->rowSize)
-		{
+		if (bytesRemaining < psoc6Info->rowSize) {
 			memset(pageBuffer, 0x00, size);
 			memcpy(pageBuffer, &buffer[sourceOffset], bytesRemaining);
 			size = bytesRemaining;
-		}
-		else
-		{
+		} else {
 			memcpy(pageBuffer, &buffer[sourceOffset], size);
 		}
 
 		hr = WriteRow(target, address, pageBuffer, size);
 		if (hr != ERROR_OK)
-		{
 			break;
-		}
 
 		sourceOffset += size;
 		address = address + size;
@@ -960,20 +918,14 @@ static int GetPsoc6Info(struct flash_bank *bank, char *buf, int buf_size)
 	int hr;
 	struct psoc6FlashBank *psoc6Info = bank->driver_priv;
 	int printed = 0;
-	if (psoc6Info->probed == 0)
-	{
+	if (psoc6Info->probed == 0) {
 		hr = ERROR_FAIL;
-	}
-	else
-	{
+	} else {
 		const struct Psoc6ChipDetails *details = psoc6_details_by_id(psoc6Info->siliconId);
-		if (details)
-		{
+		if (details) {
 			uint32_t chip_revision = psoc6Info->siliconId & 0xffffffff;
 			printed = snprintf(buf, buf_size, "PSoC 6 %s rev 0x%04" PRIx32 " ", details->type, chip_revision);
-		}
-		else
-		{
+		} else {
 			printed = snprintf(buf, buf_size, "PSoC 6 silicon id 0x%x", psoc6Info->siliconId);
 		}
 
@@ -994,16 +946,12 @@ COMMAND_HANDLER(psoc6_handle_mass_erase_command)
 	LOG_INFO("psoc6_handle_mass_erase_command function");
 	int hr;
 	if (CMD_ARGC < 1)
-	{
 		hr = ERROR_COMMAND_SYNTAX_ERROR;
-	}
 
-	if (hr == ERROR_OK)
-	{
+	if (hr == ERROR_OK) {
 		struct flash_bank *bank;
 		hr = CALL_COMMAND_HANDLER(flash_command_get_bank, 0, &bank);
-		if (hr == ERROR_OK)
-		{
+		if (hr == ERROR_OK) {
 			hr = psoc6_mass_erase(bank);
 			if (hr == ERROR_OK)
 				command_print(CMD_CTX, "psoc mass erase complete");
