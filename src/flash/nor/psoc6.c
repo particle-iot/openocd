@@ -1,21 +1,20 @@
-/***************************************************************************
-© (2016), Cypress Semiconductor Corporation or a subsidiary of Cypress Semiconductor Corporation.  All rights reserved.
-This software, including source code, documentation and related materials (“Software”),  is owned by Cypress Semiconductor 
-Corporation or one of its subsidiaries (“Cypress”) and is protected by and subject to worldwide patent protection 
-(United States and foreign), United States copyright laws and international treaty provisions.  Therefore, you may use this
-Software only as provided in the license agreement accompanying the software package from which you obtained this Software (“EULA”).
-If no EULA applies, Cypress hereby grants you a personal, non-exclusive, non-transferable license to copy, modify, and 
-compile the Software source code solely for use in connection with Cypress’s integrated circuit products.  Any reproduction,
-modification, translation, compilation, or representation of this Software except as specified above is prohibited without the
-express written permission of Cypress.
-Disclaimer: THIS SOFTWARE IS PROVIDED AS-IS, WITH NO WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING, BUT NOT LIMITED TO,
-NONINFRINGEMENT, IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE. Cypress reserves the right to make
-changes to the Software without notice. Cypress does not assume any liability arising out of the application or use of the 
-Software or any product or circuit described in the Software. Cypress does not authorize its products for use in any products
-where a malfunction or failure of the Cypress product may reasonably be expected to result in significant property damage, 
-injury or death (“High Risk Product”). By including Cypress’s product in a High Risk Product, the manufacturer of such system
-or application assumes all risk of such use and in doing so agrees to indemnify Cypress against all liability.
- ***************************************************************************/
+/*******************************************************************************
+ *   Copyright (C) 2017 by Yuriy Vynnychek (PSoC 6 support derived from PSoC 4)*
+ *   Yuriy.Vynnychek.cypress.com                                               *
+ *                                                                             *
+ *   This program is free software; you can redistribute it and/or modify      *
+ *   it under the terms of the GNU General Public License as published by      *
+ *   the Free Software Foundation; either version 2 of the License, or         *
+ *   (at your option) any later version.                                       *
+ *                                                                             *
+ *   This program is distributed in the hope that it will be useful,           *
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of            *
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the             *
+ *   GNU General Public License for more details.                              *
+ *                                                                             *
+ *   You should have received a copy of the GNU General Public License         *
+ *   along with this program.  If not, see <http://www.gnu.org/licenses/>.     *
+ ******************************************************************************/
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -29,7 +28,7 @@ or application assumes all risk of such use and in doing so agrees to indemnify 
 
 /* device documets:
  PSoC(R) 6: PSoC CY8C6XXX Family Datasheet
-	Document Number: 
+    Document Number:
 
  PSoC CY8C6XXX Family PSoC(R) 6 Architecture TRM
 	Document No. 002-15785 Rev. ** xx/xx/2016
@@ -44,17 +43,17 @@ or application assumes all risk of such use and in doing so agrees to indemnify 
  *--------------------------------------------------------------------------------------------
  */
 /* 256kB System RAM */
-#define MEM_BASE_SRAM0							0x08000000u 
+#define MEM_BASE_SRAM0							0x08000000u
 /* 1024kB FLASH Main Region */
-#define MEM_BASE_FLASH							0x10000000u 
+#define MEM_BASE_FLASH							0x10000000u
 /* Peripheral Interconnect */
 #define MEM_BASE_MMIO							0x40000000u
 /*  0x40200000: Core platform peripherals */
-#define MEM_BASE_MMIO2							(MEM_BASE_MMIO + 0x200000u) 
+#define MEM_BASE_MMIO2							(MEM_BASE_MMIO + 0x200000u)
 /* 0x40230000: Base address for IPC structs */
-#define MEM_BASE_IPC							(MEM_BASE_MMIO2 + 0x30000u) 
+#define MEM_BASE_IPC							(MEM_BASE_MMIO2 + 0x30000u)
 /* 0x40231000: Base address for IPC_INTR struct */
-#define MEM_BASE_IPCINTR						(MEM_BASE_MMIO2 + 0x31000u) 
+#define MEM_BASE_IPCINTR						(MEM_BASE_MMIO2 + 0x31000u)
 
 #define PSOC6_CHIP_PROT_UNKNOWN					0x0u
 #define PSOC6_CHIP_PROT_VIRGIN					0x1u
@@ -66,82 +65,82 @@ or application assumes all risk of such use and in doing so agrees to indemnify 
 #define IPC_INTR_STRUCT_SIZE					0x20u
 #define IPC_STRUCT_SIZE							0x20u
 /* 0x40230000: CM0+ IPC_STRUCT absolute address */
-#define IPC_STRUCT0								MEM_BASE_IPC	
-/* 0x40230020: CM4 IPC_STRUCT absolute address */	         
-#define IPC_STRUCT1								(IPC_STRUCT0 + IPC_STRUCT_SIZE)    
+#define IPC_STRUCT0								MEM_BASE_IPC
+/* 0x40230020: CM4 IPC_STRUCT absolute address */
+#define IPC_STRUCT1								(IPC_STRUCT0 + IPC_STRUCT_SIZE)
 /* 0x40230040: DAP IPC_STRUCT absolute address */
-#define IPC_STRUCT2								(IPC_STRUCT1 + IPC_STRUCT_SIZE)    
+#define IPC_STRUCT2								(IPC_STRUCT1 + IPC_STRUCT_SIZE)
 /* 0x40231000: IPC_INTR struct absolute address */
-#define IPC_INTR_STRUCT							MEM_BASE_IPCINTR                 
+#define IPC_INTR_STRUCT							MEM_BASE_IPCINTR
 
 #define FLASH_SECTOR_LENGTH						256u
 #define PSOC6_SPCIF_GEOMETRY					(MEM_BASE_MMIO2+0x5f00cu)
 
 /* Registers offsets in IPC_STRUCT[x]
  * This register is used to acquire a lock. This register is NOT SW writable.*/
-#define IPC_STRUCT_ACQUIRE_OFFSET				0x00u	
+#define IPC_STRUCT_ACQUIRE_OFFSET				0x00u
 /* This field allows for the generation of notification events to the IPC interrupt structures. */
-#define IPC_STRUCT_NOTIFY_OFFSET				0x08u	
+#define IPC_STRUCT_NOTIFY_OFFSET				0x08u
 /* This field holds a 32-bit data element that is associated with the IPC structure. */
 #define IPC_STRUCT_DATA_OFFSET					0x0Cu
-/* IPC lock status */	
-#define IPC_STRUCT_LOCK_STATUS_OFFSET			0x10u	
+/* IPC lock status */
+#define IPC_STRUCT_LOCK_STATUS_OFFSET			0x10u
 
 /* Registers offsets in IPC_INTR_STRUCT
  * IPC interrupt mask */
 #define IPC_INTR_STRUCT_INTR_IPC_MASK_OFFSET	0x08u
-/* Specifies if the lock is successfully acquired or not: '0': Not successfully acquired, '1': Successfully acquired.*/	
+/* Specifies if the lock is successfully acquired or not: '0': Not successfully acquired, '1': Successfully acquired.*/
 #define IPC_STRUCT_ACQUIRE_SUCCESS_MSK	        0x80000000u
 /* Specifies if the lock is acquired. */
-#define IPC_STRUCT_LOCK_STATUS_ACQUIRED_MSK     0x80000000u 
+#define IPC_STRUCT_LOCK_STATUS_ACQUIRED_MSK     0x80000000u
 
 /* Misc
  * Timeout attempts of IPC_STRUCT acuire*/
 #define IPC_STRUCT_ACQUIRE_TIMEOUT_ATTEMPTS		250u
 /* Timeout attempts of IPC_STRUCT data */
-#define IPC_STRUCT_DATA_TIMEOUT_ATTEMPTS		250u  
+#define IPC_STRUCT_DATA_TIMEOUT_ATTEMPTS		250u
 /* 0x08001000: Address of SRAM where the API’s parameters are stored by SW. */
-#define SRAM_SCRATCH_ADDR						(MEM_BASE_SRAM0 + 0x00001000u) 
+#define SRAM_SCRATCH_ADDR						(MEM_BASE_SRAM0 + 0x00001000u)
 #define ROW_SIZE								512u
 /* Timemout 10 ms */
-#define DELAY_10_MS							    10000u 
+#define DELAY_10_MS							    10000u
 
 /*--------------------------------------------------------------------------------------------
  *SROM APIs
  *--------------------------------------------------------------------------------------------
  *SROM APIs masks
  *[0]: 1 - arguments are passed in IPC.DATA. 0 - arguments are passed in SRAM*/
-#define MXS40_SROMAPI_DATA_LOCATION_MSK	        0x00000001u 
+#define MXS40_SROMAPI_DATA_LOCATION_MSK	        0x00000001u
 /* Status Code: 4 bits [31:28] of the data register */
-#define MXS40_SROMAPI_STATUS_MSK				0xF0000000u 
+#define MXS40_SROMAPI_STATUS_MSK				0xF0000000u
 /* Status Code = 0xA */
-#define MXS40_SROMAPI_STAT_SUCCESS				0xA0000000u 
+#define MXS40_SROMAPI_STAT_SUCCESS				0xA0000000u
 
 /* Sys calls IDs (SROM API Op code)
  * [31:24]: Opcode = 0x00; [0]: 1 - arguments are passed in IPC.DATA*/
-#define MXS40_SROMAPI_SILID_CODE				0x00000001u 
+#define MXS40_SROMAPI_SILID_CODE				0x00000001u
 /* [15:8]: ID type */
-#define MXS40_SROMAPI_SILID_TYPE_MSK	        0x0000FF00u 
+#define MXS40_SROMAPI_SILID_TYPE_MSK	        0x0000FF00u
 #define MXS40_SROMAPI_SILID_TYPE_ROL	        0x08u
 /* [15:8]: Family Id Hi */
-#define MXS40_SROMAPI_SILID_FAMID_HI_MSK        0x0000FF00u 
+#define MXS40_SROMAPI_SILID_FAMID_HI_MSK        0x0000FF00u
 #define MXS40_SROMAPI_SILID_FAMID_HI_ROR        0x08u
  /* [7:0]: Family Id Lo */
 #define MXS40_SROMAPI_SILID_FAMID_LO_MSK        0x000000FFu
 #define MXS40_SROMAPI_SILID_FAMID_LO_ROR        0u
 /* [19:16]: Protection state */
-#define MXS40_SROMAPI_SILID_PROT_MSK	        0x000F0000u 
+#define MXS40_SROMAPI_SILID_PROT_MSK	        0x000F0000u
 #define MXS40_SROMAPI_SILID_PROT_ROR	        0x10u
 /* [15:8]: Silicon Id Hi */
-#define MXS40_SROMAPI_SILID_SILID_HI_MSK        0x0000FF00u 
+#define MXS40_SROMAPI_SILID_SILID_HI_MSK        0x0000FF00u
 #define MXS40_SROMAPI_SILID_SILID_HI_ROR        0x08u
 /* [15:8]: Silicon Id Lo */
-#define MXS40_SROMAPI_SILID_SILID_LO_MSK        0x000000FFu 
+#define MXS40_SROMAPI_SILID_SILID_LO_MSK        0x000000FFu
 #define MXS40_SROMAPI_SILID_SILID_LO_ROR        0x00u
 /* [31:24]: Opcode = 0x06; [0]: 0 - arguments are passed in SRAM */
-#define MXS40_SROMAPI_PROGRAMROW_CODE	        0x06000100u 
+#define MXS40_SROMAPI_PROGRAMROW_CODE	        0x06000100u
 /* [31:24]: Opcode = 0x14; [0]: 0 - arguments are passed in SRAM */
-#define MXS40_SROMAPI_ERASESECTOR_CODE	        0x14000100u 
+#define MXS40_SROMAPI_ERASESECTOR_CODE	        0x14000100u
 /* [31:24]: Opcode = 0x1C; [0]: 0 - arguments are passed in SRAM */
 #define MXS40_SROMAPI_ERASEROW_CODE				0x1C000100u
 #define IPC_ID									2u
@@ -173,11 +172,43 @@ struct Psoc6ChipDetails {
  * flashSizeInKb is not necessary as it can be decoded from SPCIF_GEOMETRY*/
 const struct Psoc6ChipDetails psoc6Devices[] = {
     /* PSoC 6 BLE II */
-	{ 0x6666, "CY8C6x6", .flashSizeInKb = 512 },
-	{ 0x6666, "CY8C6x7", .flashSizeInKb = 1024 },
+	{ 0xE2071100, "CY8C616FMI-BL603", .flashSizeInKb = 512 },
+	{ 0xE2081100, "CY8C616FMI-BL673", .flashSizeInKb = 512 },
+	{ 0xE2091100, "CY8C616LQI-BL601", .flashSizeInKb = 512 },
+	{ 0xE20A1100, "CY8C616LQI-BL671", .flashSizeInKb = 512 },
+	{ 0xE20B1100, "CY8C617FMI-BL603", .flashSizeInKb = 1024 },
+	{ 0xE20C1100, "CY8C617FMI-BLD73", .flashSizeInKb = 1024 },
+	{ 0xE20D1100, "CY8C626FMI-BL603", .flashSizeInKb = 512 },
+	{ 0xE20E1100, "CY8C626BZI-BL604", .flashSizeInKb = 512 },
+	{ 0xE20F1100, "CY8C626BZI-BL674", .flashSizeInKb = 512 },
+	{ 0xE2111100, "CY8C627BZI-BL604", .flashSizeInKb = 1024 },
+	{ 0xE2121100, "CY8C627FMI-BLD73", .flashSizeInKb = 1024 },
+	{ 0xE2131100, "CY8C627BZI-BLD74", .flashSizeInKb = 1024 },
+	{ 0xE2141100, "CY8C636BZI-BL604", .flashSizeInKb = 512 },
+	{ 0xE2151100, "CY8C636BZI-BL674", .flashSizeInKb = 512 },
+	{ 0xE2161100, "CY8C636FMI-BL603", .flashSizeInKb = 512 },
+	{ 0xE2171100, "CY8C636FMI-BL673", .flashSizeInKb = 512 },
+	{ 0xE2181100, "CY8C636LQI-BL601", .flashSizeInKb = 512 },
+	{ 0xE2191100, "CY8C636LQI-BL671", .flashSizeInKb = 512 },
+	{ 0xE21A1100, "CY8C637BZI-BLD04", .flashSizeInKb = 1024 },
+	{ 0xE2011100, "CY8C637BZI-BLD74", .flashSizeInKb = 1024 },
+	{ 0xE21C1100, "CY8C637FMI-BLD03", .flashSizeInKb = 1024 },
+	{ 0xE2021100, "CY8C637FMI-BLD73", .flashSizeInKb = 1024 },
+	{ 0xE21E1100, "CY8C637LQI-BLD01", .flashSizeInKb = 1024 },
+	{ 0xE2031100, "CY8C637LQI-BLD71", .flashSizeInKb = 1024 },
+	{ 0xE2041100, "CY8C68237FM-BLE", .flashSizeInKb = 1024 },
+	{ 0xE2051100, "CY8C68237BZ-BLE", .flashSizeInKb = 1024 },
     
-    /* PSoC 6 BLE II - PSVP part number*/
-    { 0xe2000100, "CY8C622PSVP",  .flashSizeInKb = 1024 },
+	/* PSoC 6 M */
+	{ 0xE2001100, "CY8C637BZI-MD76", .flashSizeInKb = 1024 },
+	{ 0xE2201100, "CY8C616BZI-M606", .flashSizeInKb = 512 },
+	{ 0xE2211100, "CY8C616BZI-M676", .flashSizeInKb = 512 },
+	{ 0xE2221100, "CY8C617BZI-MD76", .flashSizeInKb = 1024 },
+	{ 0xE2231100, "CY8C626BZI-M606", .flashSizeInKb = 512 },
+	{ 0xE2241100, "CY8C627BZI-MD76", .flashSizeInKb = 1024 },
+	{ 0xE2251100, "CY8C636BZI-MD06", .flashSizeInKb = 512 },
+	{ 0xE2261100, "CY8C636BZI-MD76", .flashSizeInKb = 512 },
+	{ 0xE2271100, "CY8C637BZI-MD06", .flashSizeInKb = 1024 },
 };
 
 struct psoc6FlashBank {
@@ -196,8 +227,7 @@ static const struct Psoc6ChipDetails *psoc6_details_by_id(uint32_t siliconId)
 	uint16_t i;
 	uint16_t id = siliconId >> LENGHT_SILICON_ID; /* ignore die revision */
 	for (i = 0; i < sizeof(psoc6Devices)/sizeof(psoc6Devices[0]); i++) {
-		if (p->id == id)
-        {
+		if (p->id == id) {
             chipInfo = p;
         }
         p++;
@@ -239,12 +269,9 @@ FLASH_BANK_COMMAND_HANDLER(psoc6_flash_bank_command)
 	struct psoc6FlashBank *psoc6_info;
 	int hr = ERROR_OK;
 
-	if (CMD_ARGC < 6)
-	{
+	if (CMD_ARGC < 6){
 		hr = ERROR_COMMAND_SYNTAX_ERROR;
-	}
-	else
-	{
+	}else{
 		psoc6_info = calloc(1, sizeof(struct psoc6FlashBank));
 		bank->driver_priv = psoc6_info;
 		psoc6_info->userBankSize = bank->size;
@@ -278,21 +305,16 @@ int Ipc_PollLockStatus(struct target *target, uint32_t ipcId, bool lockExpected,
   bool isExpectedStatus = false;
   uint32_t readData;  
   uint32_t ipcAddr = IPC_STRUCT0 + IPC_STRUCT_SIZE * ipcId;
-  do
-  {
+  do {
 	   /* Check lock status*/
 	  hr = target_read_u32(target, ipcAddr + IPC_STRUCT_LOCK_STATUS_OFFSET, &readData);
-	  if (hr == ERROR_OK)
-	  {
+	  if (hr == ERROR_OK) {
 		  bool isLocked = (readData & IPC_STRUCT_LOCK_STATUS_ACQUIRED_MSK) != 0;
 		  isExpectedStatus = (lockExpected && isLocked) || (!lockExpected && !isLocked);
 	  }
-	  
 	  /* Check for timeout*/
-	  if (!isExpectedStatus)
-	  {  
-		  if (attemptsElapsed > timeOutAttempts)
-		  {
+	  if (!isExpectedStatus) {
+		  if (attemptsElapsed > timeOutAttempts){
 			  LOG_ERROR("Timeout polling lock status of IPC_STRUCT");
 			  hr = ERROR_FAIL;
 			  break;
@@ -325,36 +347,30 @@ int Ipc_Acquire(struct target *target, char ipcId, int timeOutAttempts)
   bool isAcquired = false;
   uint32_t readData;
   uint32_t ipcAddr = IPC_STRUCT0 + IPC_STRUCT_SIZE * ipcId;
-    
-  do
-  {
+
+  do{
 	  /* Acquire the lock in DAP IPC struct (IPC_STRUCT.ACQUIRE).*/
 	  hr = target_write_u32(target, ipcAddr + IPC_STRUCT_ACQUIRE_OFFSET, IPC_STRUCT_ACQUIRE_SUCCESS_MSK);
-	  if (hr == ERROR_OK)
-	  {
+	  if (hr == ERROR_OK){
 		  /* Check if data is writed on first step */
 		  hr = target_read_u32(target, ipcAddr + IPC_STRUCT_ACQUIRE_OFFSET, &readData);
-		  if (hr == ERROR_OK)
-		  {
+		  if (hr == ERROR_OK){
 			  isAcquired = (readData & IPC_STRUCT_ACQUIRE_SUCCESS_MSK) != 0;
 		  }
 	  }
 	   /* Check for timeout */
-	  if (!isAcquired)
-	  {
-		  if (attemptsElapsed > timeOutAttempts)
-		  {
+	  if (!isAcquired){
+		  if (attemptsElapsed > timeOutAttempts){
 			  LOG_ERROR("Timeout acquiring IPC_STRUCT");
 			  hr = ERROR_FAIL;
 			  break;
 		  }
 		  usleep(DELAY_10_MS);
-		  attemptsElapsed++;  
+		  attemptsElapsed++;
 	  }
   } while (!isAcquired);
 
-  if (isAcquired)
-  {
+  if (isAcquired){
 	  /* If IPC structure is acquired, the lock status should be set */
 	  hr = Ipc_PollLockStatus(target, ipcId, true, timeOutAttempts);
   }
@@ -380,19 +396,15 @@ int PollSromApiStatus(struct target *target, int address, int timeOutAttempts, u
   int attemptsElapsed = 0x00;
   bool isAcquired = false;
 
-  do
-  {
+  do{
 	  /* Poll data */
 	  hr = target_read_u32(target, address, dataOut);
-	  if (hr == ERROR_OK)
-	  {
+	  if (hr == ERROR_OK){
 		  isAcquired = (*dataOut & MXS40_SROMAPI_STATUS_MSK) == MXS40_SROMAPI_STAT_SUCCESS;
 	  }
 	  /* Check for timeout */
-	  if (!isAcquired)
-	  {
-		  if (attemptsElapsed > timeOutAttempts)
-		  {
+	  if (!isAcquired){
+		  if (attemptsElapsed > timeOutAttempts){
 			  LOG_DEBUG("PollSromApiStatus - FAIL status - 0x%08x", (unsigned int)*dataOut);
 			  LOG_ERROR("Timeout waiting for SROM API execution complete");
 			  hr = ERROR_FAIL;
@@ -436,41 +448,30 @@ int CallSromApi(struct target *target, uint32_t callIdAndParams, uint32_t *dataO
   unsigned long IPC_STRUC = IPC_STRUCT2;
   /* Acquire IPC_STRUCT[0] for CM0+ */
   hr = Ipc_Acquire(target, IPC_ID, IPC_STRUCT_ACQUIRE_TIMEOUT_ATTEMPTS);
-  if (hr == ERROR_OK)
-  {
+  if (hr == ERROR_OK){
 	  /* Write to IPC_STRUCT0.DATA - Sys call ID and Parameters
 		 OR address in SRAM, where they are located */
-	  if (isDataInRam)
-	  {
+	  if (isDataInRam){
 		  LOG_DEBUG("CallSromApi: isDataInRam = true: address -> 0x%x, data -> 0x%x", (unsigned int)(IPC_STRUC + IPC_STRUCT_DATA_OFFSET), SRAM_SCRATCH_ADDR);
 		  hr = target_write_u32(target, (unsigned int)(IPC_STRUC + IPC_STRUCT_DATA_OFFSET), SRAM_SCRATCH_ADDR);
-	  }
-	  else
-	  {
+	  }else{
 		  LOG_DEBUG("CallSromApi: isDataInRam = false: address -> 0x%x, data -> 0x%x", (unsigned int)(IPC_STRUC + IPC_STRUCT_DATA_OFFSET), callIdAndParams);
 		  hr = target_write_u32(target, (unsigned int)(IPC_STRUC + IPC_STRUCT_DATA_OFFSET), callIdAndParams);
 	  }
-	  if (hr == ERROR_OK)
-	  {
+	  if (hr == ERROR_OK){
 		  /* Enable notification interrupt of IPC_INTR_STRUCT0(CM0+) for IPC_STRUCT2 */
 		  hr = target_write_u32(target, (IPC_INTR_STRUCT + IPC_INTR_STRUCT_INTR_IPC_MASK_OFFSET), 1 << (16 + IPC_ID));
-		  if (hr == ERROR_OK)
-		  {
+		  if (hr == ERROR_OK){
 			  /* Notify to IPC_INTR_STRUCT0. IPC_STRUCT2.MASK <- Notify */
 			  hr = target_write_u32(target, IPC_STRUC + IPC_STRUCT_NOTIFY_OFFSET, 1);
-			  if (hr == ERROR_OK)
-			  {
+			  if (hr == ERROR_OK){
 				  /* Poll lock status */
 				  hr = Ipc_PollLockStatus(target, IPC_ID, false, IPC_STRUCT_ACQUIRE_TIMEOUT_ATTEMPTS);
-				  if (hr == ERROR_OK)
-				  {
+				  if (hr == ERROR_OK){
 					  /* Poll Data byte */
-					  if (isDataInRam)
-					  {
+					  if (isDataInRam){
 						  hr = PollSromApiStatus(target, SRAM_SCRATCH_ADDR, IPC_STRUCT_DATA_TIMEOUT_ATTEMPTS, dataOut);
-					  }
-					  else
-					  {
+					  } else {
 						  hr = PollSromApiStatus(target, IPC_STRUC + IPC_STRUCT_DATA_OFFSET, IPC_STRUCT_DATA_TIMEOUT_ATTEMPTS, dataOut);
 					  }
 				  }
@@ -624,7 +625,7 @@ static int Psoc6Probe(struct flash_bank *bank)
 
 			/* failed reading flash size or flash size invalid (early silicon),
 			default to max target family */
-			if (hr != ERROR_OK || flashSizeInKb == 0xffff || flashSizeInKb == 0) 
+			if (hr != ERROR_OK || flashSizeInKb == 0xffff || flashSizeInKb == 0)
 			{
 				LOG_WARNING("PSoC 6 flash size failed, probe inaccurate - assuming %" PRIu32 " k flash",
 					maxFlashSizeInKb);
@@ -633,7 +634,7 @@ static int Psoc6Probe(struct flash_bank *bank)
 
 			/* if the user sets the size manually then ignore the probed value
 			this allows us to work around devices that have a invalid flash size register value */
-			if (psoc6Info->userBankSize) 
+			if (psoc6Info->userBankSize)
 			{
 				LOG_INFO("ignoring flash probed value, using configured bank size");
 				flashSizeInKb = psoc6Info->userBankSize / 1024;
@@ -663,7 +664,7 @@ static int Psoc6Probe(struct flash_bank *bank)
 			bank->default_padded_value = bank->erased_value = 0x00;
 
 			uint32_t i;
-			for (i = 0; i < num_rows; i++) 
+			for (i = 0; i < num_rows; i++)
 			{
 				bank->sectors[i].offset = i * rowSize;
 				bank->sectors[i].size = rowSize;
@@ -780,7 +781,7 @@ static int psoc6_mass_erase(struct flash_bank *bank)
 
 	LOG_INFO("sectors-> 0x%x", sectors);
 
-	if (bank->target->state != TARGET_HALTED) 
+	if (bank->target->state != TARGET_HALTED)
 	{
 		LOG_ERROR("Target not halted");
 		hr = ERROR_TARGET_NOT_HALTED;
@@ -816,7 +817,7 @@ static int Psoc6Erase(struct flash_bank *bank, int first, int last)
 
 	if ((unsigned)(last - 1) != (psoc6Info->flashSizeInKb/FLASH_SECTOR_LENGTH))
 	{
-		LOG_INFO("Count of sector is more then real present");	
+		LOG_INFO("Count of sector is more then real present");
 	}else
 	{
 		hr = EraseSector(target, first, last - 1);
