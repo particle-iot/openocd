@@ -235,10 +235,10 @@ static const struct Psoc6ChipDetails *psoc6_details_by_id(uint32_t siliconId)
 		}
 		p++;
 	}
-	
-	if(!isExpectedStatus)
-	LOG_INFO("Unknown PSoC 6 device silicon id 0x%08" PRIx32 ".", siliconId);
-	
+
+	if (!isExpectedStatus)
+		LOG_INFO("Unknown PSoC 6 device silicon id 0x%08" PRIx32 ".", siliconId);
+
 	return chipInfo;
 }
 
