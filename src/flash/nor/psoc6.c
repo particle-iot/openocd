@@ -791,7 +791,7 @@ static int Psoc6Erase(struct flash_bank *bank, int first, int last)
 	LOG_DEBUG("first-> 0x%x, last-> 0x%x", first, last - 1);
 
 	if ((unsigned)(last - 1) != (psoc6Info->flashSizeInKb/FLASH_SECTOR_LENGTH)) {
-		hr = ERROR_OK
+		hr = ERROR_OK;
 		LOG_INFO("Count of sector is more then real present");
 	} else
 		hr = EraseSector(target, first, last - 1);
