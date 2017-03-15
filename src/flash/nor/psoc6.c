@@ -260,7 +260,7 @@ static const char *psoc6_decode_chipProtection(uint8_t protection)
 		break;
 	}
 
-	return (protectType);
+	return protectType;
 }
 
 FLASH_BANK_COMMAND_HANDLER(psoc6_flash_bank_command)
@@ -294,7 +294,7 @@ FLASH_BANK_COMMAND_HANDLER(psoc6_flash_bank_command)
 *			timeOutAttempts - timeout
 * Return:
 *		ERROR_OK: IPC structure locked successfully
-*		ERROR_FAIL: Cannot lock IPC structure 
+*		ERROR_FAIL: Cannot lock IPC structure
 *******************************************************************************/
 int Ipc_PollLockStatus(struct target *target, uint32_t ipcId, bool lockExpected, int timeOutAttempts)
 {
@@ -302,7 +302,7 @@ int Ipc_PollLockStatus(struct target *target, uint32_t ipcId, bool lockExpected,
 	int hr = ERROR_OK;
 	int attemptsElapsed = 0x00;
 	bool isExpectedStatus = false;
-	uint32_t readData;  
+	uint32_t readData;
 	uint32_t ipcAddr = IPC_STRUCT0 + IPC_STRUCT_SIZE * ipcId;
 	do {
 		/* Check lock status*/
@@ -353,13 +353,12 @@ int Ipc_Acquire(struct target *target, char ipcId, int timeOutAttempts)
 		if (hr == ERROR_OK) {
 			/* Check if data is writed on first step */
 			hr = target_read_u32(target, ipcAddr + IPC_STRUCT_ACQUIRE_OFFSET, &readData);
-			if (hr == ERROR_OK) {
+			if (hr == ERROR_OK)
 				isAcquired = (readData & IPC_STRUCT_ACQUIRE_SUCCESS_MSK) != 0;
-			}
 		}
 		/* Check for timeout */
 		if (!isAcquired) {
-			if (attemptsElapsed > timeOutAttempts){
+			if (attemptsElapsed > timeOutAttempts) {
 				LOG_ERROR("Timeout acquiring IPC_STRUCT");
 				hr = ERROR_FAIL;
 				break;
@@ -398,9 +397,9 @@ int PollSromApiStatus(struct target *target, int address, int timeOutAttempts, u
 	do {
 		/* Poll data */
 		hr = target_read_u32(target, address, dataOut);
-		if (hr == ERROR_OK) {
+		if (hr == ERROR_OK)
 			isAcquired = (*dataOut & MXS40_SROMAPI_STATUS_MSK) == MXS40_SROMAPI_STAT_SUCCESS;
-		}
+
 		/* Check for timeout */
 		if (!isAcquired) {
 			if (attemptsElapsed > timeOutAttempts) {
@@ -468,11 +467,10 @@ int CallSromApi(struct target *target, uint32_t callIdAndParams, uint32_t *dataO
 					hr = Ipc_PollLockStatus(target, IPC_ID, false, IPC_STRUCT_ACQUIRE_TIMEOUT_ATTEMPTS);
 					if (hr == ERROR_OK) {
 						/* Poll Data byte */
-						if (isDataInRam) {
+						if (isDataInRam)
 							hr = PollSromApiStatus(target, SRAM_SCRATCH_ADDR, IPC_STRUCT_DATA_TIMEOUT_ATTEMPTS, dataOut);
-						} else {
+						else
 							hr = PollSromApiStatus(target, IPC_STRUC + IPC_STRUCT_DATA_OFFSET, IPC_STRUCT_DATA_TIMEOUT_ATTEMPTS, dataOut);
-						}
 					}
 				}
 			}
