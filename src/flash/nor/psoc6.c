@@ -283,8 +283,8 @@ FLASH_BANK_COMMAND_HANDLER(psoc6_flash_bank_command)
  SROM APIs basics
 --------------------------------------------------------------------------------
 ******************************************************************************
-*	Purpose:	Polls lock status of IPC structure
-*	Parameter:
+*	Purpose :	Polls lock status of IPC structure
+*	Parameter :
 *			target - current target device
 *			ipcId - Id of IPC structure
 *								- 0: IPC_STRUCT0 (CM0+)
@@ -292,9 +292,9 @@ FLASH_BANK_COMMAND_HANDLER(psoc6_flash_bank_command)
 *								- 2: IPC_STRUCT2 (DAP)
 *			lockExpected - true if look state is expected, or false  if look state is not expected
 *			timeOutAttempts - timeout
-* Return:
-*		ERROR_OK: IPC structure locked successfully
-*		ERROR_FAIL: Cannot lock IPC structure
+* Return :
+*		ERROR_OK : IPC structure locked successfully
+*		ERROR_FAIL : Cannot lock IPC structure
 *******************************************************************************/
 int Ipc_PollLockStatus(struct target *target, uint32_t ipcId, bool lockExpected, int timeOutAttempts)
 {
@@ -327,17 +327,17 @@ int Ipc_PollLockStatus(struct target *target, uint32_t ipcId, bool lockExpected,
 
 
 /*******************************************************************************
-*	Purpose:	Acquires MXS40 IPC structure
-*	Parameter:
+*	Purpose :	Acquires MXS40 IPC structure
+*	Parameter :
 *			target - current target device
 *			ipcId - Id of IPC structure
 *								- 0: IPC_STRUCT0 (CM0+)
 *								- 1: IPC_STRUCT1 (CM4)
 *								- 2: IPC_STRUCT2 (DAP)
 *			timeOutAttempts - timeout
-*	Return:
-*		ERROR_OK: IPC structure acquired successfully
-*		ERROR_FAIL: Cannon acquire IPC structure
+*	Return :
+*		ERROR_OK : IPC structure acquired successfully
+*		ERROR_FAIL : Cannon acquire IPC structure
 *******************************************************************************/
 int Ipc_Acquire(struct target *target, char ipcId, int timeOutAttempts)
 {
@@ -377,15 +377,15 @@ int Ipc_Acquire(struct target *target, char ipcId, int timeOutAttempts)
 
 
 /*******************************************************************************
-* Purpose:	Polls execution status of SROM API
-* Parameter:
+* Purpose :	Polls execution status of SROM API
+* Parameter :
 *			target - current target device
 *			address - Memory address of SROM API status word
 *			timeOutAttempts - timeout
 *			dataOut - status word
-* Return:
-*			ERROR_OK: SROM API returned successful execution status
-*			ERROR_FAIL: SROM API execution failed
+* Return :
+*			ERROR_OK : SROM API returned successful execution status
+*			ERROR_FAIL : SROM API execution failed
 *******************************************************************************/
 int PollSromApiStatus(struct target *target, int address, int timeOutAttempts, uint32_t *dataOut)
 {
@@ -419,7 +419,7 @@ int PollSromApiStatus(struct target *target, int address, int timeOutAttempts, u
 
 
 /*******************************************************************************
-*	Purpose:
+*	Purpose :
 *						Calls SROM API
 *						SROM APIs are executed by invoking a system call & providing
 *						the corresponding arguments.
@@ -429,13 +429,13 @@ int PollSromApiStatus(struct target *target, int address, int timeOutAttempts, u
 *						Each one acquires the specific mailbox, writes the opcode and
 *						argument to the data field of the mailbox and notifies a dedicated
 *						IPC interrupt structure. This results in an NMI interrupt in M0+.
-*	Parameter:
+*	Parameter :
 *			target - current target device
 *			callIdAndParams - OpCode of SROM API and params (in case all params are in IPC structure)
 *			dataOut - status word
-* Return:
-*			ERROR_OK: SROM API returned successful execution status
-*			ERROR_FAIL: SROM API execution failed
+* Return :
+*			ERROR_OK : SROM API returned successful execution status
+*			ERROR_FAIL : SROM API execution failed
 *******************************************************************************/
 int CallSromApi(struct target *target, uint32_t callIdAndParams, uint32_t *dataOut)
 {
@@ -482,14 +482,14 @@ int CallSromApi(struct target *target, uint32_t callIdAndParams, uint32_t *dataO
 
 
 /*******************************************************************************
-*	Purpose:	Get Silicon ID for connected target
-*	Parameter:
+*	Purpose :	Get Silicon ID for connected target
+*	Parameter :
 *			target - current target device
 *			siliconId - value for Silicon ID
 *			protection - value for protected state
-*	Return:
-*		ERROR_OK: Resault of get silicon id operation is OK
-*		ERROR_FAIL: Resault of get silicon id operation is FAIL
+*	Return :
+*		ERROR_OK : Resault of get silicon id operation is OK
+*		ERROR_FAIL : Resault of get silicon id operation is FAIL
 *******************************************************************************/
 static int Psoc6GetSiliconId(struct target *target, uint32_t *siliconId, uint8_t *protection)
 {
@@ -525,12 +525,12 @@ static int Psoc6GetSiliconId(struct target *target, uint32_t *siliconId, uint8_t
 
 
 /*******************************************************************************
-*	Purpose:	Check if bank of flash in protected state
-*	Parameter:
+*	Purpose :	Check if bank of flash in protected state
+*	Parameter :
 *			bank - flash bank
-*	Return:
-*		ERROR_OK: Resault of check operation is OK
-*		ERROR_FAIL: Resault of check operation is FAIL
+*	Return :
+*		ERROR_OK : Resault of check operation is OK
+*		ERROR_FAIL : Resault of check operation is FAIL
 *******************************************************************************/
 static int Psoc6ProtectCheck(struct flash_bank *bank)
 {
@@ -540,15 +540,15 @@ static int Psoc6ProtectCheck(struct flash_bank *bank)
 
 
 /*******************************************************************************
-*	Purpose:	Set protected state in bank of flash
-*	Parameter:
+*	Purpose :	Set protected state in bank of flash
+*	Parameter :
 *			bank - flash bank
 *			set - protected value
 *			first - first address with protected data
 *			last - last address with protected data
-*	Return:
-*		ERROR_OK: Resault of protect operation is OK
-*		ERROR_FAIL: Resault of protect operation is FAIL
+*	Return :
+*		ERROR_OK : Resault of protect operation is OK
+*		ERROR_FAIL : Resault of protect operation is FAIL
 *******************************************************************************/
 static int Psoc6Protect(struct flash_bank *bank, int set, int first, int last)
 {
@@ -558,12 +558,12 @@ static int Psoc6Protect(struct flash_bank *bank, int set, int first, int last)
 
 
 /*******************************************************************************
-*	Purpose:	Detect device and get all main parameters
-*	Parameter:
+*	Purpose :	Detect device and get all main parameters
+*	Parameter :
 *			bank - flash bank
-*	Return:
-*		ERROR_OK: Resault of probe operation is OK
-*		ERROR_FAIL: Resault of probe operation is FAIL
+*	Return :
+*		ERROR_OK : Resault of probe operation is OK
+*		ERROR_FAIL : Resault of probe operation is FAIL
 *******************************************************************************/
 static int Psoc6Probe(struct flash_bank *bank)
 {
@@ -671,12 +671,12 @@ static int Psoc6Probe(struct flash_bank *bank)
 
 
 /*******************************************************************************
-*	Purpose:	Auto detect device and get all main parameters
-*	Parameter:
+*	Purpose :	Auto detect device and get all main parameters
+*	Parameter :
 *			bank - flash bank
-*	Return:
-*		ERROR_OK: Resault of probe operation is OK
-*		ERROR_FAIL: Resault of probe operation is FAIL
+*	Return :
+*		ERROR_OK : Resault of probe operation is OK
+*		ERROR_FAIL : Resault of probe operation is FAIL
 *******************************************************************************/
 static int Psoc6AutoProbe(struct flash_bank *bank)
 {
@@ -693,14 +693,14 @@ static int Psoc6AutoProbe(struct flash_bank *bank)
 
 
 /*******************************************************************************
-*	Purpose:	Erase sector operation for connected target
-*	Parameter:
+*	Purpose :	Erase sector operation for connected target
+*	Parameter :
 *			target - current target device
 *			first - first address which will be erased
 *			last - last sector which will be erased
-*	Return:
-*		ERROR_OK: Resault of Erase sector operation is OK
-*		ERROR_FAIL: Resault of Erase sector operation is FAIL
+*	Return :
+*		ERROR_OK : Resault of Erase sector operation is OK
+*		ERROR_FAIL : Resault of Erase sector operation is FAIL
 *******************************************************************************/
 static int EraseSector(struct target *target, int first, int last)
 {
@@ -736,12 +736,12 @@ static int EraseSector(struct target *target, int first, int last)
 
 
 /*******************************************************************************
-*	Purpose:	Erase  all sectors operation for connected target
-*	Parameter:
+*	Purpose :	Erase  all sectors operation for connected target
+*	Parameter :
 *			bank - flash bank
-*	Return:
-*		ERROR_OK: Resault of Erase sector operation is OK
-*		ERROR_FAIL: Resault of Erase sector operation is FAIL
+*	Return :
+*		ERROR_OK : Resault of Erase sector operation is OK
+*		ERROR_FAIL : Resault of Erase sector operation is FAIL
 *******************************************************************************/
 static int psoc6_mass_erase(struct flash_bank *bank)
 {
@@ -765,14 +765,14 @@ static int psoc6_mass_erase(struct flash_bank *bank)
 
 
 /*******************************************************************************
-*	Purpose:	Erase sector operation for connected target
-*	Parameter:
+*	Purpose :	Erase sector operation for connected target
+*	Parameter :
 *			bank - flash bank
 *			first - first address which will be erased
 *			last - last sector which will be erased
-*	Return:
-*		ERROR_OK: Resault of Erase sector operation is OK
-*		ERROR_FAIL: Resault of Erase sector operation is FAIL
+*	Return :
+*		ERROR_OK : Resault of Erase sector operation is OK
+*		ERROR_FAIL : Resault of Erase sector operation is FAIL
 *******************************************************************************/
 static int Psoc6Erase(struct flash_bank *bank, int first, int last)
 {
@@ -794,15 +794,15 @@ static int Psoc6Erase(struct flash_bank *bank, int first, int last)
 
 
 /*******************************************************************************
-*	Purpose:	Write row operation for connected target
-*	Parameter:
+*	Purpose :	Write row operation for connected target
+*	Parameter :
 *			target - current target device
 *			address - start address for write data
 *			buffer - buffer with all data which need write
 *			count - lenght data
-*	Return:
-*		ERROR_OK: Resault of write row operation is OK
-*		ERROR_FAIL: Resault of write row operation is FAIL
+*	Return :
+*		ERROR_OK : Resault of write row operation is OK
+*		ERROR_FAIL : Resault of write row operation is FAIL
 *******************************************************************************/
 static int WriteRow(struct target *target, int address, const uint8_t * buffer, int count)
 {
@@ -851,15 +851,15 @@ static int WriteRow(struct target *target, int address, const uint8_t * buffer, 
 
 
 /*******************************************************************************
-*	Purpose:	Write operation for connected target
-*	Parameter:
+*	Purpose :	Write operation for connected target
+*	Parameter :
 *			bank - flash bank
 *			buffer - buffer with all data which need write
 *			offset - offset of address where need to write data
 *			count - lenght data
-*	Return:
-*		ERROR_OK: Resault of write operation is OK
-*		ERROR_FAIL: Resault of write operation is FAIL
+*	Return :
+*		ERROR_OK : Resault of write operation is OK
+*		ERROR_FAIL : Resault of write operation is FAIL
 *******************************************************************************/
 static int Psoc6Write(struct flash_bank *bank, const uint8_t *buffer, uint32_t offset, uint32_t count)
 {
@@ -900,14 +900,14 @@ static int Psoc6Write(struct flash_bank *bank, const uint8_t *buffer, uint32_t o
 }
 
 /*******************************************************************************
-*	Purpose:	Get information about connected target
-*	Parameter:
+*	Purpose :	Get information about connected target
+*	Parameter :
 *			bank - flash bank
 *			buf - buffer all information
 *			buf_size - size for buffer
-*	Return:
-*		ERROR_OK: Resault of get info operation operation is OK
-*		ERROR_FAIL: Resault of get info operation operation is FAIL
+*	Return :
+*		ERROR_OK : Resault of get info operation operation is OK
+*		ERROR_FAIL : Resault of get info operation operation is FAIL
 *******************************************************************************/
 static int GetPsoc6Info(struct flash_bank *bank, char *buf, int buf_size)
 {
