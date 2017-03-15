@@ -27,16 +27,16 @@
 #include <target/armv7m.h>
 
 /* device documets:
- PSoC(R) 6: PSoC CY8C6XXX Family Datasheet
-    Document Number:
+	PSoC(R) 6: PSoC CY8C6XXX Family Datasheet
+	Document Number:
 
- PSoC CY8C6XXX Family PSoC(R) 6 Architecture TRM
+	PSoC CY8C6XXX Family PSoC(R) 6 Architecture TRM
 	Document No. 002-15785 Rev. ** xx/xx/2016
 
- CY8C6XXX PSOC(R) 6 BLE 2 REGISTERS TECHNICAL REFERENCE MANUAL (TRM)
+	CY8C6XXX PSOC(R) 6 BLE 2 REGISTERS TECHNICAL REFERENCE MANUAL (TRM)
 	Document No. 002-12544 Rev. ** 05/09/2016
 
- CY8C6XXX Programming Specifications
+	CY8C6XXX Programming Specifications
 	Document No.*/
 /*--------------------------------------------------------------------------------------------
  *Base addresses
@@ -171,7 +171,7 @@ struct Psoc6ChipDetails {
 /* list of PSoC 6 chips
  * flashSizeInKb is not necessary as it can be decoded from SPCIF_GEOMETRY*/
 const struct Psoc6ChipDetails psoc6Devices[] = {
-    /* PSoC 6 BLE II */
+	/* PSoC 6 BLE II */
 	{ 0xE2071100, "CY8C616FMI-BL603", .flashSizeInKb = 512 },
 	{ 0xE2081100, "CY8C616FMI-BL673", .flashSizeInKb = 512 },
 	{ 0xE2091100, "CY8C616LQI-BL601", .flashSizeInKb = 512 },
@@ -198,7 +198,7 @@ const struct Psoc6ChipDetails psoc6Devices[] = {
 	{ 0xE2031100, "CY8C637LQI-BLD71", .flashSizeInKb = 1024 },
 	{ 0xE2041100, "CY8C68237FM-BLE", .flashSizeInKb = 1024 },
 	{ 0xE2051100, "CY8C68237BZ-BLE", .flashSizeInKb = 1024 },
-    
+
 	/* PSoC 6 M */
 	{ 0xE2001100, "CY8C637BZI-MD76", .flashSizeInKb = 1024 },
 	{ 0xE2201100, "CY8C616BZI-M606", .flashSizeInKb = 512 },
@@ -223,13 +223,13 @@ struct psoc6FlashBank {
 static const struct Psoc6ChipDetails *psoc6_details_by_id(uint32_t siliconId)
 {
 	const struct Psoc6ChipDetails *p = psoc6Devices;
-    const struct Psoc6ChipDetails *chipInfo;
+	const struct Psoc6ChipDetails *chipInfo;
 	uint16_t i;
 	uint16_t id = siliconId >> LENGHT_SILICON_ID; /* ignore die revision */
 	for (i = 0; i < sizeof(psoc6Devices)/sizeof(psoc6Devices[0]); i++) {
 		if (p->id == id)
-            chipInfo = p;
-        p++;
+			chipInfo = p;
+		p++;
 	}
 	LOG_INFO("Unknown PSoC 6 device silicon id 0x%08" PRIx32 ".", siliconId);
 	return chipInfo;
@@ -237,30 +237,30 @@ static const struct Psoc6ChipDetails *psoc6_details_by_id(uint32_t siliconId)
 
 static const char *psoc6_decode_chipProtection(uint8_t protection)
 {
-    char *protectType = calloc(SIZE_OF_STRING, sizeof(*protectType));
+	char *protectType = calloc(SIZE_OF_STRING, sizeof(*protectType));
 	switch (protection) {
 	case PSOC6_CHIP_PROT_UNKNOWN:
-        strcpy(protectType, "protection UNKNOWN");
-        break;
+		strcpy(protectType, "protection UNKNOWN");
+		break;
 	case PSOC6_CHIP_PROT_VIRGIN:
-        strcpy(protectType, "protection VIRGIN");
-        break;
+		strcpy(protectType, "protection VIRGIN");
+		break;
 	case PSOC6_CHIP_PROT_NORMAL:
-        strcpy(protectType, "protection NORMAL");
-        break;
+		strcpy(protectType, "protection NORMAL");
+		break;
 	case PSOC6_CHIP_PROT_SECURE:
-        strcpy(protectType, "protection SECURE");
-        break;
+		strcpy(protectType, "protection SECURE");
+		break;
 	case PSOC6_CHIP_PROT_DEAD:
-        strcpy(protectType, "protection DEAD");
-        break;
+		strcpy(protectType, "protection DEAD");
+		break;
 	default:
 		LOG_WARNING("Unknown protection state 0x%02" PRIx8 "", protection);
-        strcpy(protectType, "Not allowed");
-        break;
+		strcpy(protectType, "Not allowed");
+		break;
 	}
-      
-    return (protectType);
+
+	return (protectType);
 }
 
 FLASH_BANK_COMMAND_HANDLER(psoc6_flash_bank_command)
@@ -285,44 +285,44 @@ FLASH_BANK_COMMAND_HANDLER(psoc6_flash_bank_command)
 ******************************************************************************
 * Purpose:	Polls lock status of IPC structure
 * Parameter:
-* 			target - current target device
-* 			ipcId - Id of IPC structure
-* 								- 0: IPC_STRUCT0 (CM0+)
-* 								- 1: IPC_STRUCT1 (CM4)
-* 								- 2: IPC_STRUCT2 (DAP)
-* 			lockExpected - true if look state is expected, or false  if look state is not expected
-* 			timeOutAttempts - timeout
+*			target - current target device
+*			ipcId - Id of IPC structure
+*								- 0: IPC_STRUCT0 (CM0+)
+*								- 1: IPC_STRUCT1 (CM4)
+*								- 2: IPC_STRUCT2 (DAP)
+*			lockExpected - true if look state is expected, or false  if look state is not expected
+*			timeOutAttempts - timeout
 * Return:
-* 		ERROR_OK: IPC structure locked successfully
-* 		ERROR_FAIL: Cannot lock IPC structure 
+*		ERROR_OK: IPC structure locked successfully
+*		ERROR_FAIL: Cannot lock IPC structure 
 *******************************************************************************/
 int Ipc_PollLockStatus(struct target *target, uint32_t ipcId, bool lockExpected, int timeOutAttempts)
 {
-  /* Poll lock status*/
-  int hr = ERROR_OK;
-  int attemptsElapsed = 0x00;
-  bool isExpectedStatus = false;
-  uint32_t readData;  
-  uint32_t ipcAddr = IPC_STRUCT0 + IPC_STRUCT_SIZE * ipcId;
-  do {
-	  /* Check lock status*/
-	  hr = target_read_u32(target, ipcAddr + IPC_STRUCT_LOCK_STATUS_OFFSET, &readData);
-	  if (hr == ERROR_OK) {
-		  bool isLocked = (readData & IPC_STRUCT_LOCK_STATUS_ACQUIRED_MSK) != 0;
-		  isExpectedStatus = (lockExpected && isLocked) || (!lockExpected && !isLocked);
-	  }
-	  /* Check for timeout*/
-	  if (!isExpectedStatus) {
-		  if (attemptsElapsed > timeOutAttempts) {
-			  LOG_ERROR("Timeout polling lock status of IPC_STRUCT");
-			  hr = ERROR_FAIL;
-			  break;
-		  }
-		  usleep(DELAY_10_MS);
-		  attemptsElapsed++;
-	  }
-  } while (!isExpectedStatus);
-  return hr;
+	/* Poll lock status*/
+	int hr = ERROR_OK;
+	int attemptsElapsed = 0x00;
+	bool isExpectedStatus = false;
+	uint32_t readData;  
+	uint32_t ipcAddr = IPC_STRUCT0 + IPC_STRUCT_SIZE * ipcId;
+	do {
+		/* Check lock status*/
+		hr = target_read_u32(target, ipcAddr + IPC_STRUCT_LOCK_STATUS_OFFSET, &readData);
+		if (hr == ERROR_OK) {
+			bool isLocked = (readData & IPC_STRUCT_LOCK_STATUS_ACQUIRED_MSK) != 0;
+			isExpectedStatus = (lockExpected && isLocked) || (!lockExpected && !isLocked);
+		}
+		/* Check for timeout*/
+		if (!isExpectedStatus) {
+			if (attemptsElapsed > timeOutAttempts) {
+				LOG_ERROR("Timeout polling lock status of IPC_STRUCT");
+				hr = ERROR_FAIL;
+				break;
+			}
+			usleep(DELAY_10_MS);
+			attemptsElapsed++;
+		}
+	} while (!isExpectedStatus);
+	return hr;
 }
 
 
@@ -341,39 +341,39 @@ int Ipc_PollLockStatus(struct target *target, uint32_t ipcId, bool lockExpected,
 *******************************************************************************/
 int Ipc_Acquire(struct target *target, char ipcId, int timeOutAttempts)
 {
-  int hr = ERROR_OK;
-  int attemptsElapsed = 0x00;
-  bool isAcquired = false;
-  uint32_t readData;
-  uint32_t ipcAddr = IPC_STRUCT0 + IPC_STRUCT_SIZE * ipcId;
+	int hr = ERROR_OK;
+	int attemptsElapsed = 0x00;
+	bool isAcquired = false;
+	uint32_t readData;
+	uint32_t ipcAddr = IPC_STRUCT0 + IPC_STRUCT_SIZE * ipcId;
 
-  do {
-	  /* Acquire the lock in DAP IPC struct (IPC_STRUCT.ACQUIRE).*/
-	  hr = target_write_u32(target, ipcAddr + IPC_STRUCT_ACQUIRE_OFFSET, IPC_STRUCT_ACQUIRE_SUCCESS_MSK);
-	  if (hr == ERROR_OK) {
-		  /* Check if data is writed on first step */
-		  hr = target_read_u32(target, ipcAddr + IPC_STRUCT_ACQUIRE_OFFSET, &readData);
-		  if (hr == ERROR_OK) {
-			  isAcquired = (readData & IPC_STRUCT_ACQUIRE_SUCCESS_MSK) != 0;
-		  }
-	  }
-	   /* Check for timeout */
-	  if (!isAcquired) {
-		  if (attemptsElapsed > timeOutAttempts){
-			  LOG_ERROR("Timeout acquiring IPC_STRUCT");
-			  hr = ERROR_FAIL;
-			  break;
-		  }
-		  usleep(DELAY_10_MS);
-		  attemptsElapsed++;
-	  }
-  } while (!isAcquired);
+	do {
+		/* Acquire the lock in DAP IPC struct (IPC_STRUCT.ACQUIRE).*/
+		hr = target_write_u32(target, ipcAddr + IPC_STRUCT_ACQUIRE_OFFSET, IPC_STRUCT_ACQUIRE_SUCCESS_MSK);
+		if (hr == ERROR_OK) {
+			/* Check if data is writed on first step */
+			hr = target_read_u32(target, ipcAddr + IPC_STRUCT_ACQUIRE_OFFSET, &readData);
+			if (hr == ERROR_OK) {
+				isAcquired = (readData & IPC_STRUCT_ACQUIRE_SUCCESS_MSK) != 0;
+			}
+		}
+		/* Check for timeout */
+		if (!isAcquired) {
+			if (attemptsElapsed > timeOutAttempts){
+				LOG_ERROR("Timeout acquiring IPC_STRUCT");
+				hr = ERROR_FAIL;
+				break;
+			}
+			usleep(DELAY_10_MS);
+			attemptsElapsed++;
+		}
+	} while (!isAcquired);
 
-  if (isAcquired) {
-	  /* If IPC structure is acquired, the lock status should be set */
-	  hr = Ipc_PollLockStatus(target, ipcId, true, timeOutAttempts);
-  }
-  return hr;
+	if (isAcquired) {
+		/* If IPC structure is acquired, the lock status should be set */
+		hr = Ipc_PollLockStatus(target, ipcId, true, timeOutAttempts);
+	}
+	return hr;
 }
 
 
@@ -390,32 +390,32 @@ int Ipc_Acquire(struct target *target, char ipcId, int timeOutAttempts)
 *******************************************************************************/
 int PollSromApiStatus(struct target *target, int address, int timeOutAttempts, uint32_t *dataOut)
 {
-  /* Poll data from SRAM, returned after system call execution */
-  int hr = ERROR_OK;
-  int attemptsElapsed = 0x00;
-  bool isAcquired = false;
+	/* Poll data from SRAM, returned after system call execution */
+	int hr = ERROR_OK;
+	int attemptsElapsed = 0x00;
+	bool isAcquired = false;
 
-  do {
-	  /* Poll data */
-	  hr = target_read_u32(target, address, dataOut);
-	  if (hr == ERROR_OK) {
-		  isAcquired = (*dataOut & MXS40_SROMAPI_STATUS_MSK) == MXS40_SROMAPI_STAT_SUCCESS;
-	  }
-	  /* Check for timeout */
-	  if (!isAcquired) {
-		  if (attemptsElapsed > timeOutAttempts) {
-			  LOG_DEBUG("PollSromApiStatus - FAIL status - 0x%08x", (unsigned int)*dataOut);
-			  LOG_ERROR("Timeout waiting for SROM API execution complete");
-			  hr = ERROR_FAIL;
-			  break;
-		  }
-		  usleep(DELAY_10_MS);
-		  attemptsElapsed ++;
-	  }
-  } while (!isAcquired);
+	do {
+		/* Poll data */
+		hr = target_read_u32(target, address, dataOut);
+		if (hr == ERROR_OK) {
+			isAcquired = (*dataOut & MXS40_SROMAPI_STATUS_MSK) == MXS40_SROMAPI_STAT_SUCCESS;
+		}
+		/* Check for timeout */
+		if (!isAcquired) {
+			if (attemptsElapsed > timeOutAttempts) {
+				LOG_DEBUG("PollSromApiStatus - FAIL status - 0x%08x", (unsigned int)*dataOut);
+				LOG_ERROR("Timeout waiting for SROM API execution complete");
+				hr = ERROR_FAIL;
+				break;
+			}
+			usleep(DELAY_10_MS);
+			attemptsElapsed ++;
+		}
+	} while (!isAcquired);
 
-  LOG_DEBUG("PollSromApiStatus - OK status - 0x%08x", (unsigned int)*dataOut);
-  return hr;
+	LOG_DEBUG("PollSromApiStatus - OK status - 0x%08x", (unsigned int)*dataOut);
+	return hr;
 }
 
 
@@ -440,46 +440,46 @@ int PollSromApiStatus(struct target *target, int address, int timeOutAttempts, u
 *******************************************************************************/
 int CallSromApi(struct target *target, uint32_t callIdAndParams, uint32_t *dataOut)
 {
-  int hr;
-  /* Check where the arguments for this API are located
-     [0]: 1 - arguments are passed in IPC.DATA. 0 - arguments are passed in SRAM */
-  bool isDataInRam = (callIdAndParams & MXS40_SROMAPI_DATA_LOCATION_MSK) == 0;
-  unsigned long IPC_STRUC = IPC_STRUCT2;
-  /* Acquire IPC_STRUCT[0] for CM0+ */
-  hr = Ipc_Acquire(target, IPC_ID, IPC_STRUCT_ACQUIRE_TIMEOUT_ATTEMPTS);
-  if (hr == ERROR_OK) {
-	  /* Write to IPC_STRUCT0.DATA - Sys call ID and Parameters
-		 OR address in SRAM, where they are located */
-	  if (isDataInRam) {
-		  LOG_DEBUG("CallSromApi: isDataInRam = true: address -> 0x%x, data -> 0x%x", (unsigned int)(IPC_STRUC + IPC_STRUCT_DATA_OFFSET), SRAM_SCRATCH_ADDR);
-		  hr = target_write_u32(target, (unsigned int)(IPC_STRUC + IPC_STRUCT_DATA_OFFSET), SRAM_SCRATCH_ADDR);
-	  } else {
-		  LOG_DEBUG("CallSromApi: isDataInRam = false: address -> 0x%x, data -> 0x%x", (unsigned int)(IPC_STRUC + IPC_STRUCT_DATA_OFFSET), callIdAndParams);
-		  hr = target_write_u32(target, (unsigned int)(IPC_STRUC + IPC_STRUCT_DATA_OFFSET), callIdAndParams);
-	  }
-	  if (hr == ERROR_OK) {
-		  /* Enable notification interrupt of IPC_INTR_STRUCT0(CM0+) for IPC_STRUCT2 */
-		  hr = target_write_u32(target, (IPC_INTR_STRUCT + IPC_INTR_STRUCT_INTR_IPC_MASK_OFFSET), 1 << (16 + IPC_ID));
-		  if (hr == ERROR_OK) {
-			  /* Notify to IPC_INTR_STRUCT0. IPC_STRUCT2.MASK <- Notify */
-			  hr = target_write_u32(target, IPC_STRUC + IPC_STRUCT_NOTIFY_OFFSET, 1);
-			  if (hr == ERROR_OK) {
-				  /* Poll lock status */
-				  hr = Ipc_PollLockStatus(target, IPC_ID, false, IPC_STRUCT_ACQUIRE_TIMEOUT_ATTEMPTS);
-				  if (hr == ERROR_OK) {
-					  /* Poll Data byte */
-					  if (isDataInRam) {
-						  hr = PollSromApiStatus(target, SRAM_SCRATCH_ADDR, IPC_STRUCT_DATA_TIMEOUT_ATTEMPTS, dataOut);
-					  } else {
-						  hr = PollSromApiStatus(target, IPC_STRUC + IPC_STRUCT_DATA_OFFSET, IPC_STRUCT_DATA_TIMEOUT_ATTEMPTS, dataOut);
-					  }
-				  }
-			  }
-		  }
-	  }
+	int hr;
+	/* Check where the arguments for this API are located
+		[0]: 1 - arguments are passed in IPC.DATA. 0 - arguments are passed in SRAM */
+	bool isDataInRam = (callIdAndParams & MXS40_SROMAPI_DATA_LOCATION_MSK) == 0;
+	unsigned long IPC_STRUC = IPC_STRUCT2;
+	/* Acquire IPC_STRUCT[0] for CM0+ */
+	hr = Ipc_Acquire(target, IPC_ID, IPC_STRUCT_ACQUIRE_TIMEOUT_ATTEMPTS);
+	if (hr == ERROR_OK) {
+		/* Write to IPC_STRUCT0.DATA - Sys call ID and Parameters
+			OR address in SRAM, where they are located */
+		if (isDataInRam) {
+			LOG_DEBUG("CallSromApi: isDataInRam = true: address -> 0x%x, data -> 0x%x", (unsigned int)(IPC_STRUC + IPC_STRUCT_DATA_OFFSET), SRAM_SCRATCH_ADDR);
+			hr = target_write_u32(target, (unsigned int)(IPC_STRUC + IPC_STRUCT_DATA_OFFSET), SRAM_SCRATCH_ADDR);
+		} else {
+			LOG_DEBUG("CallSromApi: isDataInRam = false: address -> 0x%x, data -> 0x%x", (unsigned int)(IPC_STRUC + IPC_STRUCT_DATA_OFFSET), callIdAndParams);
+			hr = target_write_u32(target, (unsigned int)(IPC_STRUC + IPC_STRUCT_DATA_OFFSET), callIdAndParams);
+		}
+		if (hr == ERROR_OK) {
+			/* Enable notification interrupt of IPC_INTR_STRUCT0(CM0+) for IPC_STRUCT2 */
+			hr = target_write_u32(target, (IPC_INTR_STRUCT + IPC_INTR_STRUCT_INTR_IPC_MASK_OFFSET), 1 << (16 + IPC_ID));
+			if (hr == ERROR_OK) {
+				/* Notify to IPC_INTR_STRUCT0. IPC_STRUCT2.MASK <- Notify */
+				hr = target_write_u32(target, IPC_STRUC + IPC_STRUCT_NOTIFY_OFFSET, 1);
+				if (hr == ERROR_OK) {
+					/* Poll lock status */
+					hr = Ipc_PollLockStatus(target, IPC_ID, false, IPC_STRUCT_ACQUIRE_TIMEOUT_ATTEMPTS);
+					if (hr == ERROR_OK) {
+						/* Poll Data byte */
+						if (isDataInRam) {
+							hr = PollSromApiStatus(target, SRAM_SCRATCH_ADDR, IPC_STRUCT_DATA_TIMEOUT_ATTEMPTS, dataOut);
+						} else {
+							hr = PollSromApiStatus(target, IPC_STRUC + IPC_STRUCT_DATA_OFFSET, IPC_STRUCT_DATA_TIMEOUT_ATTEMPTS, dataOut);
+						}
+					}
+				}
+			}
+		}
 
-  }
-  return hr;
+	}
+	return hr;
 }
 
 
@@ -504,7 +504,7 @@ static int Psoc6GetSiliconId(struct target *target, uint32_t *siliconId, uint8_t
 	uint32_t siliconIdLo = 0x0;
 
 	/* Type 0: Get Family ID & Revision ID
-	   SRAM_SCRATCH: OpCode */
+		SRAM_SCRATCH: OpCode */
 	params = MXS40_SROMAPI_SILID_CODE + (MXS40_SROMAPI_SILID_TYPE_MSK & (0 << MXS40_SROMAPI_SILID_TYPE_ROL));
 	hr = CallSromApi(target, params, &dataOut0);
 	if (hr == ERROR_OK) {
@@ -600,9 +600,8 @@ static int Psoc6Probe(struct flash_bank *bank)
 				if (flashSizeInKb == 0) {
 					flashSizeInKb = details->flashSizeInKb;
 				} else {
-					if (flashSizeInKb != details->flashSizeInKb) {
+					if (flashSizeInKb != details->flashSizeInKb)
 						LOG_ERROR("Flash size mismatch");
-					}
 				}
 			}
 
@@ -686,11 +685,10 @@ static int Psoc6AutoProbe(struct flash_bank *bank)
 	struct psoc6FlashBank *psoc6Info = bank->driver_priv;
 	int hr;
 
-	if (psoc6Info->probed) {
+	if (psoc6Info->probed)
 		hr = ERROR_OK;
-	} else {
+	else
 		hr = Psoc6Probe(bank);
-	}
 
 	return hr;
 }
@@ -711,31 +709,31 @@ static int EraseSector(struct target *target, int first, int last)
 	int hr;
 	LOG_DEBUG("first-> 0x%x, last-> 0x%x", first, last);
 
-	 for (int i = first; i < last; i++) {
-		 int addr = MEM_BASE_FLASH + (i * FLASH_SECTOR_LENGTH * 1024);
+		for (int i = first; i < last; i++) {
+			int addr = MEM_BASE_FLASH + (i * FLASH_SECTOR_LENGTH * 1024);
 
-		 /* Prepare batch request. Skip immediate responses in batch mode.
-		    SRAM_SCRATCH: OpCode */
-		 hr = target_write_u32(target, SRAM_SCRATCH_ADDR, MXS40_SROMAPI_ERASESECTOR_CODE);
-		 if (hr != ERROR_OK)
-			 break;
+			/* Prepare batch request. Skip immediate responses in batch mode.
+				SRAM_SCRATCH: OpCode */
+			hr = target_write_u32(target, SRAM_SCRATCH_ADDR, MXS40_SROMAPI_ERASESECTOR_CODE);
+			if (hr != ERROR_OK)
+				break;
 
-		 /* SRAM_SCRATCH + 0x04: Flash address to be erased (in 32-bit system address format) */
-		 hr = target_write_u32(target, SRAM_SCRATCH_ADDR + DATA_LOCATION_OFFSET, addr);
-		 if (hr != ERROR_OK)
-			 break;
+			/* SRAM_SCRATCH + 0x04: Flash address to be erased (in 32-bit system address format) */
+			hr = target_write_u32(target, SRAM_SCRATCH_ADDR + DATA_LOCATION_OFFSET, addr);
+			if (hr != ERROR_OK)
+				break;
 
-		 /* Send batch request */
-		 uint32_t dataOut;
-		 hr = CallSromApi(target, MXS40_SROMAPI_ERASESECTOR_CODE, &dataOut);
-		 if (hr != ERROR_OK) {
-			 LOG_ERROR("Sector \"%d\" from \"%d\" sectors are not erased.  Failed result for Erase operation.", i, last);
-			 break;
+			/* Send batch request */
+			uint32_t dataOut;
+			hr = CallSromApi(target, MXS40_SROMAPI_ERASESECTOR_CODE, &dataOut);
+			if (hr != ERROR_OK) {
+				LOG_ERROR("Sector \"%d\" from \"%d\" sectors are not erased.  Failed result for Erase operation.", i, last);
+				break;
+			}
+
+			LOG_DEBUG("Sector -> 0x%x is Erased", addr);
 		}
-
-		 LOG_DEBUG("Sector -> 0x%x is Erased", addr);
-	 }
-	 return hr;
+		return hr;
 }
 
 
@@ -788,11 +786,11 @@ static int Psoc6Erase(struct flash_bank *bank, int first, int last)
 	LOG_DEBUG("Calc-> 0x%x", (psoc6Info->flashSizeInKb / FLASH_SECTOR_LENGTH));
 	LOG_DEBUG("first-> 0x%x, last-> 0x%x", first, last - 1);
 
-	if ((unsigned)(last - 1) != (psoc6Info->flashSizeInKb/FLASH_SECTOR_LENGTH)) {
+	if ((unsigned)(last - 1) != (psoc6Info->flashSizeInKb/FLASH_SECTOR_LENGTH))
 		LOG_INFO("Count of sector is more then real present");
-	} else {
+	else
 		hr = EraseSector(target, first, last - 1);
-	}
+
 	return hr;
 }
 
@@ -818,14 +816,14 @@ static int WriteRow(struct target *target, int address, const uint8_t * buffer, 
 	if (hr == ERROR_OK) {
 
 		/* SRAM_SCRATCH + 0x04: Data location/size and Integrity check
-		   ---
-		   Bits[31:24]	Bits[23:16]		Bits[15:8]		Bits[7:0]
-		   xxxxxxxx		Verify row		Data location	Data size
-		   ---
-		   Verify row: 0-Data integrity check is not performed 1-Data integrity check is performed
-		   Data location : 0 – page latch , 1- SRAM
-		   Data size* – 0 – 8b ,1-16b , 2 -32b ,3 – 64b , 4 – 128b , 5 – 256 b , 6 – 512b , 7)
-		   Data size is ignored for S40 SONOS FLASH as the lowest granularity for program operation equals page size. */
+			---
+			Bits[31:24]	Bits[23:16]		Bits[15:8]		Bits[7:0]
+			xxxxxxxx		Verify row		Data location	Data size
+			---
+			Verify row: 0-Data integrity check is not performed 1-Data integrity check is performed
+			Data location : 0 – page latch , 1- SRAM
+			Data size* – 0 – 8b ,1-16b , 2 -32b ,3 – 64b , 4 – 128b , 5 – 256 b , 6 – 512b , 7)
+			Data size is ignored for S40 SONOS FLASH as the lowest granularity for program operation equals page size. */
 		hr = target_write_u32(target, SRAM_SCRATCH_ADDR + DATA_LOCATION_OFFSET, DATA_LOCATION_OFFSET);
 		if (hr == ERROR_OK) {
 			/* SRAM_SCRATCH + 0x08:
