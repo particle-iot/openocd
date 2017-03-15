@@ -223,15 +223,22 @@ struct psoc6FlashBank {
 static const struct Psoc6ChipDetails *psoc6_details_by_id(uint32_t siliconId)
 {
 	const struct Psoc6ChipDetails *p = psoc6Devices;
-	const struct Psoc6ChipDetails *chipInfo;
+	const struct Psoc6ChipDetails *chipInfo = NULL;
 	uint16_t i;
-	uint16_t id = siliconId >> LENGHT_SILICON_ID; /* ignore die revision */
+	uint16_t id = siliconId; /* ignore die revision */
+	bool isExpectedStatus = false;
 	for (i = 0; i < sizeof(psoc6Devices)/sizeof(psoc6Devices[0]); i++) {
-		if (p->id == id)
+		if (p->id == id) {
 			chipInfo = p;
+			isExpectedStatus = true;
+			break;
+		}
 		p++;
 	}
+	
+	if(!isExpectedStatus)
 	LOG_INFO("Unknown PSoC 6 device silicon id 0x%08" PRIx32 ".", siliconId);
+	
 	return chipInfo;
 }
 
@@ -775,7 +782,7 @@ static int psoc6_mass_erase(struct flash_bank *bank)
 *******************************************************************************/
 static int Psoc6Erase(struct flash_bank *bank, int first, int last)
 {
-	int hr = ERROR_OK;
+	int hr;
 	struct target *target = bank->target;
 	struct psoc6FlashBank *psoc6Info = bank->driver_priv;
 
@@ -783,9 +790,10 @@ static int Psoc6Erase(struct flash_bank *bank, int first, int last)
 	LOG_DEBUG("Calc-> 0x%x", (psoc6Info->flashSizeInKb / FLASH_SECTOR_LENGTH));
 	LOG_DEBUG("first-> 0x%x, last-> 0x%x", first, last - 1);
 
-	if ((unsigned)(last - 1) != (psoc6Info->flashSizeInKb/FLASH_SECTOR_LENGTH))
+	if ((unsigned)(last - 1) != (psoc6Info->flashSizeInKb/FLASH_SECTOR_LENGTH)) {
+		hr = ERROR_OK
 		LOG_INFO("Count of sector is more then real present");
-	else
+	} else
 		hr = EraseSector(target, first, last - 1);
 
 	return hr;
