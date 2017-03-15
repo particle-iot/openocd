@@ -782,7 +782,6 @@ static int psoc6_mass_erase(struct flash_bank *bank)
 *******************************************************************************/
 static int Psoc6Erase(struct flash_bank *bank, int first, int last)
 {
-	int hr;
 	struct target *target = bank->target;
 	struct psoc6FlashBank *psoc6Info = bank->driver_priv;
 
@@ -791,12 +790,11 @@ static int Psoc6Erase(struct flash_bank *bank, int first, int last)
 	LOG_DEBUG("first-> 0x%x, last-> 0x%x", first, last - 1);
 
 	if ((unsigned)(last - 1) != (psoc6Info->flashSizeInKb/FLASH_SECTOR_LENGTH)) {
-		hr = ERROR_OK;
 		LOG_INFO("Count of sector is more then real present");
 	} else
-		hr = EraseSector(target, first, last - 1);
+		return EraseSector(target, first, last - 1);
 
-	return hr;
+	return ERROR_OK;
 }
 
 
