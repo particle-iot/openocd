@@ -1062,7 +1062,13 @@ static int ftdi_swd_init(void)
 
 static void ftdi_swd_swdio_en(bool enable)
 {
+	struct signal *tdo = find_signal_by_name("TDO");
 	struct signal *oe = find_signal_by_name("SWDIO_OE");
+
+	/* In case TDO is directly connected, switch to output write operation
+	   or tri-state (input) output pin for read swd operation */
+	if (tdo && (tdo->oe_mask == tdo->data_mask))
+		ftdi_set_signal(tdo, enable ? '1' : 'z');
 	if (oe)
 		ftdi_set_signal(oe, enable ? '1' : '0');
 }
