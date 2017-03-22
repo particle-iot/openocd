@@ -341,11 +341,13 @@ static int avago_init(void)
 }
 
 
-/* This array should be in descending order of freq */
 struct avago_freq_info {
 	int freq;
 	unsigned char regb_val;
-} g_avago_freq_map[] = {
+};
+
+/* This array should be in descending order of freq */
+static const struct avago_freq_info g_avago_freq_map[] = {
 	{31200, 0x40},
 	{15620, 0x60},
 	{7800, 0x80},
@@ -367,7 +369,7 @@ static int avago_speed_div(int speed, int *khz)
 	PRINTF("Entered %s\n", __func__);
 
 	/* Use 7800 as the default if invalid speed is provided */
-	if ((speed < 0) || (speed > (ssize_t)(ARRAY_SIZE(g_avago_freq_map))))
+	if ((speed < 0) || (speed >= (ssize_t)(ARRAY_SIZE(g_avago_freq_map))))
 		speed = 2;
 
 	*khz = g_avago_freq_map[speed].freq;
@@ -392,8 +394,8 @@ static int avago_khz(int khz, int *jtag_speed)
 		}
 	}
 
-	/* This is the lowest frequency in our list */
-	*jtag_speed = i;
+	/* This is the default frequency */
+	*jtag_speed = 2;
 
 	return ERROR_OK;
 }
@@ -403,7 +405,7 @@ static int avago_speed(int speed)
 {
 	PRINTF("Entered %s\n", __func__);
 
-	if ((speed < 0) || (speed > (ssize_t)(ARRAY_SIZE(g_avago_freq_map))))
+	if ((speed < 0) || (speed >= (ssize_t)(ARRAY_SIZE(g_avago_freq_map))))
 		return ERROR_FAIL;
 
 	PRINTF("Setting speed: %d %d\n", speed, g_avago_freq_map[speed].freq);

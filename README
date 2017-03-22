@@ -299,6 +299,10 @@ method.
 =======================================
 Using Avago Pilot JTAG Master Interface
 =======================================
+Avago Pilot JTAG Master Interface Driver should be built if you
+intend to use OpenOCD on Avago Pilot ASIC. Once OpenOCD is
+built with this driver, OpenOCD can be used to debug JTAG targets
+connected to Avago Pilot JTAG Master Interface.
 
 These instructions help to build and use the Avago Pilot JTAG
 Master Interface driver
