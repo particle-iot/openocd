@@ -136,6 +136,18 @@ static void cmd_queue_free(void)
 	cmd_queue_pages_tail = NULL;
 }
 
+/**
+ * Copy a struct scan_field for insertion into the queue.
+ *
+ * This allocates a new copy of out_value using cmd_queue_alloc.
+ */
+void cmd_queue_scan_field_clone(struct scan_field *dst, const struct scan_field *src)
+{
+	dst->num_bits	= src->num_bits;
+	dst->out_value	= buf_cpy(src->out_value, cmd_queue_alloc(DIV_ROUND_UP(src->num_bits, 8)), src->num_bits);
+	dst->in_value	= src->in_value;
+}
+
 void jtag_command_queue_reset(void)
 {
 	cmd_queue_free();
