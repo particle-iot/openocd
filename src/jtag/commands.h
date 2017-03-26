@@ -165,6 +165,8 @@ extern struct jtag_command *jtag_command_queue;
 
 void *cmd_queue_alloc(size_t size);
 
+void cmd_queue_scan_field_clone(struct scan_field *dst, const struct scan_field *src);
+
 void jtag_queue_command(struct jtag_command *cmd);
 void jtag_command_queue_reset(void);
 
