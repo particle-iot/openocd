@@ -22,7 +22,8 @@ noinst_LTLIBRARIES += %D%/librtos.la
 	%D%/rtos_chibios_stackings.h \
 	%D%/rtos_embkernel_stackings.h \
 	%D%/rtos_mqx_stackings.h \
-	%D%/rtos_ucos_iii_stackings.h
+	%D%/rtos_ucos_iii_stackings.h \
+	%D%/ucos.c
 
 %C%_librtos_la_CFLAGS = $(AM_CFLAGS)
 
