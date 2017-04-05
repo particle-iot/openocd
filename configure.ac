@@ -137,6 +137,9 @@ m4_define([LIBFTDI_ADAPTERS],
 m4_define([LIBJAYLINK_ADAPTERS],
 	[[[jlink], [SEGGER J-Link Programmer], [JLINK]]])
 
+m4_define([AVAGO_ADAPTER],
+	[[[avago_pilot], [Avago Pilot Debugger], [AVAGO_PILOT]]])
+
 
 AC_ARG_ENABLE([doxygen-html],
   AS_HELP_STRING([--disable-doxygen-html],
@@ -244,7 +247,8 @@ AC_ARG_ADAPTERS([
   USB0_ADAPTERS,
   HIDAPI_ADAPTERS,
   LIBFTDI_ADAPTERS,
-  LIBJAYLINK_ADAPTERS
+  LIBJAYLINK_ADAPTERS,
+  AVAGO_ADAPTER
   ],[auto])
 
 AC_ARG_ENABLE([parport],
@@ -276,6 +280,10 @@ AC_ARG_ENABLE([zy1000_master],
 AC_ARG_ENABLE([zy1000],
   AS_HELP_STRING([--enable-zy1000], [Enable ZY1000 interface]),
   [build_zy1000=$enableval], [build_zy1000=no])
+
+AC_ARG_ENABLE([avago_pilot],
+  AS_HELP_STRING([--enable-avago_pilot], [Enable Avago Pilot interface]),
+  [build_avago_pilot=$enableval], [build_avago_pilot=no])
 
 AC_ARG_ENABLE([ioutil],
   AS_HELP_STRING([--enable-ioutil], [Enable ioutil functions - useful for standalone OpenOCD implementations]),
@@ -498,6 +506,12 @@ AS_IF([test "x$build_zy1000_master" = "xyes"], [
   AC_DEFINE([BUILD_ZY1000_MASTER], [0], [0 if you don't want ZY1000 JTAG master registers.])
 ])
 
+AS_IF([test "x$build_avago_pilot" = "xyes"], [
+  AC_DEFINE([BUILD_AVAGO_PILOT], [1], [1 if you want AVAGO PILOT.])
+], [
+  AC_DEFINE([BUILD_AVAGO_PILOT], [0], [0 if you don't want AVAGO PILOT.])
+])
+
 AS_IF([test "x$build_at91rm9200" = "xyes"], [
   build_bitbang=yes
   AC_DEFINE([BUILD_AT91RM9200], [1], [1 if you want at91rm9200.])
@@ -638,6 +652,7 @@ PROCESS_ADAPTERS([USB1_ADAPTERS], ["x$use_libusb1" = "xyes"], [libusb-1.x])
 PROCESS_ADAPTERS([USB_ADAPTERS], ["x$use_libusb1" = "xyes" -o "x$use_libusb0" = "xyes"], [libusb-1.x or libusb-0.1])
 PROCESS_ADAPTERS([USB0_ADAPTERS], ["x$use_libusb0" = "xyes"], [libusb-0.1])
 PROCESS_ADAPTERS([HIDAPI_ADAPTERS], ["x$use_hidapi" = "xyes"], [hidapi])
+PROCESS_ADAPTERS([AVAGO_ADAPTERS], ["x$use_avago" = "xyes"], [avagopilot])
 PROCESS_ADAPTERS([LIBFTDI_ADAPTERS], ["x$use_libftdi" = "xyes"], [libftdi])
 PROCESS_ADAPTERS([LIBJAYLINK_ADAPTERS], ["x$use_libusb1" = "xyes" -a "x$use_internal_libjaylink" = "xyes" -o "x$use_libjaylink" = "xyes"], [libusb-1.x or libjaylink-0.1])
 
@@ -678,6 +693,7 @@ AM_CONDITIONAL([GIVEIO], [test "x$parport_use_giveio" = "xyes"])
 AM_CONDITIONAL([EP93XX], [test "x$build_ep93xx" = "xyes"])
 AM_CONDITIONAL([ZY1000], [test "x$build_zy1000" = "xyes"])
 AM_CONDITIONAL([ZY1000_MASTER], [test "x$build_zy1000_master" = "xyes"])
+AM_CONDITIONAL([AVAGO_PILOT], [test "x$build_avago_pilot" = "xyes"])
 AM_CONDITIONAL([IOUTIL], [test "x$build_ioutil" = "xyes"])
 AM_CONDITIONAL([AT91RM9200], [test "x$build_at91rm9200" = "xyes"])
 AM_CONDITIONAL([BCM2835GPIO], [test "x$build_bcm2835gpio" = "xyes"])
@@ -768,7 +784,7 @@ echo
 echo OpenOCD configuration summary
 echo --------------------------------------------------
 m4_foreach([adapter], [USB1_ADAPTERS, USB_ADAPTERS, USB0_ADAPTERS,
-	HIDAPI_ADAPTERS, LIBFTDI_ADAPTERS, LIBJAYLINK_ADAPTERS],
+	HIDAPI_ADAPTERS, AVAGO_ADAPTER, LIBFTDI_ADAPTERS, LIBJAYLINK_ADAPTERS],
 	[s=m4_format(["%-40s"], ADAPTER_DESC([adapter]))
 	AS_CASE([$ADAPTER_VAR([adapter])],
 		[auto], [
