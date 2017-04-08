@@ -155,6 +155,8 @@ static const struct or1k_core_reg_init or1k_init_reg_list[] = {
 	{"esr13"    , GROUP0 + 77,   "org.gnu.gdb.or1k.group0", "system"},
 	{"esr14"    , GROUP0 + 78,   "org.gnu.gdb.or1k.group0", "system"},
 	{"esr15"    , GROUP0 + 79,   "org.gnu.gdb.or1k.group0", "system"},
+	{"coreid"   , GROUP0 + 128,  "org.gnu.gdb.or1k.group0", "system"},
+	{"numcores" , GROUP0 + 129,  "org.gnu.gdb.or1k.group0", "system"},
 
 	{"dmmuucr"  , GROUP1 + 0,    "org.gnu.gdb.or1k.group1", "dmmu"},
 	{"dmmuupr"  , GROUP1 + 1,    "org.gnu.gdb.or1k.group1", "dmmu"},
