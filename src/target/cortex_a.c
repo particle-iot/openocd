@@ -1396,7 +1396,7 @@ static int cortex_a_step(struct target *target, int current, target_addr_t addre
 
 	target->debug_reason = DBG_REASON_SINGLESTEP;
 
-	retval = cortex_a_resume(target, 1, address, 0, 0);
+	retval = cortex_a_resume(target, 1, 0, 0, 0);
 	if (retval != ERROR_OK)
 		return retval;
 
