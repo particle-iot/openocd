@@ -746,9 +746,10 @@ int kinetis_disable_wdog(struct target *target, uint32_t sim_sdid)
 	};
 
 	/* Decide whether the connected device needs watchdog disabling.
-	 * Disable for all Kx and KVx devices, return if it is a KLx */
+	 * Disable for all Kx and KVx devices, return if it is a KLx or newer KWx */
 
-	if ((sim_sdid & KINETIS_SDID_SERIESID_MASK) == KINETIS_SDID_SERIESID_KL)
+	if (((sim_sdid & KINETIS_SDID_SERIESID_MASK) == KINETIS_SDID_SERIESID_KL)
+		|| ((sim_sdid & KINETIS_SDID_SERIESID_MASK) == KINETIS_SDID_SERIESID_KW))
 		return ERROR_OK;
 
 	/* The connected device requires watchdog disabling. */
@@ -1701,6 +1702,38 @@ static int kinetis_probe(struct flash_bank *bank)
 			nvm_sector_size_bytes = 1<<10;
 			/* autodetect 1 or 2 blocks */
 			kinfo->flash_support = FS_PROGRAM_LONGWORD | FS_INVALIDATE_CACHE_L;
+			break;
+
+		case KINETIS_SDID_SERIESID_KW:
+			/* Newer KW-series (all KW series except KW2xD, KW01Z) */
+			switch (kinfo->sim_sdid & (KINETIS_SDID_FAMILYID_MASK | KINETIS_SDID_SUBFAMID_MASK)) {
+			case KINETIS_SDID_FAMILYID_K4X | KINETIS_SDID_SUBFAMID_KX0:
+				/* KW40Z */
+			case KINETIS_SDID_FAMILYID_K3X | KINETIS_SDID_SUBFAMID_KX0:
+				/* KW30Z */
+			case KINETIS_SDID_FAMILYID_K2X | KINETIS_SDID_SUBFAMID_KX0:
+				/* KW20Z */
+				/* FTFA, 1kB sectors */
+				pflash_sector_size_bytes = 1<<10;
+				nvm_sector_size_bytes = 1<<10;
+				/* autodetect 1 or 2 blocks */
+				kinfo->flash_support = FS_PROGRAM_LONGWORD | FS_INVALIDATE_CACHE_L;
+				break;
+			case KINETIS_SDID_FAMILYID_K4X | KINETIS_SDID_SUBFAMID_KX1:
+				/* KW41Z */
+			case KINETIS_SDID_FAMILYID_K3X | KINETIS_SDID_SUBFAMID_KX1:
+				/* KW31Z */
+			case KINETIS_SDID_FAMILYID_K2X | KINETIS_SDID_SUBFAMID_KX1:
+				/* KW21Z */
+				/* FTFA, 2kB sectors */
+				pflash_sector_size_bytes = 2<<10;
+				nvm_sector_size_bytes = 2<<10;
+				/* autodetect 1 or 2 blocks */
+				kinfo->flash_support = FS_PROGRAM_LONGWORD | FS_INVALIDATE_CACHE_L;
+				break;
+			default:
+				LOG_ERROR("Unsupported KW FAMILYID SUBFAMID");
+			}
 			break;
 
 		case KINETIS_SDID_SERIESID_KV:
