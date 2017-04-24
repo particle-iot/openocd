@@ -1051,8 +1051,8 @@ static int dap_rom_display(struct command_context *cmd_ctx,
 				struct adiv5_ap *ap, uint32_t dbgbase, int depth)
 {
 	int retval;
-	uint64_t pid;
-	uint32_t cid;
+	uint64_t pid = 0;
+	uint32_t cid = 0;
 	char tabs[7] = "";
 
 	if (depth > 16) {
