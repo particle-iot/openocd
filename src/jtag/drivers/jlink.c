@@ -262,6 +262,16 @@ static void jlink_execute_sleep(struct jtag_command *cmd)
 	jtag_sleep(cmd->cmd.sleep->us);
 }
 
+static void jlink_execute_tms(struct jtag_command *cmd)
+{
+	DEBUG_JTAG_IO("TMS: %d bits", cmd->cmd.tms->num_bits);
+
+	/* TODO: Missing tap state tracking */
+	jlink_flush();
+	jlink_clock_data(NULL, 0, cmd->cmd.tms->bits, 0, NULL, 0, cmd->cmd.tms->num_bits);
+	jlink_flush();
+}
+
 static int jlink_execute_command(struct jtag_command *cmd)
 {
 	switch (cmd->type) {
@@ -285,6 +295,9 @@ static int jlink_execute_command(struct jtag_command *cmd)
 			break;
 		case JTAG_SLEEP:
 			jlink_execute_sleep(cmd);
+			break;
+		case JTAG_TMS:
+			jlink_execute_tms(cmd);
 			break;
 		default:
 			LOG_ERROR("BUG: Unknown JTAG command type encountered.");
@@ -2168,6 +2181,7 @@ static const char * const jlink_transports[] = { "jtag", "swd", NULL };
 
 struct jtag_interface jlink_interface = {
 	.name = "jlink",
+	.supported = DEBUG_CAP_TMS_SEQ,
 	.commands = jlink_command_handlers,
 	.transports = jlink_transports,
 	.swd = &jlink_swd,
