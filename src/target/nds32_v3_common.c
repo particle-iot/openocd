@@ -367,14 +367,6 @@ int nds32_v3_target_request_data(struct target *target,
 	return ERROR_OK;
 }
 
-int nds32_v3_checksum_memory(struct target *target,
-		target_addr_t address, uint32_t count, uint32_t *checksum)
-{
-	LOG_WARNING("Not implemented: %s", __func__);
-
-	return ERROR_FAIL;
-}
-
 /**
  * find out which watchpoint hits
  * get exception address and compare the address to watchpoints

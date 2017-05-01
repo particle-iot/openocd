@@ -404,14 +404,6 @@ static int nds32_v2_deassert_reset(struct target *target)
 	return ERROR_OK;
 }
 
-static int nds32_v2_checksum_memory(struct target *target,
-		target_addr_t address, uint32_t count, uint32_t *checksum)
-{
-	LOG_WARNING("Not implemented: %s", __func__);
-
-	return ERROR_FAIL;
-}
-
 static int nds32_v2_add_breakpoint(struct target *target,
 		struct breakpoint *breakpoint)
 {
@@ -760,8 +752,6 @@ struct target_type nds32_v2_target = {
 	.write_buffer = nds32_v2_write_buffer,
 	.read_memory = nds32_v2_read_memory,
 	.write_memory = nds32_v2_write_memory,
-
-	.checksum_memory = nds32_v2_checksum_memory,
 
 	/* breakpoint/watchpoint */
 	.add_breakpoint = nds32_v2_add_breakpoint,
