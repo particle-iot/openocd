@@ -30,7 +30,7 @@
 #include "armv8_cache.h"
 #include <helper/time_support.h>
 
-#define __unused __attribute((unused))
+#define __unused __attribute__((unused))
 
 enum restart_mode {
 	RESTART_LAZY,
