@@ -105,6 +105,11 @@
 #define FLASH_WRITE_TIMEOUT 10
 #define FLASH_ERASE_TIMEOUT 100
 
+/* Flash read protection levels */
+
+#define FLASH_PROTECTION_LEVEL1	0x00
+#define FLASH_PROTECTION_LEVEL2	0xCC
+
 struct stm32x_options {
 	uint16_t RDP;
 	uint16_t user_options;
@@ -130,6 +135,7 @@ static int stm32x_mass_erase(struct flash_bank *bank);
 static int stm32x_get_device_id(struct flash_bank *bank, uint32_t *device_id);
 static int stm32x_write_block(struct flash_bank *bank, const uint8_t *buffer,
 		uint32_t offset, uint32_t count);
+static int stm32x_rdp_set_lock_level(const unsigned int lock_rdp, struct command_invocation *cmd);
 
 /* flash bank stm32x <base> <size> 0 0 <target#>
  */
@@ -1278,9 +1284,8 @@ static int get_stm32x_info(struct flash_bank *bank, char *buf, int buf_size)
 	return ERROR_OK;
 }
 
-COMMAND_HANDLER(stm32x_handle_lock_command)
+static int stm32x_rdp_set_lock_level(const unsigned int lock_rdp, struct command_invocation *cmd)
 {
-	struct target *target = NULL;
 	struct stm32x_flash_bank *stm32x_info = NULL;
 
 	if (CMD_ARGC < 1)
@@ -1293,7 +1298,7 @@ COMMAND_HANDLER(stm32x_handle_lock_command)
 
 	stm32x_info = bank->driver_priv;
 
-	target = bank->target;
+	struct target *target = bank->target;
 
 	if (target->state != TARGET_HALTED) {
 		LOG_ERROR("Target not halted");
@@ -1310,16 +1315,64 @@ COMMAND_HANDLER(stm32x_handle_lock_command)
 	}
 
 	/* set readout protection */
-	stm32x_info->option_bytes.RDP = 0;
+	stm32x_info->option_bytes.RDP = lock_rdp;
 
 	if (stm32x_write_options(bank) != ERROR_OK) {
 		command_print(CMD_CTX, "stm32x failed to lock device");
 		return ERROR_OK;
 	}
 
-	command_print(CMD_CTX, "stm32x locked");
+	/* STM32F1x has a different default RDP, compared to STM32F0x and STM32F3x */
+	if ((stm32x_info->default_rdp & 0xFF) == lock_rdp) {
+		command_print(CMD_CTX, "stm32x unlocked");
+	} else if (FLASH_PROTECTION_LEVEL2 == lock_rdp)	{
+		command_print(CMD_CTX, "stm32x locked to level 2");
+	} else {
+		/* everything else maps to lock level 1 */
+		command_print(CMD_CTX, "stm32x locked to level 1");
+	}
 
 	return ERROR_OK;
+}
+
+COMMAND_HANDLER(stm32x_handle_lock_lvl1_command)
+{
+	return stm32x_rdp_set_lock_level(FLASH_PROTECTION_LEVEL1, cmd);
+}
+
+COMMAND_HANDLER(stm32x_handle_lock_lvl2_command)
+{
+	int retval = ERROR_OK;
+	uint32_t device_id = 0;
+
+	/* get flash bank */
+	struct flash_bank *bank;
+	retval = CALL_COMMAND_HANDLER(flash_command_get_bank, 0, &bank);
+	if (ERROR_OK != retval)
+		return retval;
+
+	/* read stm32 device id register */
+	retval = stm32x_get_device_id(bank, &device_id);
+	if (retval != ERROR_OK)
+		return retval;
+
+	switch (device_id & 0xfff) {
+		case 0x410: /* medium density */
+		case 0x412: /* low density */
+		case 0x414: /* high density */
+		case 0x418: /* connectivity line density */
+		case 0x420: /* value line density */
+		case 0x428: /* value line High density */
+		case 0x430: /* xl line density (dual flash banks) */
+			command_print(CMD_CTX, "stm32x failed to lock device (Lock level 2 not supported for STM32F1x)");
+		break;
+
+		default:
+			retval = stm32x_rdp_set_lock_level(FLASH_PROTECTION_LEVEL2, cmd);
+		break;
+	}
+
+	return retval;
 }
 
 COMMAND_HANDLER(stm32x_handle_unlock_command)
@@ -1585,10 +1638,18 @@ COMMAND_HANDLER(stm32x_handle_mass_erase_command)
 static const struct command_registration stm32x_exec_command_handlers[] = {
 	{
 		.name = "lock",
-		.handler = stm32x_handle_lock_command,
+		.handler = stm32x_handle_lock_lvl1_command,
 		.mode = COMMAND_EXEC,
 		.usage = "bank_id",
-		.help = "Lock entire flash device.",
+		.help = "Lock entire flash device, preserve debug interface. (Lock level 1)",
+	},
+	{
+		.name = "lock_irreversibly",
+		.handler = stm32x_handle_lock_lvl2_command,
+		.mode = COMMAND_EXEC,
+		.usage = "bank_id",
+		.help = "Lock the entire device irreversibly, disable debug interface permanently. "
+			"(Lock level 2, not supported by STM32F1x)",
 	},
 	{
 		.name = "unlock",
