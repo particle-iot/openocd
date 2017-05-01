@@ -439,7 +439,6 @@ static void ftdi_execute_scan(struct jtag_command *cmd)
 	while (cmd->cmd.scan->num_fields > 0
 			&& cmd->cmd.scan->fields[cmd->cmd.scan->num_fields - 1].num_bits == 0) {
 		cmd->cmd.scan->num_fields--;
-		LOG_DEBUG("discarding trailing empty field");
 	}
 
 	if (cmd->cmd.scan->num_fields == 0) {
