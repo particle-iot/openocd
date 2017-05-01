@@ -1179,8 +1179,11 @@ static int gdb_get_registers_packet(struct connection *connection,
 	if (retval != ERROR_OK)
 		return gdb_error(connection, retval);
 
-	for (i = 0; i < reg_list_size; i++)
+	for (i = 0; i < reg_list_size; i++) {
+		if (reg_list[i] == NULL || reg_list[i]->exist == false)
+			continue;
 		reg_packet_size += DIV_ROUND_UP(reg_list[i]->size, 8) * 2;
+	}
 
 	assert(reg_packet_size > 0);
 
