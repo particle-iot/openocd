@@ -55,18 +55,18 @@ struct uCOS_III_params {
 
 static const struct uCOS_III_params uCOS_III_params_list[] = {
 	{
-		"cortex_m",				/* target_name */
-		sizeof(uint32_t),			/* pointer_width */
-		0,					/* thread_stack_offset */
-		0,					/* thread_name_offset */
-		0,					/* thread_state_offset */
-		0,					/* thread_priority_offset */
-		0,					/* thread_prev_offset */
-		0,					/* thread_next_offset */
-		false,					/* thread_offsets_updated */
-		1,					/* threadid_start */
+		"cortex_m",							/* target_name */
+		sizeof(uint32_t),					/* pointer_width */
+		0,									/* thread_stack_offset */
+		0,									/* thread_name_offset */
+		0,									/* thread_state_offset */
+		0,									/* thread_priority_offset */
+		0,									/* thread_prev_offset */
+		0,									/* thread_next_offset */
+		false,								/* thread_offsets_updated */
+		1,									/* threadid_start */
 		&rtos_uCOS_III_Cortex_M_stacking,	/* stacking_info */
-		0,					/* num_threads */
+		0,									/* num_threads */
 	},
 };
 
@@ -452,7 +452,8 @@ static int uCOS_III_update_threads(struct rtos *rtos)
 	return ERROR_OK;
 }
 
-static int uCOS_III_get_thread_reg_list(struct rtos *rtos, threadid_t threadid, char **hex_reg_list)
+static int uCOS_III_get_thread_reg_list(struct rtos *rtos, threadid_t threadid,
+		struct rtos_reg **reg_list, int *num_regs)
 {
 	struct uCOS_III_params *params = rtos->rtos_specific_params;
 	int retval;
@@ -482,7 +483,8 @@ static int uCOS_III_get_thread_reg_list(struct rtos *rtos, threadid_t threadid, 
 	return rtos_generic_stack_read(rtos->target,
 				       params->stacking_info,
 				       stack_address,
-				       hex_reg_list);
+					   reg_list,
+					   num_regs);
 }
 
 static int uCOS_III_get_symbol_list_to_lookup(symbol_table_elem_t *symbol_list[])
