@@ -1206,12 +1206,6 @@ int or1k_get_gdb_fileio_info(struct target *target, struct gdb_fileio_info *file
 	return ERROR_FAIL;
 }
 
-static int or1k_checksum_memory(struct target *target, target_addr_t address,
-		uint32_t count, uint32_t *checksum) {
-
-	return ERROR_FAIL;
-}
-
 static int or1k_profiling(struct target *target, uint32_t *samples,
 		uint32_t max_num_samples, uint32_t *num_samples, uint32_t seconds)
 {
@@ -1447,7 +1441,6 @@ struct target_type or1k_target = {
 
 	.read_memory = or1k_read_memory,
 	.write_memory = or1k_write_memory,
-	.checksum_memory = or1k_checksum_memory,
 
 	.commands = or1k_command_handlers,
 	.add_breakpoint = or1k_add_breakpoint,

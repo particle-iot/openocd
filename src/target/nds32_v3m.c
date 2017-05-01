@@ -479,8 +479,6 @@ struct target_type nds32_v3m_target = {
 	.read_memory = nds32_v3_read_memory,
 	.write_memory = nds32_v3_write_memory,
 
-	.checksum_memory = nds32_v3_checksum_memory,
-
 	/* breakpoint/watchpoint */
 	.add_breakpoint = nds32_v3m_add_breakpoint,
 	.remove_breakpoint = nds32_v3m_remove_breakpoint,
