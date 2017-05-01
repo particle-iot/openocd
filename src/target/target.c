@@ -58,6 +58,8 @@
 /* default halt wait timeout (ms) */
 #define DEFAULT_HALT_TIMEOUT 5000
 
+static int target_checksum_memory_default(struct target *target, target_addr_t address,
+		uint32_t size, uint32_t *checksum);
 static int target_read_buffer_default(struct target *target, target_addr_t address,
 		uint32_t count, uint8_t *buffer);
 static int target_write_buffer_default(struct target *target, target_addr_t address,
@@ -1256,6 +1258,9 @@ static int target_init_one(struct command_context *cmd_ctx,
 		type->virt2phys = identity_virt2phys;
 	}
 
+	if (target->type->checksum_memory == NULL)
+		target->type->checksum_memory = target_checksum_memory_default;
+
 	if (target->type->read_buffer == NULL)
 		target->type->read_buffer = target_read_buffer_default;
 
@@ -2164,42 +2169,51 @@ static int target_read_buffer_default(struct target *target, target_addr_t addre
 	return ERROR_OK;
 }
 
-int target_checksum_memory(struct target *target, target_addr_t address, uint32_t size, uint32_t* crc)
+int target_checksum_memory(struct target *target, target_addr_t address, uint32_t size, uint32_t *crc)
 {
-	uint8_t *buffer;
-	int retval;
-	uint32_t i;
 	uint32_t checksum = 0;
+
 	if (!target_was_examined(target)) {
 		LOG_ERROR("Target not examined yet");
 		return ERROR_FAIL;
 	}
 
-	retval = target->type->checksum_memory(target, address, size, &checksum);
-	if (retval != ERROR_OK) {
-		buffer = malloc(size);
-		if (buffer == NULL) {
-			LOG_ERROR("error allocating buffer for section (%" PRId32 " bytes)", size);
-			return ERROR_COMMAND_SYNTAX_ERROR;
-		}
-		retval = target_read_buffer(target, address, size, buffer);
-		if (retval != ERROR_OK) {
-			free(buffer);
-			return retval;
-		}
-
-		/* convert to target endianness */
-		for (i = 0; i < (size/sizeof(uint32_t)); i++) {
-			uint32_t target_data;
-			target_data = target_buffer_get_u32(target, &buffer[i*sizeof(uint32_t)]);
-			target_buffer_set_u32(target, &buffer[i*sizeof(uint32_t)], target_data);
-		}
-
-		retval = image_calculate_checksum(buffer, size, &checksum);
-		free(buffer);
-	}
+	int retval = target->type->checksum_memory(target, address, size, &checksum);
+	if (retval != ERROR_OK)
+		return retval;
 
 	*crc = checksum;
+
+	return retval;
+}
+
+static int target_checksum_memory_default(struct target *target, target_addr_t address,
+		uint32_t size, uint32_t *checksum)
+{
+	uint8_t *buffer;
+	int retval;
+	uint32_t i;
+
+	buffer = malloc(size);
+	if (buffer == NULL) {
+		LOG_ERROR("error allocating buffer for section (%" PRId32 " bytes)", size);
+		return ERROR_COMMAND_SYNTAX_ERROR;
+	}
+	retval = target_read_buffer(target, address, size, buffer);
+	if (retval != ERROR_OK) {
+		free(buffer);
+		return retval;
+	}
+
+	/* convert to target endianness */
+	for (i = 0; i < (size/sizeof(uint32_t)); i++) {
+		uint32_t target_data;
+		target_data = target_buffer_get_u32(target, &buffer[i*sizeof(uint32_t)]);
+		target_buffer_set_u32(target, &buffer[i*sizeof(uint32_t)], target_data);
+	}
+
+	retval = image_calculate_checksum(buffer, size, checksum);
+	free(buffer);
 
 	return retval;
 }
