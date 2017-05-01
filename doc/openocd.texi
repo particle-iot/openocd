@@ -6254,8 +6254,17 @@ flash bank $_FLASHNAME stm32f1x 0x08080000 0 0 0 $_TARGETNAME
 Some stm32f1x-specific commands are defined:
 
 @deffn Command {stm32f1x lock} num
-Locks the entire stm32 device.
+Lock entire flash device, preserve debug interface. (Lock level 1)
 The @var{num} parameter is a value shown by @command{flash banks}.
+@end deffn
+
+@deffn Command {stm32f1x lock_irreversibly} num
+Lock the entire device irreversibly, disable debug interface permanently. (Lock level 2, supported
+by STM32F0x and STM32F3x, not supported by STM32F1x)
+The @var{num} parameter is a value shown by @command{flash banks}.
+@quotation Important
+This commands locks your device permanently! Your debugger will NEVER be able to connect to the device again!
+@end quotation
 @end deffn
 
 @deffn Command {stm32f1x unlock} num
