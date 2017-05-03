@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2016 by Square, Inc.                                    *
+ *   Copyright (C) 2017 by Square, Inc.                                    *
  *   Steven Stallion <stallion@squareup.com>                               *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
@@ -21,35 +21,36 @@
 #endif
 
 #include <helper/types.h>
+#include <rtos/rtos.h>
+#include <rtos/rtos_standard_stackings.h>
 #include <target/armv7m.h>
+#include <target/esirisc.h>
 
-#include "rtos.h"
-#include "rtos_standard_stackings.h"
-
+<<<<<<< HEAD
 static const struct stack_register_offset rtos_uCOS_III_Cortex_M_stack_offsets[] = {
-	{ ARMV7M_R0,   0x20, 32 },		/* r0   */
-	{ ARMV7M_R1,   0x24, 32 },		/* r1   */
-	{ ARMV7M_R2,   0x28, 32 },		/* r2   */
-	{ ARMV7M_R3,   0x2c, 32 },		/* r3   */
-	{ ARMV7M_R4,   0x00, 32 },		/* r4   */
-	{ ARMV7M_R5,   0x04, 32 },		/* r5   */
-	{ ARMV7M_R6,   0x08, 32 },		/* r6   */
-	{ ARMV7M_R7,   0x0c, 32 },		/* r7   */
-	{ ARMV7M_R8,   0x10, 32 },		/* r8   */
-	{ ARMV7M_R9,   0x14, 32 },		/* r9   */
-	{ ARMV7M_R10,  0x18, 32 },		/* r10  */
-	{ ARMV7M_R11,  0x1c, 32 },		/* r11  */
-	{ ARMV7M_R12,  0x30, 32 },		/* r12  */
-	{ ARMV7M_R13,  -2,   32 },		/* sp   */
-	{ ARMV7M_R14,  0x34, 32 },		/* lr   */
-	{ ARMV7M_PC,   0x38, 32 },		/* pc   */
-	{ ARMV7M_xPSR, 0x3c, 32 },		/* xPSR */
+	{ ARMV7M_R0,   0x20, 32 },	/* r0   */
+	{ ARMV7M_R1,   0x24, 32 },	/* r1   */
+	{ ARMV7M_R2,   0x28, 32 },	/* r2   */
+	{ ARMV7M_R3,   0x2c, 32 },	/* r3   */
+	{ ARMV7M_R4,   0x00, 32 },	/* r4   */
+	{ ARMV7M_R5,   0x04, 32 },	/* r5   */
+	{ ARMV7M_R6,   0x08, 32 },	/* r6   */
+	{ ARMV7M_R7,   0x0c, 32 },	/* r7   */
+	{ ARMV7M_R8,   0x10, 32 },	/* r8   */
+	{ ARMV7M_R9,   0x14, 32 },	/* r9   */
+	{ ARMV7M_R10,  0x18, 32 },	/* r10  */
+	{ ARMV7M_R11,  0x1c, 32 },	/* r11  */
+	{ ARMV7M_R12,  0x30, 32 },	/* r12  */
+	{ ARMV7M_R13,  -2,   32 },	/* sp   */
+	{ ARMV7M_R14,  0x34, 32 },	/* lr   */
+	{ ARMV7M_PC,   0x38, 32 },	/* pc   */
+	{ ARMV7M_xPSR, 0x3c, 32 },	/* xPSR */
 };
 
 const struct rtos_register_stacking rtos_uCOS_III_Cortex_M_stacking = {
-	0x40,							/* stack_registers_size */
-	-1,							/* stack_growth_direction */
+	0x40,												/* stack_registers_size */
+	-1,													/* stack_growth_direction */
 	ARRAY_SIZE(rtos_uCOS_III_Cortex_M_stack_offsets),	/* num_output_registers */
-	rtos_generic_stack_align8,				/* stack_alignment */
-	rtos_uCOS_III_Cortex_M_stack_offsets,			/* register_offsets */
+	rtos_generic_stack_align8,							/* stack_alignment */
+	rtos_uCOS_III_Cortex_M_stack_offsets				/* register_offsets */
 };
