@@ -344,10 +344,9 @@ static int nuttx_update_threads(struct rtos *rtos)
  * thread_id = tcb address;
  */
 static int nuttx_get_thread_reg_list(struct rtos *rtos, int64_t thread_id,
-	char **hex_reg_list) {
+	struct rtos_reg **reg_list, int *num_regs)
+{
 	int retval;
-
-	*hex_reg_list = NULL;
 
 	/* Check for armv7m with *enabled* FPU, i.e. a Cortex-M4F */
 	bool cm4_fpu_enabled = false;
@@ -378,7 +377,7 @@ static int nuttx_get_thread_reg_list(struct rtos *rtos, int64_t thread_id,
 		stacking = &nuttx_stacking_cortex_m;
 
 	return rtos_generic_stack_read(rtos->target, stacking,
-	    (uint32_t)thread_id + xcpreg_offset, hex_reg_list);
+	    (uint32_t)thread_id + xcpreg_offset, reg_list, num_regs);
 }
 
 static int nuttx_get_symbol_list_to_lookup(symbol_table_elem_t *symbol_list[])
