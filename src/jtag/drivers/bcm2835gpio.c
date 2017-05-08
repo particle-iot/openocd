@@ -101,8 +101,8 @@ static void bcm2835gpio_write(int tck, int tms, int tdi)
 	uint32_t set = tck<<tck_gpio | tms<<tms_gpio | tdi<<tdi_gpio;
 	uint32_t clear = !tck<<tck_gpio | !tms<<tms_gpio | !tdi<<tdi_gpio;
 
-	GPIO_SET = set;
 	GPIO_CLR = clear;
+	GPIO_SET = set;
 
 	for (unsigned int i = 0; i < jtag_delay; i++)
 		asm volatile ("");
@@ -113,8 +113,8 @@ static void bcm2835gpio_swd_write(int tck, int tms, int tdi)
 	uint32_t set = tck<<swclk_gpio | tdi<<swdio_gpio;
 	uint32_t clear = !tck<<swclk_gpio | !tdi<<swdio_gpio;
 
-	GPIO_SET = set;
 	GPIO_CLR = clear;
+	GPIO_SET = set;
 
 	for (unsigned int i = 0; i < jtag_delay; i++)
 		asm volatile ("");
