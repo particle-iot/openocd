@@ -44,6 +44,7 @@
 /*#define NEG18(v) (((~(v)) + 1) & 0x3FFFF)*/
 
 #define PRACC_BLOCK	128	/* 1 Kbyte */
+#define READ_ADDR	1
 
 typedef struct {
 	uint32_t instr;

@@ -73,20 +73,28 @@
 #include "mips32.h"
 #include "mips32_pracc.h"
 
-static int wait_for_pracc_rw(struct mips_ejtag *ejtag_info)
+static int wait_for_pracc_rw(struct mips_ejtag *ejtag_info, bool read_addr)
 {
 	int64_t then = timeval_ms();
 
-	/* wait for the PrAcc to become "1" */
-	mips_ejtag_set_instr(ejtag_info, EJTAG_INST_CONTROL);
-
 	while (1) {
+		mips_ejtag_set_instr(ejtag_info, EJTAG_INST_CONTROL);
 		ejtag_info->pa_ctrl = ejtag_info->ejtag_ctrl;
-		int retval = mips_ejtag_drscan_32(ejtag_info, &ejtag_info->pa_ctrl);
+		uint8_t ctrl_scan[4];
+		mips_ejtag_drscan_32_queued(ejtag_info, ejtag_info->pa_ctrl, ctrl_scan);	/* queued */
+
+		int retval;
+		if (read_addr) {
+			mips_ejtag_set_instr(ejtag_info, EJTAG_INST_ADDRESS);
+			ejtag_info->pa_addr = 0;
+			retval = mips_ejtag_drscan_32(ejtag_info, &ejtag_info->pa_addr); /* request execution */
+		} else
+			retval = jtag_execute_queue();		/* request execution */
 		if (retval != ERROR_OK)
 			return retval;
 
-		if (ejtag_info->pa_ctrl & EJTAG_CTRL_PRACC)
+		ejtag_info->pa_ctrl = buf_get_u32(ctrl_scan, 0, 32);
+		if (ejtag_info->pa_ctrl & EJTAG_CTRL_PRACC)		/* if pracc bit set, done */
 			break;
 
 		int64_t timeout = timeval_ms() - then;
@@ -95,21 +103,7 @@ static int wait_for_pracc_rw(struct mips_ejtag *ejtag_info)
 			return ERROR_JTAG_DEVICE_ERROR;
 		}
 	}
-
 	return ERROR_OK;
-}
-
-/* Shift in control and address for a new processor access, save them in ejtag_info */
-static int mips32_pracc_read_ctrl_addr(struct mips_ejtag *ejtag_info)
-{
-	int retval = wait_for_pracc_rw(ejtag_info);
-	if (retval != ERROR_OK)
-		return retval;
-
-	mips_ejtag_set_instr(ejtag_info, EJTAG_INST_ADDRESS);
-
-	ejtag_info->pa_addr = 0;
-	return  mips_ejtag_drscan_32(ejtag_info, &ejtag_info->pa_addr);
 }
 
 /* Finish processor access */
@@ -127,7 +121,7 @@ int mips32_pracc_clean_text_jump(struct mips_ejtag *ejtag_info)
 	/* do 3 0/nops to clean pipeline before a jump to pracc text, NOP in delay slot */
 	for (int i = 0; i != 5; i++) {
 		/* Wait for pracc */
-		int retval = wait_for_pracc_rw(ejtag_info);
+		int retval = wait_for_pracc_rw(ejtag_info, 0);
 		if (retval != ERROR_OK)
 			return retval;
 
@@ -144,7 +138,7 @@ int mips32_pracc_clean_text_jump(struct mips_ejtag *ejtag_info)
 		return ERROR_OK;
 
 	for (int i = 0; i != 2; i++) {
-		int retval = mips32_pracc_read_ctrl_addr(ejtag_info);
+		int retval = wait_for_pracc_rw(ejtag_info, READ_ADDR);
 		if (retval != ERROR_OK)
 			return retval;
 
@@ -186,7 +180,7 @@ int mips32_pracc_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_info *ct
 			LOG_DEBUG("restarting code");
 		}
 
-		retval = mips32_pracc_read_ctrl_addr(ejtag_info); /* update current pa info: control and address */
+		retval = wait_for_pracc_rw(ejtag_info, READ_ADDR); /* update current pa info: control and address */
 		if (retval != ERROR_OK)
 			return retval;
 
@@ -975,7 +969,7 @@ int mips32_pracc_fastdata_xfer(struct mips_ejtag *ejtag_info, struct working_are
 
 	/* execute jump code, with no address check */
 	for (unsigned i = 0; i < ARRAY_SIZE(jmp_code); i++) {
-		int retval = wait_for_pracc_rw(ejtag_info);
+		int retval = wait_for_pracc_rw(ejtag_info, 0);
 		if (retval != ERROR_OK)
 			return retval;
 
@@ -987,7 +981,7 @@ int mips32_pracc_fastdata_xfer(struct mips_ejtag *ejtag_info, struct working_are
 	}
 
 	/* wait PrAcc pending bit for FASTDATA write, read address */
-	int retval = mips32_pracc_read_ctrl_addr(ejtag_info);
+	int retval = wait_for_pracc_rw(ejtag_info, READ_ADDR);
 	if (retval != ERROR_OK)
 		return retval;
 
@@ -1000,7 +994,7 @@ int mips32_pracc_fastdata_xfer(struct mips_ejtag *ejtag_info, struct working_are
 	mips_ejtag_set_instr(ejtag_info, EJTAG_INST_FASTDATA);
 	mips_ejtag_fastdata_scan(ejtag_info, 1, &val);
 
-	retval = wait_for_pracc_rw(ejtag_info);
+	retval = wait_for_pracc_rw(ejtag_info, 0);
 	if (retval != ERROR_OK)
 		return retval;
 
@@ -1024,7 +1018,7 @@ int mips32_pracc_fastdata_xfer(struct mips_ejtag *ejtag_info, struct working_are
 		return retval;
 	}
 
-	retval = mips32_pracc_read_ctrl_addr(ejtag_info);
+	retval = wait_for_pracc_rw(ejtag_info, READ_ADDR);
 	if (retval != ERROR_OK)
 		return retval;
 
