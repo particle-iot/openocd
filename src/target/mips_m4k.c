@@ -768,6 +768,7 @@ static int mips_m4k_unset_breakpoint(struct target *target,
 		/* restore original instruction (kept in target endianness) */
 		uint32_t isa_req = breakpoint->length & 1;
 		uint32_t bplength = breakpoint->length & ~1;
+		uint32_t bpaddr = breakpoint->address & ~1;
 		uint8_t current_instr[4];
 		LOG_DEBUG("bpid: %" PRIu32, breakpoint->unique_id);
 		if (bplength == 4) {
@@ -775,9 +776,9 @@ static int mips_m4k_unset_breakpoint(struct target *target,
 			if (ejtag_info->endianness && isa_req)
 				sdbbp32_instr = SWAP16(sdbbp32_instr);
 
-			if ((breakpoint->address & 3) == 0) {		/* 32bit aligned */
+			if ((bpaddr & 3) == 0) {		/* 32bit aligned */
 				/* check that user program has not modified breakpoint instruction */
-				retval = target_read_memory(target, breakpoint->address, 4, 1, current_instr);
+				retval = target_read_memory(target, bpaddr, 4, 1, current_instr);
 				if (retval != ERROR_OK)
 					return retval;
 				/**
@@ -786,32 +787,29 @@ static int mips_m4k_unset_breakpoint(struct target *target,
 				* we must first transform it to _host_ endianess using target_buffer_get_u16().
 				*/
 				if (sdbbp32_instr == target_buffer_get_u32(target, current_instr)) {
-					retval = target_write_memory(target, breakpoint->address, 4, 1,
-										breakpoint->orig_instr);
+					retval = target_write_memory(target, bpaddr, 4, 1, breakpoint->orig_instr);
 					if (retval != ERROR_OK)
 						return retval;
 				}
 			} else {	/* 16bit alligned */
-				retval = target_read_memory(target, breakpoint->address, 2, 2, current_instr);
+				retval = target_read_memory(target, bpaddr, 2, 2, current_instr);
 				if (retval != ERROR_OK)
 					return retval;
 
 				if (sdbbp32_instr == target_buffer_get_u32(target, current_instr)) {
-					retval = target_write_memory(target, breakpoint->address, 2, 2,
-										breakpoint->orig_instr);
+					retval = target_write_memory(target, bpaddr, 2, 2, breakpoint->orig_instr);
 					if (retval != ERROR_OK)
 						return retval;
 				}
 			}
 		} else {
 			/* check that user program has not modified breakpoint instruction */
-			retval = target_read_memory(target, breakpoint->address, 2, 1, current_instr);
+			retval = target_read_memory(target, bpaddr, 2, 1, current_instr);
 			if (retval != ERROR_OK)
 				return retval;
 
 			if (target_buffer_get_u16(target, current_instr) == MIPS16_SDBBP(isa_req)) {
-				retval = target_write_memory(target, breakpoint->address, 2, 1,
-									breakpoint->orig_instr);
+				retval = target_write_memory(target, bpaddr, 2, 1, breakpoint->orig_instr);
 				if (retval != ERROR_OK)
 					return retval;
 			}
