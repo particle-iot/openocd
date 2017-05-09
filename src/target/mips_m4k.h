@@ -41,13 +41,14 @@ target_to_m4k(struct target *target)
 			struct mips_m4k_common, mips32);
 }
 
-static inline void mips_m4k_isa_filter(enum mips32_isa_imp isa_imp, target_addr_t  *addr)
+static inline void mips_m4k_isa_filter(enum mips32_isa_imp isa_imp, target_addr_t  *addr, int debug_execution)
 {
 	if (isa_imp <= 1) {	/* if only one isa implemented */
 		target_addr_t address = (*addr & ~1) | isa_imp;
 
 		if (address != *addr) {
-			LOG_USER("Warning: isa bit changed due to isa not implemented");
+			if (!debug_execution)
+				LOG_USER("Warning: isa bit changed due to isa not implemented");
 			*addr = address;
 		}
 	}
