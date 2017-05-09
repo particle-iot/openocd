@@ -165,6 +165,9 @@ int mips32_pracc_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_info *ct
 	bool final_check = 0;		/* set to 1 if in final checks after function code shifted out */
 	bool pass = 0;			/* to check the pass through pracc text after function code sent */
 	int retval;
+	bool data_read_pending = 0;	/* to check if data read is pending from previous pracc access */
+	uint8_t data_scan_pending[4];	/* buffer to scan in ejtag data register */
+	uint32_t addr_of_data_pending;
 
 	while (1) {
 		if (restart) {
@@ -184,12 +187,19 @@ int mips32_pracc_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_info *ct
 		if (retval != ERROR_OK)
 			return retval;
 
+		if (data_read_pending) {	/* data is now available */
+			/* store data at param out, address based offset */
+			param_out[(addr_of_data_pending - MIPS32_PRACC_PARAM_OUT) / 4] =
+								buf_get_u32(data_scan_pending, 0, 32);
+			data_read_pending = 0;
+		}
+
 		/* Check for read or write access */
 		if (ejtag_info->pa_ctrl & EJTAG_CTRL_PRNW) {				/* write/store access */
 			/* Check for pending store from a previous store instruction at dmseg */
 			if (store_pending == 0) {
 				LOG_DEBUG("unexpected write at address %" PRIx32, ejtag_info->pa_addr);
-				if (code_count < 2) {	/* allow for restart */
+				if (code_count < 2 && !final_check) {	/* allow for restart */
 					restart = 1;
 					continue;
 				} else
@@ -202,15 +212,12 @@ int mips32_pracc_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_info *ct
 					return ERROR_JTAG_DEVICE_ERROR;
 				}
 			}
-			/* read data */
-			uint32_t data = 0;
+			/* add data scan queued, read after queue executed */
 			mips_ejtag_set_instr(ejtag_info, EJTAG_INST_DATA);
-			retval = mips_ejtag_drscan_32(ejtag_info, &data);
-			if (retval != ERROR_OK)
-				return retval;
+			mips_ejtag_drscan_32_queued(ejtag_info, 0, data_scan_pending);
+			data_read_pending = 1;
+			addr_of_data_pending = ejtag_info->pa_addr;
 
-			/* store data at param out, address based offset */
-			param_out[(ejtag_info->pa_addr - MIPS32_PRACC_PARAM_OUT) / 4] = data;
 			store_pending--;
 
 		} else {					/* read/fetch access */
@@ -289,7 +296,8 @@ int mips32_pracc_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_info *ct
 		if (final_check && !check_last)			/* last instr, don't check, execute and exit */
 			return jtag_execute_queue();
 
-		if (store_pending == 0 && pass) {	/* store access done, but after passing pracc text */
+		if (store_pending == 0 &&  data_read_pending == 0 && pass) {
+			/* store access done, but after passing pracc text */
 			LOG_DEBUG("warning: store access pass pracc text");
 			return ERROR_OK;
 		}
