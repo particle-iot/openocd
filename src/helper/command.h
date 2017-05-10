@@ -45,10 +45,13 @@ struct command_context;
 typedef int (*command_output_handler_t)(struct command_context *context,
 		const char *line);
 
+struct command_invocation;
+
 struct command_context {
 	Jim_Interp *interp;
 	enum command_mode mode;
 	struct command *commands;
+	struct command_invocation *cmd_invoc;
 	int current_target;
 	command_output_handler_t output_handler;
 	void *output_handler_priv;
