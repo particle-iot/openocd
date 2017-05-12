@@ -1381,7 +1381,7 @@ COMMAND_HANDLER(handle_iod_command)
 	}
 	unsigned count = 1;
 	uint8_t *buffer = calloc(count, size);
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	int retval = x86_32_common_read_io(target, address, size, buffer);
 	if (ERROR_OK == retval)
 		handle_iod_output(CMD_CTX, target, address, size, count, buffer);
@@ -1422,7 +1422,7 @@ COMMAND_HANDLER(handle_iow_command)
 	COMMAND_PARSE_NUMBER(u32, CMD_ARGV[0], address);
 	uint32_t value;
 	COMMAND_PARSE_NUMBER(u32, CMD_ARGV[1], value);
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 
 	unsigned wordsize;
 	switch (CMD_NAME[2]) {

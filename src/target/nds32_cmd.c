@@ -42,7 +42,7 @@ static const char *const NDS_MEMORY_SELECT_NAME[] = {
 
 COMMAND_HANDLER(handle_nds32_dssim_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct nds32 *nds32 = target_to_nds32(target);
 
 	if (!is_nds32(nds32)) {
@@ -65,7 +65,7 @@ COMMAND_HANDLER(handle_nds32_dssim_command)
 
 COMMAND_HANDLER(handle_nds32_memory_access_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct nds32 *nds32 = target_to_nds32(target);
 	struct aice_port_s *aice = target_to_aice(target);
 	struct nds32_memory *memory = &(nds32->memory);
@@ -98,7 +98,7 @@ COMMAND_HANDLER(handle_nds32_memory_access_command)
 
 COMMAND_HANDLER(handle_nds32_memory_mode_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct nds32 *nds32 = target_to_nds32(target);
 	struct aice_port_s *aice = target_to_aice(target);
 
@@ -154,7 +154,7 @@ COMMAND_HANDLER(handle_nds32_memory_mode_command)
 
 COMMAND_HANDLER(handle_nds32_cache_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct nds32 *nds32 = target_to_nds32(target);
 	struct aice_port_s *aice = target_to_aice(target);
 	struct nds32_cache *icache = &(nds32->memory.icache);
@@ -228,7 +228,7 @@ COMMAND_HANDLER(handle_nds32_cache_command)
 
 COMMAND_HANDLER(handle_nds32_icache_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct nds32 *nds32 = target_to_nds32(target);
 	struct aice_port_s *aice = target_to_aice(target);
 	struct nds32_cache *icache = &(nds32->memory.icache);
@@ -283,7 +283,7 @@ COMMAND_HANDLER(handle_nds32_icache_command)
 
 COMMAND_HANDLER(handle_nds32_dcache_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct nds32 *nds32 = target_to_nds32(target);
 	struct aice_port_s *aice = target_to_aice(target);
 	struct nds32_cache *dcache = &(nds32->memory.dcache);
@@ -348,7 +348,7 @@ COMMAND_HANDLER(handle_nds32_dcache_command)
 
 COMMAND_HANDLER(handle_nds32_auto_break_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct nds32 *nds32 = target_to_nds32(target);
 
 	if (!is_nds32(nds32)) {
@@ -375,7 +375,7 @@ COMMAND_HANDLER(handle_nds32_auto_break_command)
 
 COMMAND_HANDLER(handle_nds32_virtual_hosting_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct nds32 *nds32 = target_to_nds32(target);
 
 	if (!is_nds32(nds32)) {
@@ -400,7 +400,7 @@ COMMAND_HANDLER(handle_nds32_virtual_hosting_command)
 
 COMMAND_HANDLER(handle_nds32_global_stop_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct nds32 *nds32 = target_to_nds32(target);
 
 	if (!is_nds32(nds32)) {
@@ -425,7 +425,7 @@ COMMAND_HANDLER(handle_nds32_global_stop_command)
 
 COMMAND_HANDLER(handle_nds32_soft_reset_halt_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct nds32 *nds32 = target_to_nds32(target);
 
 	if (!is_nds32(nds32)) {
@@ -450,7 +450,7 @@ COMMAND_HANDLER(handle_nds32_soft_reset_halt_command)
 
 COMMAND_HANDLER(handle_nds32_boot_time_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct nds32 *nds32 = target_to_nds32(target);
 
 	if (!is_nds32(nds32)) {
@@ -466,7 +466,7 @@ COMMAND_HANDLER(handle_nds32_boot_time_command)
 
 COMMAND_HANDLER(handle_nds32_login_edm_passcode_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct nds32 *nds32 = target_to_nds32(target);
 
 	if (!is_nds32(nds32)) {
@@ -481,7 +481,7 @@ COMMAND_HANDLER(handle_nds32_login_edm_passcode_command)
 
 COMMAND_HANDLER(handle_nds32_login_edm_operation_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct nds32 *nds32 = target_to_nds32(target);
 
 	if (!is_nds32(nds32)) {
@@ -512,7 +512,7 @@ COMMAND_HANDLER(handle_nds32_login_edm_operation_command)
 
 COMMAND_HANDLER(handle_nds32_reset_halt_as_init_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct nds32 *nds32 = target_to_nds32(target);
 
 	if (!is_nds32(nds32)) {
@@ -532,7 +532,7 @@ COMMAND_HANDLER(handle_nds32_reset_halt_as_init_command)
 
 COMMAND_HANDLER(handle_nds32_keep_target_edm_ctl_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct nds32 *nds32 = target_to_nds32(target);
 
 	if (!is_nds32(nds32)) {
@@ -552,7 +552,7 @@ COMMAND_HANDLER(handle_nds32_keep_target_edm_ctl_command)
 
 COMMAND_HANDLER(handle_nds32_decode_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct nds32 *nds32 = target_to_nds32(target);
 
 	if (!is_nds32(nds32)) {
@@ -608,7 +608,7 @@ COMMAND_HANDLER(handle_nds32_decode_command)
 
 COMMAND_HANDLER(handle_nds32_word_access_mem_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct nds32 *nds32 = target_to_nds32(target);
 
 	if (!is_nds32(nds32)) {
@@ -628,7 +628,7 @@ COMMAND_HANDLER(handle_nds32_word_access_mem_command)
 
 COMMAND_HANDLER(handle_nds32_query_target_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct nds32 *nds32 = target_to_nds32(target);
 
 	if (!is_nds32(nds32)) {
@@ -643,7 +643,7 @@ COMMAND_HANDLER(handle_nds32_query_target_command)
 
 COMMAND_HANDLER(handle_nds32_query_endian_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct nds32 *nds32 = target_to_nds32(target);
 
 	if (!is_nds32(nds32)) {
@@ -664,7 +664,7 @@ COMMAND_HANDLER(handle_nds32_query_endian_command)
 
 COMMAND_HANDLER(handle_nds32_query_cpuid_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct nds32 *nds32 = target_to_nds32(target);
 
 	if (!is_nds32(nds32)) {

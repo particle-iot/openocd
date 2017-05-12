@@ -1202,7 +1202,7 @@ static COMMAND_HELPER(handle_etm_tracemode_command_update,
 
 COMMAND_HANDLER(handle_etm_tracemode_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct arm *arm = target_to_arm(target);
 	struct etm_context *etm;
 
@@ -1458,7 +1458,7 @@ COMMAND_HANDLER(handle_etm_info_command)
 	int max_port_size;
 	uint32_t config;
 
-	target = get_current_target(CMD_CTX);
+	target = get_current_target(CMD_CTX, cmd);
 	arm = target_to_arm(target);
 	if (!is_arm(arm)) {
 		command_print(CMD_CTX, "ETM: current target isn't an ARM");
@@ -1585,7 +1585,7 @@ COMMAND_HANDLER(handle_etm_status_command)
 	struct etm_context *etm;
 	trace_status_t trace_status;
 
-	target = get_current_target(CMD_CTX);
+	target = get_current_target(CMD_CTX, cmd);
 	arm = target_to_arm(target);
 	if (!is_arm(arm)) {
 		command_print(CMD_CTX, "ETM: current target isn't an ARM");
@@ -1657,7 +1657,7 @@ COMMAND_HANDLER(handle_etm_image_command)
 	if (CMD_ARGC < 1)
 		return ERROR_COMMAND_SYNTAX_ERROR;
 
-	target = get_current_target(CMD_CTX);
+	target = get_current_target(CMD_CTX, cmd);
 	arm = target_to_arm(target);
 	if (!is_arm(arm)) {
 		command_print(CMD_CTX, "ETM: current target isn't an ARM");
@@ -1708,7 +1708,7 @@ COMMAND_HANDLER(handle_etm_dump_command)
 	if (CMD_ARGC != 1)
 		return ERROR_COMMAND_SYNTAX_ERROR;
 
-	target = get_current_target(CMD_CTX);
+	target = get_current_target(CMD_CTX, cmd);
 	arm = target_to_arm(target);
 	if (!is_arm(arm)) {
 		command_print(CMD_CTX, "ETM: current target isn't an ARM");
@@ -1765,7 +1765,7 @@ COMMAND_HANDLER(handle_etm_load_command)
 	if (CMD_ARGC != 1)
 		return ERROR_COMMAND_SYNTAX_ERROR;
 
-	target = get_current_target(CMD_CTX);
+	target = get_current_target(CMD_CTX, cmd);
 	arm = target_to_arm(target);
 	if (!is_arm(arm)) {
 		command_print(CMD_CTX, "ETM: current target isn't an ARM");
@@ -1839,7 +1839,7 @@ COMMAND_HANDLER(handle_etm_start_command)
 	struct etm_context *etm_ctx;
 	struct reg *etm_ctrl_reg;
 
-	target = get_current_target(CMD_CTX);
+	target = get_current_target(CMD_CTX, cmd);
 	arm = target_to_arm(target);
 	if (!is_arm(arm)) {
 		command_print(CMD_CTX, "ETM: current target isn't an ARM");
@@ -1884,7 +1884,7 @@ COMMAND_HANDLER(handle_etm_stop_command)
 	struct etm_context *etm_ctx;
 	struct reg *etm_ctrl_reg;
 
-	target = get_current_target(CMD_CTX);
+	target = get_current_target(CMD_CTX, cmd);
 	arm = target_to_arm(target);
 	if (!is_arm(arm)) {
 		command_print(CMD_CTX, "ETM: current target isn't an ARM");
@@ -1920,7 +1920,7 @@ COMMAND_HANDLER(handle_etm_trigger_debug_command)
 	struct arm *arm;
 	struct etm_context *etm;
 
-	target = get_current_target(CMD_CTX);
+	target = get_current_target(CMD_CTX, cmd);
 	arm = target_to_arm(target);
 	if (!is_arm(arm)) {
 		command_print(CMD_CTX, "ETM: %s isn't an ARM",
@@ -1969,7 +1969,7 @@ COMMAND_HANDLER(handle_etm_analyze_command)
 	struct etm_context *etm_ctx;
 	int retval;
 
-	target = get_current_target(CMD_CTX);
+	target = get_current_target(CMD_CTX, cmd);
 	arm = target_to_arm(target);
 	if (!is_arm(arm)) {
 		command_print(CMD_CTX, "ETM: current target isn't an ARM");

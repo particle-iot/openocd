@@ -234,7 +234,7 @@ COMMAND_HANDLER(handle_flash_erase_address_command)
 	uint32_t length;
 	bool do_pad = false;
 	bool do_unlock = false;
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 
 	while (CMD_ARGC >= 3) {
 		/* Optionally pad out the address range to block/sector
@@ -390,7 +390,7 @@ COMMAND_HANDLER(handle_flash_protect_command)
 
 COMMAND_HANDLER(handle_flash_write_image_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 
 	struct image image;
 	uint32_t written;
@@ -467,7 +467,7 @@ COMMAND_HANDLER(handle_flash_fill_command)
 	uint32_t wrote = 0;
 	uint32_t cur_size = 0;
 	uint32_t chunk_count;
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	unsigned i;
 	uint32_t wordsize;
 	int retval = ERROR_OK;

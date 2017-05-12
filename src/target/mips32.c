@@ -912,7 +912,7 @@ static int mips32_verify_pointer(struct command_context *cmd_ctx,
 COMMAND_HANDLER(mips32_handle_cp0_command)
 {
 	int retval;
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct mips32_common *mips32 = target_to_mips32(target);
 	struct mips_ejtag *ejtag_info = &mips32->ejtag_info;
 
@@ -967,7 +967,7 @@ COMMAND_HANDLER(mips32_handle_cp0_command)
 
 COMMAND_HANDLER(mips32_handle_scan_delay_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct mips32_common *mips32 = target_to_mips32(target);
 	struct mips_ejtag *ejtag_info = &mips32->ejtag_info;
 

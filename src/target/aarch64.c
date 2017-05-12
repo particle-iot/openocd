@@ -2314,7 +2314,7 @@ static int aarch64_virt2phys(struct target *target, target_addr_t virt,
 
 COMMAND_HANDLER(aarch64_handle_cache_info_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct armv8_common *armv8 = target_to_armv8(target);
 
 	return armv8_handle_cache_info_command(CMD_CTX,
@@ -2324,7 +2324,7 @@ COMMAND_HANDLER(aarch64_handle_cache_info_command)
 
 COMMAND_HANDLER(aarch64_handle_dbginit_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	if (!target_was_examined(target)) {
 		LOG_ERROR("target not examined yet");
 		return ERROR_FAIL;
@@ -2334,7 +2334,7 @@ COMMAND_HANDLER(aarch64_handle_dbginit_command)
 }
 COMMAND_HANDLER(aarch64_handle_smp_off_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	/* check target is an smp target */
 	struct target_list *head;
 	struct target *curr;
@@ -2354,7 +2354,7 @@ COMMAND_HANDLER(aarch64_handle_smp_off_command)
 
 COMMAND_HANDLER(aarch64_handle_smp_on_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct target_list *head;
 	struct target *curr;
 	head = target->head;

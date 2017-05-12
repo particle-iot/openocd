@@ -150,7 +150,7 @@ static int hl_transport_register_commands(struct command_context *cmd_ctx)
 static int hl_transport_init(struct command_context *cmd_ctx)
 {
 	LOG_DEBUG("hl_transport_init");
-	struct target *t = get_current_target(cmd_ctx);
+	struct target *t = get_current_target(cmd_ctx, NULL);
 	struct transport *transport;
 	enum hl_transports tr;
 

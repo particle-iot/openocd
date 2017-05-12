@@ -379,7 +379,7 @@ COMMAND_HANDLER(handle_etb_trigger_percent_command)
 	struct etm_context *etm;
 	struct etb *etb;
 
-	target = get_current_target(CMD_CTX);
+	target = get_current_target(CMD_CTX, cmd);
 	arm = target_to_arm(target);
 	if (!is_arm(arm)) {
 		command_print(CMD_CTX, "ETB: current target isn't an ARM");

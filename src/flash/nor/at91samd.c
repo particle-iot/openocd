@@ -859,7 +859,7 @@ COMMAND_HANDLER(samd_handle_info_command)
 
 COMMAND_HANDLER(samd_handle_chip_erase_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	int res = ERROR_FAIL;
 
 	if (target) {
@@ -882,7 +882,7 @@ COMMAND_HANDLER(samd_handle_chip_erase_command)
 COMMAND_HANDLER(samd_handle_set_security_command)
 {
 	int res = ERROR_OK;
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 
 	if (CMD_ARGC < 1 || (CMD_ARGC >= 1 && (strcmp(CMD_ARGV[0], "enable")))) {
 		command_print(CMD_CTX, "supply the \"enable\" argument to proceed.");
@@ -910,7 +910,7 @@ COMMAND_HANDLER(samd_handle_set_security_command)
 COMMAND_HANDLER(samd_handle_eeprom_command)
 {
 	int res = ERROR_OK;
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 
 	if (target) {
 		if (target->state != TARGET_HALTED) {
@@ -962,7 +962,7 @@ COMMAND_HANDLER(samd_handle_eeprom_command)
 COMMAND_HANDLER(samd_handle_bootloader_command)
 {
 	int res = ERROR_OK;
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 
 	if (target) {
 		if (target->state != TARGET_HALTED) {
@@ -1026,7 +1026,7 @@ COMMAND_HANDLER(samd_handle_bootloader_command)
 
 COMMAND_HANDLER(samd_handle_reset_deassert)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	int retval = ERROR_OK;
 	enum reset_types jtag_reset_config = jtag_get_reset_config();
 

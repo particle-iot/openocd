@@ -1239,7 +1239,7 @@ static int arm11_examine(struct target *target)
 #define ARM11_BOOL_WRAPPER(name, print_name)	\
 	COMMAND_HANDLER(arm11_handle_bool_ ## name) \
 	{ \
-		struct target *target = get_current_target(CMD_CTX); \
+		struct target *target = get_current_target(CMD_CTX, cmd); \
 		struct arm11_common *arm11 = target_to_arm11(target); \
 		\
 		return CALL_COMMAND_HANDLER(handle_command_parse_bool, \
@@ -1257,7 +1257,7 @@ ARM11_BOOL_WRAPPER(hardware_step, "hardware single step")
 
 COMMAND_HANDLER(arm11_handle_vcr)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct arm11_common *arm11 = target_to_arm11(target);
 
 	switch (CMD_ARGC) {

@@ -855,7 +855,7 @@ static int arm920t_target_create(struct target *target, Jim_Interp *interp)
 COMMAND_HANDLER(arm920t_handle_read_cache_command)
 {
 	int retval = ERROR_OK;
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct arm920t_common *arm920t = target_to_arm920(target);
 	struct arm7_9_common *arm7_9 = target_to_arm7_9(target);
 	struct arm *arm = &arm7_9->arm;
@@ -1136,7 +1136,7 @@ COMMAND_HANDLER(arm920t_handle_read_cache_command)
 COMMAND_HANDLER(arm920t_handle_read_mmu_command)
 {
 	int retval = ERROR_OK;
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct arm920t_common *arm920t = target_to_arm920(target);
 	struct arm7_9_common *arm7_9 = target_to_arm7_9(target);
 	struct arm *arm = &arm7_9->arm;
@@ -1448,7 +1448,7 @@ COMMAND_HANDLER(arm920t_handle_read_mmu_command)
 COMMAND_HANDLER(arm920t_handle_cp15_command)
 {
 	int retval;
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct arm920t_common *arm920t = target_to_arm920(target);
 
 	retval = arm920t_verify_pointer(CMD_CTX, arm920t);
@@ -1504,7 +1504,7 @@ COMMAND_HANDLER(arm920t_handle_cp15_command)
 COMMAND_HANDLER(arm920t_handle_cp15i_command)
 {
 	int retval;
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct arm920t_common *arm920t = target_to_arm920(target);
 
 	retval = arm920t_verify_pointer(CMD_CTX, arm920t);
@@ -1578,7 +1578,7 @@ COMMAND_HANDLER(arm920t_handle_cp15i_command)
 COMMAND_HANDLER(arm920t_handle_cache_info_command)
 {
 	int retval;
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct arm920t_common *arm920t = target_to_arm920(target);
 
 	retval = arm920t_verify_pointer(CMD_CTX, arm920t);

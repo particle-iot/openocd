@@ -3230,7 +3230,7 @@ done:
 
 COMMAND_HANDLER(cortex_a_handle_cache_info_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct armv7a_common *armv7a = target_to_armv7a(target);
 
 	return armv7a_handle_cache_info_command(CMD_CTX,
@@ -3240,7 +3240,7 @@ COMMAND_HANDLER(cortex_a_handle_cache_info_command)
 
 COMMAND_HANDLER(cortex_a_handle_dbginit_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	if (!target_was_examined(target)) {
 		LOG_ERROR("target not examined yet");
 		return ERROR_FAIL;
@@ -3250,7 +3250,7 @@ COMMAND_HANDLER(cortex_a_handle_dbginit_command)
 }
 COMMAND_HANDLER(cortex_a_handle_smp_off_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	/* check target is an smp target */
 	struct target_list *head;
 	struct target *curr;
@@ -3270,7 +3270,7 @@ COMMAND_HANDLER(cortex_a_handle_smp_off_command)
 
 COMMAND_HANDLER(cortex_a_handle_smp_on_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct target_list *head;
 	struct target *curr;
 	head = target->head;
@@ -3287,7 +3287,7 @@ COMMAND_HANDLER(cortex_a_handle_smp_on_command)
 
 COMMAND_HANDLER(cortex_a_handle_smp_gdb_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	int retval = ERROR_OK;
 	struct target_list *head;
 	head = target->head;
@@ -3308,7 +3308,7 @@ COMMAND_HANDLER(cortex_a_handle_smp_gdb_command)
 
 COMMAND_HANDLER(handle_cortex_a_mask_interrupts_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct cortex_a_common *cortex_a = target_to_cortex_a(target);
 
 	static const Jim_Nvp nvp_maskisr_modes[] = {
@@ -3336,7 +3336,7 @@ COMMAND_HANDLER(handle_cortex_a_mask_interrupts_command)
 
 COMMAND_HANDLER(handle_cortex_a_dacrfixup_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct cortex_a_common *cortex_a = target_to_cortex_a(target);
 
 	static const Jim_Nvp nvp_dacrfixup_modes[] = {

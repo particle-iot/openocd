@@ -1165,7 +1165,7 @@ COMMAND_HANDLER(nrf51_handle_mass_erase_command)
 {
 	int res;
 	struct flash_bank *bank = NULL;
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 
 	res = get_flash_bank_by_addr(target, NRF51_FLASH_BASE, true, &bank);
 	if (res != ERROR_OK)

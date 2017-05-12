@@ -46,7 +46,7 @@ int trace_point(struct target *target, uint32_t number)
 
 COMMAND_HANDLER(handle_trace_point_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct trace *trace = target->trace_info;
 
 	if (CMD_ARGC == 0) {
@@ -90,7 +90,7 @@ COMMAND_HANDLER(handle_trace_point_command)
 
 COMMAND_HANDLER(handle_trace_history_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct trace *trace = target->trace_info;
 
 	if (CMD_ARGC > 0) {

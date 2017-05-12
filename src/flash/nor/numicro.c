@@ -1768,7 +1768,7 @@ COMMAND_HANDLER(numicro_handle_read_isp_command)
 
 	COMMAND_PARSE_NUMBER(u32, CMD_ARGV[0], address);
 
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 
 	retval = numicro_init_isp(target);
 	if (retval != ERROR_OK)
@@ -1795,7 +1795,7 @@ COMMAND_HANDLER(numicro_handle_write_isp_command)
 	COMMAND_PARSE_NUMBER(u32, CMD_ARGV[0], address);
 	COMMAND_PARSE_NUMBER(u32, CMD_ARGV[1], ispdat);
 
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 
 	retval = numicro_init_isp(target);
 	if (retval != ERROR_OK)
@@ -1817,7 +1817,7 @@ COMMAND_HANDLER(numicro_handle_chip_erase_command)
 	if (CMD_ARGC != 0)
 		return ERROR_COMMAND_SYNTAX_ERROR;
 
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 
 	retval = numicro_init_isp(target);
 	if (retval != ERROR_OK)

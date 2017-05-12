@@ -490,7 +490,7 @@ int kinetis_ke_stop_watchdog(struct target *target)
 
 COMMAND_HANDLER(kinetis_ke_disable_wdog_handler)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 
 	if (CMD_ARGC > 0)
 		return ERROR_COMMAND_SYNTAX_ERROR;
@@ -500,7 +500,7 @@ COMMAND_HANDLER(kinetis_ke_disable_wdog_handler)
 
 COMMAND_HANDLER(kinetis_ke_mdm_mass_erase)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct cortex_m_common *cortex_m = target_to_cm(target);
 	struct adiv5_dap *dap = cortex_m->armv7m.arm.dap;
 
@@ -577,7 +577,7 @@ static const uint32_t kinetis_ke_known_mdm_ids[] = {
  */
 COMMAND_HANDLER(kinetis_ke_check_flash_security_status)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct cortex_m_common *cortex_m = target_to_cm(target);
 	struct adiv5_dap *dap = cortex_m->armv7m.arm.dap;
 
@@ -935,7 +935,7 @@ static int kinetis_ke_ftmrx_command(struct flash_bank *bank, uint8_t count,
 COMMAND_HANDLER(kinetis_ke_securing_test)
 {
 	int result;
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct flash_bank *bank = NULL;
 	uint32_t address;
 

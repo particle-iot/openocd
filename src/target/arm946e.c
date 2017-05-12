@@ -560,7 +560,7 @@ static int jim_arm946e_cp15(Jim_Interp *interp, int argc, Jim_Obj * const *argv)
 	struct command_context *cmd_ctx = current_command_context(interp);
 	assert(cmd_ctx != NULL);
 
-	struct target *target = get_current_target(cmd_ctx);
+	struct target *target = get_current_target(cmd_ctx, NULL);
 	if (target == NULL) {
 		LOG_ERROR("arm946e: no current target");
 		return JIM_ERR;
@@ -621,7 +621,7 @@ COMMAND_HANDLER(arm946e_handle_idcache)
 		return ERROR_COMMAND_SYNTAX_ERROR;
 
 	int retval;
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct arm946e_common *arm946e = target_to_arm946(target);
 
 	retval = arm946e_verify_pointer(CMD_CTX, arm946e);
