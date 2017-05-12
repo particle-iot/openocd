@@ -953,7 +953,7 @@ COMMAND_HANDLER(sim3x_mass_erase)
 	uint32_t val;
 	int ret;
 
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct cortex_m_common *cortex_m = target_to_cm(target);
 	struct adiv5_dap *dap = cortex_m->armv7m.arm.dap;
 
@@ -998,7 +998,7 @@ COMMAND_HANDLER(sim3x_lock)
 	uint32_t val;
 	int ret;
 
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct cortex_m_common *cortex_m = target_to_cm(target);
 	struct adiv5_dap *dap = cortex_m->armv7m.arm.dap;
 

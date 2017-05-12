@@ -439,7 +439,7 @@ static int arm720t_target_create(struct target *target, Jim_Interp *interp)
 COMMAND_HANDLER(arm720t_handle_cp15_command)
 {
 	int retval;
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct arm720t_common *arm720t = target_to_arm720(target);
 
 	retval = arm720t_verify_pointer(CMD_CTX, arm720t);

@@ -409,7 +409,7 @@ static int swd_select(struct command_context *ctx)
 
 	if (ctx->current_target) {
 		/* force DAP into SWD mode (not JTAG) */
-		struct target *target = get_current_target(ctx);
+		struct target *target = get_current_target(ctx, NULL);
 		retval = dap_to_swd(target);
 	}
 
@@ -418,7 +418,7 @@ static int swd_select(struct command_context *ctx)
 
 static int swd_init(struct command_context *ctx)
 {
-	struct target *target = get_current_target(ctx);
+	struct target *target = get_current_target(ctx, NULL);
 	struct arm *arm = target_to_arm(target);
 	struct adiv5_dap *dap = arm->dap;
 	/* Force the DAP's ops vector for SWD mode.

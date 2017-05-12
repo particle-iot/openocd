@@ -2229,7 +2229,7 @@ static const struct {
 
 COMMAND_HANDLER(handle_cortex_m_vector_catch_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct cortex_m_common *cortex_m = target_to_cm(target);
 	struct armv7m_common *armv7m = &cortex_m->armv7m;
 	uint32_t demcr = 0;
@@ -2299,7 +2299,7 @@ write:
 
 COMMAND_HANDLER(handle_cortex_m_mask_interrupts_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct cortex_m_common *cortex_m = target_to_cm(target);
 	int retval;
 
@@ -2342,7 +2342,7 @@ COMMAND_HANDLER(handle_cortex_m_mask_interrupts_command)
 
 COMMAND_HANDLER(handle_cortex_m_reset_config_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct cortex_m_common *cortex_m = target_to_cm(target);
 	int retval;
 	char *reset_config;

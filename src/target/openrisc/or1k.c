@@ -1261,7 +1261,7 @@ static int or1k_profiling(struct target *target, uint32_t *samples,
 
 COMMAND_HANDLER(or1k_tap_select_command_handler)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct or1k_common *or1k = target_to_or1k(target);
 	struct or1k_jtag *jtag = &or1k->jtag;
 	struct or1k_tap_ip *or1k_tap;
@@ -1300,7 +1300,7 @@ COMMAND_HANDLER(or1k_tap_list_command_handler)
 
 COMMAND_HANDLER(or1k_du_select_command_handler)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct or1k_common *or1k = target_to_or1k(target);
 	struct or1k_jtag *jtag = &or1k->jtag;
 	struct or1k_du *or1k_du;
@@ -1348,7 +1348,7 @@ COMMAND_HANDLER(or1k_du_list_command_handler)
 
 COMMAND_HANDLER(or1k_addreg_command_handler)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct or1k_core_reg new_reg;
 
 	if (CMD_ARGC != 4)

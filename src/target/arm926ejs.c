@@ -726,7 +726,7 @@ static int arm926ejs_target_create(struct target *target, Jim_Interp *interp)
 COMMAND_HANDLER(arm926ejs_handle_cache_info_command)
 {
 	int retval;
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct arm926ejs_common *arm926ejs = target_to_arm926(target);
 
 	retval = arm926ejs_verify_pointer(CMD_CTX, arm926ejs);

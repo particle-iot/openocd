@@ -3202,7 +3202,7 @@ COMMAND_HANDLER(handle_gdb_save_tdesc_command)
 {
 	char *tdesc;
 	uint32_t tdesc_length;
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 
 	int retval = gdb_generate_target_description(target, &tdesc);
 	if (retval != ERROR_OK) {

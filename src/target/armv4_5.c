@@ -688,7 +688,7 @@ int arm_arch_state(struct target *target)
 
 COMMAND_HANDLER(handle_armv4_5_reg_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct arm *arm = target_to_arm(target);
 	struct reg *regs;
 
@@ -779,7 +779,7 @@ COMMAND_HANDLER(handle_armv4_5_reg_command)
 
 COMMAND_HANDLER(handle_armv4_5_core_state_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct arm *arm = target_to_arm(target);
 
 	if (!is_arm(arm)) {
@@ -808,7 +808,7 @@ COMMAND_HANDLER(handle_armv4_5_core_state_command)
 COMMAND_HANDLER(handle_arm_disassemble_command)
 {
 	int retval = ERROR_OK;
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 
 	if (target == NULL) {
 		LOG_ERROR("No target selected");
@@ -895,7 +895,7 @@ static int jim_mcrmrc(Jim_Interp *interp, int argc, Jim_Obj * const *argv)
 	context = current_command_context(interp);
 	assert(context != NULL);
 
-	target = get_current_target(context);
+	target = get_current_target(context, NULL);
 	if (target == NULL) {
 		LOG_ERROR("%s: no current target", __func__);
 		return JIM_ERR;
@@ -1015,7 +1015,7 @@ static int jim_mcrmrc(Jim_Interp *interp, int argc, Jim_Obj * const *argv)
 
 COMMAND_HANDLER(handle_arm_semihosting_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 
 	if (target == NULL) {
 		LOG_ERROR("No target selected");
@@ -1062,7 +1062,7 @@ COMMAND_HANDLER(handle_arm_semihosting_command)
 
 COMMAND_HANDLER(handle_arm_semihosting_fileio_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 
 	if (target == NULL) {
 		LOG_ERROR("No target selected");

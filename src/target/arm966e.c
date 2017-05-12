@@ -167,7 +167,7 @@ int arm966e_write_cp15(struct target *target, int reg_addr, uint32_t value)
 COMMAND_HANDLER(arm966e_handle_cp15_command)
 {
 	int retval;
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct arm966e_common *arm966e = target_to_arm966(target);
 
 	retval = arm966e_verify_pointer(CMD_CTX, arm966e);

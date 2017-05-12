@@ -2743,7 +2743,7 @@ int arm7_9_endianness_callback(jtag_callback_data_t pu8_in,
 
 COMMAND_HANDLER(handle_arm7_9_dbgrq_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct arm7_9_common *arm7_9 = target_to_arm7_9(target);
 
 	if (!is_arm7_9(arm7_9)) {
@@ -2763,7 +2763,7 @@ COMMAND_HANDLER(handle_arm7_9_dbgrq_command)
 
 COMMAND_HANDLER(handle_arm7_9_fast_memory_access_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct arm7_9_common *arm7_9 = target_to_arm7_9(target);
 
 	if (!is_arm7_9(arm7_9)) {
@@ -2783,7 +2783,7 @@ COMMAND_HANDLER(handle_arm7_9_fast_memory_access_command)
 
 COMMAND_HANDLER(handle_arm7_9_dcc_downloads_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct arm7_9_common *arm7_9 = target_to_arm7_9(target);
 
 	if (!is_arm7_9(arm7_9)) {

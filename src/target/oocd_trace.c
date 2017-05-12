@@ -274,7 +274,7 @@ COMMAND_HANDLER(handle_oocd_trace_config_command)
 	if (CMD_ARGC != 2)
 		return ERROR_COMMAND_SYNTAX_ERROR;
 
-	target = get_current_target(CMD_CTX);
+	target = get_current_target(CMD_CTX, cmd);
 	arm = target_to_arm(target);
 	if (!is_arm(arm)) {
 		command_print(CMD_CTX, "current target isn't an ARM");
@@ -302,7 +302,7 @@ COMMAND_HANDLER(handle_oocd_trace_status_command)
 	struct oocd_trace *oocd_trace;
 	uint32_t status;
 
-	target = get_current_target(CMD_CTX);
+	target = get_current_target(CMD_CTX, cmd);
 
 	arm = target_to_arm(target);
 	if (!is_arm(arm)) {
@@ -340,7 +340,7 @@ COMMAND_HANDLER(handle_oocd_trace_resync_command)
 	size_t bytes_written;
 	uint8_t cmd_array[1];
 
-	target = get_current_target(CMD_CTX);
+	target = get_current_target(CMD_CTX, cmd);
 
 	arm = target_to_arm(target);
 	if (!is_arm(arm)) {

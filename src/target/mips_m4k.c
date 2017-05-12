@@ -1280,7 +1280,7 @@ static int mips_m4k_verify_pointer(struct command_context *cmd_ctx,
 COMMAND_HANDLER(mips_m4k_handle_cp0_command)
 {
 	int retval;
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct mips_m4k_common *mips_m4k = target_to_m4k(target);
 	struct mips_ejtag *ejtag_info = &mips_m4k->mips32.ejtag_info;
 
@@ -1333,7 +1333,7 @@ COMMAND_HANDLER(mips_m4k_handle_cp0_command)
 
 COMMAND_HANDLER(mips_m4k_handle_smp_off_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	/* check target is an smp target */
 	struct target_list *head;
 	struct target *curr;
@@ -1353,7 +1353,7 @@ COMMAND_HANDLER(mips_m4k_handle_smp_off_command)
 
 COMMAND_HANDLER(mips_m4k_handle_smp_on_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct target_list *head;
 	struct target *curr;
 	head = target->head;
@@ -1370,7 +1370,7 @@ COMMAND_HANDLER(mips_m4k_handle_smp_on_command)
 
 COMMAND_HANDLER(mips_m4k_handle_smp_gdb_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	int retval = ERROR_OK;
 	struct target_list *head;
 	head = target->head;
@@ -1391,7 +1391,7 @@ COMMAND_HANDLER(mips_m4k_handle_smp_gdb_command)
 
 COMMAND_HANDLER(mips_m4k_handle_scan_delay_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct mips_m4k_common *mips_m4k = target_to_m4k(target);
 	struct mips_ejtag *ejtag_info = &mips_m4k->mips32.ejtag_info;
 

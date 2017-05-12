@@ -227,7 +227,7 @@ static int armv7a_l2x_cache_init(struct target *target, uint32_t base, uint32_t 
 
 COMMAND_HANDLER(arm7a_l2x_cache_info_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct armv7a_common *armv7a = target_to_armv7a(target);
 	int retval;
 
@@ -241,14 +241,14 @@ COMMAND_HANDLER(arm7a_l2x_cache_info_command)
 
 COMMAND_HANDLER(arm7a_l2x_cache_flush_all_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 
 	return arm7a_l2x_flush_all_data(target);
 }
 
 COMMAND_HANDLER(arm7a_l2x_cache_flush_virt_cmd)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	target_addr_t virt;
 	uint32_t size;
 
@@ -267,7 +267,7 @@ COMMAND_HANDLER(arm7a_l2x_cache_flush_virt_cmd)
 
 COMMAND_HANDLER(arm7a_l2x_cache_inval_virt_cmd)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	target_addr_t virt;
 	uint32_t size;
 
@@ -286,7 +286,7 @@ COMMAND_HANDLER(arm7a_l2x_cache_inval_virt_cmd)
 
 COMMAND_HANDLER(arm7a_l2x_cache_clean_virt_cmd)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	target_addr_t virt;
 	uint32_t size;
 
@@ -306,7 +306,7 @@ COMMAND_HANDLER(arm7a_l2x_cache_clean_virt_cmd)
 /* FIXME: should we configure way size? or controller type? */
 COMMAND_HANDLER(armv7a_l2x_cache_conf_cmd)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	uint32_t base, way;
 
 	if (CMD_ARGC != 2)

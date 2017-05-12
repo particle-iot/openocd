@@ -334,7 +334,7 @@ static int aice_transport_register_commands(struct command_context *cmd_ctx)
 static int aice_transport_init(struct command_context *cmd_ctx)
 {
 	LOG_DEBUG("aice_transport_init");
-	struct target *t = get_current_target(cmd_ctx);
+	struct target *t = get_current_target(cmd_ctx, NULL);
 	struct transport *transport;
 
 	if (!t) {

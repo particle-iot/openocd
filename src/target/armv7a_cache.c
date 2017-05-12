@@ -408,7 +408,7 @@ int armv7a_cache_auto_flush_on_write(struct target *target, uint32_t virt,
 
 COMMAND_HANDLER(arm7a_l1_cache_info_cmd)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct armv7a_common *armv7a = target_to_armv7a(target);
 
 	return armv7a_handle_cache_info_command(CMD_CTX,
@@ -417,7 +417,7 @@ COMMAND_HANDLER(arm7a_l1_cache_info_cmd)
 
 COMMAND_HANDLER(armv7a_l1_d_cache_clean_inval_all_cmd)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 
 	armv7a_l1_d_cache_clean_inval_all(target);
 
@@ -426,7 +426,7 @@ COMMAND_HANDLER(armv7a_l1_d_cache_clean_inval_all_cmd)
 
 COMMAND_HANDLER(arm7a_l1_d_cache_inval_virt_cmd)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	uint32_t virt, size;
 
 	if (CMD_ARGC == 0 || CMD_ARGC > 2)
@@ -444,7 +444,7 @@ COMMAND_HANDLER(arm7a_l1_d_cache_inval_virt_cmd)
 
 COMMAND_HANDLER(arm7a_l1_d_cache_clean_virt_cmd)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	uint32_t virt, size;
 
 	if (CMD_ARGC == 0 || CMD_ARGC > 2)
@@ -462,7 +462,7 @@ COMMAND_HANDLER(arm7a_l1_d_cache_clean_virt_cmd)
 
 COMMAND_HANDLER(armv7a_i_cache_clean_inval_all_cmd)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 
 	armv7a_l1_i_cache_inval_all(target);
 
@@ -471,7 +471,7 @@ COMMAND_HANDLER(armv7a_i_cache_clean_inval_all_cmd)
 
 COMMAND_HANDLER(arm7a_l1_i_cache_inval_virt_cmd)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	uint32_t virt, size;
 
 	if (CMD_ARGC == 0 || CMD_ARGC > 2)
@@ -489,7 +489,7 @@ COMMAND_HANDLER(arm7a_l1_i_cache_inval_virt_cmd)
 
 COMMAND_HANDLER(arm7a_cache_disable_auto_cmd)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct armv7a_common *armv7a = target_to_armv7a(target);
 
 	if (CMD_ARGC == 0) {

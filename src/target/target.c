@@ -42,6 +42,7 @@
 #endif
 
 #include <helper/time_support.h>
+#include <helper/command.h>
 #include <jtag/jtag.h>
 #include <flash/nor/core.h>
 
@@ -510,9 +511,16 @@ struct target *get_target_by_num(int num)
 	return NULL;
 }
 
-struct target *get_current_target(struct command_context *cmd_ctx)
+struct target *get_current_target(struct command_context *cmd_ctx, struct command_invocation *cmd)
 {
-	struct target *target = get_target_by_num(cmd_ctx->current_target);
+	struct target *target = NULL;
+
+	if (cmd != NULL)
+		target = CMD_DATA;
+
+	if (target == NULL) {
+		target = get_target_by_num(cmd_ctx->current_target);
+	}
 
 	if (target == NULL) {
 		LOG_ERROR("BUG: current_target out of bounds");
@@ -2723,7 +2731,7 @@ COMMAND_HANDLER(handle_reg_command)
 
 	LOG_DEBUG("-");
 
-	target = get_current_target(CMD_CTX);
+	target = get_current_target(CMD_CTX, cmd);
 
 	/* list all available registers for the current target */
 	if (CMD_ARGC == 0) {
@@ -2837,7 +2845,7 @@ COMMAND_HANDLER(handle_reg_command)
 COMMAND_HANDLER(handle_poll_command)
 {
 	int retval = ERROR_OK;
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 
 	if (CMD_ARGC == 0) {
 		command_print(CMD_CTX, "background polling: %s",
@@ -2875,7 +2883,7 @@ COMMAND_HANDLER(handle_wait_halt_command)
 			return ERROR_COMMAND_SYNTAX_ERROR;
 	}
 
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	return target_wait_state(target, TARGET_HALTED, ms);
 }
 
@@ -2922,7 +2930,7 @@ COMMAND_HANDLER(handle_halt_command)
 {
 	LOG_DEBUG("-");
 
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	int retval = target_halt(target);
 	if (ERROR_OK != retval)
 		return retval;
@@ -2941,7 +2949,7 @@ COMMAND_HANDLER(handle_halt_command)
 
 COMMAND_HANDLER(handle_soft_reset_halt_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 
 	LOG_USER("requesting target halt and executing a soft reset");
 
@@ -2975,7 +2983,7 @@ COMMAND_HANDLER(handle_resume_command)
 	if (CMD_ARGC > 1)
 		return ERROR_COMMAND_SYNTAX_ERROR;
 
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 
 	/* with no CMD_ARGV, resume from current pc, addr = 0,
 	 * with one arguments, addr = CMD_ARGV[0],
@@ -3006,7 +3014,7 @@ COMMAND_HANDLER(handle_step_command)
 		current_pc = 0;
 	}
 
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 
 	return target->type->step(target, current_pc, addr, 1);
 }
@@ -3119,7 +3127,7 @@ COMMAND_HANDLER(handle_md_command)
 
 	uint8_t *buffer = calloc(count, size);
 
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	int retval = fn(target, address, size, count, buffer);
 	if (ERROR_OK == retval)
 		handle_md_output(CMD_CTX, target, address, size, count, buffer);
@@ -3213,7 +3221,7 @@ COMMAND_HANDLER(handle_mw_command)
 	if (CMD_ARGC == 3)
 		COMMAND_PARSE_NUMBER(uint, CMD_ARGV[2], count);
 
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	unsigned wordsize;
 	switch (CMD_NAME[2]) {
 		case 'd':
@@ -3282,7 +3290,7 @@ COMMAND_HANDLER(handle_load_image_command)
 	if (ERROR_OK != retval)
 		return retval;
 
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 
 	struct duration bench;
 	duration_start(&bench);
@@ -3359,7 +3367,7 @@ COMMAND_HANDLER(handle_dump_image_command)
 	int retval, retvaltemp;
 	target_addr_t address, size;
 	struct duration bench;
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 
 	if (CMD_ARGC != 3)
 		return ERROR_COMMAND_SYNTAX_ERROR;
@@ -3432,7 +3440,7 @@ static COMMAND_HELPER(handle_verify_image_command_internal, enum verify_mode ver
 
 	struct image image;
 
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 
 	if (CMD_ARGC < 1)
 		return ERROR_COMMAND_SYNTAX_ERROR;
@@ -3578,7 +3586,7 @@ COMMAND_HANDLER(handle_test_image_command)
 
 static int handle_bp_command_list(struct command_context *cmd_ctx)
 {
-	struct target *target = get_current_target(cmd_ctx);
+	struct target *target = get_current_target(cmd_ctx, NULL);
 	struct breakpoint *breakpoint = target->breakpoints;
 	while (breakpoint) {
 		if (breakpoint->type == BKPT_SOFT) {
@@ -3614,7 +3622,7 @@ static int handle_bp_command_list(struct command_context *cmd_ctx)
 static int handle_bp_command_set(struct command_context *cmd_ctx,
 		target_addr_t addr, uint32_t asid, uint32_t length, int hw)
 {
-	struct target *target = get_current_target(cmd_ctx);
+	struct target *target = get_current_target(cmd_ctx, NULL);
 	int retval;
 
 	if (asid == 0) {
@@ -3705,7 +3713,7 @@ COMMAND_HANDLER(handle_rbp_command)
 	target_addr_t addr;
 	COMMAND_PARSE_ADDRESS(CMD_ARGV[0], addr);
 
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	breakpoint_remove(target, addr);
 
 	return ERROR_OK;
@@ -3713,7 +3721,7 @@ COMMAND_HANDLER(handle_rbp_command)
 
 COMMAND_HANDLER(handle_wp_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 
 	if (CMD_ARGC == 0) {
 		struct watchpoint *watchpoint = target->watchpoints;
@@ -3787,7 +3795,7 @@ COMMAND_HANDLER(handle_rwp_command)
 	uint32_t addr;
 	COMMAND_PARSE_NUMBER(u32, CMD_ARGV[0], addr);
 
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	watchpoint_remove(target, addr);
 
 	return ERROR_OK;
@@ -3808,7 +3816,7 @@ COMMAND_HANDLER(handle_virt2phys_command)
 	COMMAND_PARSE_ADDRESS(CMD_ARGV[0], va);
 	target_addr_t pa;
 
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	int retval = target->type->virt2phys(target, va, &pa);
 	if (retval == ERROR_OK)
 		command_print(CMD_CTX, "Physical address " TARGET_ADDR_FMT "", pa);
@@ -3939,7 +3947,7 @@ static void write_gmon(uint32_t *samples, uint32_t sampleNum, const char *filena
  * which will be used as a random sampling of PC */
 COMMAND_HANDLER(handle_profile_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 
 	if ((CMD_ARGC != 2) && (CMD_ARGC != 4))
 		return ERROR_COMMAND_SYNTAX_ERROR;
@@ -4042,7 +4050,7 @@ static int jim_mem2array(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
 	context = current_command_context(interp);
 	assert(context != NULL);
 
-	target = get_current_target(context);
+	target = get_current_target(context, NULL);
 	if (target == NULL) {
 		LOG_ERROR("mem2array: no current target");
 		return JIM_ERR;
@@ -4243,7 +4251,7 @@ static int jim_array2mem(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
 	context = current_command_context(interp);
 	assert(context != NULL);
 
-	target = get_current_target(context);
+	target = get_current_target(context, NULL);
 	if (target == NULL) {
 		LOG_ERROR("array2mem: no current target");
 		return JIM_ERR;
@@ -5630,7 +5638,7 @@ static int jim_target_current(Jim_Interp *interp, int argc, Jim_Obj *const *argv
 	struct command_context *cmd_ctx = current_command_context(interp);
 	assert(cmd_ctx != NULL);
 
-	Jim_SetResultString(interp, target_name(get_current_target(cmd_ctx)), -1);
+	Jim_SetResultString(interp, target_name(get_current_target(cmd_ctx, NULL)), -1);
 	return JIM_OK;
 }
 
@@ -5912,7 +5920,7 @@ COMMAND_HANDLER(handle_fast_load_command)
 	int size = 0;
 	int retval = ERROR_OK;
 	for (i = 0; i < fastload_num; i++) {
-		struct target *target = get_current_target(CMD_CTX);
+		struct target *target = get_current_target(CMD_CTX, cmd);
 		command_print(CMD_CTX, "Write to 0x%08x, length 0x%08x",
 					  (unsigned int)(fastload[i].address),
 					  (unsigned int)(fastload[i].length));
@@ -5968,7 +5976,7 @@ COMMAND_HANDLER(handle_target_reset_nag)
 
 COMMAND_HANDLER(handle_ps_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	char *display;
 	if (target->state != TARGET_HALTED) {
 		LOG_INFO("target not halted !!");
@@ -5998,7 +6006,7 @@ static void binprint(struct command_context *cmd_ctx, const char *text, const ui
 
 COMMAND_HANDLER(handle_test_mem_access_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	uint32_t test_size;
 	int retval = ERROR_OK;
 

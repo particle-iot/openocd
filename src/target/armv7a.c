@@ -401,7 +401,7 @@ static int armv7a_l2x_cache_init(struct target *target, uint32_t base, uint32_t 
 /* FIXME: remove it */
 COMMAND_HANDLER(handle_cache_l2x)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	uint32_t base, way;
 
 	if (CMD_ARGC != 2)

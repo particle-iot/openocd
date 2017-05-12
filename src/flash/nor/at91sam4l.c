@@ -644,7 +644,7 @@ static int sam4l_write(struct flash_bank *bank, const uint8_t *buffer,
 
 COMMAND_HANDLER(sam4l_handle_reset_deassert)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	int retval = ERROR_OK;
 	enum reset_types jtag_reset_config = jtag_get_reset_config();
 

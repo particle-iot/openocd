@@ -162,7 +162,7 @@ static void close_trace_file(struct armv7m_common *armv7m)
 
 COMMAND_HANDLER(handle_tpiu_config_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct armv7m_common *armv7m = target_to_armv7m(target);
 
 	unsigned int cmd_idx = 0;
@@ -257,7 +257,7 @@ COMMAND_HANDLER(handle_tpiu_config_command)
 
 COMMAND_HANDLER(handle_itm_port_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct armv7m_common *armv7m = target_to_armv7m(target);
 	unsigned int reg_idx;
 	uint8_t port;
@@ -283,7 +283,7 @@ COMMAND_HANDLER(handle_itm_port_command)
 
 COMMAND_HANDLER(handle_itm_ports_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct armv7m_common *armv7m = target_to_armv7m(target);
 	bool enable;
 

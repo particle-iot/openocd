@@ -2059,7 +2059,7 @@ static int dsp563xx_remove_custom_watchpoint(struct target *target)
 COMMAND_HANDLER(dsp563xx_add_watchpoint_command)
 {
 	int err = ERROR_OK;
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 
 	uint32_t mem_type = 0;
 	switch (CMD_NAME[2]) {
@@ -2137,14 +2137,14 @@ static int dsp563xx_remove_breakpoint(struct target *target, struct breakpoint *
 
 COMMAND_HANDLER(dsp563xx_remove_watchpoint_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 
 	return dsp563xx_remove_custom_watchpoint(target);
 }
 
 COMMAND_HANDLER(dsp563xx_mem_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	int err = ERROR_OK;
 	int read_mem;
 	uint32_t address = 0;

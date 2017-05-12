@@ -1396,7 +1396,7 @@ int adiv5_jim_configure(struct target *target, Jim_GetOptInfo *goi)
 
 COMMAND_HANDLER(handle_dap_info_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct arm *arm = target_to_arm(target);
 	struct adiv5_dap *dap = arm->dap;
 	uint32_t apsel;
@@ -1419,7 +1419,7 @@ COMMAND_HANDLER(handle_dap_info_command)
 
 COMMAND_HANDLER(dap_baseaddr_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct arm *arm = target_to_arm(target);
 	struct adiv5_dap *dap = arm->dap;
 
@@ -1459,7 +1459,7 @@ COMMAND_HANDLER(dap_baseaddr_command)
 
 COMMAND_HANDLER(dap_memaccess_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct arm *arm = target_to_arm(target);
 	struct adiv5_dap *dap = arm->dap;
 
@@ -1485,7 +1485,7 @@ COMMAND_HANDLER(dap_memaccess_command)
 
 COMMAND_HANDLER(dap_apsel_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct arm *arm = target_to_arm(target);
 	struct adiv5_dap *dap = arm->dap;
 
@@ -1523,7 +1523,7 @@ COMMAND_HANDLER(dap_apsel_command)
 
 COMMAND_HANDLER(dap_apcsw_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct arm *arm = target_to_arm(target);
 	struct adiv5_dap *dap = arm->dap;
 
@@ -1556,7 +1556,7 @@ COMMAND_HANDLER(dap_apcsw_command)
 
 COMMAND_HANDLER(dap_apid_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct arm *arm = target_to_arm(target);
 	struct adiv5_dap *dap = arm->dap;
 
@@ -1591,7 +1591,7 @@ COMMAND_HANDLER(dap_apid_command)
 
 COMMAND_HANDLER(dap_apreg_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct arm *arm = target_to_arm(target);
 	struct adiv5_dap *dap = arm->dap;
 
@@ -1630,7 +1630,7 @@ COMMAND_HANDLER(dap_apreg_command)
 
 COMMAND_HANDLER(dap_ti_be_32_quirks_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
+	struct target *target = get_current_target(CMD_CTX, cmd);
 	struct arm *arm = target_to_arm(target);
 	struct adiv5_dap *dap = arm->dap;
 

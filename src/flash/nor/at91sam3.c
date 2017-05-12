@@ -254,7 +254,7 @@ static struct sam3_chip *get_current_sam3(struct command_context *cmd_ctx)
 	struct target *t;
 	static struct sam3_chip *p;
 
-	t = get_current_target(cmd_ctx);
+	t = get_current_target(cmd_ctx, NULL);
 	if (!t) {
 		command_print(cmd_ctx, "No current target?");
 		return NULL;
