@@ -892,6 +892,14 @@ static int stm32x_probe(struct flash_bank *bank)
 		stm32x_info->has_boot_addr = true;
 		break;
 
+	case 0x452:	/* F72x/F73x */
+		max_flash_size_in_kb = 512;
+		max_sector_size_in_kb = 128;
+		flash_size_reg = 0x1FF07A22;
+		stm32x_info->has_extra_options = true;
+		stm32x_info->has_boot_addr = true;
+		break;
+
 	default:
 		LOG_WARNING("Cannot identify target as a STM32 family.");
 		return ERROR_FAIL;
@@ -1126,6 +1134,16 @@ static int get_stm32x_info(struct flash_bank *bank, char *buf, int buf_size)
 
 	case 0x451:
 		device_str = "STM32F7[6|7]x";
+
+		switch (rev_id) {
+		case 0x1000:
+			rev_str = "A";
+			break;
+		}
+		break;
+
+	case 0x452:
+		device_str = "STM32F7[2|3]x";
 
 		switch (rev_id) {
 		case 0x1000:
