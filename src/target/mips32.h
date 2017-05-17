@@ -42,7 +42,7 @@
 /** Returns the kernel segment base of a given address */
 #define KSEGX(a)		((a) & 0xe0000000)
 
-/** CP0 CONFIG regites fields */
+/** CP0 CONFIG register fields */
 #define MIPS32_CONFIG0_KU_SHIFT 25
 #define MIPS32_CONFIG0_KU_MASK (0x7 << MIPS32_CONFIG0_KU_SHIFT)
 
@@ -65,6 +65,7 @@
 #define MIPS32_ARCH_REL2 0x1
 
 #define MIPS32_SCAN_DELAY_LEGACY_MODE 2000000
+#define HELP_OPTION	0x10000
 
 /* offsets into mips32 core register cache */
 enum {

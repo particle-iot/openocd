@@ -76,7 +76,7 @@
 static int wait_for_pracc_rw(struct mips_ejtag *ejtag_info, bool read_addr)
 {
 	int64_t then = timeval_ms();
-
+	jtag_add_clocks(ejtag_info->clocks);
 	while (1) {
 		mips_ejtag_set_instr(ejtag_info, EJTAG_INST_CONTROL);
 		ejtag_info->pa_ctrl = ejtag_info->ejtag_ctrl;
@@ -364,7 +364,9 @@ int mips32_pracc_queue_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_in
 		for (int i = 0; i != ctx->code_count; i++)
 			ctx->pracc_list[i].instr = SWAP16(ctx->pracc_list[i].instr);
 
-	if (ejtag_info->mode == 0)
+	mips_ejtag_update_clocks(ejtag_info);
+
+	if (ejtag_info->mode[pa_mode] == opt_sync)
 		return mips32_pracc_exec(ejtag_info, ctx, buf, check_last);
 
 	union scan_in {
@@ -381,21 +383,18 @@ int mips32_pracc_queue_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_in
 		return ERROR_FAIL;
 	}
 
-	unsigned num_clocks =
-		((uint64_t)(ejtag_info->scan_delay) * jtag_get_speed_khz() + 500000) / 1000000;
-
 	uint32_t ejtag_ctrl = ejtag_info->ejtag_ctrl & ~EJTAG_CTRL_PRACC;
 	mips_ejtag_set_instr(ejtag_info, EJTAG_INST_ALL);
 
 	int scan_count = 0;
 	for (int i = 0; i != ctx->code_count; i++) {
-		jtag_add_clocks(num_clocks);
+		jtag_add_clocks(ejtag_info->clocks);
 		mips_ejtag_add_scan_96(ejtag_info, ejtag_ctrl, ctx->pracc_list[i].instr,
 				       scan_in[scan_count++].scan_96);
 
 		/* Check store address from previous instruction, if not the first */
 		if (i > 0 && ctx->pracc_list[i - 1].addr) {
-			jtag_add_clocks(num_clocks);
+			jtag_add_clocks(ejtag_info->clocks);
 			mips_ejtag_add_scan_96(ejtag_info, ejtag_ctrl, 0, scan_in[scan_count++].scan_96);
 		}
 	}
@@ -1011,12 +1010,10 @@ int mips32_pracc_fastdata_xfer(struct mips_ejtag *ejtag_info, struct working_are
 	mips_ejtag_set_instr(ejtag_info, EJTAG_INST_FASTDATA);
 	mips_ejtag_fastdata_scan(ejtag_info, 1, &val);
 
-	unsigned num_clocks = 0;	/* like in legacy code */
-	if (ejtag_info->mode != 0)
-		num_clocks = ((uint64_t)(ejtag_info->scan_delay) * jtag_get_speed_khz() + 500000) / 1000000;
+	mips_ejtag_update_clocks(ejtag_info);
 
 	for (int i = 0; i < count; i++) {
-		jtag_add_clocks(num_clocks);
+		jtag_add_clocks(ejtag_info->clocks);
 		mips_ejtag_fastdata_scan(ejtag_info, write_t, buf++);
 	}
 

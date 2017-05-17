@@ -386,8 +386,8 @@ int mips32_init_arch_info(struct target *target, struct mips32_common *mips32, s
 	mips32->write_core_reg = mips32_write_core_reg;
 	/* if unknown endianness defaults to little endian, 1 */
 	mips32->ejtag_info.endianness = target->endianness == TARGET_BIG_ENDIAN ? 0 : 1;
-	mips32->ejtag_info.scan_delay = MIPS32_SCAN_DELAY_LEGACY_MODE;
-	mips32->ejtag_info.mode = 0;			/* Initial default value */
+	mips32->ejtag_info.scan_delay = 2000;
+	mips32->ejtag_info.mode[pa_mode] = opt_sync;	/* in sync with pracc */
 	mips32->ejtag_info.isa = 0;	/* isa on debug mips32, updated by poll function */
 	mips32->ejtag_info.config_regs = 0;	/* no config register read */
 	return ERROR_OK;
@@ -977,13 +977,66 @@ COMMAND_HANDLER(mips32_handle_scan_delay_command)
 			return ERROR_COMMAND_SYNTAX_ERROR;
 
 	command_print(CMD_CTX, "scan delay: %d nsec", ejtag_info->scan_delay);
-	if (ejtag_info->scan_delay >= MIPS32_SCAN_DELAY_LEGACY_MODE) {
-		ejtag_info->mode = 0;
-		command_print(CMD_CTX, "running in legacy mode");
-	} else {
-		ejtag_info->mode = 1;
-		command_print(CMD_CTX, "running in fast queued mode");
-	}
+	command_print(CMD_CTX, "use mips32 mode command for mode selection");
+	return ERROR_OK;
+}
+
+const Jim_Nvp mode_options[] = {
+	{"sync",		(pa_mode << 8) + opt_sync},
+	{"async",		(pa_mode << 8) + opt_async},
+
+	{"help",		HELP_OPTION},
+
+	{NULL, -1}
+};
+
+/* options not added here are not shown */
+const Jim_Nvp mode_messages[] = {
+	{" mode sync: in sync with pracc (safer)",		(pa_mode << 8) + opt_sync},
+	{" mode async: in async pracc mode (faster)",		(pa_mode << 8) + opt_async},
+
+	{NULL, -1}
+};
+
+COMMAND_HANDLER(mips32_handle_mode_command)
+{
+	struct target *target = get_current_target(CMD_CTX);
+	struct mips32_common *mips32 = target_to_mips32(target);
+	struct mips_ejtag *ejtag_info = &mips32->ejtag_info;
+
+	Jim_Nvp *p;
+
+	if (CMD_ARGC == 0)	/* print current settings */
+		for (unsigned i = 0; i != max_mode; i++) {
+			p = Jim_Nvp_value2name_simple(mode_messages, ejtag_info->mode[i] + (i << 8));
+			if (p->value >= 0)	/* mode added */
+				command_print(CMD_CTX, "%s",  p->name);
+		}
+	else
+		for (unsigned i = 0; i != CMD_ARGC; i++) {
+			p = Jim_Nvp_name2value_simple(mode_options, CMD_ARGV[i]);
+			if (p->value >= 0 && p->value < HELP_OPTION) {
+
+				unsigned mode = p->value >> 8;
+				unsigned option = p->value & 0xff;
+				if (mode < max_mode) {		/* only to be sure */
+					ejtag_info->mode[mode] = option;
+					/* print saved option */
+					p = Jim_Nvp_value2name_simple(mode_messages,
+								      (mode << 8) + ejtag_info->mode[mode]);
+					if (p->value >= 0)
+						command_print(CMD_CTX, "%s",  p->name);
+				}
+
+			} else if (p->value != HELP_OPTION)
+					command_print(CMD_CTX, "option not valid: %s", CMD_ARGV[i]);
+				/* help: print the list of options */
+				else {
+					unsigned j = 0;
+					while (mode_messages[j].value >= 0)
+						command_print(CMD_CTX, "%s",  mode_messages[j++].name);
+				}
+		}
 
 	return ERROR_OK;
 }
@@ -1003,6 +1056,14 @@ static const struct command_registration mips32_exec_command_handlers[] = {
 		.help = "display/set scan delay in nano seconds",
 		.usage = "[value]",
 	},
+		{
+		.name = "mode",
+		.handler = mips32_handle_mode_command,
+		.mode = COMMAND_ANY,
+		.help = "set or display (without option) several mode options, help for list of options",
+		.usage = "[option1] [option2] ... [help]: list of options]",
+	},
+
 	COMMAND_REGISTRATION_DONE
 };
 

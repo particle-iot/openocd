@@ -177,6 +177,11 @@
 #define EJTAG_VERSION_41		4
 #define EJTAG_VERSION_51		5
 
+enum working_modes {
+	pa_mode = 0,
+	max_mode = 1,
+};
+
 struct mips_ejtag {
 	struct jtag_tap *tap;
 	uint32_t impcode;
@@ -189,7 +194,8 @@ struct mips_ejtag {
 	uint32_t reg8;
 	uint32_t reg9;
 	unsigned scan_delay;
-	int mode;
+	unsigned clocks;
+	int mode[max_mode];
 	uint32_t pa_ctrl;
 	uint32_t pa_addr;
 	unsigned int ejtag_version;
@@ -216,6 +222,12 @@ struct mips_ejtag {
 	uint32_t ejtag_dba_step_size;	/* size of step till next *DBAn register. */
 };
 
+/* options */
+enum pa_mode_opt {
+	opt_sync = 0,
+	opt_async = 1,
+};
+
 void mips_ejtag_set_instr(struct mips_ejtag *ejtag_info, uint32_t new_instr);
 int mips_ejtag_enter_debug(struct mips_ejtag *ejtag_info);
 int mips_ejtag_exit_debug(struct mips_ejtag *ejtag_info);
@@ -238,4 +250,8 @@ static inline void mips_le_to_h_u32(jtag_callback_data_t arg)
 	*((uint32_t *)arg) = le_to_h_u32(in);
 }
 
+inline void mips_ejtag_update_clocks(struct mips_ejtag *ejtag_info)
+{
+	ejtag_info->clocks = ((uint64_t)(ejtag_info->scan_delay) * jtag_get_speed_khz() + 500000) / 1000000;
+}
 #endif /* OPENOCD_TARGET_MIPS_EJTAG_H */

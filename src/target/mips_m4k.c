@@ -1401,13 +1401,7 @@ COMMAND_HANDLER(mips_m4k_handle_scan_delay_command)
 			return ERROR_COMMAND_SYNTAX_ERROR;
 
 	command_print(CMD_CTX, "scan delay: %d nsec", ejtag_info->scan_delay);
-	if (ejtag_info->scan_delay >= MIPS32_SCAN_DELAY_LEGACY_MODE) {
-		ejtag_info->mode = 0;
-		command_print(CMD_CTX, "running in legacy mode");
-	} else {
-		ejtag_info->mode = 1;
-		command_print(CMD_CTX, "running in fast queued mode");
-	}
+	command_print(CMD_CTX, "use mips32 mode command for mode selection");
 
 	return ERROR_OK;
 }
