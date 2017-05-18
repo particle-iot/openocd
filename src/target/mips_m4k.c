@@ -1207,7 +1207,6 @@ static int mips_m4k_bulk_write_memory(struct target *target, target_addr_t addre
 	struct mips_ejtag *ejtag_info = &mips32->ejtag_info;
 	struct working_area *fast_data_area;
 	int retval;
-	int write_t = 1;
 
 	LOG_DEBUG("address: " TARGET_ADDR_FMT ", count: 0x%8.8" PRIx32 "",
 			  address, count);
@@ -1235,13 +1234,14 @@ static int mips_m4k_bulk_write_memory(struct target *target, target_addr_t addre
 
 	fast_data_area = mips32->fast_data_area;
 
-	if (address <= fast_data_area->address + fast_data_area->size &&
-			fast_data_area->address <= address + count) {
+	/* prevent handler overwrite, but only if in the same kernel segment */
+	if (address < fast_data_area->address + fast_data_area->size &&
+			fast_data_area->address < address + count * 4) {
 		LOG_ERROR("fast_data (" TARGET_ADDR_FMT ") is within write area "
 			  "(" TARGET_ADDR_FMT "-" TARGET_ADDR_FMT ").",
-			  fast_data_area->address, address, address + count);
+			  fast_data_area->address, address, address + count * 4);
 		LOG_ERROR("Change work-area-phys or load_image address!");
-		return ERROR_FAIL;
+		return ERROR_OK; /* if not, will be overwritten by default write function */
 	}
 
 	/* mips32_pracc_fastdata_xfer requires uint32_t in host endianness, */
@@ -1255,6 +1255,7 @@ static int mips_m4k_bulk_write_memory(struct target *target, target_addr_t addre
 
 	target_buffer_get_u32_array(target, buffer, count, t);
 
+	int write_t = 1;
 	retval = mips32_pracc_fastdata_xfer(ejtag_info, mips32->fast_data_area, write_t, address,
 			count, t);
 

@@ -271,21 +271,17 @@ int mips32_save_context(struct target *target)
 
 int mips32_restore_context(struct target *target)
 {
-	unsigned int i;
-
 	/* get pointers to arch-specific information */
 	struct mips32_common *mips32 = target_to_mips32(target);
 	struct mips_ejtag *ejtag_info = &mips32->ejtag_info;
 
-	for (i = 0; i < MIPS32_NUM_REGS; i++) {
+	for (unsigned i = 0; i < MIPS32_NUM_REGS; i++) {
 		if (mips32->core_cache->reg_list[i].dirty)
 			mips32->write_core_reg(target, i);
 	}
 
 	/* write core regs */
-	mips32_pracc_write_regs(ejtag_info, mips32->core_regs);
-
-	return ERROR_OK;
+	return mips32_pracc_write_regs(ejtag_info, mips32->core_regs);
 }
 
 int mips32_arch_state(struct target *target)
@@ -534,7 +530,7 @@ int mips32_run_algorithm(struct target *target, int num_mem_params,
 
 	mips32->isa_mode = isa_mode;
 
-	return ERROR_OK;
+	return mips32_restore_context(target);
 }
 
 int mips32_examine(struct target *target)

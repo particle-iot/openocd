@@ -40,7 +40,7 @@
 #define KSEG3			0xe0000000
 
 /** Returns the kernel segment base of a given address */
-#define KSEGX(a)		((a) & 0xe0000000)
+#define KSEGX(a)		((a) & 1 << 31 ? (a) & 0xe0000000 : KUSEG)
 
 /** CP0 CONFIG register fields */
 #define MIPS32_CONFIG0_KU_SHIFT 25
