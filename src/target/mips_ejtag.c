@@ -172,9 +172,9 @@ int mips_ejtag_config_step(struct mips_ejtag *ejtag_info, int enable_step)
 		pracc_add(&ctx, 0, MIPS32_XORI(ctx.isa, 8, 8, 0x0100));		/* clear SSt bit in debug reg */
 
 	pracc_add(&ctx, 0, MIPS32_MTC0(ctx.isa, 8, 23, 0));			/* move $8 to COP0 Debug */
-	pracc_add(&ctx, 0, MIPS32_LUI(ctx.isa, 8, UPPER16(ejtag_info->reg8)));	/* restore upper 16 bits  of $8 */
+	pracc_add(&ctx, 0, MIPS32_LUI(ctx.isa, 8, UPPER16(ejtag_info->regs[8])));	/* restore upper 16 bits  of $8 */
 	pracc_add(&ctx, 0, MIPS32_B(ctx.isa, NEG16((ctx.code_count + 1) << ctx.isa)));		/* jump to start */
-	pracc_add(&ctx, 0, MIPS32_ORI(ctx.isa, 8, 8, LOWER16(ejtag_info->reg8))); /* restore lower 16 bits of $8 */
+	pracc_add(&ctx, 0, MIPS32_ORI(ctx.isa, 8, 8, LOWER16(ejtag_info->regs[8]))); /* restore lower 16 bits of $8 */
 
 	ctx.retval = mips32_pracc_queue_exec(ejtag_info, &ctx, NULL, 1);
 	pracc_queue_free(&ctx);

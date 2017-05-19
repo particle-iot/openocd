@@ -36,7 +36,7 @@
 #define PRACC_UPPER_BASE_ADDR			(MIPS32_PRACC_BASE_ADDR >> 16)
 #define PRACC_OUT_OFFSET			(MIPS32_PRACC_PARAM_OUT - MIPS32_PRACC_BASE_ADDR)
 
-#define MIPS32_FASTDATA_HANDLER_SIZE	0x80
+#define MIPS32_FASTDATA_HANDLER_SIZE		0x3c
 #define UPPER16(uint32_t)				(uint32_t >> 16)
 #define LOWER16(uint32_t)				(uint32_t & 0xFFFF)
 #define NEG16(v)						(((~(v)) + 1) & 0xFFFF)

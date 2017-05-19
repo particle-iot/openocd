@@ -465,7 +465,7 @@ int mips32_pracc_read_u32(struct mips_ejtag *ejtag_info, uint32_t addr, uint32_t
 	pracc_add(&ctx, 0, MIPS32_LW(ctx.isa, 8, LOWER16(addr), 8));			/* lw $8, LOWER16(addr)($8) */
 	pracc_add(&ctx, MIPS32_PRACC_PARAM_OUT,
 				MIPS32_SW(ctx.isa, 8, PRACC_OUT_OFFSET, 15));	/* sw $8,PRACC_OUT_OFFSET($15) */
-	pracc_add_li32(&ctx, 8, ejtag_info->reg8, 0);				/* restore $8 */
+	pracc_add_li32(&ctx, 8, ejtag_info->regs[8], 0);				/* restore $8 */
 	pracc_add(&ctx, 0, MIPS32_B(ctx.isa, NEG16((ctx.code_count + 1) << ctx.isa)));		/* jump to start */
 	pracc_add(&ctx, 0, MIPS32_MFC0(ctx.isa, 15, 31, 0));				/* move COP0 DeSave to $15 */
 
@@ -523,8 +523,8 @@ int mips32_pracc_read_mem(struct mips_ejtag *ejtag_info, uint32_t addr, int size
 					  MIPS32_SW(ctx.isa, 8, PRACC_OUT_OFFSET + i * 4, 15));
 			addr += size;
 		}
-		pracc_add_li32(&ctx, 8, ejtag_info->reg8, 0);				/* restore $8 */
-		pracc_add_li32(&ctx, 9, ejtag_info->reg9, 0);				/* restore $9 */
+		pracc_add_li32(&ctx, 8, ejtag_info->regs[8], 0);				/* restore $8 */
+		pracc_add_li32(&ctx, 9, ejtag_info->regs[9], 0);				/* restore $9 */
 
 		pracc_add(&ctx, 0, MIPS32_B(ctx.isa, NEG16((ctx.code_count + 1) << ctx.isa)));	/* jump to start */
 		pracc_add(&ctx, 0, MIPS32_MFC0(ctx.isa, 15, 31, 0));			/* restore $15 from DeSave */
@@ -566,9 +566,9 @@ int mips32_cp0_read(struct mips_ejtag *ejtag_info, uint32_t *val, uint32_t cp0_r
 	pracc_add(&ctx, MIPS32_PRACC_PARAM_OUT,
 				MIPS32_SW(ctx.isa, 8, PRACC_OUT_OFFSET, 15));	/* store $8 to pracc_out */
 	pracc_add(&ctx, 0, MIPS32_MFC0(ctx.isa, 15, 31, 0));				/* restore $15 from DeSave */
-	pracc_add(&ctx, 0, MIPS32_LUI(ctx.isa, 8, UPPER16(ejtag_info->reg8)));	/* restore upper 16 bits  of $8 */
+	pracc_add(&ctx, 0, MIPS32_LUI(ctx.isa, 8, UPPER16(ejtag_info->regs[8]))); /* restore upper 16 bits  of $8 */
 	pracc_add(&ctx, 0, MIPS32_B(ctx.isa, NEG16((ctx.code_count + 1) << ctx.isa)));		/* jump to start */
-	pracc_add(&ctx, 0, MIPS32_ORI(ctx.isa, 8, 8, LOWER16(ejtag_info->reg8))); /* restore lower 16 bits of $8 */
+	pracc_add(&ctx, 0, MIPS32_ORI(ctx.isa, 8, 8, LOWER16(ejtag_info->regs[8]))); /* restore lower 16 bits of $8 */
 
 	ctx.retval = mips32_pracc_queue_exec(ejtag_info, &ctx, val, 1);
 	pracc_queue_free(&ctx);
@@ -634,7 +634,7 @@ static int mips32_pracc_synchronize_cache(struct mips_ejtag *ejtag_info,
 		pracc_add(&ctx, MIPS32_PRACC_PARAM_OUT,
 				MIPS32_SW(ctx.isa, 8, PRACC_OUT_OFFSET, 15));		/* store $8 to pracc_out */
 
-		pracc_add_li32(&ctx, 8, ejtag_info->reg8, 0);				/* restore $8 */
+		pracc_add_li32(&ctx, 8, ejtag_info->regs[8], 0);				/* restore $8 */
 
 		pracc_add(&ctx, 0, MIPS32_B(ctx.isa, NEG16((ctx.code_count + 1) << ctx.isa)));	/* jump to start */
 		pracc_add(&ctx, 0, MIPS32_MFC0(ctx.isa, 15, 31, 0));			/* restore $15 from DeSave */
@@ -765,7 +765,7 @@ static int mips32_pracc_write_mem_generic(struct mips_ejtag *ejtag_info,
 			addr += size;
 		}
 
-		pracc_add_li32(&ctx, 8, ejtag_info->reg8, 0);				/* restore $8 */
+		pracc_add_li32(&ctx, 8, ejtag_info->regs[8], 0);				/* restore $8 */
 
 		pracc_add(&ctx, 0, MIPS32_B(ctx.isa, NEG16((ctx.code_count + 1) << ctx.isa)));	/* jump to start */
 		pracc_add(&ctx, 0, MIPS32_MFC0(ctx.isa, 15, 31, 0));			/* restore $15 from DeSave */
@@ -864,8 +864,9 @@ int mips32_pracc_write_regs(struct mips_ejtag *ejtag_info, uint32_t *regs)
 
 	ctx.retval = mips32_pracc_queue_exec(ejtag_info, &ctx, NULL, 1);
 
-	ejtag_info->reg8 = regs[8];
-	ejtag_info->reg9 = regs[9];
+	for (int i = 1; i != 16; i++)
+		ejtag_info->regs[i] = regs[i];
+
 	pracc_queue_free(&ctx);
 	return ctx.retval;
 }
@@ -906,8 +907,10 @@ int mips32_pracc_read_regs(struct mips_ejtag *ejtag_info, uint32_t *regs)
 
 	ctx.retval = mips32_pracc_queue_exec(ejtag_info, &ctx, regs, 1);
 
-	ejtag_info->reg8 = regs[8];	/* reg8 is saved but not restored, next called function should restore it */
-	ejtag_info->reg9 = regs[9];
+	/* reg8 is saved but not restored, next called function should restore it */
+	for (int i = 1; i != 16; i++)
+		ejtag_info->regs[i] = regs[i];
+
 	pracc_queue_free(&ctx);
 	return ctx.retval;
 }
@@ -924,32 +927,28 @@ int mips32_pracc_fastdata_xfer(struct mips_ejtag *ejtag_info, struct working_are
 {
 	uint32_t isa = ejtag_info->isa ? 1 : 0;
 	uint32_t handler_code[] = {
-		/* r15 points to the start of this code */
-		MIPS32_SW(isa, 8, MIPS32_FASTDATA_HANDLER_SIZE - 4, 15),
-		MIPS32_SW(isa, 9, MIPS32_FASTDATA_HANDLER_SIZE - 8, 15),
-		MIPS32_SW(isa, 10, MIPS32_FASTDATA_HANDLER_SIZE - 12, 15),
-		MIPS32_SW(isa, 11, MIPS32_FASTDATA_HANDLER_SIZE - 16, 15),
-		/* start of fastdata area in t0 */
-		MIPS32_LUI(isa, 8, UPPER16(MIPS32_PRACC_FASTDATA_AREA)),
-		MIPS32_ORI(isa, 8, 8, LOWER16(MIPS32_PRACC_FASTDATA_AREA)),
-		MIPS32_LW(isa, 9, 0, 8),						/* start addr in t1 */
-		MIPS32_LW(isa, 10, 0, 8),						/* end addr to t2 */
-					/* loop: */
-		write_t ? MIPS32_LW(isa, 11, 0, 8) : MIPS32_LW(isa, 11, 0, 9),	/* from xfer area : from memory */
-		write_t ? MIPS32_SW(isa, 11, 0, 9) : MIPS32_SW(isa, 11, 0, 8),	/* to memory      : to xfer area */
+		/* $15 already points to xfer area, loaded in jump code */
+		MIPS32_LW(isa, 8, 0, 15),				/* start addr in t0 */
+		MIPS32_LW(isa, 9, 0, 15),				/* end addr to t1 */
 
-		MIPS32_BNE(isa, 10, 9, NEG16(3 << isa)),			/* bne $t2,t1,loop */
-		MIPS32_ADDI(isa, 9, 9, 4),					/* addi t1,t1,4 */
+		/* loop: */
+		write_t ? MIPS32_LW(isa, 10, 0, 15) : MIPS32_LW(isa, 10, 0, 8),	/* from xfer area : from memory */
+		write_t ? MIPS32_SW(isa, 10, 0, 8) : MIPS32_SW(isa, 10, 0, 15),	/* to memory      : to xfer area */
+		MIPS32_BNE(isa, 9, 8, NEG16(3 << isa)),				/* bne t1,t0, loop */
+		MIPS32_ADDI(isa, 8, 8, 4),					/* addi t0,t0,4, next addr*/
 
-		MIPS32_LW(isa, 8, MIPS32_FASTDATA_HANDLER_SIZE - 4, 15),
-		MIPS32_LW(isa, 9, MIPS32_FASTDATA_HANDLER_SIZE - 8, 15),
-		MIPS32_LW(isa, 10, MIPS32_FASTDATA_HANDLER_SIZE - 12, 15),
-		MIPS32_LW(isa, 11, MIPS32_FASTDATA_HANDLER_SIZE - 16, 15),
+		/* restore regs */
+		MIPS32_LUI(isa, 8, UPPER16(ejtag_info->regs[8])),
+		MIPS32_ORI(isa, 8, 8, LOWER16(ejtag_info->regs[8])),
+		MIPS32_LUI(isa, 9, UPPER16(ejtag_info->regs[9])),
+		MIPS32_ORI(isa, 9, 9, LOWER16(ejtag_info->regs[9])),
+		MIPS32_LUI(isa, 10, UPPER16(ejtag_info->regs[10])),
+		MIPS32_ORI(isa, 10, 10, LOWER16(ejtag_info->regs[10])),
 
-		MIPS32_LUI(isa, 15, UPPER16(MIPS32_PRACC_TEXT)),
+		/* exit code */
 		MIPS32_ORI(isa, 15, 15, LOWER16(MIPS32_PRACC_TEXT) | isa),	/* isa bit for JR instr */
-		MIPS32_JR(isa, 15),								/* jr start */
-		MIPS32_MFC0(isa, 15, 31, 0),					/* move COP0 DeSave to $15 */
+		MIPS32_JR(isa, 15),						/* jump to pracc text */
+		MIPS32_MFC0(isa, 15, 31, 0),					/* restore $15 from DeSave */
 	};
 
 	if (source->size < MIPS32_FASTDATA_HANDLER_SIZE)
@@ -966,10 +965,10 @@ int mips32_pracc_fastdata_xfer(struct mips_ejtag *ejtag_info, struct working_are
 	LOG_DEBUG("%s using 0x%.8" TARGET_PRIxADDR " for write handler", __func__, source->address);
 
 	uint32_t jmp_code[] = {
-		MIPS32_LUI(isa, 15, UPPER16(source->address)),			/* load addr of jump in $15 */
-		MIPS32_ORI(isa, 15, 15, LOWER16(source->address) | isa),	/* isa bit for JR instr */
-		MIPS32_JR(isa, 15),						/* jump to ram program */
-		isa ? MIPS32_XORI(isa, 15, 15, 1) : MIPS32_NOP,	/* drop isa bit, needed for LW/SW instructions */
+		MIPS32_LUI(isa, 8, UPPER16(source->address)),			/* load addr of jump in $8 */
+		MIPS32_ORI(isa, 8, 8, LOWER16(source->address) | isa),		/* isa bit for JR instr */
+		MIPS32_JR(isa, 8),						/* jump to ram program */
+		MIPS32_LUI(isa, 15, UPPER16(MIPS32_PRACC_FASTDATA_AREA)),	/* $15 points to fasdata area */
 	};
 
 	pracc_swap16_array(ejtag_info, jmp_code, ARRAY_SIZE(jmp_code));

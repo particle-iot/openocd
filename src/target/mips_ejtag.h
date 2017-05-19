@@ -191,8 +191,7 @@ struct mips_ejtag {
 	uint32_t config_regs;	/* number of config registers read */
 	uint32_t config[4];	/* cp0 config to config3 */
 
-	uint32_t reg8;
-	uint32_t reg9;
+	uint32_t regs[16];	/* to save a copy of $1 to $15 */
 	unsigned scan_delay;
 	unsigned clocks;
 	int mode[max_mode];
