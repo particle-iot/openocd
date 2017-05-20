@@ -995,10 +995,11 @@ int mips32_pracc_fastdata_xfer(struct mips_ejtag *ejtag_info, struct working_are
 	if (ejtag_info->pa_addr != MIPS32_PRACC_FASTDATA_AREA)
 		return ERROR_FAIL;
 
+	mips_ejtag_update_clocks(ejtag_info);
+
 	/* Send the load start address */
 	uint32_t val = addr;
-	mips_ejtag_set_instr(ejtag_info, EJTAG_INST_FASTDATA);
-	mips_ejtag_fastdata_scan(ejtag_info, 1, &val);
+	mips_ejtag_fastdata_scan(ejtag_info, 1, &val, 1);
 
 	retval = wait_for_pracc_rw(ejtag_info, 0);
 	if (retval != ERROR_OK)
@@ -1006,20 +1007,20 @@ int mips32_pracc_fastdata_xfer(struct mips_ejtag *ejtag_info, struct working_are
 
 	/* Send the load end address */
 	val = addr + (count - 1) * 4;
-	mips_ejtag_set_instr(ejtag_info, EJTAG_INST_FASTDATA);
-	mips_ejtag_fastdata_scan(ejtag_info, 1, &val);
+	mips_ejtag_fastdata_scan(ejtag_info, 1, &val, 1);
 
-	mips_ejtag_update_clocks(ejtag_info);
+	while (count) {
+		int this_round_count = count > XFER_BLOCK ? XFER_BLOCK : count;
+		mips_ejtag_fastdata_scan(ejtag_info, 1, buf, this_round_count);
 
-	for (int i = 0; i < count; i++) {
-		jtag_add_clocks(ejtag_info->clocks);
-		mips_ejtag_fastdata_scan(ejtag_info, write_t, buf++);
-	}
+		retval = jtag_execute_queue();
+		if (retval != ERROR_OK) {
+			LOG_ERROR("fastdata load failed");
+			return retval;
+		}
 
-	retval = jtag_execute_queue();
-	if (retval != ERROR_OK) {
-		LOG_ERROR("fastdata load failed");
-		return retval;
+		buf += this_round_count;
+		count -= this_round_count;
 	}
 
 	retval = wait_for_pracc_rw(ejtag_info, READ_ADDR);

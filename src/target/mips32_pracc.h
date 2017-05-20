@@ -45,6 +45,7 @@
 
 #define PRACC_BLOCK	128	/* 1 Kbyte */
 #define READ_ADDR	1
+#define XFER_BLOCK	1024	/* 4 kbyte */
 
 typedef struct {
 	uint32_t instr;
