@@ -238,8 +238,8 @@ int mips_ejtag_drscan_32(struct mips_ejtag *ejtag_info, uint32_t *data);
 void mips_ejtag_drscan_32_queued(struct mips_ejtag *ejtag_info, uint32_t data_out, uint8_t *data_in);
 void mips_ejtag_drscan_8_out(struct mips_ejtag *ejtag_info, uint8_t data);
 int mips_ejtag_drscan_8(struct mips_ejtag *ejtag_info, uint8_t *data);
-void mips_ejtag_fastdata_scan(struct mips_ejtag *ejtag_info, int write_t, uint32_t *data, int count);
-
+void mips_ejtag_fastdata_scan(struct mips_ejtag *ejtag_info, int write_t,
+			     uint32_t *data_out, uint8_t *data_in, int count);
 int mips_ejtag_init(struct mips_ejtag *ejtag_info);
 int mips_ejtag_config_step(struct mips_ejtag *ejtag_info, int enable_step);
 

@@ -46,6 +46,7 @@ static int mips_m4k_internal_restore(struct target *target, int current,
 static int mips_m4k_halt(struct target *target);
 static int mips_m4k_bulk_write_memory(struct target *target, target_addr_t address,
 		uint32_t count, const uint8_t *buffer);
+static int mips_m4k_bulk_read_memory(struct target *target, uint32_t address, uint32_t count, uint32_t  *buf);
 
 static int mips_m4k_examine_debug_reason(struct target *target)
 {
@@ -1049,25 +1050,26 @@ static int mips_m4k_read_memory(struct target *target, target_addr_t address,
 	} else
 		t = buffer;
 
-	/* if noDMA off, use DMAACC mode for memory read */
 	int retval;
+	if (size == 4 && count > 32) {
+		retval = mips_m4k_bulk_read_memory(target, address, count, t);
+		if (retval == ERROR_OK)
+			goto save;
+		LOG_WARNING("Falling back to non-bulk read");
+	}
+
+	/* if noDMA off, use DMAACC mode for memory read */
 	if (ejtag_info->impcode & EJTAG_IMP_NODMA)
 		retval = mips32_pracc_read_mem(ejtag_info, address, size, count, t);
 	else
 		retval = mips32_dmaacc_read_mem(ejtag_info, address, size, count, t);
 
+save:
 	/* mips32_..._read_mem with size 4/2 returns uint32_t/uint16_t in host */
 	/* endianness, but byte array should represent target endianness       */
-	if (ERROR_OK == retval) {
-		switch (size) {
-		case 4:
-			target_buffer_set_u32_array(target, buffer, count, t);
-			break;
-		case 2:
+	if (ERROR_OK == retval && size > 1)
+		size == 4 ? target_buffer_set_u32_array(target, buffer, count, t) :
 			target_buffer_set_u16_array(target, buffer, count, t);
-			break;
-		}
-	}
 
 	if ((size > 1) && (t != NULL))
 		free(t);
@@ -1114,14 +1116,9 @@ static int mips_m4k_write_memory(struct target *target, target_addr_t address,
 			return ERROR_FAIL;
 		}
 
-		switch (size) {
-		case 4:
-			target_buffer_get_u32_array(target, buffer, count, (uint32_t *)t);
-			break;
-		case 2:
+		size == 4 ? target_buffer_get_u32_array(target, buffer, count, (uint32_t *)t) :
 			target_buffer_get_u16_array(target, buffer, count, (uint16_t *)t);
-			break;
-		}
+
 		buffer = t;
 	}
 
@@ -1135,10 +1132,7 @@ static int mips_m4k_write_memory(struct target *target, target_addr_t address,
 	if (t != NULL)
 		free(t);
 
-	if (ERROR_OK != retval)
-		return retval;
-
-	return ERROR_OK;
+	return retval;
 }
 
 static int mips_m4k_init_target(struct command_context *cmd_ctx,
@@ -1184,7 +1178,7 @@ static int mips_m4k_examine(struct target *target)
 			return retval;
 		}
 		if (((ejtag_info->idcode >> 1) & 0x7FF) == 0x29) {
-			/* we are using a pic32mx so select ejtag port
+			/* we are using a pic32 so select ejtag port
 			 * as it is not selected by default */
 			mips_ejtag_set_instr(ejtag_info, MTAP_SW_ETAP);
 			LOG_DEBUG("PIC32 Detected - using EJTAG Interface");
@@ -1266,6 +1260,28 @@ static int mips_m4k_bulk_write_memory(struct target *target, target_addr_t addre
 		LOG_ERROR("Fastdata access Failed");
 
 	return retval;
+}
+
+static int mips_m4k_bulk_read_memory(struct target *target, uint32_t address, uint32_t count, uint32_t  *buf)
+{
+	struct mips32_common *mips32 = target_to_mips32(target);
+	struct mips_ejtag *ejtag_info = &mips32->ejtag_info;
+
+	LOG_DEBUG("address: 0x%8.8" PRIx32 ", count: 0x%8.8" PRIx32 "", address, count);
+
+	if (mips32->fast_data_area == NULL) {
+		int retval = target_alloc_working_area(target, MIPS32_FASTDATA_HANDLER_SIZE,
+								&mips32->fast_data_area);
+		if (retval != ERROR_OK) {
+			LOG_ERROR("No working area available");
+			return retval;
+		}
+
+		ejtag_info->fast_access_save = -1;	/* force handler reload */
+	}
+
+	int write_t = 0;
+	return mips32_pracc_fastdata_xfer(ejtag_info, mips32->fast_data_area, write_t, address, count, buf);
 }
 
 static int mips_m4k_verify_pointer(struct command_context *cmd_ctx,

@@ -925,6 +925,13 @@ int mips32_pracc_read_regs(struct mips_ejtag *ejtag_info, uint32_t *regs)
 int mips32_pracc_fastdata_xfer(struct mips_ejtag *ejtag_info, struct working_area *source,
 		int write_t, uint32_t addr, int count, uint32_t *buf)
 {
+	/* one byte for spracc, four for data, per fastdata scan */
+	uint8_t *in_buf = malloc(5 * XFER_BLOCK  * sizeof(uint8_t));
+	if (in_buf == NULL) {
+		LOG_ERROR("Out of memory");
+		return ERROR_FAIL;
+	}
+
 	uint32_t isa = ejtag_info->isa ? 1 : 0;
 	uint32_t handler_code[] = {
 		/* $15 already points to xfer area, loaded in jump code */
@@ -956,13 +963,19 @@ int mips32_pracc_fastdata_xfer(struct mips_ejtag *ejtag_info, struct working_are
 
 	pracc_swap16_array(ejtag_info, handler_code, ARRAY_SIZE(handler_code));
 		/* write program into RAM */
+
+	int retval;
 	if (write_t != ejtag_info->fast_access_save) {
-		mips32_pracc_write_mem(ejtag_info, source->address, 4, ARRAY_SIZE(handler_code), handler_code);
+		retval = mips32_pracc_write_mem(ejtag_info, source->address, 4, ARRAY_SIZE(handler_code),
+						handler_code);
+		if (retval != ERROR_OK)
+			goto exit_free;
+
 		/* save previous operation to speed to any consecutive read/writes */
 		ejtag_info->fast_access_save = write_t;
 	}
 
-	LOG_DEBUG("%s using 0x%.8" TARGET_PRIxADDR " for write handler", __func__, source->address);
+	LOG_DEBUG("%s using 0x%.8" TARGET_PRIxADDR " for r/w handler", __func__, source->address);
 
 	uint32_t jmp_code[] = {
 		MIPS32_LUI(isa, 8, UPPER16(source->address)),			/* load addr of jump in $8 */
@@ -972,12 +985,13 @@ int mips32_pracc_fastdata_xfer(struct mips_ejtag *ejtag_info, struct working_are
 	};
 
 	pracc_swap16_array(ejtag_info, jmp_code, ARRAY_SIZE(jmp_code));
+	mips_ejtag_update_clocks(ejtag_info);
 
 	/* execute jump code, with no address check */
 	for (unsigned i = 0; i < ARRAY_SIZE(jmp_code); i++) {
-		int retval = wait_for_pracc_rw(ejtag_info, 0);
+		retval = wait_for_pracc_rw(ejtag_info, 0);
 		if (retval != ERROR_OK)
-			return retval;
+			goto exit_free;
 
 		mips_ejtag_set_instr(ejtag_info, EJTAG_INST_DATA);
 		mips_ejtag_drscan_32_out(ejtag_info, jmp_code[i]);
@@ -987,48 +1001,81 @@ int mips32_pracc_fastdata_xfer(struct mips_ejtag *ejtag_info, struct working_are
 	}
 
 	/* wait PrAcc pending bit for FASTDATA write, read address */
-	int retval = wait_for_pracc_rw(ejtag_info, READ_ADDR);
+	retval = wait_for_pracc_rw(ejtag_info, READ_ADDR);
 	if (retval != ERROR_OK)
-		return retval;
+		goto exit_free;
 
 	/* next fetch to dmseg should be in FASTDATA_AREA, check */
-	if (ejtag_info->pa_addr != MIPS32_PRACC_FASTDATA_AREA)
-		return ERROR_FAIL;
-
-	mips_ejtag_update_clocks(ejtag_info);
+	if (ejtag_info->pa_addr != MIPS32_PRACC_FASTDATA_AREA) {
+		retval = ERROR_FAIL;
+		goto exit;
+	}
 
 	/* Send the load start address */
 	uint32_t val = addr;
-	mips_ejtag_fastdata_scan(ejtag_info, 1, &val, 1);
+	mips_ejtag_fastdata_scan(ejtag_info, 1, &val, in_buf, 1);
 
 	retval = wait_for_pracc_rw(ejtag_info, 0);
 	if (retval != ERROR_OK)
-		return retval;
+		goto exit_free;
 
 	/* Send the load end address */
 	val = addr + (count - 1) * 4;
-	mips_ejtag_fastdata_scan(ejtag_info, 1, &val, 1);
+	mips_ejtag_fastdata_scan(ejtag_info, 1, &val, in_buf, 1);
 
+	int failed_scan = 0;
+	int consecutive_fails = 0;
 	while (count) {
+		int fails = 0;
 		int this_round_count = count > XFER_BLOCK ? XFER_BLOCK : count;
-		mips_ejtag_fastdata_scan(ejtag_info, 1, buf, this_round_count);
+		mips_ejtag_fastdata_scan(ejtag_info, write_t, buf, in_buf, this_round_count);
 
 		retval = jtag_execute_queue();
 		if (retval != ERROR_OK) {
 			LOG_ERROR("fastdata load failed");
-			return retval;
+			goto exit_free;
 		}
 
-		buf += this_round_count;
-		count -= this_round_count;
+		for (int i = 0; i != this_round_count; i++) {
+			if (in_buf[i * 5] & 1) {	/* check spracc, 1: successful scan */
+				consecutive_fails = 0;
+				if (!write_t)
+					*buf++ = buf_get_u32(&in_buf[1 + (i * 5)], 0, 32);
+			} else {
+				fails++;
+				consecutive_fails++;
+			}
+		}
+
+		if (consecutive_fails > 1000) {	/* something is wrong, exception ?,  needs check, for now exit*/
+			LOG_ERROR("excessive fails");
+			goto exit;
+		}
+
+		if (fails)
+			failed_scan++;
+
+		if (write_t) {
+			if (failed_scan)
+				buf = NULL;	/* afterwards shift out only 0's */
+			else
+				buf += this_round_count;
+		}
+
+		count -= this_round_count - fails;	/* successful scans only */
 	}
 
+	if (failed_scan && write_t)
+		LOG_USER("failed to download, increase scan delay and or reduce scan rate");
+exit:
 	retval = wait_for_pracc_rw(ejtag_info, READ_ADDR);
 	if (retval != ERROR_OK)
-		return retval;
+		goto exit_free;
 
-	if (ejtag_info->pa_addr != MIPS32_PRACC_TEXT)
+	if (ejtag_info->pa_addr != MIPS32_PRACC_TEXT)	/* should not occur, but... */
 		LOG_ERROR("mini program did not return to start");
 
+exit_free:
+	free(in_buf);
 	return retval;
 }
