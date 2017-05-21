@@ -73,6 +73,8 @@
 #include "mips32.h"
 #include "mips32_pracc.h"
 
+const char *excep_code[] = {EXCEPTION_CODE_LIST};
+
 static int wait_for_pracc_rw(struct mips_ejtag *ejtag_info, bool read_addr)
 {
 	int64_t then = timeval_ms();
@@ -151,6 +153,26 @@ int mips32_pracc_clean_text_jump(struct mips_ejtag *ejtag_info)
 	}
 
 	return ERROR_OK;
+}
+
+static void pracc_log_debug_mode_exception_info(struct mips_ejtag *ejtag_info)
+{
+	if (ejtag_info->exception_check)	/* avoid recursive calls */
+		return;
+
+	ejtag_info->exception_check = 1;
+
+	uint32_t val;
+	int retval = mips32_cp0_read(ejtag_info, &val, 23, 0);	/* read Cp0 Debug register */
+	uint32_t exc_addr;
+	if (retval == ERROR_OK)
+		retval = mips32_cp0_read(ejtag_info, &exc_addr, 24, 0);	/* read Cp0 DEPC register */
+
+	ejtag_info->exception_check = 0;
+
+	if (retval == ERROR_OK && (val & EJTAG_DEBUG_CAUSE_MASK) == 0)
+		LOG_WARNING("Debug mode exception, code: %s, triggered at address: %"PRIx32,
+			excep_code[(val & EJTAG_DEBUG_EXCEPCODE_MASK) >> EJTAG_DEBUG_EXCEPCODE_SHIFT], exc_addr);
 }
 
 int mips32_pracc_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_info *ctx,
@@ -238,7 +260,11 @@ int mips32_pracc_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_info *ct
 						restart = 1;
 						continue;
 					}
-					return ERROR_JTAG_DEVICE_ERROR;
+
+					if (ejtag_info->pa_addr == MIPS32_PRACC_TEXT)
+						return ERROR_PRACC_TEXT_JUMP;
+					else
+						return ERROR_JTAG_DEVICE_ERROR;
 				}
 				/* check for store instruction at dmseg */
 				uint32_t store_addr = ctx->pracc_list[code_count].addr;
@@ -350,6 +376,11 @@ inline void pracc_queue_free(struct pracc_queue_info *ctx)
 {
 	if (ctx->pracc_list != NULL)
 		free(ctx->pracc_list);
+
+	if (ctx->retval == ERROR_PRACC_TEXT_JUMP) {
+		ctx->retval = ERROR_JTAG_DEVICE_ERROR;	/* change to standard error code */
+		pracc_log_debug_mode_exception_info(ctx->ejtag_info);
+	}
 }
 
 int mips32_pracc_queue_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_info *ctx,

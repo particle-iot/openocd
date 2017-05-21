@@ -78,11 +78,15 @@
 #define EJTAG_DEBUG_DDBS		(1 << 3)
 #define EJTAG_DEBUG_DIB			(1 << 4)
 #define EJTAG_DEBUG_DINT		(1 << 5)
+#define EJTAG_DEBUG_CAUSE_MASK				0x3F	/* first 6 bits */
 #define EJTAG_DEBUG_OFFLINE		(1 << 7)
 #define EJTAG_DEBUG_SST			(1 << 8)
 #define EJTAG_DEBUG_NOSST		(1 << 9)
-#define EJTAG_DEBUG_DDBLIMPR	(1 << 18)
-#define EJTAG_DEBUG_DDBSIMPR	(1 << 19)
+#define EJTAG_DEBUG_EXCEPCODE_MASK			(0x1F << 10)	/* bits 10 to 14 */
+#define EJTAG_DEBUG_EXCEPCODE_SHIFT			10
+
+#define EJTAG_DEBUG_DDBLIMPR		(1 << 18)
+#define EJTAG_DEBUG_DDBSIMPR		(1 << 19)
 #define EJTAG_DEBUG_IEXI		(1 << 20)
 #define EJTAG_DEBUG_DBUSEP		(1 << 21)
 #define EJTAG_DEBUG_CACHEEP		(1 << 22)
@@ -200,6 +204,7 @@ struct mips_ejtag {
 	unsigned int ejtag_version;
 	uint32_t isa;
 	uint32_t endianness;
+	unsigned exception_check;	/* set while in exception check */
 
 	/* Memory-Mapped Registers. This addresses are not same on different
 	 * EJTAG versions. */

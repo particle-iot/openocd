@@ -23,9 +23,10 @@
 
 #ifndef OPENOCD_TARGET_MIPS32_PRACC_H
 #define OPENOCD_TARGET_MIPS32_PRACC_H
-
 #include <target/mips32.h>
 #include <target/mips_ejtag.h>
+
+#define ERROR_PRACC_TEXT_JUMP -2013	/* should not conflict with jtag error codes */
 
 #define MIPS32_PRACC_FASTDATA_AREA		0xFF200000
 #define MIPS32_PRACC_FASTDATA_SIZE		16
@@ -46,6 +47,41 @@
 #define PRACC_BLOCK	128	/* 1 Kbyte */
 #define READ_ADDR	1
 #define XFER_BLOCK	1024	/* 4 kbyte of data */
+
+/* Exception codes from Document Number: MD00090 Revision 6.02 July 10, 2015 */
+#define EXCEPTION_CODE_LIST \
+	"00 Interrupt",\
+	"01 Mod TLB modification exception",\
+	"02 TLB exception (load or instruction fetch)",\
+	"03 TLBS TLB exception (store)",\
+	"04 AdEL Address error exception (load or instruction fetch)",\
+	"05 AdES Address error exception (store)",\
+	"06 IBE Bus error exception (instruction fetch)",\
+	"07 DBE Bus error exception (data reference: load or store)",\
+	"08 Sys Syscall exception",\
+	"09 Bp Breakpoint exception / SDBBP in Debug Mode",\
+	"10 RI Reserved instruction exception",\
+	"11 CpU Coprocessor Unusable exception",\
+	"12 Ov Arithmetic Overflow exception",\
+	"13 Tr Trap exception",\
+	"14 MSA Floating-Point exception",\
+	"15 FPE Floating point exception",\
+	"16 IS1 Coprocessor 2 implementation specific exception",\
+	"17 CEU CorExtend Unusable",\
+	"18 C2E Precise Coprocessor 2 exception",\
+	"19 TLBRI TLB Read-Inhibit exception",\
+	"20 TLBXI TLB Execution-Inhibit exception",\
+	"21 MSADis MSA Disabled exception",\
+	"22 MDMX MDMX Unusable Exception",\
+	"23 WATCH Reference to WatchHi/WatchLo address",\
+	"24 MCheck Machine checkcore",\
+	"25 Thread Thread exceptions",\
+	"26 DSPDis DSP Module State Disabled exception",\
+	"27 GE Virtualized Guest Exception",\
+	"28 Reserved",\
+	"29 Reserved",\
+	"30 CacheErr Cache error",\
+	"31 Reserved"
 
 typedef struct {
 	uint32_t instr;

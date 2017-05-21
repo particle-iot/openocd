@@ -386,6 +386,7 @@ int mips32_init_arch_info(struct target *target, struct mips32_common *mips32, s
 	mips32->ejtag_info.mode[pa_mode] = opt_sync;	/* in sync with pracc */
 	mips32->ejtag_info.isa = 0;	/* isa on debug mips32, updated by poll function */
 	mips32->ejtag_info.config_regs = 0;	/* no config register read */
+	mips32->ejtag_info.exception_check = 0; /* no exception_check in progress */
 	return ERROR_OK;
 }
 
