@@ -445,6 +445,10 @@ static int update_halt_gdb(struct target *target, enum target_debug_reason debug
 
 	if (debug_reason == DBG_REASON_NOTHALTED) {
 		LOG_INFO("Halting remaining targets in SMP group");
+		if (target->gdb_service && target->gdb_service->core[0] == -1) {
+			target->gdb_service->target = target;
+			target->gdb_service->core[0] = target->coreid;
+		}
 		aarch64_halt_smp(target, true);
 	}
 
@@ -479,6 +483,21 @@ static int update_halt_gdb(struct target *target, enum target_debug_reason debug
 	return ERROR_OK;
 }
 
+static struct target *get_aarch64(struct target *target, int32_t coreid)
+{
+	struct target_list *head;
+	struct target *curr;
+
+	head = target->head;
+	while (head != (struct target_list *)NULL) {
+		curr = head->target;
+		if ((curr->coreid == coreid) && (curr->state == TARGET_HALTED))
+			return curr;
+		head = head->next;
+	}
+	return target;
+}
+
 /*
  * Aarch64 Run control
  */
@@ -488,6 +507,19 @@ static int aarch64_poll(struct target *target)
 	enum target_state prev_target_state;
 	int retval = ERROR_OK;
 	int halted;
+
+	/*  toggle to another core is done by gdb as follow */
+	/*  maint packet J core_id */
+	/*  continue */
+	/*  the next polling trigger an halt event sent to gdb */
+	if ((target->state == TARGET_HALTED) && (target->smp) &&
+	    (target->gdb_service) &&
+	    (target->gdb_service->target == NULL)) {
+		target->gdb_service->target =
+			get_aarch64(target, target->gdb_service->core[1]);
+		target_call_event_callbacks(target, TARGET_EVENT_HALTED);
+		return retval;
+	}
 
 	retval = aarch64_check_state_one(target,
 				PRSR_HALT, PRSR_HALT, &halted, NULL);
@@ -816,6 +848,16 @@ static int aarch64_resume(struct target *target, int current,
 	if (target->state != TARGET_HALTED)
 		return ERROR_TARGET_NOT_HALTED;
 
+	/* dummy resume for smp toggle in order to reduce gdb impact  */
+	if ((target->smp) && (target->gdb_service->core[1] != -1)) {
+		/* simulate a start and halt of target */
+		target->gdb_service->target = NULL;
+		target->gdb_service->core[0] = target->gdb_service->core[1];
+		/* fake resume at next poll we play the  target core[1], see poll*/
+		target_call_event_callbacks(target, TARGET_EVENT_RESUMED);
+		return 0;
+	}
+
 	/*
 	 * If this target is part of a SMP group, prepare the others
 	 * targets for resuming. This involves restoring the complete
@@ -823,6 +865,7 @@ static int aarch64_resume(struct target *target, int current,
 	 * resume events from the trigger matrix.
 	 */
 	if (target->smp) {
+		target->gdb_service->core[0] = -1;
 		retval = aarch64_prep_restart_smp(target, handle_breakpoints, NULL);
 		if (retval != ERROR_OK)
 			return retval;
@@ -2369,6 +2412,28 @@ COMMAND_HANDLER(aarch64_handle_smp_on_command)
 	return ERROR_OK;
 }
 
+COMMAND_HANDLER(aarch64_handle_smp_gdb_command)
+{
+	struct target *target = get_current_target(CMD_CTX);
+	int retval = ERROR_OK;
+	struct target_list *head;
+	head = target->head;
+	if (head != (struct target_list *)NULL) {
+		if (CMD_ARGC == 1) {
+			int coreid = 0;
+			COMMAND_PARSE_NUMBER(int, CMD_ARGV[0], coreid);
+			if (ERROR_OK != retval)
+				return retval;
+			target->gdb_service->core[1] = coreid;
+
+		}
+		command_print(CMD_CTX, "gdb coreid  %" PRId32 " -> %" PRId32,
+			      target->gdb_service->core[0],
+			      target->gdb_service->core[1]);
+	}
+	return ERROR_OK;
+}
+
 static const struct command_registration aarch64_exec_command_handlers[] = {
 	{
 		.name = "cache_info",
@@ -2395,6 +2460,13 @@ static const struct command_registration aarch64_exec_command_handlers[] = {
 		.handler = aarch64_handle_smp_on_command,
 		.mode = COMMAND_EXEC,
 		.help = "Restart smp handling",
+		.usage = "",
+	},
+	{
+		.name = "smp_gdb",
+		.handler = aarch64_handle_smp_gdb_command,
+		.mode = COMMAND_EXEC,
+		.help = "display/fix current core played to gdb",
 		.usage = "",
 	},
 
