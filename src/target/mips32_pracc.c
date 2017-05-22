@@ -155,7 +155,7 @@ int mips32_pracc_clean_text_jump(struct mips_ejtag *ejtag_info)
 	return ERROR_OK;
 }
 
-static void pracc_log_debug_mode_exception_info(struct mips_ejtag *ejtag_info)
+static void pracc_log_debug_mode_exception_info(struct mips_ejtag *ejtag_info, bool restore_regs)
 {
 	if (ejtag_info->exception_check)	/* avoid recursive calls */
 		return;
@@ -168,11 +168,14 @@ static void pracc_log_debug_mode_exception_info(struct mips_ejtag *ejtag_info)
 	if (retval == ERROR_OK)
 		retval = mips32_cp0_read(ejtag_info, &exc_addr, 24, 0);	/* read Cp0 DEPC register */
 
-	ejtag_info->exception_check = 0;
-
 	if (retval == ERROR_OK && (val & EJTAG_DEBUG_CAUSE_MASK) == 0)
 		LOG_WARNING("Debug mode exception, code: %s, triggered at address: %"PRIx32,
 			excep_code[(val & EJTAG_DEBUG_EXCEPCODE_MASK) >> EJTAG_DEBUG_EXCEPCODE_SHIFT], exc_addr);
+
+	if (restore_regs)	/* current pracc functions only take 3 registers at most */
+		mips32_pracc_restore_working_regs(ejtag_info, 8, 9);	/* restore $8, $9 and $15 */
+
+	ejtag_info->exception_check = 0;
 }
 
 int mips32_pracc_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_info *ctx,
@@ -379,7 +382,7 @@ inline void pracc_queue_free(struct pracc_queue_info *ctx)
 
 	if (ctx->retval == ERROR_PRACC_TEXT_JUMP) {
 		ctx->retval = ERROR_JTAG_DEVICE_ERROR;	/* change to standard error code */
-		pracc_log_debug_mode_exception_info(ctx->ejtag_info);
+		pracc_log_debug_mode_exception_info(ctx->ejtag_info, 1);
 	}
 }
 
@@ -484,6 +487,30 @@ int mips32_pracc_queue_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_in
 exit:
 	free(scan_in);
 	return retval;
+}
+
+int mips32_pracc_restore_working_regs(struct mips_ejtag *ejtag_info, unsigned first, unsigned last)
+{
+	if (last > 15 || first > last)
+		return ERROR_FAIL;
+
+	struct pracc_queue_info ctx = {.ejtag_info = ejtag_info};
+	pracc_queue_init(&ctx);
+
+	for (unsigned i = first; i <= last; i++)
+		pracc_add_li32(&ctx, i, ejtag_info->regs[i], 1);
+
+	pracc_add(&ctx, 0, MIPS32_B(ctx.isa, NEG16((ctx.code_count + 1) << ctx.isa)));
+	/* restore reg 15 from DeSave except if last == 15 */
+	last == 15 ? pracc_add(&ctx, 0, MIPS32_MTC0(ctx.isa, 15, 31, 0)) :	/* load $15 in DeSave */
+		pracc_add(&ctx, 0, MIPS32_MFC0(ctx.isa, 15, 31, 0));		/* restore $15 from DeSave */
+
+	ctx.retval = mips32_pracc_queue_exec(ejtag_info, &ctx, NULL, 1);
+	pracc_queue_free(&ctx);
+
+	if (ctx.retval != ERROR_OK)
+		LOG_ERROR("Failed to restore working registers");
+	return ctx.retval;
 }
 
 int mips32_pracc_read_u32(struct mips_ejtag *ejtag_info, uint32_t addr, uint32_t *buf)
