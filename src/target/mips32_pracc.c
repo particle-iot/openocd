@@ -973,6 +973,35 @@ int mips32_pracc_read_regs(struct mips_ejtag *ejtag_info, uint32_t *regs)
 	return ctx.retval;
 }
 
+static int mips32_pracc_xfer_check(struct mips_ejtag *ejtag_info, int *fail)
+{
+	int retval = wait_for_pracc_rw(ejtag_info, READ_ADDR);
+	if (retval != ERROR_OK)
+		return retval;
+
+	/* high casual latency ? */
+	if (ejtag_info->pa_addr == MIPS32_PRACC_FASTDATA_AREA) {	/* handler running, continue */
+		*fail = 0;
+		return ERROR_OK;
+	}
+
+	if (ejtag_info->pa_addr == MIPS32_PRACC_TEXT) {			/* handler not running */
+		unsigned mode = ejtag_info->mode[pa_mode];
+		ejtag_info->mode[pa_mode] = opt_sync;			/* force sync pa mode */
+
+		pracc_log_debug_mode_exception_info(ejtag_info, 0);
+		retval = mips32_pracc_restore_working_regs(ejtag_info, 8, 10);
+
+		ejtag_info->mode[pa_mode] = mode;			/* restore pa mode */
+		if (retval != ERROR_OK)
+			return retval;
+		*fail = 1;
+	} else
+		*fail = 2;	/* other addr than fastdata area or pracc text ? */
+
+	return ERROR_OK;
+}
+
 /* fastdata upload/download requires an initialized working area
  * to load the download code; it should not be called otherwise
  * fetch order from the fastdata area
@@ -1104,10 +1133,13 @@ int mips32_pracc_fastdata_xfer(struct mips_ejtag *ejtag_info, struct working_are
 				consecutive_fails++;
 			}
 		}
-
-		if (consecutive_fails > 1000) {	/* something is wrong, exception ?,  needs check, for now exit*/
-			LOG_ERROR("excessive fails");
-			goto exit;
+		/* check, consecutive_fails is cleared if no error found */
+		if (consecutive_fails > 100) {
+			retval = mips32_pracc_xfer_check(ejtag_info, &consecutive_fails);
+			if (retval != ERROR_OK || consecutive_fails == 1)
+				goto exit_free;
+			if (consecutive_fails == 2)
+				goto exit;
 		}
 
 		if (fails)
@@ -1124,14 +1156,14 @@ int mips32_pracc_fastdata_xfer(struct mips_ejtag *ejtag_info, struct working_are
 	}
 
 	if (failed_scan && write_t)
-		LOG_USER("failed to download, increase scan delay and or reduce scan rate");
+		LOG_USER("failed to download, increase scan delay and/or reduce scan rate");
 exit:
 	retval = wait_for_pracc_rw(ejtag_info, READ_ADDR);
 	if (retval != ERROR_OK)
 		goto exit_free;
 
 	if (ejtag_info->pa_addr != MIPS32_PRACC_TEXT)	/* should not occur, but... */
-		LOG_ERROR("mini program did not return to start");
+		LOG_ERROR("mini program did not return to start, address: %"PRIx32, ejtag_info->pa_addr);
 
 exit_free:
 	free(in_buf);
