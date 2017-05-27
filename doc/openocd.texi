@@ -5077,6 +5077,64 @@ flash bank flash2 ath79 0x20000000 0 0 0 $_TARGETNAME cs2
 
 @end deffn
 
+@deffn {Flash Driver} msoftspi
+@cindex Generic Cortex-M Bitbanging SPI Interface
+@cindex msoftspi
+
+This driver supports common serial SPI flash chips for any little-endian
+ARM-Cortex-M CPU connected via GPIO pins with memory mapped and word accessible
+output and input registers. No special bit set / clear facility is required.
+
+Setup requires the @var{base} parameter in order to identify
+the memory bank and four @var{*_addr}, @var{*_bit} pairs specifying
+word address and bit number of the GPIO ports of NCS (out), SCLK (out),
+MISO (in), MOSI pins (out). Other parameters are ignored:
+
+base 0 0 0 $_TARGETNAME ncs_addr ncs_bit sclk_addr sclk_bit miso_addr miso_bit mosi_addr mosi_bit
+
+@var{base} is used in write_image etc. to map a certain part of the CPU address space
+to this flash, but is arbitrary otherwise. Chip is autodetected via SPI command and
+matched against hardcoded list of types.
+
+The driver automatically uses 2-, 3-, or 4-byte addresses according to capacity.
+However, for most flash chips 4-byte address mode must be enabled separately,
+e. g. by "Enter 4-Byte Mode" command or setting a special control bit.
+
+GPIO clocks must be enabled, pins configured as GPIO output or input pins,
+respectively, in e. g. reset handler. If flash is connected with four I/O lines
+for QPI mode, the lines not used in SPI mode (HOLD, WP) must be taken into
+account, too. Non-volatile settings like QPI mode or block protection have
+to be disabled.
+
+SPI cycle time depends on CPU and peripheral clocks. Bitbanging might seem
+to be quite slow, but page programming time and data transfer via debug
+interface largely dominate anyway.
+
+Example for STM32F746G discovery board (PB6, PB2, PD12, PD11):
+
+@example
+flash bank_id $_FLASHNAME msoftspi 0x90000000 0 0 0 $_TARGETNAME
+    0x40020414 6 0x40020414 2 0x40020C10 12 0x40020C14 11
+@end example
+
+There are three specific commands
+@deffn Command {msoftspi mass_erase} bank_id
+Performs a mass erase.
+@end deffn
+
+@deffn Command {msoftspi setparms} bank_id name total_size page_size mass_erase_cmd sector_size sector_erase_cmd
+Set flash parameters: @var{name} human readable string, @var{total_size} size in bytes,
+@var{page_size} is write page size. @var{mass_erase_cmd}, @var{sector_size} and @var{sector_erase_cmd}
+are optional. Required if chip id not hardcoded yet and e. g. for EEPROMs which don't support an id
+command at all.
+@end deffn
+
+@deffn Command {msoftspi spicmd} bank_id resp_num cmd_byte ...
+Sends command @var{cmd_byte} and following bytes and reads @var{resp_num} bytes afterwards.
+@end deffn
+
+@end deffn
+
 @subsection Internal Flash (Microcontrollers)
 
 @deffn {Flash Driver} aduc702x
