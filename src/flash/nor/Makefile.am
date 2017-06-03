@@ -33,6 +33,7 @@ NOR_DRIVERS = \
 	%D%/lpc2900.c \
 	%D%/lpcspifi.c \
 	%D%/mdr.c \
+	%D%/msp432p4.c \
 	%D%/mrvlqspi.c \
 	%D%/niietcm4.c \
 	%D%/non_cfi.c \
