@@ -260,6 +260,15 @@ static bb_value_t sysfsgpio_read(void)
 	return buf[0] == '0' ? BB_LOW : BB_HIGH;
 }
 
+/* This cache needs to be global since we have 2 different functions using it: */
+/* We can cache the old value to avoid needlessly writing it. */
+
+static int sysfsgpio_first_time;
+static int sysfsgpio_last_tck;
+static int sysfsgpio_last_tms;
+static int sysfsgpio_last_tdi;
+
+
 /*
  * Bitbang interface write of TCK, TMS, TDI
  *
@@ -276,45 +285,95 @@ static int sysfsgpio_write(int tck, int tms, int tdi)
 	const char one[] = "1";
 	const char zero[] = "0";
 
-	static int last_tck;
-	static int last_tms;
-	static int last_tdi;
-
-	static int first_time;
 	size_t bytes_written;
 
-	if (!first_time) {
-		last_tck = !tck;
-		last_tms = !tms;
-		last_tdi = !tdi;
-		first_time = 1;
+	if (!sysfsgpio_first_time) {
+		sysfsgpio_last_tck = !tck;
+		sysfsgpio_last_tms = !tms;
+		sysfsgpio_last_tdi = !tdi;
+		sysfsgpio_first_time = 1;
 	}
 
-	if (tdi != last_tdi) {
+	if (tdi != sysfsgpio_last_tdi) {
 		bytes_written = write(tdi_fd, tdi ? &one : &zero, 1);
 		if (bytes_written != 1)
 			LOG_WARNING("writing tdi failed");
 	}
 
-	if (tms != last_tms) {
+	if (tms != sysfsgpio_last_tms) {
 		bytes_written = write(tms_fd, tms ? &one : &zero, 1);
 		if (bytes_written != 1)
 			LOG_WARNING("writing tms failed");
 	}
 
 	/* write clk last */
-	if (tck != last_tck) {
+	if (tck != sysfsgpio_last_tck) {
 		bytes_written = write(tck_fd, tck ? &one : &zero, 1);
 		if (bytes_written != 1)
 			LOG_WARNING("writing tck failed");
 	}
 
-	last_tdi = tdi;
-	last_tms = tms;
-	last_tck = tck;
-
+	sysfsgpio_last_tdi = tdi;
+	sysfsgpio_last_tms = tms;
+	sysfsgpio_last_tck = tck;
 	return ERROR_OK;
 }
+
+/*
+ * Bitbang interface toggle several times with TMS, TDI
+ *
+ * Seeing as this is the only function where the outputs are changed,
+ * we can cache the old value to avoid needlessly writing it.
+ */
+static int sysfsgpio_toggle(unsigned int num_cycles, int tms, int tdi)
+{
+	if (swd_mode) {
+		for (unsigned int i = 0; i < num_cycles; i++) {
+			sysfsgpio_swdio_write(0, tdi);
+			sysfsgpio_swdio_write(1, tdi);
+		}
+		return ERROR_OK;
+	}
+
+	const char one[] = "1";
+	const char zero[] = "0";
+
+	size_t bytes_written;
+
+	if (!sysfsgpio_first_time) {
+		sysfsgpio_last_tms = !tms;
+		sysfsgpio_last_tdi = !tdi;
+		sysfsgpio_first_time = 1;
+	}
+
+	if (tdi != sysfsgpio_last_tdi) {
+		bytes_written = write(tdi_fd, tdi ? &one : &zero, 1);
+		if (bytes_written != 1)
+			LOG_WARNING("writing tdi failed");
+	}
+
+	if (tms != sysfsgpio_last_tms) {
+		bytes_written = write(tms_fd, tms ? &one : &zero, 1);
+		if (bytes_written != 1)
+			LOG_WARNING("writing tms failed");
+	}
+
+	/* write clk last */
+	for (unsigned int i = 0; i < num_cycles; i++) {
+		bytes_written = write(tck_fd, &zero, 1);
+		if (bytes_written != 1)
+			LOG_WARNING("writing tck failed");
+		bytes_written = write(tck_fd, &one, 1);
+		if (bytes_written != 1)
+			LOG_WARNING("writing tck failed");
+	}
+
+	sysfsgpio_last_tdi = tdi;
+	sysfsgpio_last_tms = tms;
+	sysfsgpio_last_tck = 1;
+	return ERROR_OK;
+}
+
 
 /*
  * Bitbang interface to manipulate reset lines SRST and TRST
@@ -536,6 +595,7 @@ struct jtag_interface sysfsgpio_interface = {
 static struct bitbang_interface sysfsgpio_bitbang = {
 	.read = sysfsgpio_read,
 	.write = sysfsgpio_write,
+	.toggle = sysfsgpio_toggle,
 	.reset = sysfsgpio_reset,
 	.swdio_read = sysfsgpio_swdio_read,
 	.swdio_drive = sysfsgpio_swdio_drive,

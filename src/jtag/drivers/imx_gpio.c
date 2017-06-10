@@ -84,6 +84,7 @@ static inline bool gpio_level(int g)
 
 static bb_value_t imx_gpio_read(void);
 static int imx_gpio_write(int tck, int tms, int tdi);
+static int imx_gpio_toggle(unsigned int num_cycles, int tms, int tdi);
 static int imx_gpio_reset(int trst, int srst);
 
 static int imx_gpio_swdio_read(void);
@@ -96,6 +97,7 @@ static struct bitbang_interface imx_gpio_bitbang = {
 	.read = imx_gpio_read,
 	.write = imx_gpio_write,
 	.reset = imx_gpio_reset,
+	.toggle = imx_gpio_toggle,
 	.swdio_read = imx_gpio_swdio_read,
 	.swdio_drive = imx_gpio_swdio_drive,
 	.blink = NULL
@@ -132,6 +134,30 @@ static bb_value_t imx_gpio_read(void)
 {
 	return gpio_level(tdo_gpio) ? BB_HIGH : BB_LOW;
 }
+
+static int imx_gpio_toggle(unsigned int num_cycles, int tms, int tdi)
+{
+	tms ? gpio_set(tms_gpio) : gpio_clear(tms_gpio);
+	tdi ? gpio_set(tdi_gpio) : gpio_clear(tdi_gpio);
+
+	if (jtag_delay) {
+		for (unsigned int i = 0; i < num_cycles; i++) {
+			gpio_clear(tck_gpio);
+			for (unsigned int j = 0; j < jtag_delay; j++)
+				asm volatile ("");
+			gpio_set(tck_gpio);
+			for (unsigned int k = 0; k < jtag_delay; k++)
+				asm volatile ("");
+		}
+	} else {
+		for (unsigned int i = 0; i < num_cycles; i++) {
+			gpio_clear(tck_gpio);
+			gpio_set(tck_gpio);
+		}
+	}
+	return ERROR_OK;
+}
+
 
 static int imx_gpio_write(int tck, int tms, int tdi)
 {
