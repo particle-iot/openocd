@@ -111,6 +111,7 @@ static uint32_t *pio_base;
  */
 static int at91rm9200_read(void);
 static void at91rm9200_write(int tck, int tms, int tdi);
+static void at91rm9200_toggle(unsigned int num_cycles, int tms, int tdi);
 static void at91rm9200_reset(int trst, int srst);
 
 static int at91rm9200_init(void);
@@ -119,6 +120,7 @@ static int at91rm9200_quit(void);
 static struct bitbang_interface at91rm9200_bitbang = {
 	.read = at91rm9200_read,
 	.write = at91rm9200_write,
+	.toggle = at91rm9200_toggle,
 	.reset = at91rm9200_reset,
 	.blink = 0
 };
@@ -145,6 +147,25 @@ static void at91rm9200_write(int tck, int tms, int tdi)
 	else
 		pio_base[device->TDI_PIO + PIO_CODR] = device->TDI_MASK;
 }
+
+static void at91rm9200_toggle(unsigned int num_cycles, int tms, int tdi)
+{
+	if (tms)
+		pio_base[device->TMS_PIO + PIO_SODR] = device->TMS_MASK;
+	else
+		pio_base[device->TMS_PIO + PIO_CODR] = device->TMS_MASK;
+
+	if (tdi)
+		pio_base[device->TDI_PIO + PIO_SODR] = device->TDI_MASK;
+	else
+		pio_base[device->TDI_PIO + PIO_CODR] = device->TDI_MASK;
+
+	for (unsigned int i = 0; i < num_cycles ; i++) {
+		pio_base[device->TCK_PIO + PIO_CODR] = device->TCK_MASK;
+		pio_base[device->TCK_PIO + PIO_SODR] = device->TCK_MASK;
+	}
+}
+
 
 /* (1) assert or (0) deassert reset lines */
 static void at91rm9200_reset(int trst, int srst)

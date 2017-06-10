@@ -84,6 +84,7 @@ static inline bool gpio_level(int g)
 
 static int imx_gpio_read(void);
 static void imx_gpio_write(int tck, int tms, int tdi);
+static void imx_gpio_toggle(unsigned int num_cycles, int tms, int tdi);
 static void imx_gpio_reset(int trst, int srst);
 
 static int imx_gpio_swdio_read(void);
@@ -96,6 +97,7 @@ static struct bitbang_interface imx_gpio_bitbang = {
 	.read = imx_gpio_read,
 	.write = imx_gpio_write,
 	.reset = imx_gpio_reset,
+	.toggle = imx_gpio_toggle,
 	.swdio_read = imx_gpio_swdio_read,
 	.swdio_drive = imx_gpio_swdio_drive,
 	.blink = NULL
@@ -132,6 +134,29 @@ static int imx_gpio_read(void)
 {
 	return gpio_level(tdo_gpio);
 }
+
+static void imx_gpio_toggle(unsigned int num_cycles, int tms, int tdi)
+{
+	tms ? gpio_set(tms_gpio) : gpio_clear(tms_gpio);
+	tdi ? gpio_set(tdi_gpio) : gpio_clear(tdi_gpio);
+
+	if (jtag_delay) {
+		for (unsigned int i = 0; i < num_cycles; i++) {
+			gpio_clear(tck_gpio);
+			for (unsigned int i = 0; i < jtag_delay; i++)
+				asm volatile ("");
+			gpio_set(tck_gpio);
+			for (unsigned int i = 0; i < jtag_delay; i++)
+				asm volatile ("");
+		}
+	} else {
+		for (unsigned int i = 0; i < num_cycles; i++) {
+			gpio_clear(tck_gpio);
+			gpio_set(tck_gpio);
+		}
+	}
+}
+
 
 static void imx_gpio_write(int tck, int tms, int tdi)
 {
@@ -468,7 +493,7 @@ static int imx_gpio_init(void)
 	}
 
 
-	LOG_INFO("imx_gpio mmap: pagesize: %u, regionsize: %u",
+	LOG_INFO("imx_gpio mmap: pagesize: %lu, regionsize: %u",
 			sysconf(_SC_PAGE_SIZE), IMX_GPIO_REGS_COUNT * IMX_GPIO_SIZE);
 	pio_base = mmap(NULL, IMX_GPIO_REGS_COUNT * IMX_GPIO_SIZE,
 				PROT_READ | PROT_WRITE,

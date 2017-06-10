@@ -34,6 +34,8 @@
 #include <sys/mman.h>
 
 static uint8_t output_value;
+static uint8_t output_value1;
+
 static int dev_mem_fd;
 static void *gpio_controller;
 static volatile uint8_t *gpio_data_register;
@@ -43,6 +45,7 @@ static volatile uint8_t *gpio_data_direction_register;
  */
 static int ep93xx_read(void);
 static void ep93xx_write(int tck, int tms, int tdi);
+static void ep93xx_toggle(unsigned int num_cycles, int tms, int tdi);
 static void ep93xx_reset(int trst, int srst);
 
 static int ep93xx_init(void);
@@ -63,6 +66,7 @@ struct jtag_interface ep93xx_interface = {
 static struct bitbang_interface ep93xx_bitbang = {
 	.read = ep93xx_read,
 	.write = ep93xx_write,
+	.toggle = ep93xx_toggle,
 	.reset = ep93xx_reset,
 	.blink = 0,
 };
@@ -92,6 +96,37 @@ static void ep93xx_write(int tck, int tms, int tdi)
 	*gpio_data_register = output_value;
 	nanosleep(&ep93xx_zzzz, NULL);
 }
+
+static void ep93xx_toggle(unsigned int num_cycles, int tms, int tdi)
+{
+	output_value1 = output_value;
+	output_value1 |= TCK_BIT;
+	output_value &= ~TCK_BIT;
+
+	if (tms) {
+		output_value |= TMS_BIT;
+		output_value1 |= TMS_BIT;
+	} else {
+		output_value &= ~TMS_BIT;
+		output_value1 &= ~TMS_BIT;
+	}
+
+	if (tdi) {
+		output_value |= TDI_BIT;
+		output_value1 |= TDI_BIT;
+	} else {
+		output_value &= ~TDI_BIT;
+		output_value1 &= ~TDI_BIT;
+	}
+
+	for (unsigned int i = 0; i < num_cycles; i++) {
+		*gpio_data_register = output_value;
+		nanosleep(&ep93xx_zzzz, NULL);
+		*gpio_data_register = output_value1;
+		nanosleep(&ep93xx_zzzz, NULL);
+	}
+}
+
 
 /* (1) assert or (0) deassert reset lines */
 static void ep93xx_reset(int trst, int srst)

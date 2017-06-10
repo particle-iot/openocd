@@ -33,6 +33,7 @@ struct bitbang_interface {
 	void (*blink)(int on);
 	int (*swdio_read)(void);
 	void (*swdio_drive)(bool on);
+	void (*toggle)(unsigned int num_cycles, int tms, int tdi);
 };
 
 const struct swd_driver bitbang_swd;
