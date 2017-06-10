@@ -72,6 +72,15 @@ static int dummy_write(int tck, int tms, int tdi)
 	return ERROR_OK;
 }
 
+static int dummy_toggle(unsigned int num_cycles, int tms, int tdi)
+{
+	for (unsigned int i = 0; i < num_cycles; i++) {
+		dummy_write(0, tms, tdi);
+		dummy_write(1, tms, tdi);
+	}
+	return ERROR_OK;
+}
+
 static int dummy_reset(int trst, int srst)
 {
 	dummy_clock = 0;
@@ -91,6 +100,7 @@ static int dummy_led(int on)
 static struct bitbang_interface dummy_bitbang = {
 		.read = &dummy_read,
 		.write = &dummy_write,
+		.toggle = &dummy_toggle,
 		.reset = &dummy_reset,
 		.blink = &dummy_led,
 	};

@@ -173,6 +173,16 @@ static int parport_write(int tck, int tms, int tdi)
 	return ERROR_OK;
 }
 
+static int parport_toggle(unsigned int num_cycles, int tms, int tdi)
+{
+	for (unsigned int i = 0; i < num_cycles; i++) {
+		parport_write(0, tms, tdi);
+		parport_write(1, tms, tdi);
+	}
+	return ERROR_OK;
+}
+
+
 /* (1) assert or (0) deassert reset lines */
 static int parport_reset(int trst, int srst)
 {
@@ -260,6 +270,7 @@ static int parport_get_giveio_access(void)
 static struct bitbang_interface parport_bitbang = {
 		.read = &parport_read,
 		.write = &parport_write,
+		.toggle = &parport_toggle,
 		.reset = &parport_reset,
 		.blink = &parport_led,
 	};
