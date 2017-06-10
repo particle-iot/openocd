@@ -67,6 +67,8 @@ struct bitbang_interface *bitbang_interface;
  */
 #define CLOCK_IDLE() 0
 
+#define TOGGLE 1
+
 /* The bitbang driver leaves the TCK 0 when in idle */
 static void bitbang_end_state(tap_state_t state)
 {
@@ -86,8 +88,12 @@ static void bitbang_state_move(int skip)
 
 	for (i = skip; i < tms_count; i++) {
 		tms = (tms_scan >> i) & 1;
+#ifdef TOGGLE
+		bitbang_interface->toggle(1, tms, 0);
+#else
 		bitbang_interface->write(0, tms, 0);
 		bitbang_interface->write(1, tms, 0);
+#endif
 	}
 	bitbang_interface->write(CLOCK_IDLE(), tms, 0);
 
@@ -108,8 +114,12 @@ static int bitbang_execute_tms(struct jtag_command *cmd)
 	int tms = 0;
 	for (unsigned i = 0; i < num_bits; i++) {
 		tms = ((bits[i/8] >> (i % 8)) & 1);
+#ifdef TOGGLE
+		bitbang_interface->toggle(1, tms, 0);
+#else
 		bitbang_interface->write(0, tms, 0);
 		bitbang_interface->write(1, tms, 0);
+#endif
 	}
 	bitbang_interface->write(CLOCK_IDLE(), tms, 0);
 
@@ -134,10 +144,12 @@ static void bitbang_path_move(struct pathmove_command *cmd)
 				tap_state_name(cmd->path[state_count]));
 			exit(-1);
 		}
-
+#ifdef TOGGLE
+		bitbang_interface->toggle(1, tms, 0);
+#else
 		bitbang_interface->write(0, tms, 0);
 		bitbang_interface->write(1, tms, 0);
-
+#endif
 		tap_set_state(cmd->path[state_count]);
 		state_count++;
 		num_states--;
@@ -150,7 +162,9 @@ static void bitbang_path_move(struct pathmove_command *cmd)
 
 static void bitbang_runtest(int num_cycles)
 {
+#ifndef TOGGLE
 	int i;
+#endif
 
 	tap_state_t saved_end_state = tap_get_end_state();
 
@@ -161,10 +175,15 @@ static void bitbang_runtest(int num_cycles)
 	}
 
 	/* execute num_cycles */
+#ifdef TOGGLE
+	bitbang_interface->toggle(num_cycles, 0, 0);
+#else
 	for (i = 0; i < num_cycles; i++) {
 		bitbang_interface->write(0, 0, 0);
 		bitbang_interface->write(1, 0, 0);
 	}
+#endif
+
 	bitbang_interface->write(CLOCK_IDLE(), 0, 0);
 
 	/* finish in end_state */
@@ -176,13 +195,19 @@ static void bitbang_runtest(int num_cycles)
 static void bitbang_stableclocks(int num_cycles)
 {
 	int tms = (tap_get_state() == TAP_RESET ? 1 : 0);
+#ifndef TOGGLE
 	int i;
+#endif
 
 	/* send num_cycles clocks onto the cable */
+#ifdef TOGGLE
+	bitbang_interface->write(num_cycles, tms, 0);
+#else
 	for (i = 0; i < num_cycles; i++) {
 		bitbang_interface->write(1, tms, 0);
 		bitbang_interface->write(0, tms, 0);
 	}
+#endif
 }
 
 static void bitbang_scan(bool ir_scan, enum scan_type type, uint8_t *buffer, int scan_size)

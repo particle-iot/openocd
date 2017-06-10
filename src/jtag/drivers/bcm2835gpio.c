@@ -51,6 +51,8 @@ static volatile uint32_t *pio_base;
 
 static int bcm2835gpio_read(void);
 static void bcm2835gpio_write(int tck, int tms, int tdi);
+static void bcm2835gpio_toggle(unsigned int num_cycles, int tms, int tdi);
+
 static void bcm2835gpio_reset(int trst, int srst);
 
 static int bcm2835_swdio_read(void);
@@ -62,6 +64,7 @@ static int bcm2835gpio_quit(void);
 static struct bitbang_interface bcm2835gpio_bitbang = {
 	.read = bcm2835gpio_read,
 	.write = bcm2835gpio_write,
+	.toggle = bcm2835gpio_toggle,
 	.reset = bcm2835gpio_reset,
 	.swdio_read = bcm2835_swdio_read,
 	.swdio_drive = bcm2835_swdio_drive,
@@ -107,6 +110,26 @@ static void bcm2835gpio_write(int tck, int tms, int tdi)
 	for (unsigned int i = 0; i < jtag_delay; i++)
 		asm volatile ("");
 }
+
+static void bcm2835gpio_toggle(unsigned int num_cycles, int tms, int tdi)
+{
+	uint32_t set0 = 0<<tck_gpio | tms<<tms_gpio | tdi<<tdi_gpio;
+	uint32_t clear0 = 1<<tck_gpio | !tms<<tms_gpio | !tdi<<tdi_gpio;
+	uint32_t set1 = 1<<tck_gpio | tms<<tms_gpio | tdi<<tdi_gpio;
+	uint32_t clear1 = 0<<tck_gpio | !tms<<tms_gpio | !tdi<<tdi_gpio;
+
+	for (unsigned int j = 0; j < num_cycles; j++) {
+		GPIO_SET = set0;
+		GPIO_CLR = clear0;
+		for (unsigned int i = 0; i < jtag_delay; i++)
+			asm volatile ("");
+		GPIO_SET = set1;
+		GPIO_CLR = clear1;
+		for (unsigned int i = 0; i < jtag_delay; i++)
+			asm volatile ("");
+	}
+}
+
 
 static void bcm2835gpio_swd_write(int tck, int tms, int tdi)
 {

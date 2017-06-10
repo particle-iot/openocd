@@ -108,6 +108,17 @@ static void remote_bitbang_write(int tck, int tms, int tdi)
 	remote_bitbang_putc(c);
 }
 
+static void remote_bitbang_toggle(unsigned int num_cycles, int tms, int tdi)
+{
+	char c0 = '0' + (0x0 | (tms ? 0x2 : 0x0) | (tdi ? 0x1 : 0x0));
+	char c1 = '0' + (0x4 | (tms ? 0x2 : 0x0) | (tdi ? 0x1 : 0x0));
+
+	for (unsigned int i = 0; i < num_cycles; i++) {
+		remote_bitbang_putc(c0);
+		remote_bitbang_putc(c1);
+	}
+}
+
 static void remote_bitbang_reset(int trst, int srst)
 {
 	char c = 'r' + ((trst ? 0x2 : 0x0) | (srst ? 0x1 : 0x0));
@@ -123,6 +134,7 @@ static void remote_bitbang_blink(int on)
 static struct bitbang_interface remote_bitbang_bitbang = {
 	.read = &remote_bitbang_read,
 	.write = &remote_bitbang_write,
+	.toggle = &remote_bitbang_toggle,
 	.reset = &remote_bitbang_reset,
 	.blink = &remote_bitbang_blink,
 };
