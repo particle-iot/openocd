@@ -102,6 +102,7 @@
 #define AP_REG_IDR			0xFC		/* RO: Identification Register */
 
 /* Fields of the MEM-AP's CSW register */
+#define CSW_SIZE_MASK		7
 #define CSW_8BIT		0
 #define CSW_16BIT		1
 #define CSW_32BIT		2
@@ -180,6 +181,9 @@ struct adiv5_ap {
 
 	/* true if unaligned memory access is not supported by the MEM-AP */
 	bool unaligned_access_bad;
+
+	/* true if tar_value is in sync with TAR register */
+	bool tar_valid;
 };
 
 
