@@ -111,8 +111,7 @@ static int mem_ap_setup_csw(struct adiv5_ap *ap, uint32_t csw)
 
 static int mem_ap_setup_tar(struct adiv5_ap *ap, uint32_t tar)
 {
-	if (tar != ap->tar_value ||
-			(ap->csw_value & CSW_ADDRINC_MASK)) {
+	if (tar != ap->tar_value) {
 		/* LOG_DEBUG("DAP: Set TAR %x",tar); */
 		int retval = dap_queue_ap_write(ap, MEM_AP_REG_TAR, tar);
 		if (retval != ERROR_OK)
@@ -120,6 +119,16 @@ static int mem_ap_setup_tar(struct adiv5_ap *ap, uint32_t tar)
 		ap->tar_value = tar;
 	}
 	return ERROR_OK;
+}
+
+/* mem_ap_update_tar_cache is called after an access to MEM_AP_REG_DRW
+ * Currently there is no real increment implementation,
+ * just cached tar_value is invalidated
+ */
+static void mem_ap_update_tar_cache(struct adiv5_ap *ap)
+{
+	if (ap->csw_value & CSW_ADDRINC_MASK)
+		ap->tar_value = -1;
 }
 
 /**
@@ -364,6 +373,8 @@ static int mem_ap_write(struct adiv5_ap *ap, const uint8_t *buffer, uint32_t siz
 			retval = mem_ap_setup_tar(ap, address ^ addr_xor);
 			if (retval != ERROR_OK)
 				break;
+		} else {
+			mem_ap_update_tar_cache(ap);
 		}
 	}
 
@@ -469,6 +480,8 @@ static int mem_ap_read(struct adiv5_ap *ap, uint8_t *buffer, uint32_t size, uint
 			retval = mem_ap_setup_tar(ap, address);
 			if (retval != ERROR_OK)
 				break;
+		} else {
+			mem_ap_update_tar_cache(ap);
 		}
 	}
 
