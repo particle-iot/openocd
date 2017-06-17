@@ -136,7 +136,7 @@ int mips32_pracc_clean_text_jump(struct mips_ejtag *ejtag_info)
 		mips32_pracc_finish(ejtag_info);
 	}
 
-	if (ejtag_info->mode != 0)	/* async mode support only for MIPS ... */
+	if (ejtag_info->mode[pa_mode] == opt_async)	/* async mode support only for MIPS ... */
 		return ERROR_OK;
 
 	for (int i = 0; i != 2; i++) {
@@ -435,7 +435,7 @@ int mips32_pracc_queue_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_in
 
 	int retval = jtag_execute_queue();		/* execute queued scans */
 	if (retval != ERROR_OK)
-		goto exit;
+		goto exit_jtag_error;
 
 	uint32_t fetch_addr = MIPS32_PRACC_TEXT;		/* start address */
 	scan_count = 0;
@@ -456,7 +456,10 @@ int mips32_pracc_queue_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_in
 		if (addr != fetch_addr) {
 			LOG_ERROR("Fetch addr mismatch, read: %" PRIx32 " expected: %" PRIx32 " count: %d",
 					  addr, fetch_addr, scan_count);
-			retval = ERROR_FAIL;
+			if (addr == MIPS32_PRACC_TEXT)
+				retval = ERROR_PRACC_TEXT_JUMP;
+			else
+				retval = ERROR_FAIL;
 			goto exit;
 		}
 		fetch_addr += 4;
@@ -470,7 +473,10 @@ int mips32_pracc_queue_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_in
 
 			if (!(ejtag_ctrl & EJTAG_CTRL_PRNW)) {
 				LOG_ERROR("Not a store/write access, count: %d", scan_count);
-				retval = ERROR_FAIL;
+				if (addr == MIPS32_PRACC_TEXT)
+					retval = ERROR_PRACC_TEXT_JUMP;
+				else
+					retval = ERROR_FAIL;
 				goto exit;
 			}
 			if (addr != store_addr) {
@@ -485,6 +491,21 @@ int mips32_pracc_queue_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_in
 		}
 	}
 exit:
+	if (retval != ERROR_OK) {
+		LOG_USER("Warning! unknown sequence of code executed");
+		ejtag_info->mode[pa_mode] = opt_sync;				/* force sync pa mode */
+		if (retval == ERROR_PRACC_TEXT_JUMP)
+			pracc_log_debug_mode_exception_info(ejtag_info, 0);	/* log info, if any */
+
+		/* restore working registers, if no error the core fetches at pracc text again */
+		retval = mips32_pracc_restore_working_regs(ejtag_info, 8, 9);
+		if (retval == ERROR_OK)						/* works in sync mode ? */
+			ejtag_info->mode[pa_mode] = opt_async;			/* continue in async mode */
+		retval = ERROR_FAIL;						/* return standard error */
+	}
+
+exit_jtag_error:
+
 	free(scan_in);
 	return retval;
 }
