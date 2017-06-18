@@ -981,6 +981,8 @@ COMMAND_HANDLER(mips32_handle_scan_delay_command)
 const Jim_Nvp mode_options[] = {
 	{"sync",		(pa_mode << 8) + opt_sync},
 	{"async",		(pa_mode << 8) + opt_async},
+	{"mips32",		(core_mode << 8) + opt_mips32},
+	{"bmips32",		(core_mode << 8) + opt_bmips32},
 
 	{"help",		HELP_OPTION},
 
@@ -991,6 +993,8 @@ const Jim_Nvp mode_options[] = {
 const Jim_Nvp mode_messages[] = {
 	{" mode sync: in sync with pracc (safer)",		(pa_mode << 8) + opt_sync},
 	{" mode async: in async pracc mode (faster)",		(pa_mode << 8) + opt_async},
+	{" mode mips32: mips32 pracc mode",			(core_mode << 8) + opt_mips32},
+	{" mode bmips32: bmips32 pracc mode",			(core_mode << 8) + opt_bmips32},
 
 	{NULL, -1}
 };

@@ -400,7 +400,7 @@ int mips32_pracc_queue_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_in
 
 	mips_ejtag_update_clocks(ejtag_info);
 
-	if (ejtag_info->mode[pa_mode] == opt_sync)
+	if (ejtag_info->mode[pa_mode] == opt_sync || ejtag_info->mode[core_mode] == opt_bmips32)
 		return mips32_pracc_exec(ejtag_info, ctx, buf, check_last);
 
 	union scan_in {

@@ -235,14 +235,23 @@ error:
 
 int mips_ejtag_exit_debug(struct mips_ejtag *ejtag_info)
 {
-	pa_list pracc_list = {.instr = MIPS32_DRET(ejtag_info->isa), .addr = 0};
-	struct pracc_queue_info ctx = {.max_code = 1, .pracc_list = &pracc_list, .code_count = 1, .store_count = 0};
+	struct pracc_queue_info ctx = {.ejtag_info = ejtag_info};
+	pracc_queue_init(&ctx);
 
-	/* execute our dret instruction */
-	ctx.retval = mips32_pracc_queue_exec(ejtag_info, &ctx, NULL, 0); /* shift out instr, omit last check */
+	pracc_add(&ctx, 0, MIPS32_DRET(ctx.isa));
+
+	/* if bmips add 3 additional Nop's */
+	if (ejtag_info->mode[core_mode] == opt_bmips32)
+		for (int i = 0; i != 3; i++)
+			pracc_add(&ctx, 0, MIPS32_NOP);
+
+	/* execute our dret instruction, do not check */
+	ctx.retval = mips32_pracc_queue_exec(ejtag_info, &ctx, NULL, 0);
 
 	/* pic32mx workaround, false pending at low core clock */
 	jtag_add_sleep(1000);
+
+	pracc_queue_free(&ctx);
 	return ctx.retval;
 }
 

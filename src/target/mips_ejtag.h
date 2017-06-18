@@ -183,7 +183,8 @@
 
 enum working_modes {
 	pa_mode = 0,
-	max_mode = 1,
+	core_mode = 1,
+	max_mode = 2,
 };
 
 struct mips_ejtag {
@@ -230,6 +231,11 @@ struct mips_ejtag {
 enum pa_mode_opt {
 	opt_sync = 0,
 	opt_async = 1,
+};
+
+enum core_mode_opt {
+	opt_mips32 = 0,
+	opt_bmips32 = 1,
 };
 
 void mips_ejtag_set_instr(struct mips_ejtag *ejtag_info, uint32_t new_instr);

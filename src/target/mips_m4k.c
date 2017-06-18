@@ -1055,7 +1055,7 @@ static int mips_m4k_read_memory(struct target *target, target_addr_t address,
 		t = buffer;
 
 	int retval;
-	if (size == 4 && count > 32) {
+	if (size == 4 && count > 32 && ejtag_info->mode[core_mode] != opt_bmips32) {
 		retval = mips_m4k_bulk_read_memory(target, address, count, t);
 		if (retval == ERROR_OK)
 			goto save;
@@ -1095,7 +1095,7 @@ static int mips_m4k_write_memory(struct target *target, target_addr_t address,
 		return ERROR_TARGET_NOT_HALTED;
 	}
 
-	if (size == 4 && count > 32) {
+	if (size == 4 && count > 32 && ejtag_info->mode[core_mode] != opt_bmips32) {
 		int retval = mips_m4k_bulk_write_memory(target, address, count, buffer);
 		if (retval == ERROR_OK)
 			return ERROR_OK;
