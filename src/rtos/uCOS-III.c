@@ -71,6 +71,7 @@ static const struct uCOS_III_params uCOS_III_params_list[] = {
 };
 
 static const char * const uCOS_III_symbol_list[] = {
+	"OSDbg_VersionNbr",
 	"OSRunning",
 	"OSTCBCurPtr",
 	"OSTaskDbgListPtr",
@@ -87,6 +88,7 @@ static const char * const uCOS_III_symbol_list[] = {
 };
 
 enum uCOS_III_symbol_values {
+	uCOS_III_VAL_OSDbg_VersionNbr,
 	uCOS_III_VAL_OSRunning,
 	uCOS_III_VAL_OSTCBCurPtr,
 	uCOS_III_VAL_OSTaskDbgListPtr,
@@ -288,6 +290,26 @@ static int uCOS_III_update_threads(struct rtos *rtos)
 
 	/* free previous thread details */
 	rtos_free_threadlist(rtos);
+
+	/*
+	 * To prevent updating the thread list before the target has had a
+	 * chance to fully initialize, we first verify the version number
+	 * falls within the expected range.
+	 */
+	uint16_t rtos_version;
+
+	retval = target_read_u16(rtos->target,
+			rtos->symbols[uCOS_III_VAL_OSDbg_VersionNbr].address,
+			&rtos_version);
+	if (retval != ERROR_OK) {
+		LOG_ERROR("uCOS-III: failed to read RTOS version");
+		return retval;
+	}
+
+	if (rtos_version < 30000 || rtos_version > 39999) {
+		LOG_ERROR("uCOS-III: unexpected version: %" PRIu16, rtos_version);
+		return ERROR_FAIL;
+	}
 
 	/* verify RTOS is running */
 	uint8_t rtos_running;
