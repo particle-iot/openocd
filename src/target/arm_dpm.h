@@ -173,16 +173,16 @@ void arm_dpm_report_wfar(struct arm_dpm *, uint32_t wfar);
 
 
 /* Methods of entry into debug mode */
-#define DSCR_ENTRY_HALT_REQ           (0x0 << 2)
-#define DSCR_ENTRY_BREAKPOINT         (0x1 << 2)
-#define DSCR_ENTRY_IMPRECISE_WATCHPT  (0x2 << 2)
-#define DSCR_ENTRY_BKPT_INSTR         (0x3 << 2)
-#define DSCR_ENTRY_EXT_DBG_REQ        (0x4 << 2)
-#define DSCR_ENTRY_VECT_CATCH         (0x5 << 2)
-#define DSCR_ENTRY_D_SIDE_ABORT       (0x6 << 2)  /* v6 only */
-#define DSCR_ENTRY_I_SIDE_ABORT       (0x7 << 2)  /* v6 only */
-#define DSCR_ENTRY_OS_UNLOCK          (0x8 << 2)
-#define DSCR_ENTRY_PRECISE_WATCHPT    (0xA << 2)
+#define DSCR_ENTRY_HALT_REQ           0x0
+#define DSCR_ENTRY_BREAKPOINT         0x1
+#define DSCR_ENTRY_IMPRECISE_WATCHPT  0x2
+#define DSCR_ENTRY_BKPT_INSTR         0x3
+#define DSCR_ENTRY_EXT_DBG_REQ        0x4
+#define DSCR_ENTRY_VECT_CATCH         0x5
+#define DSCR_ENTRY_D_SIDE_ABORT       0x6  /* v6 only */
+#define DSCR_ENTRY_I_SIDE_ABORT       0x7  /* v6 only */
+#define DSCR_ENTRY_OS_UNLOCK          0x8
+#define DSCR_ENTRY_PRECISE_WATCHPT    0xA
 
 /* DTR modes */
 #define DSCR_EXT_DCC_NON_BLOCKING     (0x0 << 20)

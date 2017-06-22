@@ -598,17 +598,17 @@ static void ftdi_execute_command(struct jtag_command *cmd)
 static int ftdi_execute_queue(void)
 {
 	/* blink, if the current layout has that feature */
+	static int on = 0;
 	struct signal *led = find_signal_by_name("LED");
-	if (led)
-		ftdi_set_signal(led, '1');
+	if (led) {
+		ftdi_set_signal(led, on ? '1' : '0');
+		on ^= 1;
+	}
 
 	for (struct jtag_command *cmd = jtag_command_queue; cmd; cmd = cmd->next) {
 		/* fill the write buffer with the desired command */
 		ftdi_execute_command(cmd);
 	}
-
-	if (led)
-		ftdi_set_signal(led, '0');
 
 	int retval = mpsse_flush(mpsse_ctx);
 	if (retval != ERROR_OK)
@@ -660,6 +660,11 @@ static int ftdi_initialize(void)
 
 static int ftdi_quit(void)
 {
+	struct signal *led = find_signal_by_name("LED");
+	if (led)
+		ftdi_set_signal(led, '0');
+
+	mpsse_flush(mpsse_ctx);
 	mpsse_close(mpsse_ctx);
 
 	free(swd_cmd_queue);
@@ -943,7 +948,7 @@ static void ftdi_swd_swdio_en(bool enable)
  */
 static int ftdi_swd_run_queue(struct adiv5_dap *dap)
 {
-	LOG_DEBUG("Executing %zu queued transactions", swd_cmd_queue_length);
+	LOG_DEBUG("Executing %"PRIz"u queued transactions", swd_cmd_queue_length);
 	int retval;
 	struct signal *led = find_signal_by_name("LED");
 
@@ -1019,7 +1024,7 @@ static void ftdi_swd_queue_cmd(struct adiv5_dap *dap, uint8_t cmd, uint32_t *dst
 		if (q != NULL) {
 			swd_cmd_queue = q;
 			swd_cmd_queue_alloced *= 2;
-			LOG_DEBUG("Increased SWD command queue to %zu elements", swd_cmd_queue_alloced);
+			LOG_DEBUG("Increased SWD command queue to %"PRIz"u elements", swd_cmd_queue_alloced);
 		}
 	}
 

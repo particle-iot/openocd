@@ -197,6 +197,14 @@ struct target {
 
 	/* file-I/O information for host to do syscall */
 	struct gdb_fileio_info *fileio_info;
+
+	/** Shut off callbacks */
+	bool no_callbacks;
+
+	/* Some targets use CoreSight CTI to do restart */
+	bool restart_use_cti;
+	uint32_t restart_cti_reg_addr;
+	int restart_cti_channel;
 };
 
 struct target_list {

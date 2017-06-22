@@ -48,7 +48,7 @@
 #endif
 
 #define OPENOCD_VERSION	\
-	"Open On-Chip Debugger " VERSION RELSTR " (" PKGBLDDATE ")"
+	"Open On-Chip Debugger " PKGVERSION VERSION
 
 static const char openocd_startup_tcl[] = {
 #include "startup_tcl.inc"
@@ -184,6 +184,16 @@ COMMAND_HANDLER(handle_add_script_search_dir_command)
 	return ERROR_OK;
 }
 
+COMMAND_HANDLER(handle_firmware_command)
+{
+	if (CMD_ARGC != 1)
+		return ERROR_COMMAND_SYNTAX_ERROR;
+
+	set_firmware_filename(CMD_ARGV[0]);
+
+	return ERROR_OK;
+}
+
 static const struct command_registration openocd_command_handlers[] = {
 	{
 		.name = "version",
@@ -214,6 +224,12 @@ static const struct command_registration openocd_command_handlers[] = {
 		.mode = COMMAND_ANY,
 		.help = "dir to search for config files and scripts",
 		.usage = "<directory>"
+	},
+	{
+		.name = "firmware",
+		.handler = &handle_firmware_command,
+		.mode = COMMAND_CONFIG,
+		.help = "Set the firmware to be load.",
 	},
 	COMMAND_REGISTRATION_DONE
 };
@@ -327,9 +343,7 @@ int openocd_main(int argc, char *argv[])
 	if (ioutil_init(cmd_ctx) != ERROR_OK)
 		return EXIT_FAILURE;
 
-	LOG_OUTPUT("For bug reports, read\n\t"
-		"http://openocd.org/doc/doxygen/bugs.html"
-		"\n");
+	LOG_OUTPUT("Report bugs to %s\n", REPORT_BUGS_TO);
 
 	command_context_mode(cmd_ctx, COMMAND_CONFIG);
 	command_set_output_handler(cmd_ctx, configuration_output_handler, NULL);

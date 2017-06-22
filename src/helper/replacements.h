@@ -132,6 +132,14 @@ static inline unsigned usleep(unsigned int usecs)
 #endif
 #endif	/* HAVE_USLEEP */
 
+#ifndef HAVE_NANOSLEEP
+#include <unistd.h>
+#ifndef HAVE_STRUCT_TIMESPEC
+struct timespec { unsigned long tv_sec, tv_nsec; };
+#endif
+#define nanosleep(req, rem) usleep((req)->tv_sec * 1000 * 1000 + (req)->tv_nsec / 1000)
+#endif
+
 /* Windows specific */
 #ifdef _WIN32
 

@@ -208,7 +208,7 @@ int armv7a_mmu_translate_va(struct target *target,  uint32_t va, uint32_t *val)
 	}
 	retval = dpm->prepare(dpm);
 	if (retval != ERROR_OK)
-		goto done;
+		return retval;
 
 	/*  MRC p15,0,<Rt>,c2,c0,ttb */
 	retval = dpm->instr_read_data_r0(dpm,
@@ -226,11 +226,11 @@ int armv7a_mmu_translate_va(struct target *target,  uint32_t va, uint32_t *val)
 	/*  reuse armv4_5 piece of code, specific armv7a changes may come later */
 	LOG_DEBUG("1st lvl desc: %8.8" PRIx32 "", first_lvl_descriptor);
 
-	if ((first_lvl_descriptor & 0x3) == 0) {
+	if ((first_lvl_descriptor & 0x3) == 0
+		|| (first_lvl_descriptor & 0x3) == 3) {
 		LOG_ERROR("Address translation failure");
 		return ERROR_TARGET_TRANSLATION_FAULT;
 	}
-
 
 	if ((first_lvl_descriptor & 0x40002) == 2) {
 		/* section descriptor */
@@ -238,7 +238,7 @@ int armv7a_mmu_translate_va(struct target *target,  uint32_t va, uint32_t *val)
 		return ERROR_OK;
 	} else if ((first_lvl_descriptor & 0x40002) == 0x40002) {
 		/* supersection descriptor */
-		if (first_lvl_descriptor & 0x00f001e0) {
+		if ((first_lvl_descriptor & 0x00f001e0) != 0) {
 			LOG_ERROR("Physical address does not fit into 32 bits");
 			return ERROR_TARGET_TRANSLATION_FAULT;
 		}
@@ -272,9 +272,6 @@ int armv7a_mmu_translate_va(struct target *target,  uint32_t va, uint32_t *val)
 	}
 
 	return ERROR_OK;
-
-done:
-	return retval;
 }
 
 /*  V7 method VA TO PA  */
@@ -453,6 +450,168 @@ static int  armv7a_flush_all_data(struct target *target)
 	return retval;
 }
 
+int armv7a_invalidate_instruction_cache(struct target *target,
+	uint32_t address, uint32_t size, uint32_t count)
+{
+	struct armv7a_common *armv7a = target_to_armv7a(target);
+	struct arm_dpm *dpm = armv7a->arm.dpm;
+	uint32_t cacheline_size = armv7a->armv7a_mmu.armv7a_cache.i_size.linelen;
+	int retval;
+
+	if (target->state != TARGET_HALTED) {
+		LOG_ERROR("target not halted");
+		return ERROR_TARGET_NOT_HALTED;
+	}
+
+	/*  check that cache data is on at target halt */
+	if (!armv7a->armv7a_mmu.armv7a_cache.i_cache_enabled) {
+		LOG_DEBUG("instruction cache invalidation not performed : cache not on at target halt");
+		return ERROR_OK;
+	}
+
+	retval = dpm->prepare(dpm);
+	if (retval != ERROR_OK)
+		return retval;
+
+	/* ICIMVAU - Invalidate instruction cache by VA to PoU
+	 *      MCR p15, 0, r0, c7, c5, 1
+	 */
+	for (uint32_t cacheline = address & ~(cacheline_size - 1);
+		cacheline < address + size * count;
+		cacheline += cacheline_size) {
+		retval = dpm->instr_write_data_r0(dpm,
+				ARMV4_5_MCR(15, 0, 0, 7, 5, 1), cacheline);
+		if (retval != ERROR_OK)
+			return retval;
+	}
+
+	/* (void) */ dpm->finish(dpm);
+
+	return retval;
+}
+
+int armv7a_clean_data_cache(struct target *target,
+	uint32_t address, uint32_t size, uint32_t count)
+{
+	struct armv7a_common *armv7a = target_to_armv7a(target);
+	struct arm_dpm *dpm = armv7a->arm.dpm;
+	uint32_t cacheline_size = armv7a->armv7a_mmu.armv7a_cache.d_u_size.linelen;
+	int retval;
+
+	if (target->state != TARGET_HALTED) {
+		LOG_ERROR("target not halted");
+		return ERROR_TARGET_NOT_HALTED;
+	}
+
+	/*  check that cache is on at target halt */
+	if (!armv7a->armv7a_mmu.armv7a_cache.d_u_cache_enabled) {
+		LOG_DEBUG("data/unified cache clean not performed : cache not on at target halt");
+		return ERROR_OK;
+	}
+
+	retval = dpm->prepare(dpm);
+	if (retval != ERROR_OK)
+		return retval;
+
+	/* DCCMVAC - Clean data cache line to PoC by VA
+	 *      MCR p15, 0, r0, c7, c10, 1
+	 */
+	for (uint32_t cacheline = address & ~(cacheline_size - 1);
+		cacheline < address + size * count;
+		cacheline += cacheline_size) {
+		retval = dpm->instr_write_data_r0(dpm,
+				ARMV4_5_MCR(15, 0, 0, 7, 10, 1), cacheline);
+		if (retval != ERROR_OK)
+			return retval;
+	}
+
+	/* (void) */ dpm->finish(dpm);
+
+	return retval;
+}
+
+int armv7a_invalidate_data_cache(struct target *target,
+	uint32_t address, uint32_t size, uint32_t count)
+{
+	struct armv7a_common *armv7a = target_to_armv7a(target);
+	struct arm_dpm *dpm = armv7a->arm.dpm;
+	uint32_t cacheline_size = armv7a->armv7a_mmu.armv7a_cache.d_u_size.linelen;
+	int retval;
+
+	if (target->state != TARGET_HALTED) {
+		LOG_ERROR("target not halted");
+		return ERROR_TARGET_NOT_HALTED;
+	}
+
+	/*  check that cache is on at target halt */
+	if (!armv7a->armv7a_mmu.armv7a_cache.d_u_cache_enabled) {
+		LOG_DEBUG("data/unified cache invalidation not performed : cache not on at target halt");
+		return ERROR_OK;
+	}
+
+	retval = dpm->prepare(dpm);
+	if (retval != ERROR_OK)
+		return retval;
+
+	/* DCIMVAC - Invalidate data cache line by VA to PoC
+	 *      MCR p15, 0, r0, c7, c6, 1
+	 */
+	for (uint32_t cacheline = address & ~(cacheline_size - 1);
+		cacheline < address + size * count;
+		cacheline += cacheline_size) {
+		retval = dpm->instr_write_data_r0(dpm,
+				ARMV4_5_MCR(15, 0, 0, 7, 6, 1), cacheline);
+		if (retval != ERROR_OK)
+			return retval;
+	}
+
+	/* (void) */ dpm->finish(dpm);
+
+	return retval;
+}
+
+int armv7a_clean_and_invalidate_data_cache(struct target *target,
+	uint32_t address, uint32_t size, uint32_t count)
+{
+	struct armv7a_common *armv7a = target_to_armv7a(target);
+	struct arm_dpm *dpm = armv7a->arm.dpm;
+	uint32_t cacheline_size = armv7a->armv7a_mmu.armv7a_cache.d_u_size.linelen;
+	int retval;
+
+	if (target->state != TARGET_HALTED) {
+		LOG_ERROR("target not halted");
+		return ERROR_TARGET_NOT_HALTED;
+	}
+
+	/*  check that cache is on at target halt */
+	if (!armv7a->armv7a_mmu.armv7a_cache.d_u_cache_enabled) {
+		LOG_DEBUG("data/unified cache clean and invalidation not performed : cache not on at target halt");
+		return ERROR_OK;
+	}
+
+	retval = dpm->prepare(dpm);
+	if (retval != ERROR_OK)
+		return retval;
+
+	/* DCCIMVAC - Clean and invalidate data cache line by VA to PoC
+	 *      MCR p15, 0, r0, c7, c14, 1
+	 */
+	for (uint32_t cacheline = address & ~(cacheline_size - 1);
+		cacheline < address + size * count;
+		cacheline += cacheline_size) {
+		retval = dpm->instr_write_data_r0(dpm,
+				ARMV4_5_MCR(15, 0, 0, 7, 14, 1),
+				cacheline);
+		if (retval != ERROR_OK)
+			return retval;
+	}
+
+	/* (void) */ dpm->finish(dpm);
+
+	return retval;
+
+}
+
 /* L2 is not specific to armv7a  a specific file is needed */
 static int armv7a_l2x_flush_all_data(struct target *target)
 {
@@ -465,14 +624,65 @@ static int armv7a_l2x_flush_all_data(struct target *target)
 	uint32_t base = l2x_cache->base;
 	uint32_t l2_way = l2x_cache->way;
 	uint32_t l2_way_val = (1 << l2_way) - 1;
+	uint8_t buf[4];
+
 	retval = armv7a_flush_all_data(target);
 	if (retval != ERROR_OK)
 		return retval;
-	retval = target->type->write_phys_memory(target,
-			(uint32_t)(base+(uint32_t)L2X0_CLEAN_INV_WAY),
-			(uint32_t)4,
-			(uint32_t)1,
-			(uint8_t *)&l2_way_val);
+
+	target_buffer_set_u32(target, buf, l2_way_val);
+	retval = target->type->write_phys_memory(target, base + L2X0_CLEAN_INV_WAY, 4, 1, buf);
+	if (retval != ERROR_OK)
+		return retval;
+
+	/* poll cache maintenance register until operation is complete. */
+	while (l2_way_val & ((1 << l2_way) - 1)) {
+		retval = target->type->read_phys_memory(target, base + L2X0_CLEAN_INV_WAY, 4, 1, buf);
+		if (retval != ERROR_OK)
+			return retval;
+		l2_way_val = target_buffer_get_u32(target, buf);
+	}
+
+	return retval;
+}
+
+int armv7a_l2x_invalidate_all_data(struct target *target)
+{
+
+#define L2X0_CONTROL              0x100
+#define L2X0_INV_WAY              0x77C
+	int retval = ERROR_FAIL;
+	struct armv7a_common *armv7a = target_to_armv7a(target);
+	struct armv7a_l2x_cache *l2x_cache = (struct armv7a_l2x_cache *)
+		(armv7a->armv7a_mmu.armv7a_cache.l2_cache);
+	uint32_t base = l2x_cache->base;
+	uint32_t l2_way = l2x_cache->way;
+	uint32_t l2_way_val = (1 << l2_way) - 1;
+	uint32_t l2_control;
+	uint8_t buf[4];
+
+	retval = target->type->read_phys_memory(target, base + L2X0_CONTROL, 4, 1, buf);
+	if (retval != ERROR_OK)
+		return retval;
+	l2_control = target_buffer_get_u32(target, buf);
+
+	/* if L2 cache is disabled, do nothing */
+	if ((l2_control & 0x1) == 0)
+		return ERROR_OK;
+
+	target_buffer_set_u32(target, buf, l2_way_val);
+	retval = target->type->write_phys_memory(target, base + L2X0_INV_WAY, 4, 1, buf);
+	if (retval != ERROR_OK)
+		return retval;
+
+	/* poll cache maintenance register until operation is complete. */
+	while (l2_way_val & ((1 << l2_way) - 1)) {
+		retval = target->type->read_phys_memory(target, base + L2X0_INV_WAY, 4, 1, buf);
+		if (retval != ERROR_OK)
+			return retval;
+		l2_way_val = target_buffer_get_u32(target, buf);
+	}
+
 	return retval;
 }
 
@@ -833,7 +1043,7 @@ static const struct command_registration l2_cache_commands[] = {
 	{
 		.name = "l2x",
 		.handler = handle_cache_l2x,
-		.mode = COMMAND_EXEC,
+		.mode = COMMAND_ANY,
 		.help = "configure l2x cache "
 			"",
 		.usage = "[base_addr] [number_of_way]",
@@ -845,7 +1055,7 @@ static const struct command_registration l2_cache_commands[] = {
 const struct command_registration l2x_cache_command_handlers[] = {
 	{
 		.name = "cache_config",
-		.mode = COMMAND_EXEC,
+		.mode = COMMAND_ANY,
 		.help = "cache configuration for a target",
 		.usage = "",
 		.chain = l2_cache_commands,

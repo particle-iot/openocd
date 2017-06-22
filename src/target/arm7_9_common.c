@@ -829,9 +829,6 @@ int arm7_9_poll(struct target *target)
 			if (retval != ERROR_OK)
 				return retval;
 
-			if (arm_semihosting(target, &retval) != 0)
-				return retval;
-
 			retval = target_call_event_callbacks(target, TARGET_EVENT_HALTED);
 			if (retval != ERROR_OK)
 				return retval;

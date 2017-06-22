@@ -443,27 +443,6 @@ int server_loop(struct command_context *command_context)
 		poll_ok = poll_ok || target_got_message();
 
 		for (service = services; service; service = service->next) {
-			/* handle new connections on listeners */
-			if ((service->fd != -1)
-			    && (FD_ISSET(service->fd, &read_fds))) {
-				if (service->max_connections > 0)
-					add_connection(service, command_context);
-				else {
-					if (service->type == CONNECTION_TCP) {
-						struct sockaddr_in sin;
-						socklen_t address_size = sizeof(sin);
-						int tmp_fd;
-						tmp_fd = accept(service->fd,
-								(struct sockaddr *)&service->sin,
-								&address_size);
-						close_socket(tmp_fd);
-					}
-					LOG_INFO(
-						"rejected '%s' connection, no more connections allowed",
-						service->name);
-				}
-			}
-
 			/* handle activity on connections */
 			if (service->connections) {
 				struct connection *c;
@@ -487,6 +466,27 @@ int server_loop(struct command_context *command_context)
 						}
 					}
 					c = c->next;
+				}
+			}
+
+			/* handle new connections on listeners */
+			if ((service->fd != -1)
+			    && (FD_ISSET(service->fd, &read_fds))) {
+				if (service->max_connections > 0)
+					add_connection(service, command_context);
+				else {
+					if (service->type == CONNECTION_TCP) {
+						struct sockaddr_in sin;
+						socklen_t address_size = sizeof(sin);
+						int tmp_fd;
+						tmp_fd = accept(service->fd,
+								(struct sockaddr *)&service->sin,
+								&address_size);
+						close_socket(tmp_fd);
+					}
+					LOG_INFO(
+						"rejected '%s' connection, no more connections allowed",
+						service->name);
 				}
 			}
 		}
@@ -540,6 +540,8 @@ int server_preinit(void)
 	SetConsoleCtrlHandler(ControlHandler, TRUE);
 
 	signal(SIGBREAK, sig_handler);
+#else
+	signal(SIGHUP, sig_handler);
 #endif
 	signal(SIGINT, sig_handler);
 	signal(SIGTERM, sig_handler);

@@ -616,7 +616,10 @@ struct reg_cache *arm_build_reg_cache(struct target *target, struct arm *arm)
 		reg_list[i].exist = true;
 
 		/* This really depends on the calling convention in use */
-		reg_list[i].caller_save = false;
+		if (reg_list[i].number < 16)
+			reg_list[i].caller_save = true;
+		else
+			reg_list[i].caller_save = false;
 
 		/* Registers data type, as used by GDB target description */
 		reg_list[i].reg_data_type = malloc(sizeof(struct reg_data_type));
@@ -1026,6 +1029,7 @@ COMMAND_HANDLER(handle_arm_semihosting_command)
 
 	if (CMD_ARGC > 0) {
 		int semihosting;
+		unsigned int i;
 
 		COMMAND_PARSE_ENABLE(CMD_ARGV[0], semihosting);
 
@@ -1041,6 +1045,21 @@ COMMAND_HANDLER(handle_arm_semihosting_command)
 
 		/* FIXME never let that "catch" be dropped! */
 		arm->is_semihosting = semihosting;
+
+		arm->heap_base = arm->heap_limit = 0;
+		arm->stack_base = arm->stack_limit = 0;
+		for (i = 1; i < CMD_ARGC; i++) {
+			if (strncasecmp ("heap_base=", CMD_ARGV[i], 10) == 0)
+				COMMAND_PARSE_NUMBER(u32, CMD_ARGV[i] + 10, arm->heap_base);
+			else if (strncasecmp ("heap_limit=", CMD_ARGV[i], 11) == 0)
+				COMMAND_PARSE_NUMBER(u32, CMD_ARGV[i] + 11, arm->heap_limit);
+			else if (strncasecmp ("stack_base=", CMD_ARGV[i], 11) == 0)
+				COMMAND_PARSE_NUMBER(u32, CMD_ARGV[i] + 11, arm->stack_base);
+			else if (strncasecmp ("stack_limit=", CMD_ARGV[i], 12) == 0)
+				COMMAND_PARSE_NUMBER(u32, CMD_ARGV[i] + 12, arm->stack_limit);
+			else
+				return ERROR_COMMAND_SYNTAX_ERROR;
+		}
 	}
 
 	command_print(CMD_CTX, "semihosting is %s",

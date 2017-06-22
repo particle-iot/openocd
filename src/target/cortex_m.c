@@ -56,7 +56,9 @@
 /**
  * Returns the type of a break point required by address location
  */
-#define BKPT_TYPE_BY_ADDR(addr) ((addr) < 0x20000000 ? BKPT_HARD : BKPT_SOFT)
+/* #define BKPT_TYPE_BY_ADDR(addr) ((addr) < 0x20000000 ? BKPT_HARD : BKPT_SOFT) */
+/* This is only for ADuCM302x */
+#define BKPT_TYPE_BY_ADDR(addr) ((addr) < 0x40800 ? BKPT_HARD : BKPT_SOFT)
 
 /* forward declarations */
 static int cortex_m_store_core_reg_u32(struct target *target,
@@ -164,39 +166,6 @@ static int cortex_m_clear_halt(struct target *target)
 	if (retval != ERROR_OK)
 		return retval;
 	LOG_DEBUG(" NVIC_DFSR 0x%" PRIx32 "", cortex_m->nvic_dfsr);
-
-	return ERROR_OK;
-}
-
-static int cortex_m_single_step_core(struct target *target)
-{
-	struct cortex_m_common *cortex_m = target_to_cm(target);
-	struct adiv5_dap *swjdp = cortex_m->armv7m.arm.dap;
-	uint32_t dhcsr_save;
-	int retval;
-
-	/* backup dhcsr reg */
-	dhcsr_save = cortex_m->dcb_dhcsr;
-
-	/* Mask interrupts before clearing halt, if done already.  This avoids
-	 * Erratum 377497 (fixed in r1p0) where setting MASKINTS while clearing
-	 * HALT can put the core into an unknown state.
-	 */
-	if (!(cortex_m->dcb_dhcsr & C_MASKINTS)) {
-		retval = mem_ap_write_atomic_u32(swjdp, DCB_DHCSR,
-				DBGKEY | C_MASKINTS | C_HALT | C_DEBUGEN);
-		if (retval != ERROR_OK)
-			return retval;
-	}
-	retval = mem_ap_write_atomic_u32(swjdp, DCB_DHCSR,
-			DBGKEY | C_MASKINTS | C_STEP | C_DEBUGEN);
-	if (retval != ERROR_OK)
-		return retval;
-	LOG_DEBUG(" ");
-
-	/* restore dhcsr reg */
-	cortex_m->dcb_dhcsr = dhcsr_save;
-	cortex_m_clear_halt(target);
 
 	return ERROR_OK;
 }
@@ -549,8 +518,8 @@ static int cortex_m_poll(struct target *target)
 			if (retval != ERROR_OK)
 				return retval;
 
-			if (arm_semihosting(target, &retval) != 0)
-				return retval;
+			if (arm_semihosting(target))
+				cortex_m->armv7m.arm.hit_syscall = true;
 
 			target_call_event_callbacks(target, TARGET_EVENT_HALTED);
 		}
@@ -690,13 +659,17 @@ static int cortex_m_resume(struct target *target, int current,
 	uint32_t address, int handle_breakpoints, int debug_execution)
 {
 	struct armv7m_common *armv7m = target_to_armv7m(target);
-	struct breakpoint *breakpoint = NULL;
 	uint32_t resume_pc;
 	struct reg *r;
 
 	if (target->state != TARGET_HALTED) {
 		LOG_WARNING("target not halted");
 		return ERROR_TARGET_NOT_HALTED;
+	}
+
+	if (armv7m->arm.hit_syscall) {
+		arm_semihosting_step_over_bkpt(target);
+		armv7m->arm.hit_syscall = false;
 	}
 
 	if (!debug_execution) {
@@ -738,31 +711,9 @@ static int cortex_m_resume(struct target *target, int current,
 		r->valid = true;
 	}
 
-	/* if we halted last time due to a bkpt instruction
-	 * then we have to manually step over it, otherwise
-	 * the core will break again */
-
-	if (!breakpoint_find(target, buf_get_u32(r->value, 0, 32))
-		&& !debug_execution)
-		armv7m_maybe_skip_bkpt_inst(target, NULL);
-
 	resume_pc = buf_get_u32(r->value, 0, 32);
 
 	armv7m_restore_context(target);
-
-	/* the front-end may request us not to handle breakpoints */
-	if (handle_breakpoints) {
-		/* Single step past breakpoint at current address */
-		breakpoint = breakpoint_find(target, resume_pc);
-		if (breakpoint) {
-			LOG_DEBUG("unset breakpoint at 0x%8.8" PRIx32 " (ID: %" PRIu32 ")",
-				breakpoint->address,
-				breakpoint->unique_id);
-			cortex_m_unset_breakpoint(target, breakpoint);
-			cortex_m_single_step_core(target);
-			cortex_m_set_breakpoint(target, breakpoint);
-		}
-	}
 
 	/* Restart core */
 	cortex_m_write_debug_halt_mask(target, 0, C_HALT);
@@ -794,13 +745,19 @@ static int cortex_m_step(struct target *target, int current,
 	struct adiv5_dap *swjdp = armv7m->arm.dap;
 	struct breakpoint *breakpoint = NULL;
 	struct reg *pc = armv7m->arm.pc;
-	bool bkpt_inst_found = false;
 	int retval;
 	bool isr_timed_out = false;
 
 	if (target->state != TARGET_HALTED) {
 		LOG_WARNING("target not halted");
 		return ERROR_TARGET_NOT_HALTED;
+	}
+
+	if (armv7m->arm.hit_syscall) {
+		arm_semihosting_step_over_bkpt(target);
+		armv7m->arm.hit_syscall = false;
+		target_call_event_callbacks(target, TARGET_EVENT_HALTED);
+		return ERROR_OK;
 	}
 
 	/* current = 1: continue on current pc, otherwise continue at <address> */
@@ -816,10 +773,6 @@ static int cortex_m_step(struct target *target, int current,
 			cortex_m_unset_breakpoint(target, breakpoint);
 	}
 
-	armv7m_maybe_skip_bkpt_inst(target, &bkpt_inst_found);
-
-	target->debug_reason = DBG_REASON_SINGLESTEP;
-
 	armv7m_restore_context(target);
 
 	target_call_event_callbacks(target, TARGET_EVENT_RESUMED);
@@ -827,7 +780,18 @@ static int cortex_m_step(struct target *target, int current,
 	/* if no bkpt instruction is found at pc then we can perform
 	 * a normal step, otherwise we have to manually step over the bkpt
 	 * instruction - as such simulate a step */
-	if (bkpt_inst_found == false) {
+
+	/* pretend that we hit a breakpoint and check if the instruction is a
+	   semihosting call */
+	target->debug_reason = DBG_REASON_BREAKPOINT;
+	if (arm_semihosting(target)) {
+		armv7m->arm.hit_syscall = true;
+		target_call_event_callbacks(target, TARGET_EVENT_HALTED);
+		return ERROR_OK;
+	}
+
+	target->debug_reason = DBG_REASON_SINGLESTEP;
+
 		/* Automatic ISR masking mode off: Just step over the next instruction */
 		if ((cortex_m->isrmasking_mode != CORTEX_M_ISRMASK_AUTO))
 			cortex_m_write_debug_halt_mask(target, C_STEP, C_HALT);
@@ -926,7 +890,6 @@ static int cortex_m_step(struct target *target, int current,
 				}
 			}
 		}
-	}
 
 	retval = mem_ap_read_atomic_u32(swjdp, DCB_DHCSR, &cortex_m->dcb_dhcsr);
 	if (retval != ERROR_OK)
@@ -1470,6 +1433,19 @@ int cortex_m_remove_watchpoint(struct target *target, struct watchpoint *watchpo
 	return ERROR_OK;
 }
 
+static int cortex_m_hit_watchpoint(struct target *target, struct watchpoint **hit_watchpoint)
+{
+	struct watchpoint *watchpoint = target->watchpoints;
+
+	/* we only support only 1 watchpoint */
+	if (watchpoint) {
+		*hit_watchpoint = watchpoint;
+		return ERROR_OK;
+	}
+
+	return ERROR_FAIL;
+}
+
 void cortex_m_enable_watchpoints(struct target *target)
 {
 	struct watchpoint *watchpoint = target->watchpoints;
@@ -1685,6 +1661,9 @@ static int cortex_m_write_memory(struct target *target, uint32_t address,
 static int cortex_m_init_target(struct command_context *cmd_ctx,
 	struct target *target)
 {
+	target->fileio_info = malloc(sizeof(struct gdb_fileio_info));
+	target->fileio_info->identifier = NULL;
+
 	armv7m_build_reg_cache(target);
 	return ERROR_OK;
 }
@@ -1982,6 +1961,11 @@ int cortex_m_examine(struct target *target)
 			target_name(target),
 			cortex_m->fp_num_code,
 			cortex_m->dwt_num_comp);
+
+		if (cortex_m->dwt_num_comp > 1) {
+			cortex_m->dwt_num_comp = 1;
+			LOG_INFO("%s: but you can only set 1 watchpoint", target_name(target));
+		}
 	}
 
 	return ERROR_OK;
@@ -2086,6 +2070,8 @@ static int cortex_m_init_arch_info(struct target *target,
 	/* default reset mode is to use srst if fitted
 	 * if not it will use CORTEX_M3_RESET_VECTRESET */
 	cortex_m->soft_reset_config = CORTEX_M_RESET_VECTRESET;
+
+	armv7m->arm.hit_syscall = false;
 
 	armv7m->arm.dap = &armv7m->dap;
 
@@ -2383,10 +2369,15 @@ struct target_type cortexm_target = {
 	.remove_breakpoint = cortex_m_remove_breakpoint,
 	.add_watchpoint = cortex_m_add_watchpoint,
 	.remove_watchpoint = cortex_m_remove_watchpoint,
+	.hit_watchpoint = cortex_m_hit_watchpoint,
 
 	.commands = cortex_m_command_handlers,
 	.target_create = cortex_m_target_create,
 	.init_target = cortex_m_init_target,
 	.examine = cortex_m_examine,
 	.deinit_target = cortex_m_deinit_target,
+
+	.get_gdb_fileio_info = arm_get_gdb_fileio_info,
+	.gdb_fileio_end = arm_gdb_fileio_end,
+	.pre_write_buffer = arm_gdb_fileio_pre_write_buffer,
 };

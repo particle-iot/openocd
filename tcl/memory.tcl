@@ -131,3 +131,57 @@ proc memwrite8 {ADDR DATA} {
 	error "memwrite8: $msg"
     }
 }
+
+proc pmemread32 {ADDR} {
+    set foo(0) 0
+    if ![ catch { pmem2array foo 32 $ADDR 1  } msg ] {
+	return $foo(0)
+    } else {
+	error "pmemread32: $msg"
+    }
+}
+
+proc pmemread16 {ADDR} {
+    set foo(0) 0
+    if ![ catch { pmem2array foo 16 $ADDR 1  } msg ] {
+	return $foo(0)
+    } else {
+	error "pmemread16: $msg"
+    }
+}
+
+proc pmemread8 {ADDR} {
+    set foo(0) 0
+    if ![ catch { pmem2array foo 8 $ADDR 1  } msg ] {
+	return $foo(0)
+    } else {
+	error "pmemread8: $msg"
+    }
+}
+
+proc pmemwrite32 {ADDR DATA} {
+    set foo(0) $DATA
+    if ![ catch { array2pmem foo 32 $ADDR 1  } msg ] {
+	return $foo(0)
+    } else {
+	error "pmemwrite32: $msg"
+    }
+}
+
+proc pmemwrite16 {ADDR DATA} {
+    set foo(0) $DATA
+    if ![ catch { array2pmem foo 16 $ADDR 1  } msg ] {
+	return $foo(0)
+    } else {
+	error "pmemwrite16: $msg"
+    }
+}
+
+proc pmemwrite8 {ADDR DATA} {
+    set foo(0) $DATA
+    if ![ catch { array2pmem foo 8 $ADDR 1  } msg ] {
+	return $foo(0)
+    } else {
+	error "pmemwrite8: $msg"
+    }
+}

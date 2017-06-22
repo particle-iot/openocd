@@ -158,7 +158,7 @@ COMMAND_HANDLER(handle_pld_load_command)
 		gettimeofday(&end, NULL);
 		timeval_subtract(&duration, &end, &start);
 
-		command_print(CMD_CTX, "loaded file %s to pld device %u in %jis %jius",
+		command_print(CMD_CTX, "loaded file %s to pld device %u in %"PRIjd"s %"PRIjd"us",
 			CMD_ARGV[1], dev_id,
 			(intmax_t)duration.tv_sec, (intmax_t)duration.tv_usec);
 	}

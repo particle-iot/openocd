@@ -115,8 +115,6 @@ static int adi_jtag_dp_scan(struct adiv5_dap *dap,
 	 * See "Minimum Response Time" for JTAG-DP, in the ADIv5 spec.
 	 */
 	if ((instr == JTAG_DP_APACC)
-			&& ((reg_addr == AP_REG_DRW)
-				|| ((reg_addr & 0xF0) == AP_REG_BD0))
 			&& (dap->memaccess_tck != 0))
 		jtag_add_runtest(dap->memaccess_tck,
 				TAP_IDLE);

@@ -21,6 +21,11 @@
 #ifndef ARM_SEMIHOSTING_H
 #define ARM_SEMIHOSTING_H
 
-int arm_semihosting(struct target *target, int *retval);
+int arm_semihosting(struct target *target);
+void arm_semihosting_step_over_svc(struct target *target);
+void arm_semihosting_step_over_bkpt(struct target *target);
+int arm_get_gdb_fileio_info(struct target *target, struct gdb_fileio_info *fileio_info);
+int arm_gdb_fileio_end(struct target *target, int retcode, int fileio_errno, bool ctrl_c);
+int arm_gdb_fileio_pre_write_buffer(struct target *target, uint32_t address, uint32_t size, const uint8_t *buffer);
 
 #endif

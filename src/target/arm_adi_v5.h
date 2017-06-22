@@ -219,6 +219,9 @@ struct adiv5_dap {
 	 * should be performed before the next access.
 	 */
 	bool do_reconnect;
+
+	uint32_t ahb_mem_start_address;
+	uint32_t ahb_mem_end_address;
 };
 
 /**

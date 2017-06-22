@@ -463,9 +463,6 @@ static int adapter_poll(struct target *target)
 		if (prev_target_state == TARGET_DEBUG_RUNNING) {
 			target_call_event_callbacks(target, TARGET_EVENT_DEBUG_HALTED);
 		} else {
-			if (arm_semihosting(target, &retval) != 0)
-				return retval;
-
 			target_call_event_callbacks(target, TARGET_EVENT_HALTED);
 		}
 

@@ -65,9 +65,9 @@ static int target_read_buffer_default(struct target *target, uint32_t address,
 static int target_write_buffer_default(struct target *target, uint32_t address,
 		uint32_t count, const uint8_t *buffer);
 static int target_array2mem(Jim_Interp *interp, struct target *target,
-		int argc, Jim_Obj * const *argv);
+		int argc, Jim_Obj * const *argv, bool physical);
 static int target_mem2array(Jim_Interp *interp, struct target *target,
-		int argc, Jim_Obj * const *argv);
+		int argc, Jim_Obj * const *argv, bool physical);
 static int target_register_user_commands(struct command_context *cmd_ctx);
 static int target_get_gdb_fileio_info_default(struct target *target,
 		struct gdb_fileio_info *fileio_info);
@@ -104,6 +104,7 @@ extern struct target_type nds32_v3_target;
 extern struct target_type nds32_v3m_target;
 extern struct target_type or1k_target;
 extern struct target_type quark_x10xx_target;
+extern struct target_type blackfin_target;
 
 static struct target_type *target_types[] = {
 	&arm7tdmi_target,
@@ -133,6 +134,7 @@ static struct target_type *target_types[] = {
 	&nds32_v3m_target,
 	&or1k_target,
 	&quark_x10xx_target,
+	&blackfin_target,
 	NULL,
 };
 
@@ -896,11 +898,14 @@ int target_run_flash_async_algorithm(struct target *target,
 	uint32_t fifo_start_addr = buffer_start + 8;
 	uint32_t fifo_end_addr = buffer_start + buffer_size;
 
-	uint32_t wp = fifo_start_addr;
-	uint32_t rp = fifo_start_addr;
+	/* make sure the size of FIFO is multiple of block_size */
+	assert((fifo_end_addr - fifo_start_addr) % block_size == 0);
 
 	/* validate block_size is 2^n */
 	assert(!block_size || !(block_size & (block_size - 1)));
+
+	uint32_t wp = fifo_start_addr;
+	uint32_t rp = fifo_start_addr;
 
 	retval = target_write_u32(target, wp_addr, wp);
 	if (retval != ERROR_OK)
@@ -929,8 +934,8 @@ int target_run_flash_async_algorithm(struct target *target,
 			break;
 		}
 
-		LOG_DEBUG("offs 0x%zx count 0x%" PRIx32 " wp 0x%" PRIx32 " rp 0x%" PRIx32,
-			(size_t) (buffer - buffer_orig), count, wp, rp);
+		LOG_DEBUG("offs 0x%"PRIz"x count 0x%" PRIx32 " wp 0x%" PRIx32 " rp 0x%" PRIx32,
+			(buffer - buffer_orig), count, wp, rp);
 
 		if (rp == 0) {
 			LOG_ERROR("flash write algorithm aborted by target");
@@ -1207,6 +1212,8 @@ static int target_init_one(struct command_context *cmd_ctx,
 		LOG_ERROR("target '%s' init failed", target_name(target));
 		return retval;
 	}
+
+	target->no_callbacks = false;
 
 	/* Sanity-check MMU support ... stub in what we must, to help
 	 * implement it in stages, but warn if we need to do so.
@@ -1983,6 +1990,12 @@ int target_write_buffer(struct target *target, uint32_t address, uint32_t size, 
 				  (unsigned)address,
 				  (unsigned)size);
 		return ERROR_FAIL;
+	}
+
+	if (target->type->pre_write_buffer) {
+		int ret = target->type->pre_write_buffer(target, address, size, buffer);
+		if (ret == ERROR_OK)
+			return ret;
 	}
 
 	return target->type->write_buffer(target, address, size, buffer);
@@ -3346,7 +3359,7 @@ static COMMAND_HELPER(handle_verify_image_command_internal, int verify)
 				free(data);
 			}
 		} else {
-			command_print(CMD_CTX, "address 0x%08" PRIx32 " length 0x%08zx",
+			command_print(CMD_CTX, "address 0x%08" PRIx32 " length 0x%08"PRIzx,
 						  image.sections[i].base_address,
 						  buf_cnt);
 		}
@@ -3626,7 +3639,7 @@ static void writeData(FILE *f, const void *data, size_t len)
 {
 	size_t written = fwrite(data, 1, len, f);
 	if (written != len)
-		LOG_ERROR("failed to write %zu bytes: %s", len, strerror(errno));
+		LOG_ERROR("failed to write %"PRIzu" bytes: %s", len, strerror(errno));
 }
 
 static void writeLong(FILE *f, int l, struct target *target)
@@ -3854,10 +3867,28 @@ static int jim_mem2array(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
 		return JIM_ERR;
 	}
 
-	return target_mem2array(interp, target, argc - 1, argv + 1);
+	return target_mem2array(interp, target, argc - 1, argv + 1, false /* physical */);
 }
 
-static int target_mem2array(Jim_Interp *interp, struct target *target, int argc, Jim_Obj *const *argv)
+static int jim_pmem2array(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
+{
+	struct command_context *context;
+	struct target *target;
+
+	context = current_command_context(interp);
+	assert(context != NULL);
+
+	target = get_current_target(context);
+	if (target == NULL) {
+		LOG_ERROR("mem2array: no current target");
+		return JIM_ERR;
+	}
+
+	return target_mem2array(interp, target, argc - 1, argv + 1, true /* physical */);
+}
+
+
+static int target_mem2array(Jim_Interp *interp, struct target *target, int argc, Jim_Obj *const *argv, bool physical)
 {
 	long l;
 	uint32_t width;
@@ -3959,7 +3990,11 @@ static int target_mem2array(Jim_Interp *interp, struct target *target, int argc,
 		if (count > (buffersize / width))
 			count = (buffersize / width);
 
-		retval = target_read_memory(target, addr, width, count, buffer);
+		if (physical)
+			retval = target_read_phys_memory(target, addr, width, count, buffer);
+		else
+			retval = target_read_memory(target, addr, width, count, buffer);
+
 		if (retval != ERROR_OK) {
 			/* BOO !*/
 			LOG_ERROR("mem2array: Read @ 0x%08x, w=%d, cnt=%d, failed",
@@ -4042,11 +4077,28 @@ static int jim_array2mem(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
 		return JIM_ERR;
 	}
 
-	return target_array2mem(interp, target, argc-1, argv + 1);
+	return target_array2mem(interp, target, argc-1, argv + 1, false /* physical */);
+}
+
+static int jim_array2pmem(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
+{
+	struct command_context *context;
+	struct target *target;
+
+	context = current_command_context(interp);
+	assert(context != NULL);
+
+	target = get_current_target(context);
+	if (target == NULL) {
+		LOG_ERROR("array2mem: no current target");
+		return JIM_ERR;
+	}
+
+	return target_array2mem(interp, target, argc-1, argv + 1, true /* physical */);
 }
 
 static int target_array2mem(Jim_Interp *interp, struct target *target,
-		int argc, Jim_Obj *const *argv)
+		int argc, Jim_Obj *const *argv, bool physical)
 {
 	long l;
 	uint32_t width;
@@ -4169,7 +4221,11 @@ static int target_array2mem(Jim_Interp *interp, struct target *target,
 		}
 		len -= count;
 
-		retval = target_write_memory(target, addr, width, count, buffer);
+		if (physical)
+			retval = target_write_phys_memory(target, addr, width, count, buffer);
+		else
+			retval = target_write_memory(target, addr, width, count, buffer);
+
 		if (retval != ERROR_OK) {
 			/* BOO !*/
 			LOG_ERROR("array2mem: Write @ 0x%08x, w=%d, cnt=%d, failed",
@@ -4241,6 +4297,8 @@ enum target_cfg_param {
 	TCFG_CHAIN_POSITION,
 	TCFG_DBGBASE,
 	TCFG_RTOS,
+	TCFG_RESTART_CTI_REG_ADDR,
+	TCFG_RESTART_CTI_CHANNEL,
 };
 
 static Jim_Nvp nvp_config_opts[] = {
@@ -4255,6 +4313,8 @@ static Jim_Nvp nvp_config_opts[] = {
 	{ .name = "-chain-position",   .value = TCFG_CHAIN_POSITION },
 	{ .name = "-dbgbase",          .value = TCFG_DBGBASE },
 	{ .name = "-rtos",             .value = TCFG_RTOS },
+	{ .name = "-restart-cti-reg-addr", .value = TCFG_RESTART_CTI_REG_ADDR },
+	{ .name = "-restart-cti-channel", .value = TCFG_RESTART_CTI_CHANNEL },
 	{ .name = NULL, .value = -1 }
 };
 
@@ -4529,6 +4589,35 @@ no_params:
 			}
 			/* loop for more */
 			break;
+
+		case TCFG_RESTART_CTI_REG_ADDR:
+			if (goi->isconfigure) {
+				e = Jim_GetOpt_Wide(goi, &w);
+				if (e != JIM_OK)
+					return e;
+				target->restart_cti_reg_addr = (uint32_t)w;
+				target->restart_use_cti = true;
+			} else {
+				if (goi->argc != 0)
+					goto no_params;
+			}
+			Jim_SetResult(goi->interp, Jim_NewIntObj(goi->interp, target->restart_cti_reg_addr));
+			/* loop for more */
+			break;
+
+		case TCFG_RESTART_CTI_CHANNEL:
+			if (goi->isconfigure) {
+				e = Jim_GetOpt_Wide(goi, &w);
+				if (e != JIM_OK)
+					return e;
+				target->restart_cti_channel = (int32_t)w;
+			} else {
+				if (goi->argc != 0)
+					goto no_params;
+			}
+			Jim_SetResult(goi->interp, Jim_NewIntObj(goi->interp, target->restart_cti_channel));
+			/* loop for more */
+			break;
 		}
 	} /* while (goi->argc) */
 
@@ -4781,14 +4870,28 @@ static int jim_target_mem2array(Jim_Interp *interp,
 		int argc, Jim_Obj *const *argv)
 {
 	struct target *target = Jim_CmdPrivData(interp);
-	return target_mem2array(interp, target, argc - 1, argv + 1);
+	return target_mem2array(interp, target, argc - 1, argv + 1, false /* physical */);
 }
 
 static int jim_target_array2mem(Jim_Interp *interp,
 		int argc, Jim_Obj *const *argv)
 {
 	struct target *target = Jim_CmdPrivData(interp);
-	return target_array2mem(interp, target, argc - 1, argv + 1);
+	return target_array2mem(interp, target, argc - 1, argv + 1, false /* physical */);
+}
+
+static int jim_target_pmem2array(Jim_Interp *interp,
+		int argc, Jim_Obj *const *argv)
+{
+	struct target *target = Jim_CmdPrivData(interp);
+	return target_mem2array(interp, target, argc - 1, argv + 1, true /* physical */);
+}
+
+static int jim_target_array2pmem(Jim_Interp *interp,
+		int argc, Jim_Obj *const *argv)
+{
+	struct target *target = Jim_CmdPrivData(interp);
+	return target_array2mem(interp, target, argc - 1, argv + 1, true /* physical */);
 }
 
 static int jim_target_tap_disabled(Jim_Interp *interp)
@@ -5077,6 +5180,22 @@ static const struct command_registration target_instance_command_handlers[] = {
 		.usage = "arrayname bitwidth address count",
 	},
 	{
+		.name = "array2pmem",
+		.mode = COMMAND_EXEC,
+		.jim_handler = jim_target_array2pmem,
+		.help = "Writes Tcl array of 8/16/32 bit numbers "
+			"to target physical memory",
+		.usage = "arrayname bitwidth address count",
+	},
+	{
+		.name = "pmem2array",
+		.mode = COMMAND_EXEC,
+		.jim_handler = jim_target_pmem2array,
+		.help = "Loads Tcl array of 8/16/32 bit numbers "
+			"from target physical memory",
+		.usage = "arrayname bitwidth address count",
+	},
+	{
 		.name = "eventlist",
 		.mode = COMMAND_EXEC,
 		.jim_handler = jim_target_event_list,
@@ -5262,6 +5381,10 @@ static int target_create(Jim_GetOptInfo *goi)
 
 	target->rtos = NULL;
 	target->rtos_auto_detect = false;
+
+	target->restart_use_cti = false;
+	target->restart_cti_reg_addr = 0;
+	target->restart_cti_channel = 0;
 
 	/* Do the rest as "configure" options */
 	goi->isconfigure = 1;
@@ -6094,6 +6217,22 @@ static const struct command_registration target_exec_command_handlers[] = {
 		.mode = COMMAND_EXEC,
 		.jim_handler = jim_array2mem,
 		.help = "convert a TCL array to memory locations "
+			"and write the 8/16/32 bit values",
+		.usage = "arrayname bitwidth address count",
+	},
+	{
+		.name = "pmem2array",
+		.mode = COMMAND_EXEC,
+		.jim_handler = jim_pmem2array,
+		.help = "read 8/16/32 bit physical memory and return as a TCL array "
+			"for script processing",
+		.usage = "arrayname bitwidth address count",
+	},
+	{
+		.name = "array2pmem",
+		.mode = COMMAND_EXEC,
+		.jim_handler = jim_array2pmem,
+		.help = "convert a TCL array to physical memory locations "
 			"and write the 8/16/32 bit values",
 		.usage = "arrayname bitwidth address count",
 	},

@@ -83,6 +83,7 @@
 #include <jtag/interface.h>
 #include <transport/transport.h>
 #include <helper/time_support.h>
+#include "ft2232.h"
 
 #if IS_CYGWIN == 1
 #include <windows.h>
@@ -195,6 +196,7 @@ static int lisa_l_init(void);
 static int flossjtag_init(void);
 static int xds100v2_init(void);
 static int digilent_hs1_init(void);
+static int gnice_init(void);
 
 /* reset procedures for supported layouts */
 static void ftx23_reset(int trst, int srst);
@@ -214,6 +216,7 @@ static void ktlink_reset(int trst, int srst);
 static void redbee_reset(int trst, int srst);
 static void xds100v2_reset(int trst, int srst);
 static void digilent_hs1_reset(int trst, int srst);
+static void gnice_reset(int trst, int srst);
 
 /* blink procedures for layouts that support a blinking led */
 static void olimex_jtag_blink(void);
@@ -224,6 +227,7 @@ static void signalyzer_h_blink(void);
 static void ktlink_blink(void);
 static void lisa_l_blink(void);
 static void flossjtag_blink(void);
+static void gnice_blink(void);
 
 /* common transport support options */
 
@@ -344,6 +348,11 @@ static const struct ft2232_layout  ft2232_layouts[] = {
 		.init = digilent_hs1_init,
 		.reset = digilent_hs1_reset,
 		.channel = INTERFACE_A,
+	},
+	{ .name = "gnice",
+		.init = gnice_init,
+		.reset = gnice_reset,
+		.blink = gnice_blink,
 	},
 	{ .name = NULL, /* END OF TABLE */ },
 };
@@ -596,7 +605,7 @@ static int ft2232_read(uint8_t *buf, uint32_t size, uint32_t *bytes_read)
 	return ERROR_OK;
 }
 
-static bool ft2232_device_is_highspeed(void)
+bool ft2232_device_is_highspeed()
 {
 #if BUILD_FT2232_FTD2XX == 1
 	return (ftdi_device == FT_DEVICE_2232H) || (ftdi_device == FT_DEVICE_4232H)
@@ -4246,6 +4255,57 @@ static int digilent_hs1_init(void)
 static void digilent_hs1_reset(int trst, int srst)
 {
 	/* Dummy function, no reset signals supported. */
+}
+
+/********************************************************************
+ * Support for gnICE
+ *******************************************************************/
+
+static int gnice_init(void)
+{
+	nTRST = 0x2;
+
+	low_output = 0x8; /* TMS */
+	low_direction = 0xb; /* TCK | TDI | TMS */
+
+	if (ft2232_set_data_bits_low_byte(low_output,low_direction) != ERROR_OK) {
+		LOG_ERROR("couldn't initialize FT2232 with 'gnICE' layout");
+		return ERROR_JTAG_INIT_FAILED;
+	}
+
+	high_output = 0x2; /* nTRST */
+	high_direction = 0xa; /* nTRST | nLED */
+
+	if (ft2232_set_data_bits_high_byte(high_output,high_direction) != ERROR_OK)
+	{
+		LOG_ERROR("couldn't initialize FT2232 with 'gnICE' layout");
+		return ERROR_JTAG_INIT_FAILED;
+	}
+
+	return ERROR_OK;
+}
+
+static void gnice_reset(int trst, int srst)
+{
+	if (trst == 1)
+		high_output &= ~nTRST;
+	else if (trst == 0)
+		high_output |= nTRST;
+
+	buffer_write(0x82);
+	buffer_write(high_output);
+	buffer_write(high_direction);
+	LOG_DEBUG("trst: %i, high_output: 0x%2.2x, high_direction: 0x%2.2x", trst, high_output, high_direction);
+}
+
+static void gnice_blink(void)
+{
+	/* LED connected to ACBUS3 */
+	high_output ^= 0x08;
+
+	buffer_write(0x82);  // command "set data bits high byte"
+	buffer_write(high_output);
+	buffer_write(high_direction);
 }
 
 static const struct command_registration ft2232_command_handlers[] = {

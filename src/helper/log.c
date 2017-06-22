@@ -412,12 +412,12 @@ void keep_alive()
 		if (gdb_actual_connections)
 			LOG_WARNING("keep_alive() was not invoked in the "
 				"1000ms timelimit. GDB alive packet not "
-				"sent! (%lld). Workaround: increase "
+				"sent! (%"PRIlld"). Workaround: increase "
 				"\"set remotetimeout\" in GDB",
 				current_time-last_time);
 		else
 			LOG_DEBUG("keep_alive() was not invoked in the "
-				"1000ms timelimit (%lld). This may cause "
+				"1000ms timelimit (%"PRIlld"). This may cause "
 				"trouble with GDB connections.",
 				current_time-last_time);
 	}

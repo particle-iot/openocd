@@ -359,8 +359,9 @@ int rtos_thread_packet(struct connection *connection, char const *packet, int pa
 				gdb_put_packet(connection, out_str, strlen(out_str));
 				free(out_str);
 			}
-		} else
-			gdb_put_packet(connection, "l", 1);
+		} else {
+			gdb_put_packet(connection, "m1", 2);
+		}
 
 		return ERROR_OK;
 	} else if (strncmp(packet, "qsThreadInfo", 12) == 0) {
@@ -384,7 +385,7 @@ int rtos_thread_packet(struct connection *connection, char const *packet, int pa
 			size = snprintf(buffer, 19, "QC%016" PRIx64, target->rtos->current_thread);
 			gdb_put_packet(connection, buffer, size);
 		} else
-			gdb_put_packet(connection, "QC0", 3);
+			gdb_put_packet(connection, "QC1", 3);
 		return ERROR_OK;
 	} else if (packet[0] == 'T') {	/* Is thread alive? */
 		threadid_t threadid;
@@ -399,7 +400,7 @@ int rtos_thread_packet(struct connection *connection, char const *packet, int pa
 				}
 			}
 		}
-		if (found != -1)
+		if (found != -1 || target->rtos == NULL)
 			gdb_put_packet(connection, "OK", 2);	/* thread alive */
 		else
 			gdb_put_packet(connection, "E01", 3);	/* thread not found */

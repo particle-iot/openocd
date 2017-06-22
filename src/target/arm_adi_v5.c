@@ -77,6 +77,7 @@
 #include "arm_adi_v5.h"
 #include <helper/time_support.h>
 
+#if 0
 /* ARM ADI Specification requires at least 10 bits used for TAR autoincrement  */
 
 /*
@@ -87,6 +88,7 @@ static uint32_t max_tar_block_size(uint32_t tar_autoincr_block, uint32_t address
 {
 	return tar_autoincr_block - ((tar_autoincr_block - 1) & address);
 }
+#endif
 
 /***************************************************************************
  *                                                                         *
@@ -333,7 +335,7 @@ int mem_ap_write(struct adiv5_dap *dap, const uint8_t *buffer, uint32_t size, ui
 
 	while (nbytes > 0) {
 		uint32_t this_size = size;
-
+#if 0
 		/* Select packed transfer if possible */
 		if (addrinc && dap->packed_transfers && nbytes >= 4
 				&& max_tar_block_size(dap->tar_autoincr_block, address) >= 4) {
@@ -342,7 +344,9 @@ int mem_ap_write(struct adiv5_dap *dap, const uint8_t *buffer, uint32_t size, ui
 		} else {
 			retval = dap_setup_accessport_csw(dap, csw_size | csw_addrincr);
 		}
-
+#else
+		retval = dap_setup_accessport_csw(dap, csw_size | csw_addrincr);
+#endif
 		if (retval != ERROR_OK)
 			break;
 
@@ -394,6 +398,21 @@ int mem_ap_write(struct adiv5_dap *dap, const uint8_t *buffer, uint32_t size, ui
 	/* REVISIT: Might want to have a queued version of this function that does not run. */
 	if (retval == ERROR_OK)
 		retval = dap_run(dap);
+
+	if (addrinc) {
+		uint32_t tar;
+		retval = dap_queue_ap_read(dap, AP_REG_TAR, &tar);
+		if (retval == ERROR_OK)
+			retval = dap_run(dap);
+		if (retval != ERROR_OK)
+			return retval;
+		/* Update TAR to reflect incremented address */
+		dap->ap_tar_value = tar;
+#if 0
+		if (tar != address)
+			LOG_ERROR("TAR auto-increment does not work");
+#endif
+	}
 
 	if (retval != ERROR_OK) {
 		uint32_t tar;
@@ -468,7 +487,7 @@ int mem_ap_read(struct adiv5_dap *dap, uint8_t *buffer, uint32_t size, uint32_t 
 	 * and alignment. */
 	while (nbytes > 0) {
 		uint32_t this_size = size;
-
+#if 0
 		/* Select packed transfer if possible */
 		if (addrinc && dap->packed_transfers && nbytes >= 4
 				&& max_tar_block_size(dap->tar_autoincr_block, address) >= 4) {
@@ -477,6 +496,9 @@ int mem_ap_read(struct adiv5_dap *dap, uint8_t *buffer, uint32_t size, uint32_t 
 		} else {
 			retval = dap_setup_accessport_csw(dap, csw_size | csw_addrincr);
 		}
+#else
+		retval = dap_setup_accessport_csw(dap, csw_size | csw_addrincr);
+#endif
 		if (retval != ERROR_OK)
 			break;
 
@@ -498,34 +520,47 @@ int mem_ap_read(struct adiv5_dap *dap, uint8_t *buffer, uint32_t size, uint32_t 
 	if (retval == ERROR_OK)
 		retval = dap_run(dap);
 
+	if (addrinc) {
+		uint32_t tar;
+		retval = dap_queue_ap_read(dap, AP_REG_TAR, &tar);
+		if (retval == ERROR_OK)
+			retval = dap_run(dap);
+		if (retval != ERROR_OK)
+			return retval;
+		/* Update TAR to reflect incremented address */
+		dap->ap_tar_value = tar;
+#if 0
+		if (tar != address)
+			LOG_ERROR("TAR auto-increment does not work");
+#endif
+	}
+
 	/* Restore state */
 	address = adr;
 	nbytes = size * count;
 	read_ptr = read_buf;
 
-	/* If something failed, read TAR to find out how much data was successfully read, so we can
-	 * at least give the caller what we have. */
+	/* If something failed, read TAR to find out how much data was successfully read. */
 	if (retval != ERROR_OK) {
 		uint32_t tar;
 		if (dap_queue_ap_read(dap, AP_REG_TAR, &tar) == ERROR_OK
-				&& dap_run(dap) == ERROR_OK) {
+				&& dap_run(dap) == ERROR_OK)
 			LOG_ERROR("Failed to read memory at 0x%08"PRIx32, tar);
-			if (nbytes > tar - address)
-				nbytes = tar - address;
-		} else {
+		else
 			LOG_ERROR("Failed to read memory and, additionally, failed to find out where");
-			nbytes = 0;
-		}
+
+		nbytes = 0;
 	}
 
 	/* Replay loop to populate caller's buffer from the correct word and byte lane */
 	while (nbytes > 0) {
 		uint32_t this_size = size;
-
+#if 0
 		if (addrinc && dap->packed_transfers && nbytes >= 4
 				&& max_tar_block_size(dap->tar_autoincr_block, address) >= 4) {
 			this_size = 4;
 		}
+#endif
 
 		if (dap->ti_be_32_quirks) {
 			switch (this_size) {
@@ -663,6 +698,11 @@ int ahbap_debugport_init(struct adiv5_dap *dap)
 	 */
 	dap->ap_current = !0;
 	dap_ap_select(dap, 0);
+	/* Make sure CTRLSEL bit is cleared */
+	retval = dap_queue_dp_write(dap, DP_SELECT, 0);
+	if (retval != ERROR_OK)
+		return retval;
+
 	dap->last_read = NULL;
 
 	for (size_t i = 0; i < 10; i++) {
@@ -1576,6 +1616,98 @@ COMMAND_HANDLER(dap_apsel_command)
 	return retval;
 }
 
+static int jim_dap_readmem(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
+{
+	const char *cmd_name = Jim_GetString(argv[0], NULL);
+
+	Jim_GetOptInfo goi;
+	Jim_GetOpt_Setup(&goi, interp, argc - 1, argv + 1);
+
+	if (goi.argc != 2) {
+		Jim_SetResultFormatted(goi.interp,
+				"usage: %s <ap> <address>", cmd_name);
+		return JIM_ERR;
+	}
+
+	int e;
+	jim_wide ap;
+	e = Jim_GetOpt_Wide(&goi, &ap);
+	if (e != JIM_OK)
+		return e;
+
+	jim_wide address;
+	e = Jim_GetOpt_Wide(&goi, &address);
+	if (e != JIM_OK)
+		return e;
+
+	/* all args must be consumed */
+	if (goi.argc != 0)
+		return JIM_ERR;
+
+	struct command_context *cmd_ctx = current_command_context(goi.interp);
+	struct target *target = get_current_target(cmd_ctx);
+	struct arm *arm = target_to_arm(target);
+	struct adiv5_dap *dap = arm->dap;
+
+	uint32_t value;
+	int retval;
+
+	retval = mem_ap_sel_read_atomic_u32(dap, (uint8_t)ap, (uint32_t)address, &value);
+	if (retval != ERROR_OK)
+		return JIM_ERR;
+
+	Jim_SetResult(goi.interp, Jim_NewIntObj(goi.interp, value));
+
+	return JIM_OK;
+}
+
+static int jim_dap_writemem(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
+{
+	const char *cmd_name = Jim_GetString(argv[0], NULL);
+
+	Jim_GetOptInfo goi;
+	Jim_GetOpt_Setup(&goi, interp, argc - 1, argv + 1);
+
+	if (goi.argc != 3) {
+		Jim_SetResultFormatted(goi.interp,
+				"usage: %s <ap> <address> <value>", cmd_name);
+		return JIM_ERR;
+	}
+
+	int e;
+	jim_wide ap;
+	e = Jim_GetOpt_Wide(&goi, &ap);
+	if (e != JIM_OK)
+		return e;
+
+	jim_wide address;
+	e = Jim_GetOpt_Wide(&goi, &address);
+	if (e != JIM_OK)
+		return e;
+
+	jim_wide value;
+	e = Jim_GetOpt_Wide(&goi, &value);
+	if (e != JIM_OK)
+		return e;
+
+	/* all args must be consumed */
+	if (goi.argc != 0)
+		return JIM_ERR;
+
+	struct command_context *cmd_ctx = current_command_context(goi.interp);
+	struct target *target = get_current_target(cmd_ctx);
+	struct arm *arm = target_to_arm(target);
+	struct adiv5_dap *dap = arm->dap;
+
+	int retval;
+
+	retval = mem_ap_sel_write_atomic_u32(dap, (uint8_t)ap, (uint32_t)address, (uint32_t)value);
+	if (retval != ERROR_OK)
+		return JIM_ERR;
+
+	return JIM_OK;
+}
+
 COMMAND_HANDLER(dap_apcsw_command)
 {
 	struct target *target = get_current_target(CMD_CTX);
@@ -1720,6 +1852,20 @@ static const struct command_registration dap_commands[] = {
 		.help = "set/get number of extra tck for MEM-AP memory "
 			"bus access [0-255]",
 		.usage = "[cycles]",
+	},
+	{
+		.name = "readmem",
+		.jim_handler = jim_dap_readmem,
+		.mode = COMMAND_EXEC,
+		.help = "read memory using MEM-AP",
+		.usage = "ap address",
+	},
+	{
+		.name = "writemem",
+		.jim_handler = jim_dap_writemem,
+		.mode = COMMAND_EXEC,
+		.help = "write memory using MEM-AP",
+		.usage = "ap address value",
 	},
 	{
 		.name = "ti_be_32_quirks",

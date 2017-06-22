@@ -14,6 +14,13 @@ usage() {
 
 cd "${1:-.}" || usage
 
+# If there is a file named as "git-rev", just use the revision
+# in that file.
+if [ -e git-rev ]; then
+	awk '{printf $0}' git-rev
+	exit
+fi
+
 # Check for git and a git repo.
 if head=`git rev-parse --verify --short HEAD 2>/dev/null`; then
 
@@ -24,7 +31,7 @@ if head=`git rev-parse --verify --short HEAD 2>/dev/null`; then
 		# If we are past a tagged commit (like "v2.6.30-rc5-302-g72357d5"),
 		# we pretty print it.
 		if atag="`git describe 2>/dev/null`"; then
-			echo "$atag" | awk -F- '{printf("-%05d-%s", $(NF-1),$(NF))}'
+			echo "$atag" | awk -F- '{printf("-%s", $(NF))}'
 
 		# If we don't have a tag at all we print -g{commitish}.
 		else

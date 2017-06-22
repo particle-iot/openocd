@@ -264,6 +264,16 @@ int arm_dpm_read_current_registers(struct arm_dpm *dpm)
 	/* update core mode and state, plus shadow mapping for R8..R14 */
 	arm_set_cpsr(arm, cpsr);
 
+	if (arm->spsr) {
+		uint32_t spsr;
+		retval = dpm->instr_read_data_r0(dpm, ARMV4_5_MRS(0, 1), &spsr);
+		if (retval != ERROR_OK)
+			goto fail;
+		buf_set_u32(arm->spsr->value, 0, 32, spsr);
+		arm->spsr->dirty = 0;
+		arm->spsr->valid = 1;
+	}
+
 	/* REVISIT we can probably avoid reading R1..R14, saving time... */
 	for (unsigned i = 1; i < 16; i++) {
 		r = arm_reg_current(arm, i);
@@ -871,6 +881,22 @@ static int dpm_remove_watchpoint(struct target *target, struct watchpoint *wp)
 	return retval;
 }
 
+static int dpm_hit_watchpoint(struct target *target, struct watchpoint **hit_watchpoint)
+{
+	struct arm *arm = target_to_arm(target);
+	struct arm_dpm *dpm = arm->dpm;
+
+	for (unsigned i = 0; i < dpm->nwp; i++) {
+		/* since we only support only 1 watchpoint, no need for matching */
+		if (dpm->dwp[i].wp) {
+			*hit_watchpoint = dpm->dwp[i].wp;
+			return ERROR_OK;
+		}
+	}
+
+	return ERROR_FAIL;
+}
+
 void arm_dpm_report_wfar(struct arm_dpm *dpm, uint32_t addr)
 {
 	switch (dpm->arm->core_state) {
@@ -902,20 +928,20 @@ void arm_dpm_report_dscr(struct arm_dpm *dpm, uint32_t dscr)
 
 	/* Examine debug reason */
 	switch (DSCR_ENTRY(dscr)) {
-		case 6:	/* Data abort (v6 only) */
-		case 7:	/* Prefetch abort (v6 only) */
+		case DSCR_ENTRY_D_SIDE_ABORT:	/* v6 only */
+		case DSCR_ENTRY_I_SIDE_ABORT:	/* v6 only */
 		/* FALL THROUGH -- assume a v6 core in abort mode */
-		case 0:	/* HALT request from debugger */
-		case 4:	/* EDBGRQ */
+		case DSCR_ENTRY_HALT_REQ:
+		case DSCR_ENTRY_EXT_DBG_REQ:
 			target->debug_reason = DBG_REASON_DBGRQ;
 			break;
-		case 1:	/* HW breakpoint */
-		case 3:	/* SW BKPT */
-		case 5:	/* vector catch */
+		case DSCR_ENTRY_BREAKPOINT:
+		case DSCR_ENTRY_BKPT_INSTR:
+		case DSCR_ENTRY_VECT_CATCH:
 			target->debug_reason = DBG_REASON_BREAKPOINT;
 			break;
-		case 2:	/* asynch watchpoint */
-		case 10:/* precise watchpoint */
+		case DSCR_ENTRY_IMPRECISE_WATCHPT:
+		case DSCR_ENTRY_PRECISE_WATCHPT:
 			target->debug_reason = DBG_REASON_WATCHPOINT;
 			break;
 		default:
@@ -968,6 +994,7 @@ int arm_dpm_setup(struct arm_dpm *dpm)
 	/* watchpoint setup */
 	target->type->add_watchpoint = dpm_add_watchpoint;
 	target->type->remove_watchpoint = dpm_remove_watchpoint;
+	target->type->hit_watchpoint = dpm_hit_watchpoint;
 
 	/* FIXME add vector catch support */
 
@@ -985,6 +1012,10 @@ int arm_dpm_setup(struct arm_dpm *dpm)
 
 	LOG_INFO("%s: hardware has %d breakpoints, %d watchpoints",
 		target_name(target), dpm->nbp, dpm->nwp);
+	if (dpm->nwp > 1) {
+		dpm->nwp = 1;
+		LOG_INFO("%s: but you can only set 1 watchpoint", target_name(target));
+	}
 
 	/* REVISIT ... and some of those breakpoints could match
 	 * execution context IDs...

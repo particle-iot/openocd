@@ -29,13 +29,22 @@
 
 #include <helper/command.h>
 
-/* To achieve C99 printf compatibility in MinGW, gnu_printf should be
- * used for __attribute__((format( ... ))), with GCC v4.4 or later
- */
-#if (defined(IS_MINGW) && (((__GNUC__ << 16) + __GNUC_MINOR__) >= 0x00040004))
-#define PRINTF_ATTRIBUTE_FORMAT gnu_printf
+#ifdef IS_MINGW
+  #define PRIzu "Iu"
+  #define PRIzd "Id"
+  #define PRIzx "Ix"
+  #define PRIju "I64u"
+  #define PRIjd "I64d"
+  #define PRIllu "I64u"
+  #define PRIlld "I64d"
 #else
-#define PRINTF_ATTRIBUTE_FORMAT printf
+  #define PRIzu "zu"
+  #define PRIzd "zd"
+  #define PRIzx "zx"
+  #define PRIju "ju"
+  #define PRIjd "jd"
+  #define PRIllu "llu"
+  #define PRIlld "lld"
 #endif
 
 /* logging priorities

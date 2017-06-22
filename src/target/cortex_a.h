@@ -91,8 +91,9 @@ struct cortex_a_common {
 	uint32_t ttypr;
 	uint32_t didr;
 
-	struct armv7a_common armv7a_common;
+	int is_stepping;
 
+	struct armv7a_common armv7a_common;
 };
 
 static inline struct cortex_a_common *

@@ -1,9 +1,19 @@
 AC_PREREQ(2.64)
-AC_INIT([openocd], [0.9.0],
-  [OpenOCD Mailing List <openocd-devel@lists.sourceforge.net>])
+AC_INIT([openocd], [0.9.0])
 AC_CONFIG_SRCDIR([src/openocd.c])
 
+m4_include([acx.m4])
+ACX_PKGVERSION([OpenOCD])
+ACX_BUGURL([openocd-devel@lists.sourceforge.net])
+
+AC_DEFINE_UNQUOTED([PKGVERSION], ["$PKGVERSION"],
+		   [Define to the package version.])dnl
+AC_DEFINE_UNQUOTED([REPORT_BUGS_TO], ["$REPORT_BUGS_TO"],
+		   [Define to the URL or email address for report bugs to.])dnl
+
 m4_include([config_subdir.m4])dnl
+m4_include([lib-link.m4])
+m4_include([expat.m4])
 
 # check for makeinfo before calling AM_INIT_AUTOMAKE
 AC_CHECK_PROG([MAKEINFO], [makeinfo], [makeinfo])
@@ -140,8 +150,13 @@ AC_C_BIGENDIAN
 AC_CHECK_FUNCS([strndup])
 AC_CHECK_FUNCS([strnlen])
 AC_CHECK_FUNCS([gettimeofday])
+AC_CHECK_FUNCS([nanosleep])
 AC_CHECK_FUNCS([usleep])
 AC_CHECK_FUNCS([vasprintf])
+
+AC_CHECK_TYPE([struct timespec],
+	[AC_DEFINE(HAVE_STRUCT_TIMESPEC, 1, [Define to 1 if you have the struct timespec type])],
+	[], [[#include <time.h>]])
 
 build_bitbang=no
 build_bitq=no
@@ -196,11 +211,13 @@ __EOF__
 m4_define([ADAPTER_ARG], [m4_argn([1], $1)])
 m4_define([ADAPTER_DESC], [m4_argn([2], $1)])
 m4_define([ADAPTER_SYM], [m4_argn([3], $1)])
-m4_define([ADAPTER_VAR], [enable_[]ADAPTER_ARG($1)])
+m4_define([ADAPTER_VAR], [enable_[]m4_translit(ADAPTER_ARG($1), [-], [_])])
 m4_define([ADAPTER_OPT], [m4_translit(ADAPTER_ARG($1), [_], [-])])
 
 m4_define([USB1_ADAPTERS],
 	[[[ftdi], [MPSSE mode of FTDI based devices], [FTDI]],
+	[[ice-1000], [Analog Devices ICE-1000], [ICE_1000]],
+	[[ice-2000], [Analog Devices ICE-2000], [ICE_2000]],
 	[[stlink], [ST-Link JTAG Programmer], [HLADAPTER_STLINK]],
 	[[ti_icdi], [TI ICDI JTAG Programmer], [HLADAPTER_ICDI]],
 	[[ulink], [Keil ULINK JTAG Programmer], [ULINK]],
@@ -278,6 +295,8 @@ AC_ARG_WITH(ftd2xx-lib,
   # Default is static - it is simpler :-(
   with_ftd2xx_lib=static
   ])
+
+AM_EXPAT_LINK
 
 AC_ARG_ENABLE([doxygen-html],
   AS_HELP_STRING([--disable-doxygen-html],
@@ -594,8 +613,6 @@ case $host in
       AC_MSG_ERROR([buspirate currently not supported by MinGW32 hosts])
     fi
 
-    CFLAGS="$CFLAGS -D__USE_MINGW_ANSI_STDIO"
-
     AC_DEFINE([IS_MINGW], [1], [1 if building for MinGW.])
     AC_DEFINE([IS_WIN32], [1], [1 if building for Win32.])
     AC_DEFINE([IS_DARWIN], [0], [0 if not building for Darwin.])
@@ -781,7 +798,8 @@ fi
 
 if test $use_internal_jimtcl = yes; then
   if test -f "$srcdir/jimtcl/configure.ac"; then
-    AX_CONFIG_SUBDIR_OPTION([jimtcl], [--disable-install-jim])
+    ac_configure_args="$ac_configure_args --disable-install-jim"
+    AC_CONFIG_SUBDIRS([jimtcl])
   else
     AC_MSG_ERROR([jimtcl not found, run git submodule init and git submodule update.])
   fi

@@ -126,6 +126,13 @@ endif
 if OPENJTAG
 DRIVERFILES += openjtag.c
 endif
+if ICE_1000
+DRIVERFILES += ice1000.c
+else
+if ICE_2000
+DRIVERFILES += ice1000.c
+endif
+endif
 
 if CMSIS_DAP
 DRIVERFILES += cmsis_dap_usb.c

@@ -126,6 +126,11 @@ struct target_type {
 	int (*read_buffer)(struct target *target, uint32_t address,
 			uint32_t size, uint8_t *buffer);
 
+	/* Allow target to do some pre-processing before write_buffer.
+	   Don't call write_buffer if this function returns ERROR_OK.  */
+	int (*pre_write_buffer)(struct target *target, uint32_t address,
+			uint32_t size, const uint8_t *buffer);
+
 	/* Default implementation will do some fancy alignment to improve performance, target can override */
 	int (*write_buffer)(struct target *target, uint32_t address,
 			uint32_t size, const uint8_t *buffer);

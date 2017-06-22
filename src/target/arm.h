@@ -40,6 +40,11 @@
  * support has not yet been integrated, affecting Cortex-M parts.
  */
 
+enum {
+	ARM_SP  = 13,
+	ARM_PC  = 15,
+};
+
 /**
  * Represent state of an ARM core.
  *
@@ -131,8 +136,26 @@ struct arm {
 	/** Flag reporting whether semihosting is active. */
 	bool is_semihosting;
 
+	/** Flag reporting whether continue/step hits syscall or not. */
+	bool hit_syscall;
+
 	/** Value to be returned by semihosting SYS_ERRNO request. */
 	int semihosting_errno;
+
+	/** Flag reporting whether syscall is aborted. */
+	bool semihosting_ctrl_c;
+
+	/** Record syscall ID for other operations to do special processing for target. */
+	uint32_t active_syscall_id;
+
+	/** Semihosting result for some specific ARM system calls. */
+	uint32_t semihosting_result;
+
+	/** Values to be set by semihosting SYS_HEAPINFO operation. */
+	uint32_t heap_base;
+	uint32_t heap_limit;
+	uint32_t stack_base;
+	uint32_t stack_limit;
 
 	int (*setup_semihosting)(struct target *target, int enable);
 

@@ -80,11 +80,6 @@ struct gdb_connection {
 	 * allowing GDB to pick up a fresh set of register values from the target
 	 * without modifying the target state. */
 	bool sync;
-	/* We delay reporting memory write errors until next step/continue or memory
-	 * write. This improves performance of gdb load significantly as the GDB packet
-	 * can be replied immediately and a new GDB packet will be ready without delay
-	 * (ca. 10% or so...). */
-	bool mem_write_error;
 	/* with extended-remote it seems we need to better emulate attach/detach.
 	 * what this means is we reply with a W stop reply after a kill packet,
 	 * normally we reply with a S reply via gdb_last_signal_packet.
@@ -832,6 +827,8 @@ static void gdb_fileio_reply(struct target *target, struct connection *connectio
 		sprintf(fileio_command, "F%s,%" PRIx32 "/%" PRIx32, target->fileio_info->identifier,
 				target->fileio_info->param_1,
 				target->fileio_info->param_2);
+	else if (strcmp(target->fileio_info->identifier, "signal") == 0)
+		sprintf(fileio_command, "T%02x", target->fileio_info->param_1);
 	else if (strcmp(target->fileio_info->identifier, "exit") == 0) {
 		/* If target hits exit syscall, report to GDB the program is terminated.
 		 * In addition, let target run its own exit syscall handler. */
@@ -842,7 +839,12 @@ static void gdb_fileio_reply(struct target *target, struct connection *connectio
 
 		/* encounter unknown syscall, continue */
 		gdb_connection->frontend_state = TARGET_RUNNING;
-		target_resume(target, 1, 0x0, 0, 0);
+
+		if (gdb_running_type == 'c')
+			target_resume(target, 1, 0x0, 1, 0);
+		else if (gdb_running_type == 's')
+			target_step(target, 1, 0x0, 0);
+
 		return;
 	}
 
@@ -932,7 +934,6 @@ static int gdb_new_connection(struct connection *connection)
 	gdb_connection->busy = 0;
 	gdb_connection->noack_mode = 0;
 	gdb_connection->sync = false;
-	gdb_connection->mem_write_error = false;
 	gdb_connection->attached = true;
 	gdb_connection->target_desc.tdesc = NULL;
 	gdb_connection->target_desc.tdesc_length = 0;
@@ -965,6 +966,12 @@ static int gdb_new_connection(struct connection *connection)
 	if (initial_ack != '+')
 		gdb_putback_char(connection, initial_ack);
 	target_call_event_callbacks(gdb_service->target, TARGET_EVENT_GDB_ATTACH);
+
+	/* If target is halted, e.g. there is a halt command in gdb-attach
+	 * event in the config file, we don't need sync.
+	 */
+	if (gdb_service->target->state == TARGET_HALTED)
+		gdb_connection->sync = false;
 
 	if (gdb_use_memory_map) {
 		/* Connect must fail if the memory map can't be set up correctly.
@@ -1490,31 +1497,20 @@ static int gdb_write_memory_binary_packet(struct connection *connection,
 		return ERROR_SERVER_REMOTE_CLOSED;
 	}
 
-	struct gdb_connection *gdb_connection = connection->priv;
-
-	if (gdb_connection->mem_write_error) {
-		retval = ERROR_FAIL;
-		/* now that we have reported the memory write error, we can clear the condition */
-		gdb_connection->mem_write_error = false;
-	}
-
-	/* By replying the packet *immediately* GDB will send us a new packet
-	 * while we write the last one to the target.
-	 */
-	if (retval == ERROR_OK)
-		gdb_put_packet(connection, "OK", 2);
-	else {
-		retval = gdb_error(connection, retval);
-		if (retval != ERROR_OK)
-			return retval;
-	}
-
 	if (len) {
 		LOG_DEBUG("addr: 0x%8.8" PRIx32 ", len: 0x%8.8" PRIx32 "", addr, len);
 
 		retval = target_write_buffer(target, addr, len, (uint8_t *)separator);
-		if (retval != ERROR_OK)
-			gdb_connection->mem_write_error = true;
+	}
+
+	if (retval != ERROR_OK)
+	{
+		LOG_ERROR("Memory write failure!");
+		gdb_put_packet(connection, "E00", 3);
+	}
+	else
+	{
+		gdb_put_packet(connection, "OK", 2);
 	}
 
 	return ERROR_OK;
@@ -1539,7 +1535,7 @@ static int gdb_step_continue_packet(struct connection *connection,
 	if (packet[0] == 'c') {
 		LOG_DEBUG("continue");
 		/* resume at current address, don't handle breakpoints, not debugging */
-		retval = target_resume(target, current, address, 0, 0);
+		retval = target_resume(target, current, address, 1, 0);
 	} else if (packet[0] == 's') {
 		LOG_DEBUG("step");
 		/* step at current or address, don't handle breakpoints */
@@ -2591,7 +2587,7 @@ static int gdb_fileio_response_packet(struct connection *connection,
 
 	/* After File-I/O ends, keep continue or step */
 	if (gdb_running_type == 'c')
-		retval = target_resume(target, 1, 0x0, 0, 0);
+		retval = target_resume(target, 1, 0x0, 1, 0);
 	else if (gdb_running_type == 's')
 		retval = target_step(target, 1, 0x0, 0);
 	else
@@ -2716,14 +2712,6 @@ static int gdb_input_inner(struct connection *connection)
 				{
 					gdb_thread_packet(connection, packet, packet_size);
 					log_add_callback(gdb_log_callback, connection);
-
-					if (gdb_con->mem_write_error) {
-						LOG_ERROR("Memory write failure!");
-
-						/* now that we have reported the memory write error,
-						 * we can clear the condition */
-						gdb_con->mem_write_error = false;
-					}
 
 					bool nostep = false;
 					bool already_running = false;

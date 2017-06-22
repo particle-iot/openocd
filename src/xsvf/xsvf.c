@@ -1016,7 +1016,7 @@ COMMAND_HANDLER(handle_xsvf_command)
 	if (unsupported) {
 		off_t offset = lseek(xsvf_fd, 0, SEEK_CUR) - 1;
 		command_print(CMD_CTX,
-			"unsupported xsvf command (0x%02X) at offset %jd, aborting",
+			"unsupported xsvf command (0x%02X) at offset %"PRIjd", aborting",
 			uc, (intmax_t)offset);
 		return ERROR_FAIL;
 	}

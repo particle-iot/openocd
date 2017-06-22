@@ -30,6 +30,8 @@ if ULINK
 openocd_LDADD += -lm
 endif
 
+openocd_LDADD += $(LIBEXPAT)
+
 libopenocd_la_SOURCES = \
 	hello.c \
 	openocd.c

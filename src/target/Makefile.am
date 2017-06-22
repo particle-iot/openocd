@@ -36,6 +36,7 @@ libtarget_la_SOURCES = \
 	$(MIPS32_SRC) \
 	$(NDS32_SRC) \
 	$(INTEL_IA32_SRC) \
+	$(BLACKFIN_SRC) \
 	avrt.c \
 	dsp563xx.c \
 	dsp563xx_once.c \
@@ -50,7 +51,8 @@ TARGET_CORE_SRC = \
 	target.c \
 	target_request.c \
 	testee.c \
-	smp.c
+	smp.c \
+	xml_support.c
 
 ARMV4_5_SRC = \
 	armv4_5.c \
@@ -82,7 +84,8 @@ ARMV7_SRC = \
 	armv7m_trace.c \
 	cortex_m.c \
 	armv7a.c \
-	cortex_a.c
+	cortex_a.c \
+	cortex_a_memory_map.c
 
 ARM_DEBUG_SRC = \
 	arm_dpm.c \
@@ -105,6 +108,14 @@ AVR32_SRC = \
 	avr32_jtag.c \
 	avr32_mem.c \
 	avr32_regs.c
+
+BLACKFIN_SRC = \
+	blackfin.c \
+	blackfin_config.c \
+	blackfin_insn.c \
+	blackfin_jtag.c \
+	blackfin_mem.c \
+	blackfin_memory_map.c
 
 MIPS32_SRC = \
 	mips32.c \
@@ -157,12 +168,19 @@ noinst_HEADERS = \
 	armv7m.h \
 	armv7m_trace.h \
 	avrt.h \
+	blackfin.h \
+	blackfin_config.h \
+	blackfin_insn.h \
+	blackfin_jtag.h \
+	blackfin_mem.h \
+	blackfin_memory_map.h \
 	dsp563xx.h \
 	dsp563xx_once.h \
 	dsp5680xx.h \
 	breakpoints.h \
 	cortex_m.h \
 	cortex_a.h \
+	cortex_a_memory_map.h \
 	embeddedice.h \
 	etb.h \
 	etm.h \
@@ -199,7 +217,8 @@ noinst_HEADERS = \
 	nds32_v3m.h \
 	nds32_aice.h \
 	lakemont.h \
-	x86_32_common.h
+	x86_32_common.h \
+	xml_support.h
 
 ocddatadir = $(pkglibdir)
 nobase_dist_ocddata_DATA =

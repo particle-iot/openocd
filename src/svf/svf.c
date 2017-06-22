@@ -532,7 +532,7 @@ COMMAND_HANDLER(handle_svf_command)
 	time_measure_s %= 60;
 	if (time_measure_ms < 1000)
 		command_print(CMD_CTX,
-			"\r\nTime used: %dm%ds%lldms ",
+			"\r\nTime used: %dm%ds%"PRIlld"ms ",
 			time_measure_m,
 			time_measure_s,
 			time_measure_ms);

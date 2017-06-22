@@ -12,7 +12,7 @@ proc show_mmr32_reg { NAME } {
     # we want $($NAME)
     set a [set [set NAME]]
 
-    if ![catch { set v [memread32 $a] } msg ] {
+    if ![catch { set v [pmemread32 $a] } msg ] {
 	echo [format "%15s: (0x%08x): 0x%08x" $NAME $a $v]
 
 	# Was a helper defined?
@@ -61,7 +61,7 @@ proc show_mmr32_bits { NAMES VAL } {
 
 proc show_mmr_bitfield { MSB LSB VAL FIELDNAME FIELDVALUES } {
     set width [expr (($MSB - $LSB + 1) + 7) / 4]
-    set nval [show_normalize_bitfield $VAL $MSB $LSB ]
+    set nval [normalize_bitfield $VAL $MSB $LSB ]
     set name0 [lindex $FIELDVALUES 0 ]
     if [ string compare $name0 _NUMBER_ ] {
 	set sval [lindex $FIELDVALUES $nval]

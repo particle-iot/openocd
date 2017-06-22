@@ -26,11 +26,6 @@
 #include "armv4_5_cache.h"
 #include "arm_dpm.h"
 
-enum {
-	ARM_PC  = 15,
-	ARM_CPSR = 16
-};
-
 #define ARMV7_COMMON_MAGIC 0x0A450999
 
 /* VA to PA translation operations opc2 values*/
@@ -127,6 +122,10 @@ target_to_armv7a(struct target *target)
 	return container_of(target->arch_info, struct armv7a_common, arm);
 }
 
+static inline bool is_armv7a(struct armv7a_common *armv7a)
+{
+	return armv7a->common_magic == ARMV7_COMMON_MAGIC;
+}
 /* register offsets from armv7a.debug_base */
 
 /* See ARMv7a arch spec section C10.2 */
@@ -150,7 +149,8 @@ target_to_armv7a(struct target *target)
 #define CPUDBG_BCR_BASE		0x140
 #define CPUDBG_WVR_BASE		0x180
 #define CPUDBG_WCR_BASE		0x1C0
-#define CPUDBG_VCR		0x01C
+#define CPUDBG_VCR			0x01C
+#define VCR_SVC				0x4
 
 /* See ARMv7a arch spec section C10.6 */
 #define CPUDBG_OSLAR		0x300
@@ -170,6 +170,17 @@ int armv7a_init_arch_info(struct target *target, struct armv7a_common *armv7a);
 int armv7a_mmu_translate_va_pa(struct target *target, uint32_t va,
 		uint32_t *val, int meminfo);
 int armv7a_mmu_translate_va(struct target *target,  uint32_t va, uint32_t *val);
+
+int armv7a_invalidate_instruction_cache(struct target *target,
+		uint32_t address, uint32_t size, uint32_t count);
+int armv7a_clean_data_cache(struct target *target,
+		uint32_t address, uint32_t size, uint32_t count);
+int armv7a_invalidate_data_cache(struct target *target,
+		uint32_t address, uint32_t size, uint32_t count);
+int armv7a_clean_and_invalidate_data_cache(struct target *target,
+		uint32_t address, uint32_t size, uint32_t count);
+
+int armv7a_l2x_invalidate_all_data(struct target *target);
 
 int armv7a_handle_cache_info_command(struct command_context *cmd_ctx,
 		struct armv7a_cache_common *armv7a_cache);

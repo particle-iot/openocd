@@ -289,6 +289,12 @@ static inline int parity_u32(uint32_t x)
 #endif
 }
 
+#ifdef _WIN32
+#define PRIz "I"
+#else
+#define PRIz "z"
+#endif
+
 #if defined(__ECOS)
 
 /* eCos plain lacks these definition... A series of upstream patches

@@ -677,7 +677,7 @@ static int mrvlqspi_flash_write(struct flash_bank *bank, const uint8_t *buffer,
 	if (target_alloc_working_area(target, sizeof(mrvlqspi_flash_write_code),
 			&write_algorithm) != ERROR_OK) {
 		LOG_ERROR("Insufficient working area. You must configure"\
-			" a working area > %zdB in order to write to SPIFI flash.",
+			" a working area > %"PRIz"dB in order to write to SPIFI flash.",
 			sizeof(mrvlqspi_flash_write_code));
 		return ERROR_TARGET_RESOURCE_NOT_AVAILABLE;
 	};
@@ -699,14 +699,14 @@ static int mrvlqspi_flash_write(struct flash_bank *bank, const uint8_t *buffer,
 		target_free_working_area(target, write_algorithm);
 
 		LOG_ERROR("Insufficient working area. Please allocate at least"\
-			" %zdB of working area to enable flash writes.",
+			" %"PRIz"dB of working area to enable flash writes.",
 			sizeof(mrvlqspi_flash_write_code) + 1
 		);
 
 		return ERROR_TARGET_RESOURCE_NOT_AVAILABLE;
 	} else if (fifo_size < page_size)
 		LOG_WARNING("Working area size is limited; flash writes may be"\
-			" slow. Increase working area size to at least %zdB"\
+			" slow. Increase working area size to at least %"PRIz"dB"\
 			" to reduce write times.",
 			(size_t)(sizeof(mrvlqspi_flash_write_code) + page_size)
 		);
