@@ -39,19 +39,10 @@
 	 */
 
 /* offsets of registers from flash reg base */
-#define EFM32_MSC_WRITECTRL_OFFSET      0x008
 #define EFM32_MSC_WRITECMD_OFFSET       0x00c
 #define EFM32_MSC_ADDRB_OFFSET          0x010
 #define EFM32_MSC_WDATA_OFFSET          0x018
 #define EFM32_MSC_STATUS_OFFSET         0x01c
-#define EFM32_MSC_LOCK_OFFSET           0x03c
-
-	/* unlock MSC */
-	ldr     r6, =#0x1b71
-	str     r6, [r0, #EFM32_MSC_LOCK_OFFSET]
-	/* set WREN to 1 */
-	movs    r6, #1
-	str     r6, [r0, #EFM32_MSC_WRITECTRL_OFFSET]
 
 wait_fifo:
 	ldr     r6, [r2, #0]    /* read wp */

@@ -589,17 +589,10 @@ static int efm32x_write_block(struct flash_bank *bank, const uint8_t *buf,
 
 	/* see contrib/loaders/flash/efm32.S for src */
 	static const uint8_t efm32x_flash_write_code[] = {
-		/* #define EFM32_MSC_WRITECTRL_OFFSET      0x008 */
 		/* #define EFM32_MSC_WRITECMD_OFFSET       0x00c */
 		/* #define EFM32_MSC_ADDRB_OFFSET          0x010 */
 		/* #define EFM32_MSC_WDATA_OFFSET          0x018 */
 		/* #define EFM32_MSC_STATUS_OFFSET         0x01c */
-		/* #define EFM32_MSC_LOCK_OFFSET           0x03c */
-
-			0x15, 0x4e,    /* ldr     r6, =#0x1b71 */
-			0xc6, 0x63,    /* str     r6, [r0, #EFM32_MSC_LOCK_OFFSET] */
-			0x01, 0x26,    /* movs    r6, #1 */
-			0x86, 0x60,    /* str     r6, [r0, #EFM32_MSC_WRITECTRL_OFFSET] */
 
 		/* wait_fifo: */
 			0x16, 0x68,    /* ldr     r6, [r2, #0] */
@@ -656,9 +649,6 @@ static int efm32x_write_block(struct flash_bank *bank, const uint8_t *buf,
 		/* exit: */
 			0x30, 0x46,    /* mov     r0, r6 */
 			0x00, 0xbe,    /* bkpt    #0 */
-
-		/* LOCKKEY */
-			0x71, 0x1b, 0x00, 0x00
 	};
 
 	/* flash write code */
