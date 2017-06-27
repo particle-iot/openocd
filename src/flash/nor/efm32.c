@@ -39,15 +39,20 @@
 #include <target/cortex_m.h>
 
 /* keep family IDs in decimal */
+#define EFR_FAMILY_ID_MIGHTY_GECKO      16 /* EFR32MG1P */
+#define EFR_FAMILY_ID_BLUE_GECKO        20 /* EFR32BG1B */
+#define EFR_FAMILY_ID_FLEX_GECKO        37 /* EFR32FG12P */
 #define EFM_FAMILY_ID_GECKO             71
 #define EFM_FAMILY_ID_GIANT_GECKO       72
 #define EFM_FAMILY_ID_TINY_GECKO        73
 #define EFM_FAMILY_ID_LEOPARD_GECKO     74
 #define EFM_FAMILY_ID_WONDER_GECKO      75
 #define EFM_FAMILY_ID_ZERO_GECKO        76
-#define EFM_FAMILY_ID_HAPPY_GECKO	77
-#define EZR_FAMILY_ID_WONDER_GECKO		120
-#define EZR_FAMILY_ID_LEOPARD_GECKO		121
+#define EFM_FAMILY_ID_HAPPY_GECKO       77
+#define EFM_FAMILY_ID_PEARL_GECKO       81 /* EFM32PG1B */
+#define EFM_FAMILY_ID_JADE_GECKO        83 /* EFM32JG1B */
+#define EZR_FAMILY_ID_WONDER_GECKO      120
+#define EZR_FAMILY_ID_LEOPARD_GECKO     121
 
 #define EFM32_FLASH_ERASE_TMO           100
 #define EFM32_FLASH_WDATAREADY_TMO      100
@@ -70,7 +75,11 @@
 #define EFM32_MSC_DI_PART_FAMILY        (EFM32_MSC_DEV_INFO+0x1fe)
 #define EFM32_MSC_DI_PROD_REV           (EFM32_MSC_DEV_INFO+0x1ff)
 
+/* MSC register address for original EFM32 */
 #define EFM32_MSC_REGBASE               0x400c0000
+/* MSC register address for Pearl, Jade, Blue, Mighty, Flex, ... */
+#define EFM32_MSC_REGBASE_NEW           0x400e0000
+
 #define EFM32_MSC_WRITECTRL_OFFSET      0x008
 #define EFM32_MSC_WRITECTRL_WREN_MASK   0x1
 #define EFM32_MSC_WRITECMD_OFFSET       0x00c
@@ -87,6 +96,7 @@
 #define EFM32_MSC_STATUS_WORDTIMEOUT_MASK 0x10
 #define EFM32_MSC_STATUS_ERASEABORTED_MASK 0x20
 #define EFM32_MSC_LOCK_OFFSET           0x03c
+#define EFM32_MSC_LOCK_OFFSET_NEW       0x040
 #define EFM32_MSC_LOCK_LOCKKEY          0x1b71
 
 struct efm32x_flash_bank {
@@ -209,6 +219,25 @@ static int efm32x_read_info(struct flash_bank *bank,
 			LOG_ERROR("Invalid page size %u", efm32_info->page_size);
 			return ERROR_FAIL;
 		}
+	} else if (EFR_FAMILY_ID_MIGHTY_GECKO == efm32_info->part_family ||
+			EFR_FAMILY_ID_BLUE_GECKO == efm32_info->part_family ||
+			EFR_FAMILY_ID_FLEX_GECKO == efm32_info->part_family ||
+			EFM_FAMILY_ID_PEARL_GECKO == efm32_info->part_family ||
+			EFM_FAMILY_ID_JADE_GECKO == efm32_info->part_family) {
+		uint8_t pg_size = 0;
+		ret = target_read_u8(bank->target, EFM32_MSC_DI_PAGE_SIZE,
+			&pg_size);
+		if (ERROR_OK != ret)
+			return ret;
+
+		efm32_info->page_size = (1 << ((pg_size+10) & 0xff));
+		if (2048 != efm32_info->page_size) {
+			LOG_ERROR("Invalid page size %u", efm32_info->page_size);
+			return ERROR_FAIL;
+		}
+
+		efm32x_info->msc_regbase = EFM32_MSC_REGBASE_NEW;
+		efm32x_info->msc_lock_offset = EFM32_MSC_LOCK_OFFSET_NEW;
 	} else if (EFM_FAMILY_ID_WONDER_GECKO == efm32_info->part_family ||
 			EZR_FAMILY_ID_WONDER_GECKO == efm32_info->part_family ||
 			EZR_FAMILY_ID_LEOPARD_GECKO == efm32_info->part_family) {
@@ -243,6 +272,11 @@ static int efm32x_decode_info(struct efm32_info *info, char *buf, int buf_size)
 		case EZR_FAMILY_ID_LEOPARD_GECKO:
 			printed = snprintf(buf, buf_size, "EZR32 ");
 			break;
+		case EFR_FAMILY_ID_MIGHTY_GECKO:
+		case EFR_FAMILY_ID_BLUE_GECKO:
+		case EFR_FAMILY_ID_FLEX_GECKO:
+			printed = snprintf(buf, buf_size, "EFR32 ");
+			break;
 		default:
 			printed = snprintf(buf, buf_size, "EFM32 ");
 	}
@@ -254,6 +288,15 @@ static int efm32x_decode_info(struct efm32_info *info, char *buf, int buf_size)
 		return ERROR_BUF_TOO_SMALL;
 
 	switch (info->part_family) {
+		case EFR_FAMILY_ID_MIGHTY_GECKO:
+			printed = snprintf(buf, buf_size, "Mighty Gecko");
+			break;
+		case EFR_FAMILY_ID_BLUE_GECKO:
+			printed = snprintf(buf, buf_size, "Blue Gecko");
+			break;
+		case EFR_FAMILY_ID_FLEX_GECKO:
+			printed = snprintf(buf, buf_size, "Flex Gecko");
+			break;
 		case EFM_FAMILY_ID_GECKO:
 			printed = snprintf(buf, buf_size, "Gecko");
 			break;
@@ -263,6 +306,7 @@ static int efm32x_decode_info(struct efm32_info *info, char *buf, int buf_size)
 		case EFM_FAMILY_ID_TINY_GECKO:
 			printed = snprintf(buf, buf_size, "Tiny Gecko");
 			break;
+
 		case EFM_FAMILY_ID_LEOPARD_GECKO:
 		case EZR_FAMILY_ID_LEOPARD_GECKO:
 			printed = snprintf(buf, buf_size, "Leopard Gecko");
@@ -276,6 +320,12 @@ static int efm32x_decode_info(struct efm32_info *info, char *buf, int buf_size)
 			break;
 		case EFM_FAMILY_ID_HAPPY_GECKO:
 			printed = snprintf(buf, buf_size, "Happy Gecko");
+			break;
+		case EFM_FAMILY_ID_PEARL_GECKO:
+			printed = snprintf(buf, buf_size, "Pearl Gecko");
+			break;
+		case EFM_FAMILY_ID_JADE_GECKO:
+			printed = snprintf(buf, buf_size, "Jade Gecko");
 			break;
 	}
 
