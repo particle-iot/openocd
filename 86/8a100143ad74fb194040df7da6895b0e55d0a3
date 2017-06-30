@@ -1,0 +1,9 @@
+Verified+1: jenkins
+Code-Review+1: Stian Skjelstad <stian@nixia.no>
+Code-Review+1: Philipp Guehring <pg@futureware.at>
+Code-Review+2: Andreas Fritiofson <andreas.fritiofson@gmail.com>
+Submitted-by: Andreas Fritiofson <andreas.fritiofson@gmail.com>
+Submitted-at: Fri, 30 Jun 2017 10:06:32 +0100
+Reviewed-on: http://openocd.zylin.com/4167
+Project: openocd
+Branch: refs/heads/master
