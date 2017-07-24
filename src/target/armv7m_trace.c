@@ -91,9 +91,21 @@ int armv7m_trace_tpiu_config(struct target *target)
 			return retval;
 	}
 
-	retval = target_write_u32(target, TPIU_CSPSR, 1 << trace_config->port_size);
-	if (retval != ERROR_OK)
-		return retval;
+	if (trace_config->pin_protocol == SYNC) {
+		uint32_t sspsr;
+		retval = target_read_u32(target, TPIU_SSPSR, &sspsr);
+		if (retval != ERROR_OK)
+			return retval;
+
+		if (!(sspsr & (1 << (trace_config->port_size - 1)))) {
+			LOG_ERROR("Trace port size %u is not supported by TPIU", trace_config->port_size);
+			return ERROR_FAIL;
+		}
+
+		retval = target_write_u32(target, TPIU_CSPSR, 1 << (trace_config->port_size - 1));
+		if (retval != ERROR_OK)
+			return retval;
+	}
 
 	retval = target_write_u32(target, TPIU_ACPR, prescaler - 1);
 	if (retval != ERROR_OK)
