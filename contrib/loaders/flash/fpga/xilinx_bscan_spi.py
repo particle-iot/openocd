@@ -13,8 +13,8 @@
 #  GNU General Public License for more details.
 #
 
-from migen import *
-from migen.build.generic_platform import *
+import migen as mg
+import migen.build.generic_platform as mb
 from migen.build import xilinx
 
 
@@ -34,50 +34,84 @@ https://github.com/m-labs/migen
 """
 
 
-class Spartan3(Module):
+class Spartan3(mg.Module):
     macro = "BSCAN_SPARTAN3"
     toolchain = "ise"
 
     def __init__(self, platform):
         platform.toolchain.bitgen_opt += " -g compress -g UnusedPin:Pullup"
-        self.clock_domains.cd_jtag = ClockDomain(reset_less=True)
+        self.clock_domains.cd_jtag = mg.ClockDomain(reset_less=True)
         spi = platform.request("spiflash")
-        shift = Signal()
-        tdo = Signal()
-        sel1 = Signal()
+        shift = mg.Signal()
+        tdo = mg.Signal()
+        sel1 = mg.Signal()
         self.comb += [
             self.cd_jtag.clk.eq(spi.clk),
-            spi.cs_n.eq(~shift | ~sel1),
+            spi.cs_n.eq(~(shift & sel1)),
         ]
         self.sync.jtag += tdo.eq(spi.miso)
-        self.specials += Instance(self.macro,
-                                  o_DRCK1=spi.clk, o_SHIFT=shift,
-                                  o_TDI=spi.mosi, i_TDO1=tdo, i_TDO2=0,
-                                  o_SEL1=sel1)
+        self.specials += mg.Instance(
+                self.macro,
+                o_DRCK1=spi.clk, o_SHIFT=shift,
+                o_TDI=spi.mosi, i_TDO1=tdo, i_TDO2=0,
+                o_SEL1=sel1)
 
 
 class Spartan3A(Spartan3):
     macro = "BSCAN_SPARTAN3A"
 
 
-class Spartan6(Module):
+class Spartan6(mg.Module):
     toolchain = "ise"
 
     def __init__(self, platform):
         platform.toolchain.bitgen_opt += " -g compress -g UnusedPin:Pullup"
-        self.clock_domains.cd_jtag = ClockDomain(reset_less=True)
+        self.clock_domains.cd_jtag = mg.ClockDomain(reset_less=True)
         spi = platform.request("spiflash")
-        shift = Signal()
-        tdo = Signal()
-        sel = Signal()
-        self.comb += self.cd_jtag.clk.eq(spi.clk), spi.cs_n.eq(~shift | ~sel)
+        shift = mg.Signal()
+        tdo = mg.Signal()
+        sel = mg.Signal()
+        self.comb += [
+            self.cd_jtag.clk.eq(spi.clk),
+            spi.cs_n.eq(~(shift & sel)),
+        ]
         self.sync.jtag += tdo.eq(spi.miso)
-        self.specials += Instance("BSCAN_SPARTAN6", p_JTAG_CHAIN=1,
-                                  o_TCK=spi.clk, o_SHIFT=shift, o_SEL=sel,
-                                  o_TDI=spi.mosi, i_TDO=tdo)
+        self.specials += mg.Instance(
+            "BSCAN_SPARTAN6", p_JTAG_CHAIN=1,
+            o_TCK=spi.clk, o_SHIFT=shift, o_SEL=sel,
+            o_TDI=spi.mosi, i_TDO=tdo)
 
 
-class Series7(Module):
+class Series7(mg.Module):
+    toolchain = "vivado"
+
+    def __init__(self, platform):
+        platform.toolchain.bitstream_commands.extend([
+            "set_property BITSTREAM.GENERAL.COMPRESS True [current_design]",
+            "set_property BITSTREAM.CONFIG.UNUSEDPIN Pullnone [current_design]"
+        ])
+        self.clock_domains.cd_jtag = mg.ClockDomain(reset_less=True)
+        spi = platform.request("spiflash")
+        clk = mg.Signal()
+        shift = mg.Signal()
+        tdo = mg.Signal()
+        sel = mg.Signal()
+        self.comb += [
+            self.cd_jtag.clk.eq(clk),
+            spi.cs_n.eq(~(shift & sel)),
+        ]
+        self.sync.jtag += tdo.eq(spi.miso)
+        self.specials += mg.Instance(
+            "BSCANE2", p_JTAG_CHAIN=1,
+            o_SHIFT=shift, o_TCK=clk, o_SEL=sel,
+            o_TDI=spi.mosi, i_TDO=tdo)
+        self.specials += mg.Instance(
+            "STARTUPE2", i_CLK=0, i_GSR=0, i_GTS=0,
+            i_KEYCLEARB=0, i_PACK=1, i_USRCCLKO=clk,
+            i_USRCCLKTS=0, i_USRDONEO=1, i_USRDONETS=1)
+
+
+class Ultrascale(mg.Module):
     toolchain = "vivado"
 
     def __init__(self, platform):
@@ -85,20 +119,31 @@ class Series7(Module):
             "set_property BITSTREAM.GENERAL.COMPRESS True [current_design]",
             "set_property BITSTREAM.CONFIG.UNUSEDPIN Pullnone [current_design]",
         ])
-        self.clock_domains.cd_jtag = ClockDomain(reset_less=True)
-        spi = platform.request("spiflash")
-        clk = Signal()
-        shift = Signal()
-        tdo = Signal()
-        sel = Signal()
-        self.comb += self.cd_jtag.clk.eq(clk), spi.cs_n.eq(~shift | ~sel)
-        self.sync.jtag += tdo.eq(spi.miso)
-        self.specials += Instance("BSCANE2", p_JTAG_CHAIN=1,
-                                  o_SHIFT=shift, o_TCK=clk, o_SEL=sel,
-                                  o_TDI=spi.mosi, i_TDO=tdo)
-        self.specials += Instance("STARTUPE2", i_CLK=0, i_GSR=0, i_GTS=0,
-                                  i_KEYCLEARB=0, i_PACK=1, i_USRCCLKO=clk,
-                                  i_USRCCLKTS=0, i_USRDONEO=1, i_USRDONETS=1)
+        self.clock_domains.cd_jtag = mg.ClockDomain(reset_less=True)
+        spi1 = platform.request("spiflash")
+        clk = mg.Signal(2)
+        shift = mg.Signal(2)
+        tdo = mg.Signal(2)
+        sel = mg.Signal(2)
+        do = mg.Signal(4)
+        di = mg.Signal(4)
+        self.comb += [
+            self.cd_jtag.clk.eq(clk[0]),
+            spi1.cs_n.eq(~(shift[1] & sel[1])),
+        ]
+        self.sync.jtag += tdo.eq(mg.Cat(di[1], spi1.miso))
+        self.specials += mg.Instance("BSCANE2", p_JTAG_CHAIN=1,
+                                  o_SHIFT=shift[0], o_TCK=clk[0], o_SEL=sel[0],
+                                  o_TDI=do[0], i_TDO=tdo[0])
+        self.specials += mg.Instance("BSCANE2", p_JTAG_CHAIN=2,
+                                  o_SHIFT=shift[1], o_TCK=clk[1], o_SEL=sel[1],
+                                  o_TDI=spi1.mosi, i_TDO=tdo[1])
+        self.specials += mg.Instance("STARTUPE3", i_GSR=0, i_GTS=0,
+                                  i_KEYCLEARB=0, i_PACK=1,
+                                  i_USRDONEO=1, i_USRDONETS=1,
+                                  i_USRCCLKO=clk[0], i_USRCCLKTS=0,
+                                  i_FCSBO=~(shift[0] & sel[0]), i_FCSBTS=0,
+                                  o_DI=di, i_DO=do, i_DTS=0b1110),
 
 
 class XilinxBscanSpi(xilinx.XilinxPlatform):
@@ -132,6 +177,9 @@ class XilinxBscanSpi(xilinx.XilinxPlatform):
         ("flg1155-1", 1): ["AL28", None, "AE28", "AF28", "AJ29", "AJ30"],
         ("flg1932-1", 1): ["V32", None, "T33", "R33", "U31", "T31"],
         ("flg1926-1", 1): ["AK33", None, "AN34", "AN35", "AJ34", "AK34"],
+
+        ("ffva1156-2-e", 1): ["G26", None, "M20", "L20", "R21", "R22"],
+        ("ffva1156-2-e", "sayma"): ["K21", None, "M20", "L20", "R21", "R22"],
     }
 
     pinouts = {
@@ -197,21 +245,31 @@ class XilinxBscanSpi(xilinx.XilinxPlatform):
         "xc7vx550t": ("ffg1158-1", 1, "LVCMOS18", Series7),
         "xc7vx690t": ("ffg1157-1", 1, "LVCMOS18", Series7),
         "xc7vx980t": ("ffg1926-1", 1, "LVCMOS18", Series7),
+
+        "xcku040": ("ffva1156-2-e", 1, "LVCMOS18", Ultrascale),
+        # "xcku040": ("ffva1156-2-e", "sayma", "LVCMOS18", Ultrascale),
     }
 
     def __init__(self, device, pins, std, toolchain="ise"):
+        ios = [self.make_spi(0, pins, std, toolchain)]
+        xilinx.XilinxPlatform.__init__(self, device, ios, toolchain=toolchain)
+
+    @staticmethod
+    def make_spi(i, pins, std, toolchain):
+        pu = "PULLUP" if toolchain == "ise" else "PULLUP TRUE"
         cs_n, clk, mosi, miso = pins[:4]
-        io = ["spiflash", 0,
-              Subsignal("cs_n", Pins(cs_n)),
-              Subsignal("mosi", Pins(mosi)),
-              Subsignal("miso", Pins(miso), Misc("PULLUP")),
-              IOStandard(std),
-              ]
+        io = ["spiflash", i,
+            mb.Subsignal("cs_n", mb.Pins(cs_n)),
+            mb.Subsignal("mosi", mb.Pins(mosi)),
+            mb.Subsignal("miso", mb.Pins(miso), mb.Misc(pu)),
+            mb.IOStandard(std),
+            ]
         if clk:
-            io.append(Subsignal("clk", Pins(clk)))
+            io.append(mb.Subsignal("clk", mb.Pins(clk)))
         for i, p in enumerate(pins[4:]):
-            io.append(Subsignal("pullup{}".format(i), Pins(p), Misc("PULLUP")))
-        xilinx.XilinxPlatform.__init__(self, device, [io], toolchain=toolchain)
+            io.append(mb.Subsignal("pullup{}".format(i), mb.Pins(p),
+                                mb.Misc(pu)))
+        return io
 
     @classmethod
     def make(cls, device, errors=False):
