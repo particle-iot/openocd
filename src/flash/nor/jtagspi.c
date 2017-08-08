@@ -84,7 +84,8 @@ static int jtagspi_cmd(struct flash_bank *bank, uint8_t cmd,
 		uint32_t *addr, uint8_t *data, int len)
 {
 	struct jtagspi_flash_bank *info = bank->driver_priv;
-	struct scan_field fields[3];
+	struct scan_field fields[4];
+	uint8_t marker = 1;
 	uint8_t cmd_buf[4];
 	uint8_t *data_buf;
 	int is_read, lenb, n;
@@ -92,6 +93,12 @@ static int jtagspi_cmd(struct flash_bank *bank, uint8_t cmd,
 	/* LOG_DEBUG("cmd=0x%02x len=%i", cmd, len); */
 
 	n = 0;
+
+	fields[n].num_bits = 1;
+	fields[n].out_value = &marker;
+	fields[n].in_value = NULL;
+	n++;
+
 	fields[n].num_bits = 8;
 	cmd_buf[0] = cmd;
 	if (addr) {
