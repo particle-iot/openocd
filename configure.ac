@@ -124,6 +124,7 @@ m4_define([USB_ADAPTERS],
 m4_define([USB0_ADAPTERS],
 	[[[usbprog], [USBProg JTAG Programmer], [USBPROG]],
 	[[rlink], [Raisonance RLink JTAG Programmer], [RLINK]],
+	[[ft232r], [Bitbang mode of FT232R based devices], [FT232R]],
 	[[armjtagew], [Olimex ARM-JTAG-EW Programmer], [ARMJTAGEW]]])
 
 m4_define([HIDAPI_ADAPTERS],
