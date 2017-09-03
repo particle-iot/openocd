@@ -135,6 +135,7 @@ m4_define([HIDAPI_USB1_ADAPTERS],
 m4_define([LIBFTDI_ADAPTERS],
 	[[[usb_blaster], [Altera USB-Blaster Compatible], [USB_BLASTER]],
 	[[presto], [ASIX Presto Adapter], [PRESTO]],
+	[[ft232r], [Bitbang mode of FT232R based devices], [FT232R]],
 	[[openjtag], [OpenJTAG Adapter], [OPENJTAG]]])
 
 m4_define([LIBJAYLINK_ADAPTERS],
