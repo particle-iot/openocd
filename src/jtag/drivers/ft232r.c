@@ -282,8 +282,9 @@ static int ft232r_init(void)
 		ft232r_vid, ft232r_pid);
 	return ERROR_JTAG_INIT_FAILED;
 found:
+#ifdef LIBUSB_HAS_DETACH_KERNEL_DRIVER_NP
 	usb_detach_kernel_driver_np(adapter, 0);
-
+#endif
 	if (usb_claim_interface(adapter, 0)) {
 		LOG_ERROR("usb_claim_interface failed");
 		return ERROR_JTAG_INIT_FAILED;
