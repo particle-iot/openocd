@@ -25,6 +25,7 @@ NOR_DRIVERS = \
 	%D%/faux.c \
 	%D%/fm3.c \
 	%D%/fm4.c \
+	%D%/fslqspi.c \
 	%D%/jtagspi.c \
 	%D%/kinetis.c \
 	%D%/kinetis_ke.c \
