@@ -121,38 +121,91 @@ void jtag_libusb_close(jtag_libusb_device_handle *dev)
 	libusb_exit(jtag_libusb_context);
 }
 
+/* Convert libusb1 specific error codes to generic error codes, same as libusb0
+   returns.  This abstract the version of libusb used.
+   Took from libusb-compat-1.0 */
+static int libusb1_to_generic_result(int result)
+{
+	if (result >= 0)
+		return result;
+
+	switch (result) {
+		case LIBUSB_ERROR_IO:
+			return -EIO;
+		case LIBUSB_ERROR_INVALID_PARAM:
+			return -EINVAL;
+		case LIBUSB_ERROR_ACCESS:
+			return -EACCES;
+		case LIBUSB_ERROR_NO_DEVICE:
+			return -ENXIO;
+		case LIBUSB_ERROR_NOT_FOUND:
+			return -ENOENT;
+		case LIBUSB_ERROR_BUSY:
+			return -EBUSY;
+		case LIBUSB_ERROR_TIMEOUT:
+			return -ETIMEDOUT;
+		case -ETIMEDOUT:
+			/* libusb1 bug, sometime, -ETIMEDOUT is returned instead of
+			   LIBUSB_ERROR_TIMEOUT, so handle this case */
+			return -ETIMEDOUT;
+		case LIBUSB_ERROR_OVERFLOW:
+			return -EOVERFLOW;
+		case LIBUSB_ERROR_PIPE:
+			return -EPIPE;
+		case LIBUSB_ERROR_INTERRUPTED:
+			return -EINTR;
+		case LIBUSB_ERROR_NO_MEM:
+			return -ENOMEM;
+		case LIBUSB_ERROR_NOT_SUPPORTED:
+			return -ENOSYS;
+		default:
+			return -ERANGE;
+	}
+}
+
 int jtag_libusb_control_transfer(jtag_libusb_device_handle *dev, uint8_t requestType,
 		uint8_t request, uint16_t wValue, uint16_t wIndex, char *bytes,
 		uint16_t size, unsigned int timeout)
 {
-	int transferred = 0;
+	int retcode;
 
-	transferred = libusb_control_transfer(dev, requestType, request, wValue, wIndex,
+	retcode = libusb_control_transfer(dev, requestType, request, wValue, wIndex,
 				(unsigned char *)bytes, size, timeout);
 
-	if (transferred < 0)
-		transferred = 0;
-
-	return transferred;
+	return libusb1_to_generic_result(retcode);
 }
 
 int jtag_libusb_bulk_write(jtag_libusb_device_handle *dev, int ep, char *bytes,
 		int size, int timeout)
 {
+	int retcode;
 	int transferred = 0;
 
-	libusb_bulk_transfer(dev, ep, (unsigned char *)bytes, size,
+	retcode = libusb_bulk_transfer(dev, ep, (unsigned char *)bytes, size,
 			     &transferred, timeout);
+	if (retcode < 0) {
+		/* Convert libusb1 specific error codes to generic error codes, same as
+		   libusb0 return.  This abstract the version of libusb used. */
+		return libusb1_to_generic_result(retcode);
+	}
+
 	return transferred;
 }
 
 int jtag_libusb_bulk_read(jtag_libusb_device_handle *dev, int ep, char *bytes,
 		int size, int timeout)
 {
+	int retcode;
 	int transferred = 0;
 
-	libusb_bulk_transfer(dev, ep, (unsigned char *)bytes, size,
+	retcode = libusb_bulk_transfer(dev, ep, (unsigned char *)bytes, size,
 			     &transferred, timeout);
+	if (retcode < 0) {
+		/* Convert libusb1 specific error codes to generic error codes, same as
+		   libusb0 return.  This abstract the version of libusb used. */
+		return libusb1_to_generic_result(retcode);
+	}
+
 	return transferred;
 }
 

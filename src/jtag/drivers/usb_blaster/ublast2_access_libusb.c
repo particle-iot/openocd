@@ -40,26 +40,54 @@
 #define SECTION_BUFFERSIZE		16384
 
 static int ublast2_libusb_read(struct ublast_lowlevel *low, uint8_t *buf,
-			      unsigned size, uint32_t *bytes_read)
+			      unsigned size, uint32_t *bytes_read, int timeout)
 {
-	*bytes_read = jtag_libusb_bulk_read(low->libusb_dev,
+	int retval;
+
+	retval = jtag_libusb_bulk_read(low->libusb_dev,
 					    USBBLASTER_EPIN | \
 					    LIBUSB_ENDPOINT_IN,
 					    (char *)buf,
 					    size,
-					    100);
+					    timeout);
+
+	if (retval < 0) {
+		*bytes_read = 0;
+
+		/* Check if timeout.  If so, return OK (with 0 bytes transferred) */
+		if (-ETIMEDOUT == retval)
+			return ERROR_OK;
+
+		return retval;
+	}
+
+	*bytes_read = (uint32_t)retval;
 	return ERROR_OK;
 }
 
 static int ublast2_libusb_write(struct ublast_lowlevel *low, uint8_t *buf,
-			       int size, uint32_t *bytes_written)
+			       int size, uint32_t *bytes_written, int timeout)
 {
-	*bytes_written = jtag_libusb_bulk_write(low->libusb_dev,
+	int retval;
+
+	retval = jtag_libusb_bulk_write(low->libusb_dev,
 						USBBLASTER_EPOUT | \
 						LIBUSB_ENDPOINT_OUT,
 						(char *)buf,
 						size,
-						100);
+						timeout);
+
+	if (retval < 0) {
+		*bytes_written = 0;
+
+		/* Check if timeout.  If so, return OK (with 0 bytes transferred) */
+		if (-ETIMEDOUT == retval)
+			return ERROR_OK;
+
+		return retval;
+	}
+
+	*bytes_written = (uint32_t)retval;
 	return ERROR_OK;
 }
 
@@ -96,7 +124,7 @@ static int ublast2_write_firmware_section(struct jtag_libusb_device_handle *libu
 		else
 			chunk_size = bytes_remaining;
 
-		jtag_libusb_control_transfer(libusb_dev,
+		ret = jtag_libusb_control_transfer(libusb_dev,
 					     LIBUSB_REQUEST_TYPE_VENDOR | \
 					     LIBUSB_ENDPOINT_OUT,
 					     USBBLASTER_CTRL_LOAD_FIRM,
@@ -105,6 +133,12 @@ static int ublast2_write_firmware_section(struct jtag_libusb_device_handle *libu
 					     (char *)data_ptr,
 					     chunk_size,
 					     100);
+
+		/* Error? */
+		if (ret != chunk_size) {
+			LOG_ERROR("Error sending USB firmware data");
+			return ERROR_FAIL;
+		}
 
 		bytes_remaining -= chunk_size;
 		addr += chunk_size;
@@ -142,7 +176,7 @@ static int load_usb_blaster_firmware(struct jtag_libusb_device_handle *libusb_de
 	 */
 
 	char value = CPU_RESET;
-	jtag_libusb_control_transfer(libusb_dev,
+	ret = jtag_libusb_control_transfer(libusb_dev,
 				     LIBUSB_REQUEST_TYPE_VENDOR | \
 				     LIBUSB_ENDPOINT_OUT,
 				     USBBLASTER_CTRL_LOAD_FIRM,
@@ -151,6 +185,11 @@ static int load_usb_blaster_firmware(struct jtag_libusb_device_handle *libusb_de
 				     &value,
 				     1,
 				     100);
+	/* Error? */
+	if (ret != 1) {
+		LOG_ERROR("Error while downloading the firmware");
+		return ERROR_FAIL;
+	}
 
 	/* Download all sections in the image to ULINK */
 	for (int i = 0; i < ublast2_firmware_image.num_sections; i++) {
@@ -163,7 +202,7 @@ static int load_usb_blaster_firmware(struct jtag_libusb_device_handle *libusb_de
 	}
 
 	value = !CPU_RESET;
-	jtag_libusb_control_transfer(libusb_dev,
+	ret = jtag_libusb_control_transfer(libusb_dev,
 				     LIBUSB_REQUEST_TYPE_VENDOR | \
 				     LIBUSB_ENDPOINT_OUT,
 				     USBBLASTER_CTRL_LOAD_FIRM,
@@ -172,6 +211,11 @@ static int load_usb_blaster_firmware(struct jtag_libusb_device_handle *libusb_de
 				     &value,
 				     1,
 				     100);
+	/* Error? */
+	if (ret != 1) {
+		LOG_ERROR("Error while downloading the firmware");
+		return ERROR_FAIL;
+	}
 
 	image_close(&ublast2_firmware_image);
 
@@ -218,7 +262,7 @@ static int ublast2_libusb_init(struct ublast_lowlevel *low)
 	}
 
 	char buffer[5];
-	jtag_libusb_control_transfer(low->libusb_dev,
+	ret = jtag_libusb_control_transfer(low->libusb_dev,
 				     LIBUSB_REQUEST_TYPE_VENDOR | \
 				     LIBUSB_ENDPOINT_IN,
 				     USBBLASTER_CTRL_READ_REV,
@@ -227,6 +271,11 @@ static int ublast2_libusb_init(struct ublast_lowlevel *low)
 				     buffer,
 				     5,
 				     100);
+	/* Error? */
+	if (ret != 5) {
+		LOG_ERROR("Error getting firmware revision");
+		return ERROR_FAIL;
+	}
 
 	LOG_INFO("Altera USB-Blaster II found (Firm. rev. = %s)", buffer);
 
