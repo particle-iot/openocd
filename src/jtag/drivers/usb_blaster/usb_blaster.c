@@ -268,6 +268,8 @@ static void *ublast_in_buf_read_thread(void *arg)
 	/* Done */
 	info.in_thread_status = ret;
 	pthread_exit(NULL);
+
+	return 0; /* Prevent compilation warning*/
 }
 
 static int ublast_in_buf_read_thread_start(void)
