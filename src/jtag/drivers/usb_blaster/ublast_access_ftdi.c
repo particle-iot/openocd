@@ -29,6 +29,7 @@
 #endif
 #include <jtag/interface.h>
 #include <jtag/commands.h>
+#include <helper/time_support.h>
 
 #include "ublast_access.h"
 #include <ftdi.h>
@@ -39,41 +40,76 @@ static struct ftdi_context *ublast_getftdic(struct ublast_lowlevel *low)
 }
 
 static int ublast_ftdi_read(struct ublast_lowlevel *low, uint8_t *buf,
-			    unsigned size, uint32_t *bytes_read)
+			    unsigned size, uint32_t *bytes_read, int timeout)
 {
 	int retval;
-	int timeout = 100;
 	struct ftdi_context *ftdic = ublast_getftdic(low);
+	int64_t timeout_time = timeval_ms() + timeout;
+
+	if (timeout)
+		ftdic->usb_read_timeout = timeout;
 
 	*bytes_read = 0;
-	while ((*bytes_read < size) && timeout--) {
-		retval = ftdi_read_data(ftdic, buf + *bytes_read,
-				size - *bytes_read);
-		if (retval < 0)	{
+
+	/* Work around libftdi bug, which return immediately withouth honoring the
+	  timeout value */
+	while (*bytes_read < size) {
+		retval = ftdi_read_data(ftdic, buf + *bytes_read, size - *bytes_read);
+		/* Discard timeout errors here */
+#if (defined LIBUSB_ERROR_TIMEOUT)
+		/* Maybe compiled on a system with an old libftdi, with only
+		   libusb0 installed, and no definition of LIBUSB_ERROR_TIMEOUT */
+		if ((retval == LIBUSB_ERROR_TIMEOUT) && (retval == -ETIMEDOUT)) {
+#else
+		if (retval == -ETIMEDOUT)
+#endif
+			retval = 0; /* No data */
+
+		/* Check if error */
+		if (retval < 0) {
+			/* Return error */
 			*bytes_read = 0;
 			LOG_ERROR("ftdi_read_data: %s",
 					ftdi_get_error_string(ftdic));
 			return ERROR_JTAG_DEVICE_ERROR;
 		}
-		*bytes_read += retval;
+
+		*bytes_read += (uint32_t)retval;
+
+		/* Exit if we have timed-out. */
+		if (timeout) {
+			if (timeval_ms() >= timeout_time)
+				return ERROR_OK; /* Return OK, with what we have so far. */
+		}
 	}
 	return ERROR_OK;
 }
 
 static int ublast_ftdi_write(struct ublast_lowlevel *low, uint8_t *buf, int size,
-			     uint32_t *bytes_written)
+			     uint32_t *bytes_written, int timeout)
 {
 	int retval;
 	struct ftdi_context *ftdic = ublast_getftdic(low);
 
+	ftdic->usb_write_timeout = timeout;
+
 	retval = ftdi_write_data(ftdic, buf, size);
 	if (retval < 0)	{
 		*bytes_written = 0;
+
+		/* Check if timeout.  If so, return OK (with 0 bytes transferred) */
+#if (defined LIBUSB_ERROR_TIMEOUT)
+		if ((retval == LIBUSB_ERROR_TIMEOUT) && (retval == -ETIMEDOUT)) {
+#else
+		if (retval == -ETIMEDOUT)
+#endif
+			return 0; /* Return OK, with 0 bytes transferred */
+
 		LOG_ERROR("ftdi_write_data: %s",
 			  ftdi_get_error_string(ftdic));
 		return ERROR_JTAG_DEVICE_ERROR;
 	}
-	*bytes_written = retval;
+	*bytes_written = (uint32_t)retval;
 	return ERROR_OK;
 }
 
