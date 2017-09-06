@@ -229,7 +229,7 @@ static int openjtag_buf_write_standard(
 		return ERROR_JTAG_DEVICE_ERROR;
 	}
 
-	*bytes_written += retval;
+	*bytes_written = retval;
 
 	return ERROR_OK;
 }
@@ -251,7 +251,7 @@ static int openjtag_buf_write_cy7c65215(
 	ret = jtag_libusb_control_transfer(usbh, CY7C65215_JTAG_REQUEST,
 									   CY7C65215_JTAG_WRITE, size, 0,
 									   NULL, 0, CY7C65215_USB_TIMEOUT);
-	if (ret < 0) {
+	if (ret != 0) {
 		LOG_ERROR("vendor command failed, error %d", ret);
 		return ERROR_JTAG_DEVICE_ERROR;
 	}
@@ -319,7 +319,7 @@ static int openjtag_buf_read_cy7c65215(
 	ret = jtag_libusb_control_transfer(usbh, CY7C65215_JTAG_REQUEST,
 									   CY7C65215_JTAG_READ, qty, 0,
 									   NULL, 0, CY7C65215_USB_TIMEOUT);
-	if (ret < 0) {
+	if (ret != 0) {
 		LOG_ERROR("vendor command failed, error %d", ret);
 		return ERROR_JTAG_DEVICE_ERROR;
 	}
@@ -469,7 +469,7 @@ static int openjtag_init_cy7c65215(void)
 									   CY7C65215_JTAG_REQUEST,
 									   CY7C65215_JTAG_ENABLE,
 									   0, 0, NULL, 0, CY7C65215_USB_TIMEOUT);
-	if (ret < 0) {
+	if (ret != 0) {
 		LOG_ERROR("could not enable JTAG module");
 		goto err;
 	}
@@ -522,7 +522,7 @@ static int openjtag_quit_cy7c65215(void)
 									   CY7C65215_JTAG_REQUEST,
 									   CY7C65215_JTAG_DISABLE,
 									   0, 0, NULL, 0, CY7C65215_USB_TIMEOUT);
-	if (ret < 0)
+	if (ret != 0)
 		LOG_WARNING("could not disable JTAG module");
 
 	jtag_libusb_close(usbh);
