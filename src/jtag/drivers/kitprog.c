@@ -421,7 +421,7 @@ static int kitprog_set_protocol(uint8_t protocol)
 		(CONTROL_MODE_SET_PROGRAMMER_PROTOCOL << 8) | CONTROL_COMMAND_PROGRAM,
 		protocol, &status, 1, 0);
 
-	if (transferred == 0) {
+	if (transferred <= 0) {
 		LOG_DEBUG("Zero bytes transferred");
 		return ERROR_FAIL;
 	}
@@ -440,7 +440,7 @@ static int kitprog_get_status(void)
 	char status = PROGRAMMER_NOK_NACK;
 
 	/* Try a maximum of three times */
-	for (int i = 0; (i < 3) && (transferred == 0); i++) {
+	for (int i = 0; (i < 3) && (transferred <= 0); i++) {
 		transferred = jtag_libusb_control_transfer(kitprog_handle->usb_handle,
 			LIBUSB_ENDPOINT_IN | LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_RECIPIENT_DEVICE,
 			CONTROL_TYPE_READ,
@@ -449,7 +449,7 @@ static int kitprog_get_status(void)
 		jtag_sleep(1000);
 	}
 
-	if (transferred == 0) {
+	if (transferred <= 0) {
 		LOG_DEBUG("Zero bytes transferred");
 		return ERROR_FAIL;
 	}
@@ -473,7 +473,7 @@ static int kitprog_set_unknown(void)
 		(0x03 << 8) | 0x04,
 		0, &status, 1, 0);
 
-	if (transferred == 0) {
+	if (transferred <= 0) {
 		LOG_DEBUG("Zero bytes transferred");
 		return ERROR_FAIL;
 	}
@@ -498,7 +498,7 @@ static int kitprog_acquire_psoc(uint8_t psoc_type, uint8_t acquire_mode,
 		(CONTROL_MODE_ACQUIRE_SWD_TARGET << 8) | CONTROL_COMMAND_PROGRAM,
 		(max_attempts << 8) | (acquire_mode << 4) | psoc_type, &status, 1, 0);
 
-	if (transferred == 0) {
+	if (transferred <= 0) {
 		LOG_DEBUG("Zero bytes transferred");
 		return ERROR_FAIL;
 	}
@@ -522,7 +522,7 @@ static int kitprog_reset_target(void)
 		(CONTROL_MODE_RESET_TARGET << 8) | CONTROL_COMMAND_PROGRAM,
 		0, &status, 1, 0);
 
-	if (transferred == 0) {
+	if (transferred <= 0) {
 		LOG_DEBUG("Zero bytes transferred");
 		return ERROR_FAIL;
 	}
@@ -546,7 +546,7 @@ static int kitprog_swd_sync(void)
 		(CONTROL_MODE_SYNCHRONIZE_TRANSFER << 8) | CONTROL_COMMAND_PROGRAM,
 		0, &status, 1, 0);
 
-	if (transferred == 0) {
+	if (transferred <= 0) {
 		LOG_DEBUG("Zero bytes transferred");
 		return ERROR_FAIL;
 	}
@@ -570,7 +570,7 @@ static int kitprog_swd_seq(uint8_t seq_type)
 		(CONTROL_MODE_SEND_SWD_SEQUENCE << 8) | CONTROL_COMMAND_PROGRAM,
 		seq_type, &status, 1, 0);
 
-	if (transferred == 0) {
+	if (transferred <= 0) {
 		LOG_DEBUG("Zero bytes transferred");
 		return ERROR_FAIL;
 	}

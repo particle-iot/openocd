@@ -30,9 +30,10 @@ DIST_SUBDIRS += jimtcl
 endif
 
 # common flags used in openocd build
-AM_CFLAGS = $(GCC_WARNINGS)
+AM_CFLAGS = $(GCC_WARNINGS) $(PTHREAD_CFLAGS)
 
 AM_CPPFLAGS = $(HOST_CPPFLAGS)\
+			  $(PTHREAD_CFLAGS) \
 			  -I$(top_srcdir)/src \
 			  -I$(top_builddir)/src \
 			  -I$(top_srcdir)/src/helper \
@@ -43,6 +44,11 @@ if INTERNAL_JIMTCL
 AM_CPPFLAGS += -I$(top_srcdir)/jimtcl \
 			   -I$(top_builddir)/jimtcl
 endif
+
+AM_LDFLAGS = $(PTHREAD_LDFLAGS)
+
+CC = $(PTHREAD_CC)
+
 EXTRA_DIST += \
 	BUGS \
 	HACKING \

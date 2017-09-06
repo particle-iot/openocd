@@ -43,9 +43,9 @@ struct ublast_lowlevel {
 	char *firmware_path;
 
 	int (*write)(struct ublast_lowlevel *low, uint8_t *buf, int size,
-		     uint32_t *bytes_written);
+		     uint32_t *bytes_written, int timeout);
 	int (*read)(struct ublast_lowlevel *low, uint8_t *buf, unsigned size,
-		    uint32_t *bytes_read);
+		    uint32_t *bytes_read, int timeout);
 	int (*open)(struct ublast_lowlevel *low);
 	int (*close)(struct ublast_lowlevel *low);
 	int (*speed)(struct ublast_lowlevel *low, int speed);
