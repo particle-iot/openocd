@@ -3123,6 +3123,10 @@ COMMAND_HANDLER(handle_md_command)
 	int retval = fn(target, address, size, count, buffer);
 	if (ERROR_OK == retval)
 		handle_md_output(CMD_CTX, target, address, size, count, buffer);
+	else {
+		if (ERROR_EXCEPTION == retval)
+			command_print(CMD_CTX, "Memory read exception!");
+	}
 
 	free(buffer);
 
@@ -3190,6 +3194,8 @@ static int target_fill_mem(struct target *target,
 
 COMMAND_HANDLER(handle_mw_command)
 {
+	int retval = ERROR_OK;
+
 	if (CMD_ARGC < 2)
 		return ERROR_COMMAND_SYNTAX_ERROR;
 	bool physical = strcmp(CMD_ARGV[0], "phys") == 0;
@@ -3232,7 +3238,13 @@ COMMAND_HANDLER(handle_mw_command)
 			return ERROR_COMMAND_SYNTAX_ERROR;
 	}
 
-	return target_fill_mem(target, address, fn, wordsize, value, count);
+	retval = target_fill_mem(target, address, fn, wordsize, value, count);
+	if (retval != ERROR_OK) {
+		if (ERROR_EXCEPTION == retval)
+			command_print(CMD_CTX, "Memory write exception");
+	}
+
+	return retval;
 }
 
 static COMMAND_HELPER(parse_load_image_command_CMD_ARGV, struct image *image,

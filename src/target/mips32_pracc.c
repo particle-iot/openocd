@@ -172,6 +172,32 @@ int mips32_pracc_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_info *ct
 	bool pass = 0;			/* to check the pass through pracc text after function code sent */
 	int retval;
 
+	/* Ensure we are at text start.  Don't assume that the last run left us at
+	   text start.  In fact that DOES occur in normal circumstances, and it's
+	   not because of error in the previous caller's code.  This most usually
+	   occur because of a read/write memory access exception, creating a nested
+	   exception (execption occuring while already in debug mode), which jump
+	   us back to text start while queuing our PrAcc stream.  And in turn,
+	   those memory access exception usually occur because the GDB client sent
+	   a request to our server part to read/write somewhere in memory that
+	   does not exists (no mapped TLB), or which there's no write priviledge. */
+	retval = mips32_pracc_read_ctrl_addr(ejtag_info); /* update current pa info: control and address */
+	if (retval != ERROR_OK) {
+		LOG_ERROR("Unable to get pracc ctrl/addr");
+		return retval;
+	}
+
+	if ((ejtag_info->pa_ctrl & EJTAG_CTRL_PRNW) ||
+		(ejtag_info->pa_addr != MIPS32_PRACC_TEXT)) {
+		/* Unclean state.  Do a clean jump to to text start. */
+		LOG_DEBUG("Last operation did not return to dmseg text start, attempting to jump to it...");
+		retval = mips32_pracc_clean_text_jump(ejtag_info);
+		if (retval != ERROR_OK) {
+			LOG_ERROR("Unable to jump to pracc text start");
+			return retval;
+		}
+	}
+
 	while (1) {
 		if (restart) {
 			if (restart_count < 3) {					/* max 3 restarts allowed */
@@ -223,21 +249,30 @@ int mips32_pracc_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_info *ct
 			 if (!final_check) {			/* executing function code */
 				/* check address */
 				if (ejtag_info->pa_addr != (MIPS32_PRACC_TEXT + code_count * 4)) {
-					LOG_DEBUG("reading at unexpected address %" PRIx32 ", expected %x",
-							ejtag_info->pa_addr, MIPS32_PRACC_TEXT + code_count * 4);
+					/* This can occur if the last instruction created an exception,
+					   in which case the CPU create nested debug exception, and
+					   jump back to pracc text start. */
+					if (ejtag_info->pa_addr == MIPS32_PRACC_TEXT) {
+						/* We can reasonably assume we've got an exception */
+						LOG_DEBUG("Exception during pracc execution");
+						retval = ERROR_EXCEPTION;
+					} else {
+						LOG_DEBUG("reading at unexpected address %" PRIx32 ", expected %x",
+								ejtag_info->pa_addr, MIPS32_PRACC_TEXT + code_count * 4);
 
-					/* restart code execution only in some cases */
-					if (code_count == 1 && ejtag_info->pa_addr == MIPS32_PRACC_TEXT &&
-										restart_count == 0) {
-						LOG_DEBUG("restarting, without clean jump");
-						restart_count++;
-						code_count = 0;
-						continue;
-					} else if (code_count < 2) {
-						restart = 1;
-						continue;
+						/* restart code execution only in some cases */
+						if (code_count < 2) {	/* allow for restart */
+							restart = 1;
+							continue;
+						} else {
+							retval = ERROR_JTAG_DEVICE_ERROR;
+						}
 					}
-					return ERROR_JTAG_DEVICE_ERROR;
+					/* Unclean state.  Do a clean jump to to text start before we leave */
+					/* Do not check for error, return the error code we set above */
+					if (mips32_pracc_clean_text_jump(ejtag_info) != ERROR_OK)
+						LOG_ERROR("Unable to jump to dmseg text start");
+					return retval;
 				}
 				/* check for store instruction at dmseg */
 				uint32_t store_addr = ctx->pracc_list[code_count].addr;
@@ -353,6 +388,8 @@ inline void pracc_queue_free(struct pracc_queue_info *ctx)
 int mips32_pracc_queue_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_info *ctx,
 					uint32_t *buf, bool check_last)
 {
+	int retval = ERROR_OK;
+
 	if (ctx->retval != ERROR_OK) {
 		LOG_ERROR("Out of memory");
 		return ERROR_FAIL;
@@ -364,6 +401,32 @@ int mips32_pracc_queue_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_in
 
 	if (ejtag_info->mode == 0)
 		return mips32_pracc_exec(ejtag_info, ctx, buf, check_last);
+
+	/* Ensure we are at text start.  Don't assume that the last run left us at
+	   text start.  In fact that DOES occur in normal circumstances, and it's
+	   not because of error in the previous caller's code.  This most usually
+	   occur because of a read/write memory access exception, creating a nested
+	   exception (execption occuring while already in debug mode), which jump
+	   us back to text start while queuing our PrAcc stream.  And in turn,
+	   those memory access exception usually occur because the GDB client sent
+	   a request to our server part to read/write somewhere in memory that
+	   does not exists (no mapped TLB), or which there's no write priviledge. */
+	retval = mips32_pracc_read_ctrl_addr(ejtag_info); /* update current pa info: control and address */
+	if (retval != ERROR_OK) {
+		LOG_ERROR("Unable to get pracc ctrl/addr");
+		return retval;
+	}
+
+	if ((ejtag_info->pa_ctrl & EJTAG_CTRL_PRNW) ||
+		(ejtag_info->pa_addr != MIPS32_PRACC_TEXT)) {
+		/* Unclean state.  Do a clean jump to to text start. */
+		LOG_DEBUG("Last operation did not return to dmseg text start, attempting to jump to it...");
+		retval = mips32_pracc_clean_text_jump(ejtag_info);
+		if (retval != ERROR_OK) {
+			LOG_ERROR("Unable to jump to pracc text start");
+			return retval;
+		}
+	}
 
 	union scan_in {
 		uint8_t scan_96[12];
@@ -398,7 +461,7 @@ int mips32_pracc_queue_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_in
 		}
 	}
 
-	int retval = jtag_execute_queue();		/* execute queued scans */
+	retval = jtag_execute_queue();		/* execute queued scans */
 	if (retval != ERROR_OK)
 		goto exit;
 
@@ -419,9 +482,22 @@ int mips32_pracc_queue_exec(struct mips_ejtag *ejtag_info, struct pracc_queue_in
 			goto exit;
 		}
 		if (addr != fetch_addr) {
-			LOG_ERROR("Fetch addr mismatch, read: %" PRIx32 " expected: %" PRIx32 " count: %d",
-					  addr, fetch_addr, scan_count);
-			retval = ERROR_FAIL;
+			/* This can occur if the last instruction created an exception,
+			   in which case the CPU create nested debug exception, and
+			   jump back to pracc text start. */
+			if (addr == MIPS32_PRACC_TEXT) {
+				/* We can reasonably assume we've got an exception */
+				LOG_DEBUG("Exception during pracc execution");
+				retval = ERROR_EXCEPTION;
+			} else {
+				LOG_ERROR("Fetch addr mismatch, read: %" PRIx32 " expected: %" PRIx32 " count: %d",
+						  addr, fetch_addr, scan_count);
+				retval = ERROR_FAIL;
+			}
+			/* Unclean state.  Do a clean jump to to text start. */
+			/* Do not check for error, return the error code we set above */
+			if (mips32_pracc_clean_text_jump(ejtag_info) != ERROR_OK)
+				LOG_ERROR("Unable to jump to dmseg text start");
 			goto exit;
 		}
 		fetch_addr += 4;
