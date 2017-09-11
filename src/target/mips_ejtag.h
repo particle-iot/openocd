@@ -96,6 +96,33 @@
 #define EJTAG_DEBUG_DM			(1 << 30)
 #define EJTAG_DEBUG_DBD			(1 << 31)
 
+#define EJTAG_DEBUG_DEXCCODE_SHIFT	10
+#define EJTAG_DEBUG_DEXCCODE_MASK	0x1F
+
+/* Exception Codes */
+#define EJTAG_EXCCODE_INT		0
+#define EJTAG_EXCCODE_MOD		1
+#define EJTAG_EXCCODE_TLBL		2
+#define EJTAG_EXCCODE_TLBS		3
+#define EJTAG_EXCCODE_ADEL		4
+#define EJTAG_EXCCODE_ADES		5
+#define EJTAG_EXCCODE_IBE		6
+#define EJTAG_EXCCODE_DBE		7
+#define EJTAG_EXCCODE_SYS		8
+#define EJTAG_EXCCODE_BP		9
+#define EJTAG_EXCCODE_RI		10
+#define EJTAG_EXCCODE_CPU		11
+#define EJTAG_EXCCODE_OV		12
+#define EJTAG_EXCCODE_TR		13
+#define EJTAG_EXCCODE_FPE		15
+#define EJTAG_EXCCODE_CEU		17
+#define EJTAG_EXCCODE_C2E		18
+#define EJTAG_EXCCODE_MDMX		22
+#define EJTAG_EXCCODE_WATCH		23
+#define EJTAG_EXCCODE_MCHECK	24
+#define EJTAG_EXCCODE_DSP		26
+#define EJTAG_EXCCODE_CACHEERR	30
+
 /* implementation MIPS register bits.
  * Bits marked with V20 or v2.0 mean that, this registers supported only
  * by EJTAG v2.0. Bits marked with Lexra or BMIPS are different from the
