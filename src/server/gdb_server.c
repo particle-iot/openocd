@@ -1039,6 +1039,41 @@ static int gdb_connection_closed(struct connection *connection)
 
 	target_unregister_event_callback(gdb_target_callback_event_handler, connection);
 
+	/* Clean-up target state after GDB...
+	 * I know of at least one GDB client frontend that will kill the GDB client
+	 * while it's running when you ask the frontend to detach, instead of
+	 * breaking the target and issuing a clean detach.  That effectively will
+	 * close the GDB socket, leave all breakpoints active, and will stuck your
+	 * target the instant it hit one of those breakpoints afterward.
+	 * So, do some cleanup.  Make sure that target is halted (that is how GDB
+	 * normally leave the larget), and that the breakpoints and watchpoints are
+	 * all cleared.
+	 * We do have to do this before calling any GDB end/detach handlers,
+	 * because many user handlers (in config file) are set to resume the target
+	 * on receiving GDB detach event.
+	 */
+
+	/* First, make sure target is halted.  If it's running, halt it.  If it's
+	   debug-running (running an algo), just wait.  Otherwise it's in reset or
+	   unknown state, in which case we can't do much, and we can assume that no
+	   breakpoints/watchpoints are set.  We do have the chance to cleanup any
+	   remaining breakpoints info (in case the target is in reset at this
+	   point) when we issue a new GDB connection. */
+	if (gdb_service->target->state == TARGET_RUNNING) {
+		/* It's running, halt it, and wait for halt */
+		target_halt(gdb_service->target);
+		target_wait_state(gdb_service->target, TARGET_HALTED, 2000);
+	} else if (gdb_service->target->state == TARGET_DEBUG_RUNNING) {
+		/* It's debug-running (an algo), wait for completion */
+		target_wait_state(gdb_service->target, TARGET_HALTED, 2000);
+	}
+
+	/* Clear breakpoints/watchpoints */
+	if (gdb_service->target->state == TARGET_HALTED) {
+		breakpoint_clear_target(gdb_service->target);
+		watchpoint_clear_target(gdb_service->target);
+	}
+
 	target_call_event_callbacks(gdb_service->target, TARGET_EVENT_GDB_END);
 
 	target_call_event_callbacks(gdb_service->target, TARGET_EVENT_GDB_DETACH);
