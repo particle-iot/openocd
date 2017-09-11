@@ -56,13 +56,29 @@ static int mips_m4k_examine_debug_reason(struct target *target)
 
 	if ((target->debug_reason != DBG_REASON_DBGRQ)
 			&& (target->debug_reason != DBG_REASON_SINGLESTEP)) {
+		/* Check for software breakpoints */
+		uint32_t debug;
+		retval = mips32_cp0_read(ejtag_info, &debug, 23, 0);
+		if (retval != ERROR_OK)
+			return retval;
+
+		target->debug_reason = DBG_REASON_UNDEFINED; /* We must find proper reason */
+
+		uint32_t exc_code = (debug >> EJTAG_DEBUG_DEXCCODE_SHIFT) & EJTAG_DEBUG_DEXCCODE_MASK;
+		LOG_DEBUG("Debug register: 0x%08" PRIx32 ", Exception Code: 0x%02" PRIx32,
+				  debug, exc_code);
+		if ((exc_code == EJTAG_EXCCODE_BP) || /* Software breakpoint instruction */
+			(exc_code == EJTAG_EXCCODE_TR)) { /* Trap (like 'teq') instruction */
+			target->debug_reason = DBG_REASON_BREAKPOINT;
+		}
+
 		if (ejtag_info->debug_caps & EJTAG_DCR_IB) {
 			/* get info about inst breakpoint support */
 			retval = target_read_u32(target,
 				ejtag_info->ejtag_ibs_addr, &break_status);
 			if (retval != ERROR_OK)
 				return retval;
-			if (break_status & 0x1f) {
+			if (break_status & 0x7fff) {
 				/* we have halted on a  breakpoint */
 				retval = target_write_u32(target,
 					ejtag_info->ejtag_ibs_addr, 0);
@@ -78,13 +94,16 @@ static int mips_m4k_examine_debug_reason(struct target *target)
 				ejtag_info->ejtag_dbs_addr, &break_status);
 			if (retval != ERROR_OK)
 				return retval;
-			if (break_status & 0x1f) {
+			if (break_status & 0x7fff) {
 				/* we have halted on a  breakpoint */
 				retval = target_write_u32(target,
 					ejtag_info->ejtag_dbs_addr, 0);
 				if (retval != ERROR_OK)
 					return retval;
-				target->debug_reason = DBG_REASON_WATCHPOINT;
+				if (target->debug_reason == DBG_REASON_BREAKPOINT)
+					target->debug_reason = DBG_REASON_WPTANDBKPT;
+				else
+					target->debug_reason = DBG_REASON_WATCHPOINT;
 			}
 		}
 	}
