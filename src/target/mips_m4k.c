@@ -212,6 +212,15 @@ static int mips_m4k_poll(struct target *target)
 		if (retval != ERROR_OK)
 			return retval;
 		LOG_DEBUG("Reset Detected");
+		/* Target is (or was) in reset. */
+		target->state = TARGET_RESET;
+		/* Return now, to report reset.  Next time we'll check if we've come
+		   out of reset. */
+		return ERROR_OK;
+	} else if (target->state == TARGET_RESET) {
+		/* Target was in reset, and no longer is.  Assume running, we may
+		   change that bellow... */
+		target->state = TARGET_RUNNING;
 	}
 
 	/* check for processor halted */

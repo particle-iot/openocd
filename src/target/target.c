@@ -58,6 +58,7 @@
 /* default halt wait timeout (ms) */
 #define DEFAULT_HALT_TIMEOUT 5000
 
+static void target_free_all_working_areas_restore(struct target *target, int restore);
 static int target_read_buffer_default(struct target *target, target_addr_t address,
 		uint32_t count, uint8_t *buffer);
 static int target_write_buffer_default(struct target *target, target_addr_t address,
@@ -525,6 +526,7 @@ struct target *get_current_target(struct command_context *cmd_ctx)
 int target_poll(struct target *target)
 {
 	int retval;
+	int previous_state = target->state;
 
 	/* We can't poll until after examine */
 	if (!target_was_examined(target)) {
@@ -535,6 +537,12 @@ int target_poll(struct target *target)
 	retval = target->type->poll(target);
 	if (retval != ERROR_OK)
 		return retval;
+
+	if ((previous_state != TARGET_RESET) &&
+		(target->state == TARGET_RESET)) {
+		/* When this happens - all workareas are invalid. */
+		target_free_all_working_areas_restore(target, 0);
+	}
 
 	if (target->halt_issued) {
 		if (target->state == TARGET_HALTED)
