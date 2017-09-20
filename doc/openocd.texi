@@ -4257,6 +4257,10 @@ to separate access ports of the same DAP.
 @item @code{-ctibase} @var{address} -- set base address of Cross-Trigger interface (CTI) connected
 to the target. Currently, only the @code{aarch64} target makes use of this option, where it is
 a mandatory configuration for the target run control.
+
+@item @code{-memorymap} (@option{RO}|@option{WO}|@option{RW}) @var{start_address} @var{size} [@var{short_name}] [@var{long_name}] -- Add a memory map region.
+If any memory map regions are specified, then memory reads & writes are limited to only those areas - preventing accesses to invalid regions.
+Currently this does @emph{not} yet use the "qXfer:memory-map:read" packet to inform GDB of the valid regions.
 @end itemize
 @end deffn
 

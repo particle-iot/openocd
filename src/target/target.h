@@ -116,6 +116,23 @@ struct backoff_timer {
 	int count;
 };
 
+enum memory_map_access {
+	MEMORY_MAP_READ_WRITE,
+	MEMORY_MAP_READ_ONLY,
+	MEMORY_MAP_WRITE_ONLY,
+};
+
+struct memory_map_elem {
+	target_addr_t           start_address;
+	uint64_t                size;
+	char                   *short_name;
+	char                   *long_name;
+	bool                    contiguous;
+	struct memory_map_elem *sub_elems;
+	struct memory_map_elem *next_elem;
+	enum memory_map_access  access;
+};
+
 /* split target registers into multiple class */
 enum target_register_class {
 	REG_CLASS_ALL,
@@ -204,6 +221,8 @@ struct target {
 
 	/* file-I/O information for host to do syscall */
 	struct gdb_fileio_info *fileio_info;
+
+	struct memory_map_elem *memory_map_list_head;
 };
 
 struct target_list {
