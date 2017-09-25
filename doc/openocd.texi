@@ -4257,6 +4257,13 @@ to separate access ports of the same DAP.
 @item @code{-ctibase} @var{address} -- set base address of Cross-Trigger interface (CTI) connected
 to the target. Currently, only the @code{aarch64} target makes use of this option, where it is
 a mandatory configuration for the target run control.
+
+@item @code{-sync-delay} @var{sync_delay_us} -- set delay (in microseconds)
+between read request and read of value. Currently, only the @code{ls1_sap}
+target makes use of this option, where it might be needed to avoid problems
+with reads returning data from previous read requests.  The @var{sync_delay_us}
+value needed will depend on the various parameters such as the host speed
+and the target system bus load.
 @end itemize
 @end deffn
 

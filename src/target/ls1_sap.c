@@ -26,6 +26,10 @@ struct ls1_sap {
 	struct jtag_tap *tap;
 };
 
+struct ls1_sap_config {
+	unsigned sync_delay;
+};
+
 static int ls1_sap_target_create(struct target *target, Jim_Interp *interp)
 {
 	struct ls1_sap *ls1_sap = calloc(1, sizeof(struct ls1_sap));
@@ -34,6 +38,45 @@ static int ls1_sap_target_create(struct target *target, Jim_Interp *interp)
 	target->arch_info = ls1_sap;
 
 	return ERROR_OK;
+}
+
+static int ls1_sap_target_configure(struct target *target, Jim_GetOptInfo *goi)
+{
+	const char *arg;
+	int err;
+	jim_wide sync_delay;
+	struct ls1_sap_config *pc;
+
+	/* check if argv[0] is for us */
+	arg = Jim_GetString(goi->argv[0], NULL);
+	if (strcmp(arg, "-sync-delay"))
+		return JIM_CONTINUE;
+
+	err = Jim_GetOpt_String(goi, &arg, NULL);
+	if (err != JIM_OK)
+		return err;
+
+	if (goi->argc == 0) {
+		Jim_WrongNumArgs(goi->interp, goi->argc, goi->argv,
+				 "-sync-delay ?sync_delay_us? ...");
+		return JIM_ERR;
+	}
+
+	err = Jim_GetOpt_Wide(goi, &sync_delay);
+	if (err != JIM_OK)
+		return err;
+
+	if (target->private_config == NULL) {
+		pc = calloc(1, sizeof(struct ls1_sap_config));
+		if (pc == NULL) {
+			LOG_ERROR("Out of memory");
+			return ERROR_FAIL;
+		}
+		pc->sync_delay = sync_delay;
+		target->private_config = pc;
+	}
+
+	return JIM_OK;
 }
 
 static int ls1_sap_init_target(struct command_context *cmd_ctx, struct target *target)
@@ -181,6 +224,8 @@ static void ls1_sap_memory_write(struct jtag_tap *tap, uint32_t size,
 static int ls1_sap_read_memory(struct target *target, target_addr_t address,
 			       uint32_t size, uint32_t count, uint8_t *buffer)
 {
+	struct ls1_sap_config *pc = target->private_config;
+
 	LOG_DEBUG("Reading memory at physical address 0x%" TARGET_PRIxADDR
 		  "; size %" PRId32 "; count %" PRId32, address, size, count);
 
@@ -191,6 +236,14 @@ static int ls1_sap_read_memory(struct target *target, target_addr_t address,
 
 	while (count--) {
 		ls1_sap_memory_cmd(target->tap, address, size, true);
+		/* In lack of a proper (known) method for waiting for the
+		 * memory bus transaction to be completed, we need to wait
+		 * "some" time.  Unfortunately, the time needed seems to
+		 * depend on a number of different parameters, such as speed
+		 * of the host OpenOCD host, the JTAG clock speed, the speed
+		 * and load of the target system. */
+		if (pc && pc->sync_delay)
+			jtag_add_sleep(pc->sync_delay);
 		ls1_sap_memory_read(target->tap, size, buffer);
 		address += size;
 		buffer += size;
@@ -226,6 +279,7 @@ struct target_type ls1_sap_target = {
 	.name = "ls1_sap",
 
 	.target_create = ls1_sap_target_create,
+	.target_jim_configure = ls1_sap_target_configure,
 	.init_target = ls1_sap_init_target,
 
 	.poll = ls1_sap_poll,
