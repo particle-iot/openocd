@@ -5042,6 +5042,30 @@ flash bank flash2 ath79 0x20000000 0 0 0 $_TARGETNAME cs2
 
 @end deffn
 
+@deffn {Flash Driver} fslqspi
+@cindex Freescale QuadSPI driver
+@cindex fslqspi
+This driver supports the QuadSPI flash controller module on
+Freescale/NXP LS1021A.  The same module is used on various other
+Freescale/NXP/Qualcomm chips, so it can be extended to support those
+as well.
+
+The controller supports 4 chip selects (A1, A2, B1, B2).  When
+declaring flash banks, they must be declared in correct order. A1
+before A2, A2 before B1, B1 before B2.
+
+The @var{base} parameter should match. For A1 @var{base} should be
+QSPI_AMBA_BASE.  For the other chip selects, the @var{base} should not
+leave a hole in the memory map.  See example below.
+
+@example
+flash bank flash0 fslqspi 0x40000000 0x400000 0 0 $_TARGETNAME a1
+flash bank flash0 fslqspi 0x40400000 0x400000 0 0 $_TARGETNAME a2
+flash bank flash0 fslqspi 0x40800000 0x400000 0 0 $_TARGETNAME b1
+@end example
+
+@end deffn
+
 @subsection Internal Flash (Microcontrollers)
 
 @deffn {Flash Driver} aduc702x
