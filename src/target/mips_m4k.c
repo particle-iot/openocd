@@ -1468,7 +1468,9 @@ static const struct command_registration mips_m4k_exec_command_handlers[] = {
 		.help = "Enable special handling of XBurst branch target buffer. "
 				"On some Ingenic processors the BTB must be switched off when "
 				"debug mode is entered as it repeats unconditional branches "
-				"done in dmseg regardless of the transmitted instruction.",
+				"done in dmseg regardless of the transmitted instruction. "
+				"Like the instruction cache the BTB also has to be invalidated "
+				"when code in RAM is modified.",
 		.usage = "",
 	},
 	COMMAND_REGISTRATION_DONE
