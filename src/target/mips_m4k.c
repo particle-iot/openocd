@@ -1414,6 +1414,17 @@ COMMAND_HANDLER(mips_m4k_handle_scan_delay_command)
 	return ERROR_OK;
 }
 
+COMMAND_HANDLER(mips_m4k_handle_xburst_btb_command)
+{
+	struct target *target = get_current_target(CMD_CTX);
+	struct mips_m4k_common *mips_m4k = target_to_m4k(target);
+	struct mips_ejtag *ejtag_info = &mips_m4k->mips32.ejtag_info;
+
+	ejtag_info->has_xburst_btb = 1;
+
+	return ERROR_OK;
+}
+
 static const struct command_registration mips_m4k_exec_command_handlers[] = {
 	{
 		.name = "cp0",
@@ -1449,6 +1460,13 @@ static const struct command_registration mips_m4k_exec_command_handlers[] = {
 		.mode = COMMAND_ANY,
 		.help = "display/set scan delay in nano seconds",
 		.usage = "[value]",
+	},
+	{
+		.name = "xburst_btb",
+		.handler = mips_m4k_handle_xburst_btb_command,
+		.mode = COMMAND_CONFIG,
+		.help = "enable special handling of XBurst branch target buffer",
+		.usage = "",
 	},
 	COMMAND_REGISTRATION_DONE
 };
