@@ -45,6 +45,13 @@ enum itm_ts_prescaler {
 	ITM_TS_PRESCALE64,	/**< refclock divided by 64 for the timestamp counter */
 };
 
+enum itm_gts_freq {
+	ITM_GTS_DISABLE,
+	ITM_GTS_128CYCLE,
+	ITM_GTS_8192CYCLE,
+	ITM_GTS_FIFOEMPTY,
+};
+
 struct armv7m_trace_config {
 	/** Currently active trace capture mode */
 	enum trace_config_type config_type;
@@ -58,16 +65,28 @@ struct armv7m_trace_config {
 
 	/** Bitmask of currenty enabled ITM stimuli */
 	uint32_t itm_ter[8];
-	/** Identifier for multi-source trace stream formatting */
-	unsigned int trace_bus_id;
-	/** Prescaler for the timestamp counter */
-	enum itm_ts_prescaler itm_ts_prescale;
-	/** Enable differential timestamps */
-	bool itm_diff_timestamps;
+
+	struct {
+		/** Enables the ITM */
+		bool itmena;
+		/** Enables Local timestamp generation */
+		bool tsena;
+		/** Enables Synchronization packet transmission for a synchronous TPIU */
+		bool syncena;
+		/** Enables forwarding of hardware event packet from the DWT unit to the ITM for output to the TPIU */
+		bool txena;
+		/** Enables asynchronous clocking of the timestamp counter */
+		bool swoena;
+		/** Local timestamp prescaler, used with the trace packet reference clock */
+		enum itm_ts_prescaler tsprescale;
+		/* Global timestamp frequency */
+		enum itm_gts_freq gtsfreq;
+		/** Identifier for multi-source trace stream formatting */
+		unsigned int tracebusid;
+	} itm_tcr;
+
 	/** Enable async timestamps model */
 	bool itm_async_timestamps;
-	/** Enable synchronisation packet transmission (for sync port only) */
-	bool itm_synchro_packets;
 
 	/** Current frequency of TRACECLKIN (usually matches HCLK) */
 	unsigned int traceclkin_freq;

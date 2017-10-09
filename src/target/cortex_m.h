@@ -37,6 +37,20 @@
 #define ITM_LAR		0xE0000FB0
 #define ITM_LAR_KEY	0xC5ACCE55
 
+#define TCR_ITMENA	(1 << 0)
+#define TCR_TSENA	(1 << 1)
+#define TCR_SYNCENA	(1 << 2)
+#define TCR_TXENA	(1 << 3)
+#define TCR_SWOENA	(1 << 4)
+#define TCR_BUSY	(1 << 23)
+
+#define TCR_TSPRESCALE_POS	8
+#define TCR_TSPRESCALE_MSK	0x03
+#define TCR_GTSFREQ_POS		10
+#define TCR_GTSFREQ_MSK		0x03
+#define TCR_TRACEBUSID_POS	16
+#define TCR_TRACEBUSID_MSK	0x7F
+
 #define CPUID		0xE000ED00
 /* Debug Control Block */
 #define DCB_DHCSR	0xE000EDF0

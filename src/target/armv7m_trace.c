@@ -127,19 +127,25 @@ int armv7m_trace_itm_config(struct target *target)
 {
 	struct armv7m_common *armv7m = target_to_armv7m(target);
 	struct armv7m_trace_config *trace_config = &armv7m->trace_config;
+	uint32_t tcr;
 	int retval;
 
 	retval = target_write_u32(target, ITM_LAR, ITM_LAR_KEY);
 	if (retval != ERROR_OK)
 		return retval;
 
-	/* Enable ITM, TXENA, set TraceBusID and other parameters */
-	retval = target_write_u32(target, ITM_TCR, (1 << 0) | (1 << 3) |
-				  (trace_config->itm_diff_timestamps << 1) |
-				  (trace_config->itm_synchro_packets << 2) |
-				  (trace_config->itm_async_timestamps << 4) |
-				  (trace_config->itm_ts_prescale << 8) |
-				  (trace_config->trace_bus_id << 16));
+	/* build ITM_TCR register value according to trace config parameters */
+	tcr =
+		(trace_config->itm_tcr.itmena  * TCR_ITMENA)  |
+		(trace_config->itm_tcr.tsena   * TCR_TSENA)   |
+		(trace_config->itm_tcr.syncena * TCR_SYNCENA) |
+		(trace_config->itm_tcr.txena   * TCR_TXENA)   |
+		(trace_config->itm_tcr.swoena  * TCR_SWOENA)  |
+		((trace_config->itm_tcr.tsprescale & TCR_TSPRESCALE_MSK) << TCR_TSPRESCALE_POS) |
+		((trace_config->itm_tcr.gtsfreq    & TCR_GTSFREQ_MSK)    << TCR_GTSFREQ_POS)    |
+		((trace_config->itm_tcr.tracebusid & TCR_TRACEBUSID_MSK) << TCR_TRACEBUSID_POS);
+
+	retval = target_write_u32(target, ITM_TCR, tcr);
 	if (retval != ERROR_OK)
 		return retval;
 
@@ -255,6 +261,168 @@ COMMAND_HANDLER(handle_tpiu_config_command)
 	return ERROR_COMMAND_SYNTAX_ERROR;
 }
 
+static int Jim_GetOpt_Bool(Jim_GetOptInfo *goi, bool *val)
+{
+	static const Jim_Nvp nvp_bool_opts[] = {
+		{ .name = "on",      .value = true },
+		{ .name = "enable",  .value = true },
+		{ .name = "1",       .value = true },
+		{ .name = "off",     .value = false },
+		{ .name = "disable", .value = false },
+		{ .name = "0",       .value = false },
+		{ .name = NULL, .value = -1 }
+	};
+
+	int e;
+	Jim_Nvp *n;
+
+	e = Jim_GetOpt_Nvp(goi, nvp_bool_opts, &n);
+	if (e != JIM_OK) {
+		Jim_GetOpt_NvpUnknown(goi, nvp_bool_opts, 0);
+		return e;
+	}
+
+	*val = n->value;
+	return e;
+}
+
+enum itm_cfg_param {
+	ICFG_ITM_ENABLE,
+	ICFG_ITM_DISABLE,
+	ICFG_LTS,
+	ICFG_SYNC,
+	ICFG_TX,
+	ICFG_SWO,
+	ICFG_GTS,
+	ICFG_TRACEBUSID,
+};
+
+static Jim_Nvp nvp_config_opts[] = {
+	{ .name = "-enable",             .value = ICFG_ITM_ENABLE },
+	{ .name = "-disable",            .value = ICFG_ITM_DISABLE },
+	{ .name = "-lts",                .value = ICFG_LTS },
+	{ .name = "-sync",               .value = ICFG_SYNC },
+	{ .name = "-tx",                 .value = ICFG_TX },
+	{ .name = "-swo",                .value = ICFG_SWO },
+	{ .name = "-gts",                .value = ICFG_GTS },
+	{ .name = "-trace-bus-id",       .value = ICFG_TRACEBUSID },
+	{ .name = NULL, .value = -1 }
+};
+
+static const Jim_Nvp nvp_lts_opts[] = {
+	{ .name = "0",         .value = -1 },
+	{ .name = "off",       .value = -1 },
+	{ .name = "disable",   .value = -1 },
+	{ .name = "1",         .value = ITM_TS_PRESCALE1 },
+	{ .name = "on",        .value = ITM_TS_PRESCALE1 },
+	{ .name = "enable",    .value = ITM_TS_PRESCALE1 },
+	{ .name = "div1",      .value = ITM_TS_PRESCALE1 },
+	{ .name = "div4",      .value = ITM_TS_PRESCALE4 },
+	{ .name = "div16",     .value = ITM_TS_PRESCALE16 },
+	{ .name = "div64",     .value = ITM_TS_PRESCALE64 },
+	{ .name = NULL, .value = -1 }
+};
+
+static const Jim_Nvp nvp_gts_opts[] = {
+	{ .name = "0",         .value = ITM_GTS_DISABLE },
+	{ .name = "off",       .value = ITM_GTS_DISABLE },
+	{ .name = "disable",   .value = ITM_GTS_DISABLE },
+	{ .name = "fast",      .value = ITM_GTS_128CYCLE },
+	{ .name = "slow",      .value = ITM_GTS_8192CYCLE },
+	{ .name = "always",    .value = ITM_GTS_FIFOEMPTY },
+	{ .name = NULL, .value = -1 }
+};
+
+static int itm_config(Jim_GetOptInfo *goi, struct command_context *ctx)
+{
+	Jim_Nvp *n;
+	jim_wide w;
+	int e;
+	struct target *target = get_current_target(ctx);
+	struct armv7m_common *armv7m = target_to_armv7m(target);
+
+	while (goi->argc > 0) {
+		Jim_SetEmptyResult(goi->interp);
+
+		e = Jim_GetOpt_Nvp(goi, nvp_config_opts, &n);
+		if (e != JIM_OK) {
+			Jim_GetOpt_NvpUnknown(goi, nvp_config_opts, 0);
+			return e;
+		}
+		switch (n->value) {
+		case ICFG_ITM_ENABLE:
+			armv7m->trace_config.itm_tcr.itmena = true;
+			break;
+		case ICFG_ITM_DISABLE:
+			armv7m->trace_config.itm_tcr.itmena = false;
+			break;
+		case ICFG_LTS:
+			e = Jim_GetOpt_Nvp(goi, nvp_lts_opts, &n);
+			if (e != JIM_OK) {
+				Jim_GetOpt_NvpUnknown(goi, nvp_lts_opts, 0);
+				return e;
+			}
+
+			if (n->value < 0) {
+				armv7m->trace_config.itm_tcr.tsena = false;
+			} else {
+				armv7m->trace_config.itm_tcr.tsena = true;
+				armv7m->trace_config.itm_tcr.tsprescale = n->value;
+			}
+			break;
+		case ICFG_SYNC:
+			e = Jim_GetOpt_Bool(goi, &armv7m->trace_config.itm_tcr.syncena);
+			if (e != JIM_OK)
+				return e;
+			break;
+		case ICFG_TX:
+			e = Jim_GetOpt_Bool(goi, &armv7m->trace_config.itm_tcr.txena);
+			if (e != JIM_OK)
+				return e;
+			break;
+		case ICFG_SWO:
+			e = Jim_GetOpt_Bool(goi, &armv7m->trace_config.itm_tcr.swoena);
+			if (e != JIM_OK)
+				return e;
+			break;
+		case ICFG_GTS:
+			e = Jim_GetOpt_Nvp(goi, nvp_gts_opts, &n);
+			if (e != JIM_OK) {
+				Jim_GetOpt_NvpUnknown(goi, nvp_gts_opts, 0);
+				return e;
+			}
+			armv7m->trace_config.itm_tcr.gtsfreq = n->value;
+			break;
+		case ICFG_TRACEBUSID:
+			e = Jim_GetOpt_Wide(goi, &w);
+			if (e != JIM_OK)
+				return e;
+			armv7m->trace_config.itm_tcr.tracebusid = w;
+			break;
+		}
+	}
+
+	if (ctx->mode == COMMAND_EXEC)
+		if (armv7m_trace_itm_config(target) != ERROR_OK)
+			return JIM_ERR;
+
+	return JIM_OK;
+}
+
+static int jim_itm_config(Jim_Interp *interp, int argc, Jim_Obj * const *argv)
+{
+	Jim_GetOptInfo goi;
+
+	Jim_GetOpt_Setup(&goi, interp, argc - 1, argv + 1);
+	/* goi.isconfigure = !strcmp(Jim_GetString(argv[0], NULL), "configure"); */
+	if (goi.argc < 1) {
+		Jim_WrongNumArgs(goi.interp, goi.argc, goi.argv, "missing: -option ...");
+		return JIM_ERR;
+	}
+
+	return itm_config(&goi, current_command_context(interp));
+}
+
 COMMAND_HANDLER(handle_itm_port_command)
 {
 	struct target *target = get_current_target(CMD_CTX);
@@ -315,6 +483,13 @@ static const struct command_registration tpiu_command_handlers[] = {
 };
 
 static const struct command_registration itm_command_handlers[] = {
+	{
+		.name = "config",
+		.jim_handler = jim_itm_config,
+		.mode = COMMAND_ANY,
+		.help = "Configure ITM features",
+		.usage = "todo",
+	},
 	{
 		.name = "port",
 		.handler = handle_itm_port_command,

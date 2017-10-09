@@ -666,7 +666,9 @@ int armv7m_init_arch_info(struct target *target, struct armv7m_common *armv7m)
 
 	armv7m->common_magic = ARMV7M_COMMON_MAGIC;
 	armv7m->fp_feature = FP_NONE;
-	armv7m->trace_config.trace_bus_id = 1;
+	armv7m->trace_config.itm_tcr.itmena = true;
+	armv7m->trace_config.itm_tcr.txena = true;
+	armv7m->trace_config.itm_tcr.tracebusid = 1;
 	/* Enable stimulus port #0 by default */
 	armv7m->trace_config.itm_ter[0] = 1;
 
