@@ -162,7 +162,7 @@ based cores to be debugged via the GDB protocol.
 @b{Flash Programming:} Flash writing is supported for external
 CFI-compatible NOR flashes (Intel and AMD/Spansion command set) and several
 internal flashes (LPC1700, LPC1800, LPC2000, LPC4300, AT91SAM7, AT91SAM3U,
-STR7x, STR9x, LM3, STM32x and EFM32). Preliminary support for various NAND flash
+STR7x, STR9x, LM3, STM32x, EFM32, iND80xxx). Preliminary support for various NAND flash
 controllers (LPC3180, Orion, S3C24xx, more) is included.
 
 @section OpenOCD Web Site

@@ -42,6 +42,7 @@ extern struct flash_driver esirisc_flash;
 extern struct flash_driver faux_flash;
 extern struct flash_driver fm3_flash;
 extern struct flash_driver fm4_flash;
+extern struct flash_driver ind80xxx_flash;
 extern struct flash_driver jtagspi_flash;
 extern struct flash_driver kinetis_flash;
 extern struct flash_driver kinetis_ke_flash;
@@ -109,6 +110,7 @@ static struct flash_driver *flash_drivers[] = {
 	&fm3_flash,
 	&fm4_flash,
 	&jtagspi_flash,
+	&ind80xxx_flash,
 	&kinetis_flash,
 	&kinetis_ke_flash,
 	&lpc2000_flash,
