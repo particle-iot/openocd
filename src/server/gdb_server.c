@@ -135,6 +135,9 @@ static int gdb_use_target_description = 1;
 /* current processing free-run type, used by file-I/O */
 static char gdb_running_type;
 
+/* controls display of thread name in extra info of qXfer response */
+static int gdb_thread_name_in_extra_info = 1;
+
 static int gdb_last_signal(struct target *target)
 {
 	switch (target->debug_reason) {
@@ -2307,14 +2310,21 @@ static int gdb_generate_thread_list(struct target *target, char **thread_list_ou
 				continue;
 
 			xml_printf(&retval, &thread_list, &pos, &size,
-				   "<thread id=\"%" PRIx64 "\">", thread_detail->threadid);
+				   "<thread id=\"%" PRIx64 "\"", thread_detail->threadid);
 
 			if (thread_detail->thread_name_str != NULL)
+				xml_printf(&retval, &thread_list, &pos, &size,
+					" name=\"%s\"",
+					thread_detail->thread_name_str);
+
+			xml_printf(&retval, &thread_list, &pos, &size, ">");
+
+			if (thread_detail->thread_name_str != NULL && gdb_thread_name_in_extra_info)
 				xml_printf(&retval, &thread_list, &pos, &size,
 					   "Name: %s", thread_detail->thread_name_str);
 
 			if (thread_detail->extra_info_str != NULL) {
-				if (thread_detail->thread_name_str != NULL)
+				if (thread_detail->thread_name_str != NULL && gdb_thread_name_in_extra_info)
 					xml_printf(&retval, &thread_list, &pos, &size,
 						   ", ");
 				xml_printf(&retval, &thread_list, &pos, &size,
@@ -3242,6 +3252,15 @@ out:
 	return retval;
 }
 
+COMMAND_HANDLER(handle_gdb_no_thread_name_in_extra_info_command)
+{
+	if (CMD_ARGC != 0)
+		return ERROR_COMMAND_SYNTAX_ERROR;
+
+	gdb_thread_name_in_extra_info = 0;
+	return ERROR_OK;
+}
+
 static const struct command_registration gdb_command_handlers[] = {
 	{
 		.name = "gdb_sync",
@@ -3306,6 +3325,12 @@ static const struct command_registration gdb_command_handlers[] = {
 		.handler = handle_gdb_save_tdesc_command,
 		.mode = COMMAND_EXEC,
 		.help = "Save the target description file",
+	},
+	{
+		.name = "gdb_no_thread_name_in_extra_info",
+		.handler = handle_gdb_no_thread_name_in_extra_info_command,
+		.mode = COMMAND_CONFIG,
+		.help = "Hide the thread name in the extra info field of qXfer response",
 	},
 	COMMAND_REGISTRATION_DONE
 };
