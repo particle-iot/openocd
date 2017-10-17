@@ -944,6 +944,49 @@ COMMAND_HANDLER(samd_handle_eeprom_command)
 	return res;
 }
 
+COMMAND_HANDLER(samd_handle_aux0_command)
+{
+	int res = ERROR_OK;
+	struct target *target = get_current_target(CMD_CTX);
+
+	if (target) {
+		if (target->state != TARGET_HALTED) {
+			LOG_ERROR("Target not halted");
+			return ERROR_TARGET_NOT_HALTED;
+		}
+
+		if (CMD_ARGC >= 1) {
+			uint32_t value;
+			if (strlen(CMD_ARGV[0]) >= 3 &&
+				CMD_ARGV[0][0] == '0' &&
+				CMD_ARGV[0][1] == 'x') {
+				char *check = NULL;
+				value = strtoul(&(CMD_ARGV[0][2]), &check, 16);
+				if (((value) == 0 && errno == ERANGE) || check == NULL || *check != 0) {
+					command_print(CMD_CTX, "Invalid Hex value for 32-bit register.");
+					return ERROR_COMMAND_SYNTAX_ERROR;
+				}
+			} else {
+				char *check = NULL;
+				value = strtoul(&(CMD_ARGV[0][2]), &check, 10);
+				if (((value) == 0 && errno == ERANGE) || check == NULL || *check != 0) {
+					command_print(CMD_CTX, "Invalid value for 32-bit register.");
+					return ERROR_COMMAND_SYNTAX_ERROR;
+				}
+			}
+
+			res = samd_modify_user_row(target, value, 0, 31);
+		} else {
+			uint32_t val;
+			res = target_read_u32(target, SAMD_USER_ROW, &val);
+			if (res == ERROR_OK)
+				command_print(CMD_CTX, "AUX0: 0x%08"PRIX32, val);
+		}
+	}
+
+	return res;
+}
+
 COMMAND_HANDLER(samd_handle_bootloader_command)
 {
 	int res = ERROR_OK;
@@ -1093,6 +1136,13 @@ static const struct command_registration at91samd_exec_command_handlers[] = {
 			"Please see Table 20-2 of the SAMD20 datasheet for allowed values."
 			"Changes are stored immediately but take affect after the MCU is"
 			"reset.",
+	},
+	{
+		.name = "aux0",
+		.usage = "[value]",
+		.handler = samd_handle_aux0_command,
+		.mode = COMMAND_EXEC,
+		.help = "Show or set the AUX0 register, stored in the User Row.",
 	},
 	COMMAND_REGISTRATION_DONE
 };
