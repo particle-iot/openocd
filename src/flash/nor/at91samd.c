@@ -944,7 +944,6 @@ COMMAND_HANDLER(samd_handle_eeprom_command)
 	return res;
 }
 
-
 static uint8_t hexchar_to_value(char c)
 	{
 	if(isalpha(c))
@@ -953,7 +952,6 @@ static uint8_t hexchar_to_value(char c)
 		}
 	return c -'0';
 	}
-
 
 static int get_u32_from_hex(const char *str, uint32_t *value)
 	{
@@ -974,7 +972,6 @@ static int get_u32_from_hex(const char *str, uint32_t *value)
 		}
 	return 1;
 	}
-
 
 static int get_u32_from_str(const char *str, uint32_t *value)
 	{
@@ -1000,7 +997,6 @@ static int get_u32_from_str(const char *str, uint32_t *value)
 
 	return 1;
 	}
-
 
 COMMAND_HANDLER(samd_handle_aux0_command)
 	{
@@ -1203,6 +1199,13 @@ static const struct command_registration at91samd_exec_command_handlers[] = {
 			"Please see Table 20-2 of the SAMD20 datasheet for allowed values."
 			"Changes are stored immediately but take affect after the MCU is"
 			"reset.",
+	},
+	{
+		.name = "aux0",
+		.usage = "[value]",
+		.handler = samd_handle_aux0_command,
+		.mode = COMMAND_EXEC,
+		.help = "Show or set the AUX0 register, stored in the User Row.",
 	},
 	{
 		.name = "aux0",
