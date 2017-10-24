@@ -176,6 +176,7 @@ static int stm8_adapter_write_memory(struct target *target,
 	int ret;
 	struct hl_interface_s *adapter = target_to_adapter(target);
 
+	LOG_DEBUG("%s, addr=%6.6x size=%x count=%x", __func__, addr, size, count);
 	ret = adapter->layout->api->write_mem(adapter->handle, addr, size, count,
 			buf);
 	if (ret != ERROR_OK)
@@ -678,30 +679,21 @@ static int stm8_write_flash(struct target *target, int type,
 
 	bytecnt = count*size;
 
-	if (blocksize_param == 0x80)
-		blocksize_param = 0x7f;
-	else if (blocksize_param == 0x40)
-		blocksize_param = 0x3f;
-	else
-		blocksize_param = 0;
-
 	while (bytecnt) {
-		if ((bytecnt >= 128) && blocksize_param
-				&& ((address & blocksize_param) == 0)) {
+		if ((bytecnt >= blocksize_param) && ((address & (blocksize_param-1)) == 0)) {
 			stm8_write_u8(target, FLASH_CR2, PRG + opt);
 			stm8_write_u8(target, FLASH_NCR2, ~(PRG + opt));
-			blocksize = 128;
+			blocksize = blocksize_param;
 		} else
 		if ((bytecnt >= 4) && ((address & 0x3) == 0)) {
 			stm8_write_u8(target, FLASH_CR2, WPRG + opt);
 			stm8_write_u8(target, FLASH_NCR2, ~(WPRG + opt));
 			blocksize = 4;
-		} else {
-			if (blocksize != 1) {
-				stm8_write_u8(target, FLASH_CR2, opt);
-				stm8_write_u8(target, FLASH_NCR2, ~opt);
-				blocksize = 1;
-			}
+		} else
+		if (blocksize != 1) {
+			stm8_write_u8(target, FLASH_CR2, opt);
+			stm8_write_u8(target, FLASH_NCR2, ~opt);
+			blocksize = 1;
 		}
 
 		res = stm8_adapter_write_memory(target, address, 1, blocksize, buffer);
