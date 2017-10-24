@@ -921,12 +921,6 @@ static int stlink_usb_init_mode(void *handle, bool connect_under_reset)
 		return ERROR_FAIL;
 	}
 
-	if (connect_under_reset) {
-		res = stlink_usb_assert_srst(handle, 0);
-		if (res != ERROR_OK)
-			return res;
-	}
-
 	res = stlink_usb_mode_enter(handle, emode);
 
 	if (res != ERROR_OK)
@@ -938,6 +932,13 @@ static int stlink_usb_init_mode(void *handle, bool connect_under_reset)
 		return res;
 
 	LOG_DEBUG("MODE: 0x%02X", mode);
+
+	/* reset can only be asserted after mode change */
+	if (connect_under_reset) {
+		res = stlink_usb_assert_srst(handle, 0);
+		if (res != ERROR_OK)
+			return res;
+	}
 
 	return ERROR_OK;
 }

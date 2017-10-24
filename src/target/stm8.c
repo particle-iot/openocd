@@ -1615,6 +1615,9 @@ static int stm8_examine(struct target *target)
 			retval = stm8_set_speed(target, 1);
 			if (retval == ERROR_OK)
 				stm8->swim_configured = true;
+			/* now is the time to deassert reset if connect_under_reset */
+			if (adapter->param.connect_under_reset)
+				stm8_reset_deassert(target);
 		} else {
 			LOG_INFO("trying to reconnect");
 
