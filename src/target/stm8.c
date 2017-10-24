@@ -816,6 +816,10 @@ static int stm8_poll(struct target *target)
 	int retval = ERROR_OK;
 	uint8_t csr1, csr2;
 
+#ifdef LOG_STM8
+	LOG_DEBUG("%s target->state=%d", __func__, target->state);
+#endif
+
 	if (!(target_was_examined(target))) {
 		LOG_WARNING(
 				"Reset is not asserted because the target is not examined.");
@@ -825,8 +829,14 @@ static int stm8_poll(struct target *target)
 
 	/* read dm_csrx control regs */
 	retval = stm8_read_dm_csrx(target, &csr1, &csr2);
-	if (retval != ERROR_OK)
-		return retval;
+	if (retval != ERROR_OK) {
+		LOG_DEBUG("%s stm8_read_dm_csrx failed retval=%d", __func__, retval);
+		/*
+		   We return ERROR_OK here even if we didn't get an answer.
+		   openocd will call target_wait_state until we get target state TARGET_HALTED
+		*/
+		return ERROR_OK;
+	}
 
 	/* check for processor halted */
 	if (csr2 & 0x08) {
@@ -837,16 +847,20 @@ static int stm8_poll(struct target *target)
 
 			target->state = TARGET_HALTED;
 			retval = stm8_debug_entry(target);
-			if (retval != ERROR_OK)
-				return retval;
+			if (retval != ERROR_OK) {
+				LOG_DEBUG("%s stm8_debug_entry failed retval=%d", __func__, retval);
+				return ERROR_TARGET_FAILURE;
+			}
 
 			target_call_event_callbacks(target, TARGET_EVENT_HALTED);
 		} else if (target->state == TARGET_DEBUG_RUNNING) {
 			target->state = TARGET_HALTED;
 
 			retval = stm8_debug_entry(target);
-			if (retval != ERROR_OK)
-				return retval;
+			if (retval != ERROR_OK) {
+				LOG_DEBUG("%s stm8_debug_entry failed retval=%d", __func__, retval);
+				return ERROR_TARGET_FAILURE;
+			}
 
 			target_call_event_callbacks(target, TARGET_EVENT_DEBUG_HALTED);
 		}
@@ -962,6 +976,16 @@ static int stm8_reset_deassert(struct target *target)
 	 * jtag state machine
 	 */
 	jtag_add_reset(0, 0);
+
+	/*
+	   stm8_poll() will determine proper state... */
+
+	LOG_DEBUG("%s, target->state=%d", __func__, target->state);
+
+	target_poll(target);
+
+	/* What happens if target state is not halted and resume was
+	   requested ? */
 
 	return target->reset_halt ? ERROR_OK : target_resume(target, 1, 0, 0, 0);
 }
