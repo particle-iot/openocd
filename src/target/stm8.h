@@ -48,6 +48,13 @@ struct stm8_common {
 	uint32_t optionend;
 	bool enable_step_irq;
 
+	bool enable_stm8l;
+	uint32_t flash_cr2;
+	uint32_t flash_ncr2;
+	uint32_t flash_iapsr;
+	uint32_t flash_dukr;
+	uint32_t flash_pukr;
+
 	/* cc value used for interrupt flags restore */
 	uint32_t cc;
 	bool cc_valid;

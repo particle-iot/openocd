@@ -102,18 +102,28 @@ static const struct {
 #define STALL 0x08
 #define FLUSH 0x01
 
-#define FLASH_PUKR 0x5062
-#define FLASH_DUKR 0x5064
+#define FLASH_CR1_STM8S 0x505A
+#define FLASH_CR2_STM8S 0x505B
+#define FLASH_NCR2_STM8S 0x505C
+#define FLASH_IAPSR_STM8S 0x505F
+#define FLASH_PUKR_STM8S 0x5062
+#define FLASH_DUKR_STM8S 0x5064
 
-#define FLASH_IAPSR 0x505F
+#define FLASH_CR1_STM8L 0x5050
+#define FLASH_CR2_STM8L 0x5051
+#define FLASH_NCR2_STM8L 0
+#define FLASH_PUKR_STM8L 0x5052
+#define FLASH_DUKR_STM8L 0x5053
+#define FLASH_IAPSR_STM8L 0x5054
+
+/* FLASH_IAPSR */
 #define HVOFF 0x40
 #define DUL 0x08
 #define EOP 0x04
 #define PUL 0x02
 #define WR_PG_DIS 0x01
 
-#define FLASH_CR2 0x505B
-#define FLASH_NCR2 0x505C
+/* FLASH_CR2 */
 #define OPT 0x80
 #define WPRG 0x40
 #define ERASE 0x20
@@ -612,15 +622,17 @@ static int stm8_unlock_flash(struct target *target)
 {
 	uint8_t data[1];
 
+	struct stm8_common *stm8 = target_to_stm8(target);
+
 	/* check if flash is unlocked */
-	stm8_read_u8(target, FLASH_IAPSR, data);
+	stm8_read_u8(target, stm8->flash_iapsr, data);
 	if (~data[0] & PUL) {
 		/* unlock flash */
-		stm8_write_u8(target, FLASH_PUKR, 0x56);
-		stm8_write_u8(target, FLASH_PUKR, 0xae);
+		stm8_write_u8(target, stm8->flash_pukr, 0x56);
+		stm8_write_u8(target, stm8->flash_pukr, 0xae);
 	}
 
-	stm8_read_u8(target, FLASH_IAPSR, data);
+	stm8_read_u8(target, stm8->flash_iapsr, data);
 	if (~data[0] & PUL)
 		return ERROR_FAIL;
 	return ERROR_OK;
@@ -630,15 +642,17 @@ static int stm8_unlock_eeprom(struct target *target)
 {
 	uint8_t data[1];
 
+	struct stm8_common *stm8 = target_to_stm8(target);
+
 	/* check if eeprom is unlocked */
-	stm8_read_u8(target, FLASH_IAPSR, data);
+	stm8_read_u8(target, stm8->flash_iapsr, data);
 	if (~data[0] & DUL) {
 		/* unlock flash */
-		stm8_write_u8(target, FLASH_DUKR, 0xae);
-		stm8_write_u8(target, FLASH_DUKR, 0x56);
+		stm8_write_u8(target, stm8->flash_dukr, 0xae);
+		stm8_write_u8(target, stm8->flash_dukr, 0x56);
 	}
 
-	stm8_read_u8(target, FLASH_IAPSR, data);
+	stm8_read_u8(target, stm8->flash_iapsr, data);
 	if (~data[0] & DUL)
 		return ERROR_FAIL;
 	return ERROR_OK;
@@ -649,6 +663,8 @@ static int stm8_write_flash(struct target *target, int type,
 		uint32_t size, uint32_t count, uint32_t blocksize_param,
 		const uint8_t *buffer)
 {
+	struct stm8_common *stm8 = target_to_stm8(target);
+
 	uint8_t iapsr;
 	uint8_t opt = 0;
 	unsigned int i;
@@ -681,18 +697,24 @@ static int stm8_write_flash(struct target *target, int type,
 
 	while (bytecnt) {
 		if ((bytecnt >= blocksize_param) && ((address & (blocksize_param-1)) == 0)) {
-			stm8_write_u8(target, FLASH_CR2, PRG + opt);
-			stm8_write_u8(target, FLASH_NCR2, ~(PRG + opt));
+			if (stm8->flash_cr2)
+				stm8_write_u8(target, stm8->flash_cr2, PRG + opt);
+			if (stm8->flash_ncr2)
+				stm8_write_u8(target, stm8->flash_ncr2, ~(PRG + opt));
 			blocksize = blocksize_param;
 		} else
 		if ((bytecnt >= 4) && ((address & 0x3) == 0)) {
-			stm8_write_u8(target, FLASH_CR2, WPRG + opt);
-			stm8_write_u8(target, FLASH_NCR2, ~(WPRG + opt));
+			if (stm8->flash_cr2)
+				stm8_write_u8(target, stm8->flash_cr2, WPRG + opt);
+			if (stm8->flash_ncr2)
+				stm8_write_u8(target, stm8->flash_ncr2, ~(WPRG + opt));
 			blocksize = 4;
 		} else
 		if (blocksize != 1) {
-			stm8_write_u8(target, FLASH_CR2, opt);
-			stm8_write_u8(target, FLASH_NCR2, ~opt);
+			if (stm8->flash_cr2)
+				stm8_write_u8(target, stm8->flash_cr2, opt);
+			if (stm8->flash_ncr2)
+				stm8_write_u8(target, stm8->flash_ncr2, ~opt);
 			blocksize = 1;
 		}
 
@@ -703,7 +725,7 @@ static int stm8_write_flash(struct target *target, int type,
 		buffer += blocksize;
 		bytecnt -= blocksize;
 		for (i = 0; i < 16; i++) {
-			stm8_read_u8(target, FLASH_IAPSR, &iapsr);
+			stm8_read_u8(target, stm8->flash_iapsr, &iapsr);
 			if (iapsr & EOP)
 				break;
 			else
@@ -714,7 +736,7 @@ static int stm8_write_flash(struct target *target, int type,
 	}
 
 	/* disable write access */
-	res = stm8_write_u8(target, FLASH_IAPSR, 0x0);
+	res = stm8_write_u8(target, stm8->flash_iapsr, 0x0);
 
 	if (res != ERROR_OK)
 		return ERROR_FAIL;
@@ -1040,6 +1062,26 @@ static int stm8_resume(struct target *target, int current,
 	return ERROR_OK;
 }
 
+static int stm8_init_flash_regs(bool enable_stm8l, struct stm8_common *stm8)
+{
+	stm8->enable_stm8l = enable_stm8l;
+
+	if (stm8->enable_stm8l) {
+		stm8->flash_cr2 = FLASH_CR2_STM8L;
+		stm8->flash_ncr2 = FLASH_NCR2_STM8L;
+		stm8->flash_iapsr = FLASH_IAPSR_STM8L;
+		stm8->flash_dukr = FLASH_DUKR_STM8L;
+		stm8->flash_pukr = FLASH_PUKR_STM8L;
+	} else {
+		stm8->flash_cr2 = FLASH_CR2_STM8S;
+		stm8->flash_ncr2 = FLASH_NCR2_STM8S;
+		stm8->flash_iapsr = FLASH_IAPSR_STM8S;
+		stm8->flash_dukr = FLASH_DUKR_STM8S;
+		stm8->flash_pukr = FLASH_PUKR_STM8S;
+	}
+	return ERROR_OK;
+}
+
 static int stm8_init_arch_info(struct target *target,
 		struct stm8_common *stm8, struct jtag_tap *tap)
 {
@@ -1061,6 +1103,8 @@ static int stm8_init_arch_info(struct target *target,
 
 	stm8->read_core_reg = stm8_read_core_reg;
 	stm8->write_core_reg = stm8_write_core_reg;
+
+	stm8_init_flash_regs(0, stm8);
 
 	return ERROR_OK;
 }
@@ -2005,6 +2049,16 @@ int stm8_jim_configure(struct target *target, Jim_GetOptInfo *goi)
 		LOG_DEBUG("%s enable_step_irq=%8.8x", __func__, stm8->enable_step_irq);
 		return JIM_OK;
 	}
+	if (!strcmp(arg, "-enable_stm8l")) {
+		e = Jim_GetOpt_String(goi, &arg, NULL);
+		if (e != JIM_OK)
+			return e;
+
+		stm8->enable_stm8l = true;
+		LOG_DEBUG("%s enable_stm8l=%8.8x", __func__, stm8->enable_stm8l);
+		stm8_init_flash_regs(stm8->enable_stm8l, stm8);
+		return JIM_OK;
+	}
 	return JIM_CONTINUE;
 }
 
@@ -2016,16 +2070,28 @@ COMMAND_HANDLER(stm8_handle_enable_step_irq_command)
 	bool enable = stm8->enable_step_irq;
 
 	if (CMD_ARGC > 0) {
-		if (target->state != TARGET_HALTED) {
-			command_print(CMD_CTX, "target must be stopped for \"%s\" command",
-					CMD_NAME);
-			return ERROR_OK;
-		}
 		COMMAND_PARSE_ENABLE(CMD_ARGV[0], enable);
 		stm8->enable_step_irq = enable;
 	}
 	msg = stm8->enable_step_irq ? "enabled" : "disabled";
 	command_print(CMD_CTX, "enable_step_irq = %s", msg);
+	return ERROR_OK;
+}
+
+COMMAND_HANDLER(stm8_handle_enable_stm8l_command)
+{
+	const char *msg;
+	struct target *target = get_current_target(CMD_CTX);
+	struct stm8_common *stm8 = target_to_stm8(target);
+	bool enable = stm8->enable_stm8l;
+
+	if (CMD_ARGC > 0) {
+		COMMAND_PARSE_ENABLE(CMD_ARGV[0], enable);
+		stm8->enable_stm8l = enable;
+	}
+	msg = stm8->enable_stm8l ? "enabled" : "disabled";
+	command_print(CMD_CTX, "enable_stm8l = %s", msg);
+	stm8_init_flash_regs(stm8->enable_stm8l, stm8);
 	return ERROR_OK;
 }
 
@@ -2035,6 +2101,13 @@ static const struct command_registration stm8_exec_command_handlers[] = {
 		.handler = stm8_handle_enable_step_irq_command,
 		.mode = COMMAND_ANY,
 		.help = "Enable/disable irq handling during step",
+		.usage = "[1/0]",
+	},
+	{
+		.name = "enable_stm8l",
+		.handler = stm8_handle_enable_stm8l_command,
+		.mode = COMMAND_ANY,
+		.help = "Enable/disable STM8L flash programming",
 		.usage = "[1/0]",
 	},
 	COMMAND_REGISTRATION_DONE
