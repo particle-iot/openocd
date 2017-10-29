@@ -1066,25 +1066,34 @@ int cortex_m_prepare_reset(struct target *target, bool halt, bool without_srst)
 
 static int cortex_m_assert_reset(struct target *target)
 {
+	struct cortex_m_common *cortex_m = target_to_cm(target);
+
 	LOG_DEBUG("target->state: %s",
 		target_state_name(target));
 
 	if (target_has_event_action(target, TARGET_EVENT_RESET_ASSERT)) {
 		/* allow scripts to override the reset event */
-
 		target_handle_event(target, TARGET_EVENT_RESET_ASSERT);
 
-		struct cortex_m_common *cortex_m = target_to_cm(target);
-		register_cache_invalidate(cortex_m->armv7m.arm.core_cache);
 		target->state = TARGET_RESET;
+		register_cache_invalidate(cortex_m->armv7m.arm.core_cache);
 
 		return ERROR_OK;
 	}
 
 	enum reset_types jtag_reset_config = jtag_get_reset_config();
+	bool srst = jtag_reset_config & RESET_HAS_SRST;
 
-	return cortex_m_prepare_reset(target, target->reset_halt,
-				(jtag_reset_config & RESET_HAS_SRST) == 0);
+	if (srst && target->dbg_under_srst == DBG_UNDER_SRST_CLEARED) {
+		/* Preparing reset would be useless on target where
+		 * debug gets cleared by SRST */
+		target->state = TARGET_RESET;
+		register_cache_invalidate(cortex_m->armv7m.arm.core_cache);
+
+		return ERROR_OK;
+	}
+
+	return cortex_m_prepare_reset(target, target->reset_halt, !srst);
 }
 
 static int cortex_m_deassert_reset(struct target *target)
@@ -1099,9 +1108,9 @@ static int cortex_m_deassert_reset(struct target *target)
 
 	enum reset_types jtag_reset_config = jtag_get_reset_config();
 
-	if ((jtag_reset_config & RESET_HAS_SRST) &&
-	    !(jtag_reset_config & RESET_SRST_NO_GATING) &&
-		target_was_examined(target)) {
+	if ((jtag_reset_config & RESET_HAS_SRST)
+			&& target->dbg_under_srst != DBG_UNDER_SRST_WORKING
+			&& target_was_examined(target)) {
 		int retval = dap_dp_init(armv7m->debug_ap->dap);
 		if (retval != ERROR_OK) {
 			LOG_ERROR("DP initialisation failed");
