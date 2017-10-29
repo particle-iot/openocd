@@ -950,26 +950,17 @@ static int cortex_m_step(struct target *target, int current,
 	return ERROR_OK;
 }
 
-static int cortex_m_assert_reset(struct target *target)
+/**
+ * Prepares debug state before reset or under active SRST if possible.
+ *
+ * @param halt sets vector catch to stop core at reset
+ * @param without_srst triggers SYSRESETREQ or VECTRESET.
+ */
+int cortex_m_prepare_reset(struct target *target, bool halt, bool without_srst)
 {
 	struct cortex_m_common *cortex_m = target_to_cm(target);
 	struct armv7m_common *armv7m = &cortex_m->armv7m;
 	enum cortex_m_soft_reset_config reset_config = cortex_m->soft_reset_config;
-
-	LOG_DEBUG("target->state: %s",
-		target_state_name(target));
-
-	enum reset_types jtag_reset_config = jtag_get_reset_config();
-
-	if (target_has_event_action(target, TARGET_EVENT_RESET_ASSERT)) {
-		/* allow scripts to override the reset event */
-
-		target_handle_event(target, TARGET_EVENT_RESET_ASSERT);
-		register_cache_invalidate(cortex_m->armv7m.arm.core_cache);
-		target->state = TARGET_RESET;
-
-		return ERROR_OK;
-	}
 
 	/* cannot talk to target if it wasn't examined yet */
 	if (!target_was_examined(target))
@@ -994,17 +985,7 @@ static int cortex_m_assert_reset(struct target *target)
 	mem_ap_write_u32(armv7m->debug_ap, DCB_DCRDR, 0);
 	/* Ignore less important errors */
 
-	if (!target->reset_halt) {
-		/* Set/Clear C_MASKINTS in a separate operation */
-		if (cortex_m->dcb_dhcsr & C_MASKINTS)
-			cortex_m_write_debug_halt_mask(target, 0, C_MASKINTS);
-
-		/* clear any debug flags before resuming */
-		cortex_m_clear_halt(target);
-
-		/* clear C_HALT in dhcsr reg */
-		cortex_m_write_debug_halt_mask(target, 0, C_HALT);
-	} else {
+	if (halt) {
 		/* Halt in debug on reset; endreset_event() restores DEMCR.
 		 *
 		 * REVISIT catching BUSERR presumably helps to defend against
@@ -1016,12 +997,19 @@ static int cortex_m_assert_reset(struct target *target)
 				TRCENA | VC_HARDERR | VC_BUSERR | VC_CORERESET);
 		if (retval != ERROR_OK || retval2 != ERROR_OK)
 			LOG_INFO("AP write error, reset will not halt");
+	} else {
+		/* Set/Clear C_MASKINTS in a separate operation */
+		if (cortex_m->dcb_dhcsr & C_MASKINTS)
+			cortex_m_write_debug_halt_mask(target, 0, C_MASKINTS);
+
+		/* clear any debug flags before resuming */
+		cortex_m_clear_halt(target);
+
+		/* clear C_HALT in dhcsr reg */
+		cortex_m_write_debug_halt_mask(target, 0, C_HALT);
 	}
 
-	if (jtag_reset_config & RESET_HAS_SRST) {
-		/* srst is asserted, ignore AP access errors */
-		retval = ERROR_OK;
-	} else {
+	if (without_srst) {
 		/* Use a standard Cortex-M3 software reset mechanism.
 		 * We default to using VECRESET as it is supported on all current cores.
 		 * This has the disadvantage of not resetting the peripherals, so a
@@ -1054,23 +1042,49 @@ static int cortex_m_assert_reset(struct target *target)
 			uint32_t tmp;
 			mem_ap_read_atomic_u32(armv7m->debug_ap, NVIC_AIRCR, &tmp);
 		}
+	} else {
+		/* srst is asserted, ignore AP access errors */
+		retval = ERROR_OK;
 	}
 
 	target->state = TARGET_RESET;
 
-	register_cache_invalidate(cortex_m->armv7m.arm.core_cache);
+	register_cache_invalidate(armv7m->arm.core_cache);
 
 	/* now return stored error code if any */
 	if (retval != ERROR_OK)
 		return retval;
 
-	if (target->reset_halt) {
+	if (halt) {
 		retval = target_halt(target);
 		if (retval != ERROR_OK)
 			return retval;
 	}
 
 	return ERROR_OK;
+}
+
+static int cortex_m_assert_reset(struct target *target)
+{
+	LOG_DEBUG("target->state: %s",
+		target_state_name(target));
+
+	if (target_has_event_action(target, TARGET_EVENT_RESET_ASSERT)) {
+		/* allow scripts to override the reset event */
+
+		target_handle_event(target, TARGET_EVENT_RESET_ASSERT);
+
+		struct cortex_m_common *cortex_m = target_to_cm(target);
+		register_cache_invalidate(cortex_m->armv7m.arm.core_cache);
+		target->state = TARGET_RESET;
+
+		return ERROR_OK;
+	}
+
+	enum reset_types jtag_reset_config = jtag_get_reset_config();
+
+	return cortex_m_prepare_reset(target, target->reset_halt,
+				(jtag_reset_config & RESET_HAS_SRST) == 0);
 }
 
 static int cortex_m_deassert_reset(struct target *target)
@@ -2350,6 +2364,70 @@ COMMAND_HANDLER(handle_cortex_m_reset_config_command)
 	return ERROR_OK;
 }
 
+COMMAND_HANDLER(handle_cortex_m_arp_reset_assert_command)
+{
+	struct target *target = get_current_target(CMD_CTX);
+	bool halt = false;
+	bool without_srst = false;
+
+	if (CMD_ARGC >= 1) {
+		if (strcmp(CMD_ARGV[0], "halt") == 0)
+			halt = true;
+		else
+			halt = atoi(CMD_ARGV[0]) > 0;
+
+		if (CMD_ARGC >= 2) {
+			if (strcmp(CMD_ARGV[1], "without_srst") == 0)
+				without_srst = true;
+			else
+				without_srst = atoi(CMD_ARGV[1]) > 0;
+		}
+	}
+
+	enum reset_types jtag_reset_config = jtag_get_reset_config();
+	if ((jtag_reset_config & RESET_HAS_SRST) == 0)
+		without_srst = true;
+
+	return cortex_m_prepare_reset(target, halt, without_srst);
+}
+
+COMMAND_HANDLER(handle_cortex_m_arp_dp_init_command)
+{
+	struct target *target = get_current_target(CMD_CTX);
+	int retval;
+#if 0
+	bool reconnect = false;
+	if (CMD_ARGC >= 1) {
+		if (strcmp(CMD_ARGV[0], "reconnect") == 0)
+			reconnect = true;
+		else
+			reconnect = atoi(CMD_ARGV[0]) > 0;
+	}
+	if (reconnect) {
+		struct target *target = get_current_target(CMD_CTX);
+		struct arm *arm = target_to_arm(target);
+		struct adiv5_dap *dap = arm->dap;
+
+		dap->do_reconnect = true;
+	}
+#endif
+
+	if (!target_was_examined(target))
+		return ERROR_FAIL;
+
+	struct cortex_m_common *cortex_m = target_to_cm(target);
+	retval = cortex_m_verify_pointer(CMD_CTX, cortex_m);
+	if (retval != ERROR_OK)
+		return retval;
+
+	struct armv7m_common *armv7m = &cortex_m->armv7m;
+	retval = dap_dp_init(armv7m->debug_ap->dap);
+	if (retval != ERROR_OK)
+		LOG_ERROR("DP initialisation failed");
+
+	return retval;
+}
+
 static const struct command_registration cortex_m_exec_command_handlers[] = {
 	{
 		.name = "maskisr",
@@ -2371,6 +2449,20 @@ static const struct command_registration cortex_m_exec_command_handlers[] = {
 		.mode = COMMAND_ANY,
 		.help = "configure software reset handling",
 		.usage = "['srst'|'sysresetreq'|'vectreset']",
+	},
+	{
+		.name = "arp_reset_assert",
+		.handler = handle_cortex_m_arp_reset_assert_command,
+		.mode = COMMAND_ANY,
+		.help = "used internally for reset handling",
+		.usage = "['run'|'halt' ['without_srst']]",
+	},
+	{
+		.name = "arp_dp_init",
+		.handler = handle_cortex_m_arp_dp_init_command,
+		.mode = COMMAND_ANY,
+		.help = "used internally for reset handling",
+		.usage = "['reconnect']",
 	},
 	COMMAND_REGISTRATION_DONE
 };
