@@ -262,6 +262,14 @@ static const Jim_Nvp nvp_reset_modes[] = {
 	{ .name = NULL     , .value = -1 },
 };
 
+static const Jim_Nvp nvp_dbg_under_srst[] = {
+	{ .name = "unknown", .value = DBG_UNDER_SRST_UNKNOWN },
+	{ .name = "working", .value = DBG_UNDER_SRST_WORKING },
+	{ .name = "gated", .value = DBG_UNDER_SRST_GATED },
+	{ .name = "cleared", .value = DBG_UNDER_SRST_CLEARED },
+	{ .name = NULL     , .value = -1 },
+};
+
 const char *debug_reason_name(struct target *t)
 {
 	const char *cp;
@@ -4459,6 +4467,7 @@ enum target_cfg_param {
 	TCFG_CTIBASE,
 	TCFG_RTOS,
 	TCFG_DEFER_EXAMINE,
+	TCFG_DBG_UNDER_SRST,
 };
 
 static Jim_Nvp nvp_config_opts[] = {
@@ -4475,6 +4484,7 @@ static Jim_Nvp nvp_config_opts[] = {
 	{ .name = "-ctibase",          .value = TCFG_CTIBASE },
 	{ .name = "-rtos",             .value = TCFG_RTOS },
 	{ .name = "-defer-examine",    .value = TCFG_DEFER_EXAMINE },
+	{ .name = "-dbg-under-srst",   .value = TCFG_DBG_UNDER_SRST },
 	{ .name = NULL, .value = -1 }
 };
 
@@ -4769,6 +4779,26 @@ no_params:
 			/* loop for more */
 			break;
 
+		case TCFG_DBG_UNDER_SRST:
+			if (goi->isconfigure) {
+				e = Jim_GetOpt_Nvp(goi, nvp_dbg_under_srst, &n);
+				if (e != JIM_OK) {
+					Jim_GetOpt_NvpUnknown(goi, nvp_dbg_under_srst, 1);
+					return e;
+				}
+				target->dbg_under_srst = n->value;
+			} else {
+				if (goi->argc != 0)
+					goto no_params;
+			}
+			n = Jim_Nvp_value2name_simple(nvp_dbg_under_srst, target->dbg_under_srst);
+			if (n->name == NULL) {
+				target->dbg_under_srst = DBG_UNDER_SRST_UNKNOWN;
+				n = Jim_Nvp_value2name_simple(nvp_dbg_under_srst, target->dbg_under_srst);
+			}
+			Jim_SetResultString(goi->interp, n->name, -1);
+			/* loop for more */
+			break;
 		}
 	} /* while (goi->argc) */
 
