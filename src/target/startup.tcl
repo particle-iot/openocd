@@ -28,19 +28,155 @@ proc ocd_process_reset { MODE } {
 	}
 }
 
-proc arp_examine_all {} {
-	set targets [target names]
 
-	# Examine all targets on enabled taps.
-	foreach t $targets {
-		if {![using_jtag] || [jtag tapisenabled [$t cget -chain-position]]} {
-			$t invoke-event examine-start
-			set err [catch "$t arp_examine allow-defer"]
-			if { $err == 0 } {
-				$t invoke-event examine-end
-			}
+proc arp_is_tap_enabled { target } {
+	if (![using_jtag]) {
+		return 1
+	}
+	return [jtag tapisenabled [$target cget -chain-position]]
+}
+
+proc arp_examine_one { target } {
+	if [arp_is_tap_enabled $target] {
+		$target invoke-event examine-start
+		set err [catch "$target arp_examine allow-defer"]
+		if { $err } {
+			$target invoke-event examine-fail
+		} else {
+			$target invoke-event examine-end
 		}
 	}
+}
+
+
+proc arp_reset_plan_no_srst { phase target } {
+	global arp_reset_mode
+	switch $phase {
+		pre {
+			arp_examine_one $target
+		}
+		middle {
+			$target arp_reset trigger $arp_reset_mode
+		}
+		post {
+			$target arp_reset post_deassert $arp_reset_mode
+		}
+	}
+}
+
+proc arp_reset_plan_srst_dbg_Working { phase target } {
+	global arp_reset_mode
+	switch $phase {
+		pre {
+			# srst_nogate: SRST is asserted now
+			# srst_gates_jtag: SRST has not been asserted yet
+		}
+		middle {
+			# SRST is asserted, target is responsive
+			arp_examine_one $target
+			$target arp_reset prepare $arp_reset_mode
+		}
+		post {
+			$target arp_reset post_deassert $arp_reset_mode
+		}
+	}
+}
+
+proc arp_reset_plan_srst_dbg_gated { phase target } {
+	global arp_reset_mode
+	switch $phase {
+		pre {
+			# SRST has not been asserted yet
+			# srst_nogate mode is not supported
+			$target arp_reset prepare $arp_reset_mode
+		}
+		middle {
+			# SRST is asserted, target debug gated
+		}
+		post {
+			arp_examine_one $target
+			$target arp_reset post_deassert $arp_reset_mode
+		}
+	}
+}
+
+proc arp_reset_plan_srst_dbg_cleared { phase target } {
+	global arp_reset_mode
+	switch $phase {
+		pre {
+			# target debug is going to be cleared
+			# no point to pre-configure is
+		}
+		middle {
+			# SRST is asserted, target debug not accessible
+			if { [using_hla] } {
+				# hla_target controls SRST on its own and even worse
+				# an hl adapter may not export SRST control in API (ST-Link 1)
+				# The only possible workaround is to let the target control SRST
+				$target arp_reset assert $arp_reset_mode
+			} else {
+				$target arp_reset clear_internal_state $arp_reset_mode
+			}
+		}
+		post {
+			arp_examine_one $target
+			$target arp_reset post_deassert $arp_reset_mode
+		}
+	}
+}
+
+proc arp_reset_default_handler { phase target } {
+	if [arp_is_tap_enabled $target] {
+	        set dbg_u_srst [$target cget -dbg-under-srst]
+		if [reset_config_includes srst] {
+			switch $dbg_u_srst {
+				working {
+					arp_reset_plan_srst_dbg_Working $phase $target
+				}
+				gated {
+					arp_reset_plan_srst_dbg_gated $phase $target
+				}
+				cleared {
+					arp_reset_plan_srst_dbg_cleared $phase $target
+				}
+				unknown {
+					if [reset_config_includes srst_nogate] {
+						arp_reset_plan_srst_dbg_Working $phase $target
+					} else {
+						arp_reset_plan_srst_dbg_gated $phase $target
+					}
+				}
+			}
+		} else {
+			arp_reset_plan_no_srst $phase $target
+		}
+	}
+}
+
+proc arp_reset_halt_default_handler { target } {
+	# Wait upto 1 second for target to halt.  Why 1sec? Cause
+	# the JTAG tap reset signal might be hooked to a slow
+	# resistor/capacitor circuit - and it might take a while
+	# to charge
+	catch { $target arp_waitstate halted 1000 }
+}
+
+# Utility to make 'reset halt' work as reset;halt on a target
+# It does not prevent running code after reset
+proc arp_reset_simple_halter { target } {
+	$target arp_poll
+	set st [$target curstate]
+	if { $st eq "reset" } {
+		# we assume running state follows
+		# if reset accidentaly halt, waiting is useless
+		catch { $target arp_waitstate running 1000 }
+		set st [$target curstate]
+	}
+	if { $st eq "running" } {
+		echo "$target: Ran after reset and before halt..."
+		$target arp_halt
+	}
+	arp_reset_halt_default_handler $target
 }
 
 proc ocd_process_reset_inner { MODE } {
@@ -79,9 +215,10 @@ proc ocd_process_reset_inner { MODE } {
 	# If srst_nogate is set, check all targets whether they support it
 	if {[reset_config_includes srst srst_nogate]} {
 		foreach t $targets {
-			if {[$t cget -dbg-under-srst] ne "working"} {
+			set dbg_u_srst [$t cget -dbg-under-srst]
+			if {$dbg_u_srst eq "gated"} {
 				reset_config srst_gates_jtag
-				echo "'srst_nogate' is not supported by at least one target"
+				echo "'srst_nogate' is not supported by at least target $t"
 				echo "Reset config changed to 'srst_gates_jtag'"
 				break;
 			}
@@ -96,35 +233,15 @@ proc ocd_process_reset_inner { MODE } {
 		# Use TRST or TMS/TCK operations to reset all the tap controllers.
 		# TAP reset events get reported; they might enable some taps.
 		init_reset $MODE
-
-		# Examine all targets on enabled taps.
-		arp_examine_all
 	}
 
 	foreach t $targets {
 		$t invoke-event reset-assert-pre
 	}
 
-	# Prepare all targets with debug not working under SRST
-	# Note: Preparing a target with debug cleared by SRST has no point
-	# if SRST enabled
-	foreach t $targets {
-		set tapenabled [expr {![using_jtag] || [jtag tapisenabled [$t cget -chain-position]]}]
-		if {$tapenabled && [$t cget -dbg-under-srst] ne "working"} {
-			$t arp_reset assert $arp_reset_halting
-		}
-	}
-
 	# Assert SRST
 	reset_assert_final $MODE
 
-	# Prepare other targets under SRST
-	foreach t $targets {
-		set tapenabled [expr {![using_jtag] || [jtag tapisenabled [$t cget -chain-position]]}]
-		if {$tapenabled && [$t cget -dbg-under-srst] eq "working"} {
-			$t arp_reset assert $arp_reset_halting
-		}
-	}
 	foreach t $targets {
 		$t invoke-event reset-assert-post
 	}
@@ -137,13 +254,8 @@ proc ocd_process_reset_inner { MODE } {
 	reset_deassert_initial $MODE
 	if { !$early_reset_init } {
 		if [using_jtag] { jtag arp_init }
-		arp_examine_all
 	}
-	foreach t $targets {
-		if {![using_jtag] || [jtag tapisenabled [$t cget -chain-position]]} {
-			$t arp_reset deassert $arp_reset_halting
-		}
-	}
+
 	foreach t $targets {
 		$t invoke-event reset-deassert-post
 	}
@@ -153,7 +265,7 @@ proc ocd_process_reset_inner { MODE } {
 	# first executing any instructions.
 	if { $arp_reset_halting } {
 		foreach t $targets {
-			if {[using_jtag] && ![jtag tapisenabled [$t cget -chain-position]]} {
+			if {![arp_is_tap_enabled $t]} {
 				continue
 			}
 
@@ -163,18 +275,10 @@ proc ocd_process_reset_inner { MODE } {
 				continue
 			}
 
-			# Wait upto 1 second for target to halt.  Why 1sec? Cause
-			# the JTAG tap reset signal might be hooked to a slow
-			# resistor/capacitor circuit - and it might take a while
-			# to charge
-
-			# Catch, but ignore any errors.
-			catch { $t arp_waitstate halted 1000 }
+			$t invoke-event reset-halt
 
 			# Did we succeed?
-			set s [$t curstate]
-
-			if { 0 != [string compare $s "halted" ] } {
+			if { [$t curstate] ne "halted" } {
 				return -code error [format "TARGET: %s - Not halted" $t]
 			}
 		}
@@ -183,7 +287,7 @@ proc ocd_process_reset_inner { MODE } {
 	#Pass 2 - if needed "init"
 	if { 0 == [string compare init $MODE] } {
 		foreach t $targets {
-			if {[using_jtag] && ![jtag tapisenabled [$t cget -chain-position]]} {
+			if {![arp_is_tap_enabled $t]} {
 				continue
 			}
 
@@ -193,11 +297,7 @@ proc ocd_process_reset_inner { MODE } {
 				continue
 			}
 
-			set err [catch "$t arp_waitstate halted 5000"]
-			# Did it halt?
-			if { $err == 0 } {
-				$t invoke-event reset-init
-			}
+			$t invoke-event reset-init
 		}
 	}
 
@@ -249,6 +349,10 @@ proc init_target_events {} {
 	foreach t $targets {
 		set_default_target_event $t gdb-flash-erase-start "reset init"
 		set_default_target_event $t gdb-flash-write-end "reset halt"
+		set_default_target_event $t reset-assert-pre "arp_reset_default_handler pre $t"
+		set_default_target_event $t reset-assert-post "arp_reset_default_handler middle $t"
+		set_default_target_event $t reset-deassert-post "arp_reset_default_handler post $t"
+		set_default_target_event $t reset-halt "arp_reset_halt_default_handler $t"
 	}
 }
 
