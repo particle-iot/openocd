@@ -86,7 +86,29 @@ struct target_type {
 	 * reset run; halt
 	 */
 	int (*deassert_reset)(struct target *target);
+	/**
+	 * Substitutes assert_reset
+	 * Prepares debug circuitry before or during SRST
+	 * DOES NOT CONTROL SRST LINE!!!
+	 *
+	 * @param target The target to work on
+	 * @param reset_mode Desired mode after reset (run or halt)
+	 */
+	int (*reset_prepare)(struct target *target, enum target_reset_mode reset_mode);
+	/**
+	 * Triggers reset using a debug register
+	 * DOES NOT CONTROL SRST LINE!!!
+	 *
+	 * @param target The target to work on
+	 * @param reset_mode Desired mode after reset (run or halt)
+	 */
+	int (*reset_trigger)(struct target *target, enum target_reset_mode reset_mode);
 	int (*soft_reset_halt)(struct target *target);
+	/**
+	 * Internal target adjustment after reset
+	 * Typically sets target state and clears register cache
+	 */
+	int (*reset_clear_internal_state)(struct target *target);
 
 	/**
 	 * Target register access for GDB.  Do @b not call this function
