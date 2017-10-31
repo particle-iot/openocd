@@ -327,6 +327,8 @@ int bitbang_execute_queue(void)
 #ifdef _DEBUG_JTAG_IO_
 				LOG_DEBUG("sleep %" PRIi32, cmd->cmd.sleep->us);
 #endif
+				if (bitbang_interface->flush)
+					bitbang_interface->flush();
 				jtag_sleep(cmd->cmd.sleep->us);
 				break;
 			case JTAG_TMS:

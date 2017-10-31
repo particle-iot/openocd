@@ -49,6 +49,13 @@ static void remote_bitbang_putc(int c)
 		REMOTE_BITBANG_RAISE_ERROR("remote_bitbang_putc: %s", strerror(errno));
 }
 
+static void remote_bitbang_flush(void)
+{
+		if (EOF == fflush(remote_bitbang_out)) {
+			LOG_ERROR("fflush: %s", strerror(errno));
+		}
+}
+
 static int remote_bitbang_quit(void)
 {
 	if (EOF == fputc('Q', remote_bitbang_out)) {
@@ -125,6 +132,7 @@ static struct bitbang_interface remote_bitbang_bitbang = {
 	.write = &remote_bitbang_write,
 	.reset = &remote_bitbang_reset,
 	.blink = &remote_bitbang_blink,
+	.flush = &remote_bitbang_flush,
 };
 
 static int remote_bitbang_init_tcp(void)
