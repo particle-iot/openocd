@@ -43,6 +43,37 @@ proc arp_examine_all {} {
 	}
 }
 
+proc arp_default_reset_assert_pre {} {
+	global arp_reset_mode
+	global arp_target_iterator
+	if { (![using_jtag] || [jtag tapisenabled [$arp_target_iterator cget -chain-position]])
+	    && [reset_config_includes srst]
+	    && [$arp_target_iterator cget -dbg-under-srst] eq "gated"} {
+		$arp_target_iterator arp_reset prepare $arp_reset_mode
+	}
+}
+
+proc arp_default_reset_assert_post {} {
+	global arp_reset_mode
+	global arp_target_iterator
+	if {![using_jtag] || [jtag tapisenabled [$arp_target_iterator cget -chain-position]]} {
+		set dbg_u_srst [$arp_target_iterator cget -dbg-under-srst]
+		set srst [reset_config_includes srst]
+		set prep_trig [expr {$srst ? "prepare" : "trigger"}]
+		if {$dbg_u_srst eq "working" || !$srst && $dbg_u_srst eq "gated"} {
+			$arp_target_iterator arp_reset $prep_trig $arp_reset_mode
+		} elseif {$dbg_u_srst eq "cleared"} {
+			$arp_target_iterator arp_reset clear_internal_state 0
+		}
+	}
+}
+
+proc set_debug_under_reset { target capability } {
+	set_default_target_event $target reset-assert-pre arp_default_reset_assert_pre
+	set_default_target_event $target reset-assert-post arp_default_reset_assert_post
+	$target configure -dbg-under-srst $capability
+}
+
 proc ocd_process_reset_inner { MODE } {
 	set targets [target names]
 
@@ -62,6 +93,7 @@ proc ocd_process_reset_inner { MODE } {
 	}
 
 	global arp_reset_halting
+	global arp_target_iterator
 	set arp_reset_halting $halt
 
 	# Target event handlers *might* change which TAPs are enabled
@@ -72,14 +104,15 @@ proc ocd_process_reset_inner { MODE } {
 	# NOTE:  ARP == "Advanced Reset Process" ... "advanced" is
 	# relative to a previous restrictive scheme
 
-	foreach t $targets {
-		$t invoke-event reset-start
+	foreach arp_target_iterator $targets {
+		$arp_target_iterator invoke-event reset-start
 	}
 
 	# If srst_nogate is set, check all targets whether they support it
 	if {[reset_config_includes srst srst_nogate]} {
 		foreach t $targets {
-			if {[$t cget -dbg-under-srst] ne "working"} {
+			set dbg_u_srst [$t cget -dbg-under-srst]
+			if {$dbg_u_srst ne "working" && $dbg_u_srst ne "unknown"} {
 				reset_config srst_gates_jtag
 				echo "'srst_nogate' is not supported by at least one target"
 				echo "Reset config changed to 'srst_gates_jtag'"
@@ -101,36 +134,28 @@ proc ocd_process_reset_inner { MODE } {
 		arp_examine_all
 	}
 
-	foreach t $targets {
-		$t invoke-event reset-assert-pre
+	foreach arp_target_iterator $targets {
+		$arp_target_iterator invoke-event reset-assert-pre
 	}
 
 	# Prepare all targets with debug not working under SRST
-	# Note: Preparing a target with debug cleared by SRST has no point
-	# if SRST enabled
-	foreach t $targets {
-		set tapenabled [expr {![using_jtag] || [jtag tapisenabled [$t cget -chain-position]]}]
-		if {$tapenabled && [$t cget -dbg-under-srst] ne "working"} {
-			$t arp_reset assert $arp_reset_halting
+	# TODO: for old targets only, remove
+	foreach arp_target_iterator $targets {
+		if {(![using_jtag] || [jtag tapisenabled [$arp_target_iterator cget -chain-position]])
+		    && [$arp_target_iterator cget -dbg-under-srst] eq "unknown"} {
+			$arp_target_iterator arp_reset assert $MODE
 		}
 	}
 
 	# Assert SRST
 	reset_assert_final $MODE
 
-	# Prepare other targets under SRST
-	foreach t $targets {
-		set tapenabled [expr {![using_jtag] || [jtag tapisenabled [$t cget -chain-position]]}]
-		if {$tapenabled && [$t cget -dbg-under-srst] eq "working"} {
-			$t arp_reset assert $arp_reset_halting
-		}
-	}
-	foreach t $targets {
-		$t invoke-event reset-assert-post
+	foreach arp_target_iterator $targets {
+		$arp_target_iterator invoke-event reset-assert-post
 	}
 
-	foreach t $targets {
-		$t invoke-event reset-deassert-pre
+	foreach arp_target_iterator $targets {
+		$arp_target_iterator invoke-event reset-deassert-pre
 	}
 
 	# Deassert SRST
@@ -139,13 +164,13 @@ proc ocd_process_reset_inner { MODE } {
 		if [using_jtag] { jtag arp_init }
 		arp_examine_all
 	}
-	foreach t $targets {
-		if {![using_jtag] || [jtag tapisenabled [$t cget -chain-position]]} {
-			$t arp_reset deassert $arp_reset_halting
+	foreach arp_target_iterator $targets {
+		if {![using_jtag] || [jtag tapisenabled [$arp_target_iterator cget -chain-position]]} {
+			$arp_target_iterator arp_reset [expr {[$arp_target_iterator cget -dbg-under-srst] eq "unknown"?"deassert":"post_deassert"}] $MODE
 		}
 	}
-	foreach t $targets {
-		$t invoke-event reset-deassert-post
+	foreach arp_target_iterator $targets {
+		$arp_target_iterator invoke-event reset-deassert-post
 	}
 
 	# Pass 1 - Now wait for any halt (requested as part of reset
@@ -182,27 +207,27 @@ proc ocd_process_reset_inner { MODE } {
 
 	#Pass 2 - if needed "init"
 	if { 0 == [string compare init $MODE] } {
-		foreach t $targets {
-			if {[using_jtag] && ![jtag tapisenabled [$t cget -chain-position]]} {
+		foreach arp_target_iterator $targets {
+			if {[using_jtag] && ![jtag tapisenabled [$arp_target_iterator cget -chain-position]]} {
 				continue
 			}
 
 			# don't wait for targets where examination is deferred
 			# they can not be halted anyway at this point
-			if { ![$t was_examined] && [$t examine_deferred] } {
+			if { ![$arp_target_iterator was_examined] && [$arp_target_iterator examine_deferred] } {
 				continue
 			}
 
-			set err [catch "$t arp_waitstate halted 5000"]
+			set err [catch "$arp_target_iterator arp_waitstate halted 5000"]
 			# Did it halt?
 			if { $err == 0 } {
-				$t invoke-event reset-init
+				$arp_target_iterator invoke-event reset-init
 			}
 		}
 	}
 
-	foreach t $targets {
-		$t invoke-event reset-end
+	foreach arp_target_iterator $targets {
+		$arp_target_iterator invoke-event reset-end
 	}
 }
 
