@@ -536,6 +536,8 @@ int target_poll(struct target *target)
 	if (retval != ERROR_OK)
 		return retval;
 
+	target->backoff.times = 0;
+
 	if (target->halt_issued) {
 		if (target->state == TARGET_HALTED)
 			target->halt_issued = false;
@@ -2680,6 +2682,7 @@ static int handle_target(void *priv)
 		if (!powerDropout && !srstAsserted) {
 			/* polling may fail silently until the target has been examined */
 			retval = target_poll(target);
+			/* any successful poll resets backoff.times */
 			if (retval != ERROR_OK) {
 				/* 100ms polling interval. Increase interval between polling up to 5000ms */
 				if (target->backoff.times * polling_interval < 5000) {
@@ -5123,6 +5126,9 @@ static int jim_target_poll(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
 		e = target->type->poll(target);
 	if (e != ERROR_OK)
 		return JIM_ERR;
+
+	target->backoff.times = 0;
+
 	return JIM_OK;
 }
 
