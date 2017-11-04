@@ -904,22 +904,28 @@ static int stlink_usb_init_mode(void *handle, bool connect_under_reset)
 		return ERROR_FAIL;
 	}
 
+	/* preliminary SRST assert:
+	 * We want SRST is asserted before activating debug signals (mode_enter).
+	 * As the required mode has not been set, the adapter may not know what pin to use.
+	 * Tested firmware STLINK v2 JTAG v29 API v2 SWIM v0 uses T_NRST pin by default
+	 * Tested firmware STLINK v2 JTAG v27 API v2 SWIM v6 uses T_NRST pin by default
+	 * after power on, SWIM_RST stays unchanged */
+	if (connect_under_reset && emode != STLINK_MODE_DEBUG_SWIM)
+		stlink_usb_assert_srst(handle, 0);
+		/* do not check the return status here, we will
+		   proceed and enter the desired mode below
+		   and try asserting srst again. */
+
+	res = stlink_usb_mode_enter(handle, emode);
+	if (res != ERROR_OK)
+		return res;
+
+	/* assert SRST again: a little bit late but now the adapter knows for sure what pin to use */
 	if (connect_under_reset) {
-		/* if we are going to use swim we need to switch mode early */
-		if (emode == STLINK_MODE_DEBUG_SWIM) {
-			res = stlink_usb_mode_enter(handle, emode);
-			if (res != ERROR_OK)
-				return res;
-		}
 		res = stlink_usb_assert_srst(handle, 0);
 		if (res != ERROR_OK)
 			return res;
 	}
-
-	res = stlink_usb_mode_enter(handle, emode);
-
-	if (res != ERROR_OK)
-		return res;
 
 	res = stlink_usb_current_mode(handle, &mode);
 
@@ -1949,7 +1955,41 @@ static int stlink_speed(void *handle, int khz, bool query)
 /** */
 static int stlink_usb_close(void *handle)
 {
+	int res;
+	uint8_t mode;
+	enum stlink_mode emode;
 	struct stlink_usb_handle_s *h = handle;
+
+	assert(handle != NULL);
+
+	res = stlink_usb_current_mode(handle, &mode);
+	/* do not exit if return code != ERROR_OK,
+	   it prevents us from closing jtag_libusb */
+
+	if (res == ERROR_OK) {
+		/* try to exit current mode */
+		switch (mode) {
+			case STLINK_DEV_DFU_MODE:
+				emode = STLINK_MODE_DFU;
+				break;
+			case STLINK_DEV_DEBUG_MODE:
+				emode = STLINK_MODE_DEBUG_SWD;
+				break;
+			case STLINK_DEV_SWIM_MODE:
+				emode = STLINK_MODE_DEBUG_SWIM;
+				break;
+			case STLINK_DEV_BOOTLOADER_MODE:
+			case STLINK_DEV_MASS_MODE:
+			default:
+				emode = STLINK_MODE_UNKNOWN;
+				break;
+		}
+
+		if (emode != STLINK_MODE_UNKNOWN)
+			stlink_usb_mode_leave(handle, emode);
+			/* do not check return code, it prevent
+			us from closing jtag_libusb */
+	}
 
 	if (h && h->fd)
 		jtag_libusb_close(h->fd);
