@@ -1779,6 +1779,7 @@ static char *custom_srst_script;
 static char *custom_trst_script;
 static char *custom_restart_script;
 static uint32_t aice_count_to_check_dbger = 30;
+static uint32_t aice_timeout_period = 5000;
 
 static int aice_read_reg(uint32_t coreid, uint32_t num, uint32_t *val);
 static int aice_write_reg(uint32_t coreid, uint32_t num, uint32_t val);
@@ -2289,37 +2290,42 @@ get_delay:
 
 static int aice_usb_set_clock(int set_clock)
 {
-	if (aice_write_ctrl(AICE_WRITE_CTRL_TCK_CONTROL,
-				AICE_TCK_CONTROL_TCK_SCAN) != ERROR_OK)
-		return ERROR_FAIL;
+	if (set_clock == 16) {
+		/* Users do NOT specify the jtag clock, use scan-freq */
+		LOG_DEBUG("Use scan -freq");
 
-	/* Read out TCK_SCAN clock value */
-	uint32_t scan_clock;
-	if (aice_read_ctrl(AICE_READ_CTRL_GET_ICE_STATE, &scan_clock) != ERROR_OK)
-		return ERROR_FAIL;
+		if (aice_write_ctrl(AICE_WRITE_CTRL_TCK_CONTROL,
+					AICE_TCK_CONTROL_TCK_SCAN) != ERROR_OK)
+			return ERROR_FAIL;
 
-	scan_clock &= 0x0F;
+		/* Read out TCK_SCAN clock value */
+		uint32_t scan_clock;
+		if (aice_read_ctrl(AICE_READ_CTRL_GET_ICE_STATE, &scan_clock) != ERROR_OK)
+			return ERROR_FAIL;
 
-	uint32_t scan_base_freq;
-	if (scan_clock & 0x8)
-		scan_base_freq = 48000; /* 48 MHz */
-	else
-		scan_base_freq = 30000; /* 30 MHz */
+		scan_clock &= 0x0F;
 
-	uint32_t set_base_freq;
-	if (set_clock & 0x8)
-		set_base_freq = 48000;
-	else
-		set_base_freq = 30000;
+		uint32_t scan_base_freq;
+		if (scan_clock & 0x8)
+			scan_base_freq = 48000; /* 48 MHz */
+		else
+			scan_base_freq = 30000; /* 30 MHz */
 
-	uint32_t set_freq;
-	uint32_t scan_freq;
-	set_freq = set_base_freq >> (set_clock & 0x7);
-	scan_freq = scan_base_freq >> (scan_clock & 0x7);
+		uint32_t set_base_freq;
+		if (set_clock & 0x8)
+			set_base_freq = 48000;
+		else
+			set_base_freq = 30000;
 
-	if (scan_freq < set_freq) {
-		LOG_ERROR("User specifies higher jtag clock than TCK_SCAN clock");
-		return ERROR_FAIL;
+		uint32_t set_freq;
+		uint32_t scan_freq;
+		set_freq = set_base_freq >> (set_clock & 0x7);
+		scan_freq = scan_base_freq >> (scan_clock & 0x7);
+
+		if (scan_freq < set_freq) {
+			LOG_ERROR("User specifies higher jtag clock than TCK_SCAN clock");
+			return ERROR_FAIL;
+		}
 	}
 
 	if (aice_write_ctrl(AICE_WRITE_CTRL_TCK_CONTROL, set_clock) != ERROR_OK)
@@ -2334,6 +2340,8 @@ static int aice_usb_set_clock(int set_clock)
 		return ERROR_FAIL;
 	}
 
+	aice_write_ctrl(AICE_WRITE_CTRL_TIMEOUT, aice_timeout_period);
+	jtag_clock = set_clock;
 	return ERROR_OK;
 }
 
