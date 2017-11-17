@@ -4427,10 +4427,21 @@ void target_handle_event(struct target *target, enum target_event e)
 					   e,
 					   Jim_Nvp_value2name_simple(nvp_target_event, e)->name,
 					   Jim_GetString(teap->body, NULL));
+
+			/* HACK: Switch current target to the target
+			 * an event is issued from (lot of scripts need it).
+			 * Return back to previously current target
+			 * as soon as event handler is done. */
+			struct command_context *cmd_ctx = current_command_context(teap->interp);
+			int saved_curent_target = cmd_ctx->current_target;
+			cmd_ctx->current_target = target->target_number;
+
 			if (Jim_EvalObj(teap->interp, teap->body) != JIM_OK) {
 				Jim_MakeErrorMessage(teap->interp);
 				command_print(NULL, "%s\n", Jim_GetString(Jim_GetResult(teap->interp), NULL));
 			}
+
+			cmd_ctx->current_target = saved_curent_target;
 		}
 	}
 }
