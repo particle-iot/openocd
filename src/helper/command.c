@@ -608,7 +608,11 @@ static int run_command(struct command_context *context,
 		.argc = num_words - 1,
 		.argv = words + 1,
 	};
+	struct command_invocation *save_cmd = context->invocation;
+	context->invocation = &cmd;
 	int retval = c->handler(&cmd);
+	context->invocation = save_cmd;
+
 	if (retval == ERROR_COMMAND_SYNTAX_ERROR) {
 		/* Print help for command */
 		char *full_name = command_name(c, ' ');
@@ -1277,6 +1281,7 @@ struct command_context *command_init(const char *startup_tcl, Jim_Interp *interp
 	context->current_target = 0;
 	context->output_handler = NULL;
 	context->output_handler_priv = NULL;
+	context->invocation = NULL;
 
 	/* Create a jim interpreter if we were not handed one */
 	if (interp == NULL) {

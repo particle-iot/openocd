@@ -512,7 +512,17 @@ struct target *get_target_by_num(int num)
 
 struct target *get_current_target(struct command_context *cmd_ctx)
 {
-	struct target *target = get_target_by_num(cmd_ctx->current_target);
+	struct target *target = NULL;
+
+	if (cmd_ctx->invocation) {
+		if (cmd_ctx->invocation->current)
+			target = cmd_ctx->invocation->current->jim_handler_data;
+	} else {
+		LOG_WARNING("get_current_target: no invocation pointer BUG?");
+	}
+
+	if (target == NULL)
+		target = get_target_by_num(cmd_ctx->current_target);
 
 	if (target == NULL) {
 		LOG_ERROR("BUG: current_target out of bounds");
