@@ -608,7 +608,11 @@ static int run_command(struct command_context *context,
 		.argc = num_words - 1,
 		.argv = words + 1,
 	};
+	struct command_invocation *save_cmd = context->invocation;
+	context->invocation = &cmd;
 	int retval = c->handler(&cmd);
+	context->invocation = save_cmd;
+
 	if (retval == ERROR_COMMAND_SYNTAX_ERROR) {
 		/* Print help for command */
 		char *full_name = command_name(c, ' ');

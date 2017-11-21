@@ -52,6 +52,7 @@ struct command_context {
 	int current_target;
 	command_output_handler_t output_handler;
 	void *output_handler_priv;
+	struct command_invocation *invocation;
 };
 
 struct command;
