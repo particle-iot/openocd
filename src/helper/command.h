@@ -49,7 +49,15 @@ struct command_context {
 	Jim_Interp *interp;
 	enum command_mode mode;
 	struct command *commands;
-	int current_target;
+	struct target *current_target;
+		/* The target set by 'targets xx' command or the latest created */
+	struct target *current_target_override;
+		/* If set overrides current_target
+		 * It happens during processing of
+		 *	1) a target prefixed command
+		 *	2) an event handler
+		 * Pay attention to reentrancy when setting override.
+		 */
 	command_output_handler_t output_handler;
 	void *output_handler_priv;
 };
@@ -168,6 +176,7 @@ struct command {
 	command_handler_t handler;
 	Jim_CmdProc *jim_handler;
 	void *jim_handler_data;
+		/* currently used only for target of target-prefixed cmd */
 	enum command_mode mode;
 	struct command *next;
 };
