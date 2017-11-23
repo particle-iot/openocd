@@ -6,7 +6,7 @@ ARM_OBJCOPY ?= $(ARM_CROSS_COMPILE)objcopy
 
 ARM_AFLAGS = -EL
 
-arm: armv4_5_erase_check.inc armv7m_erase_check.inc armv7m_0_erase_check.inc
+arm: armv4_5_erase_check.inc armv7m_erase_check.inc
 
 armv4_5_%.elf: armv4_5_%.s
 	$(ARM_AS) $(ARM_AFLAGS) $< -o $@
