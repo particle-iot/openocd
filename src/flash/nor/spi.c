@@ -80,5 +80,6 @@ const struct flash_device flash_devices[] = {
 	FLASH_ID("gd gd25q16c",         0xd8, 0xc7, 0x001540c8, 0x100, 0x10000, 0x200000),
 	FLASH_ID("gd gd25q32c",         0xd8, 0xc7, 0x001640c8, 0x100, 0x10000, 0x400000),
 	FLASH_ID("gd gd25q128c",        0xd8, 0xc7, 0x001840c8, 0x100, 0x10000, 0x1000000),
+	FLASH_ID("cyp s25fs512s",   0xdc, 0xc7, 0x0102204d, 0x100, 0x40000, 0x4000000),
 	FLASH_ID(NULL,                  0,    0,    0,          0,     0,       0)
 };
