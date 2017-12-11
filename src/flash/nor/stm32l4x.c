@@ -33,6 +33,9 @@
  * RM0394 (STM32L43x/44x/45x/46x)
  * http://www.st.com/resource/en/reference_manual/dm00151940.pdf
  *
+ * RM0432 (STM32L4R/4Sxx)
+ * http://www.st.com/resource/en/reference_manual/dm00310109.pdf
+ *
  * STM32L476RG Datasheet (for erase timing)
  * http://www.st.com/resource/en/datasheet/stm32l476rg.pdf
  *
@@ -42,6 +45,10 @@
  * handlers do!
  *
  * RM0394 devices have a single bank only.
+ *
+ * RM0432 devices have single or dual bank operating modes (physically
+ * two). Each bank has 256 pages of 4Kbyte or 8Kbyte, which depends on
+ * the read access width.
  *
  */
 
@@ -370,12 +377,22 @@ static int stm32l4_erase(struct flash_bank *bank, int first, int last)
 	assert(first < bank->num_sectors);
 	assert(last < bank->num_sectors);
 
+	/* FIXME: Need to add sector erase support for STM32L4+ */
+	uint32_t device_id;
+	int retval = target_read_u32(target, DBGMCU_IDCODE, &device_id);
+	if (retval != ERROR_OK)
+		return retval;
+
+	if ((device_id & 0xfff) == 0x470) {
+		LOG_ERROR("Sector Erase Not Supported for STM32L4+");
+		return ERROR_FAIL;
+	}
+
 	if (bank->target->state != TARGET_HALTED) {
 		LOG_ERROR("Target not halted");
 		return ERROR_TARGET_NOT_HALTED;
 	}
 
-	int retval;
 	retval = stm32l4_unlock_reg(target);
 	if (retval != ERROR_OK)
 		return retval;
@@ -618,6 +635,9 @@ static int stm32l4_probe(struct flash_bank *bank)
 
 	/* set max flash size depending on family */
 	switch (device_id & 0xfff) {
+	case 0x470:
+		max_flash_size_in_kb = 2048;
+		break;
 	case 0x461:
 	case 0x415:
 		max_flash_size_in_kb = 1024;
@@ -724,6 +744,10 @@ static int get_stm32l4_info(struct flash_bank *bank, char *buf, int buf_size)
 	const char *device_str;
 
 	switch (device_id) {
+	case 0x470:
+		device_str = "STM32L4R/4Sxx";
+		break;
+
 	case 0x461:
 		device_str = "STM32L496/4A6";
 		break;
