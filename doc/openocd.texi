@@ -4360,6 +4360,7 @@ compact Thumb2 instruction set.
 (Support for this is still incomplete.)
 @item @code{esirisc} -- this is an EnSilica eSi-RISC core.
 The current implementation supports eSi-32xx cores.
+@item @code{etacorem3} -- EtaCompute cortex-M self timing cores.
 @item @code{fa526} -- resembles arm920 (w/o Thumb)
 @item @code{feroceon} -- resembles arm926
 @item @code{mips_m4k} -- a MIPS core
@@ -5833,6 +5834,38 @@ Erase all pages in data memory for the bank identified by @option{bank_id}.
 Erase the reference cell for the bank identified by @option{bank_id}. @emph{This
 is an uncommon operation.}
 @end deffn
+@end deffn
+
+@deffn {Flash Driver} etacorem3
+Eta Compute's ECM35xx series SOC's include ARM's Cortex-M3 and a Dual MAC DSP.
+Both cores are implemented using Eta Compute's proprietary
+DIAL Technology
+supporting self-timed operation (140Khz - 100Mhz)
+for ultra-low power IOT applications including:
+@itemize @bullet
+@item Machine Learning
+@item IOT Sensor Nodes
+@item BLE Beacon
+@item Wearable Computation.
+@end itemize
+ECM35XX SOC's include an ADC to reduce the need for external sensors, and
+several PMIC / Buck Converters that reduce power requirements.
+
+The driver automatically recognizes flash size, and autoconfigures itself.
+In some cases the optional BOARDTYPE parameter is used by the driver.
+Separate board config files are available defining this parameter.
+@example
+# Optional parameter for Board/FPGA type.
+flash bank $_FLASHNAME etacorem3 0 0 0 0 $_TARGETNAME $_BOARDTYPE
+@end example
+
+There is one additional command defined in the @var{etacorem3} driver:
+
+@deffn Command {etacorem3 mass_erase} num
+Mass erases the entire etacorem3 device.
+The @var{num} parameter is a value shown by @command{flash banks}.
+@end deffn
+
 @end deffn
 
 @deffn {Flash Driver} fm3
