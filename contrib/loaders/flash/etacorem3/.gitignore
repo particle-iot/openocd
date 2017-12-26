@@ -1,0 +1,3 @@
+# Don't check in executables from debug build.
+*.elf
+*.map
