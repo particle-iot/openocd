@@ -22,6 +22,7 @@ NOR_DRIVERS = \
 	%D%/cc3220sf.c \
 	%D%/cc26xx.c \
 	%D%/cfi.c \
+	%D%/cmspi.c \
 	%D%/dsp5680xx_flash.c \
 	%D%/efm32.c \
 	%D%/em357.c \
@@ -72,6 +73,7 @@ NORHEADERS = \
 	%D%/cc3220sf.h \
 	%D%/cc26xx.h \
 	%D%/cfi.h \
+	%D%/cmspi.h \
 	%D%/driver.h \
 	%D%/imp.h \
 	%D%/non_cfi.h \
