@@ -425,10 +425,6 @@ static int stlink_usb_error_check(void *handle)
 
 	assert(handle != NULL);
 
-	/* TODO: no error checking yet on api V1 */
-	if (h->jtag_api == STLINK_JTAG_API_V1)
-		h->databuf[0] = STLINK_DEBUG_ERR_OK;
-
 	if (h->transport == HL_TRANSPORT_SWIM) {
 		switch (h->databuf[0]) {
 			case STLINK_SWIM_ERR_OK:
@@ -440,6 +436,10 @@ static int stlink_usb_error_check(void *handle)
 				return ERROR_FAIL;
 		}
 	}
+
+	/* TODO: no error checking yet on api V1 */
+	if (h->jtag_api == STLINK_JTAG_API_V1)
+		h->databuf[0] = STLINK_DEBUG_ERR_OK;
 
 	switch (h->databuf[0]) {
 		case STLINK_DEBUG_ERR_OK:
@@ -1960,9 +1960,10 @@ static int stlink_usb_close(void *handle)
 	enum stlink_mode emode;
 	struct stlink_usb_handle_s *h = handle;
 
-	assert(handle != NULL);
-
-	res = stlink_usb_current_mode(handle, &mode);
+	if (h && h->fd)
+		res = stlink_usb_current_mode(handle, &mode);
+	else
+		res = ERROR_FAIL;
 	/* do not exit if return code != ERROR_OK,
 	   it prevents us from closing jtag_libusb */
 
