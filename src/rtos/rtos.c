@@ -101,6 +101,19 @@ static int os_alloc_create(struct target *target, struct rtos_type *ostype)
 	return ret;
 }
 
+static int read_threadid(const char *packet, const char *format_prefix, threadid_t *threadid)
+{
+	char format[64];
+	uint32_t tmp;
+	int ret;
+
+	snprintf(format, sizeof(format), "%s" SCNx32, format_prefix);
+	ret = sscanf(packet, format, &tmp);
+	*threadid = tmp;
+
+	return ret;
+}
+
 int rtos_create(Jim_GetOptInfo *goi, struct target *target)
 {
 	int x;
@@ -284,7 +297,7 @@ int rtos_thread_packet(struct connection *connection, char const *packet, int pa
 				(target->rtos->thread_count != 0)) {
 			threadid_t threadid = 0;
 			int found = -1;
-			sscanf(packet, "qThreadExtraInfo,%" SCNx64, &threadid);
+			read_threadid(packet, "qThreadExtraInfo,%", &threadid);
 
 			if ((target->rtos != NULL) && (target->rtos->thread_details != NULL)) {
 				int thread_num;
@@ -387,7 +400,7 @@ int rtos_thread_packet(struct connection *connection, char const *packet, int pa
 	} else if (packet[0] == 'T') {	/* Is thread alive? */
 		threadid_t threadid;
 		int found = -1;
-		sscanf(packet, "T%" SCNx64, &threadid);
+		read_threadid(packet, "T%", &threadid);
 		if ((target->rtos != NULL) && (target->rtos->thread_details != NULL)) {
 			int thread_num;
 			for (thread_num = 0; thread_num < target->rtos->thread_count; thread_num++) {
@@ -406,7 +419,7 @@ int rtos_thread_packet(struct connection *connection, char const *packet, int pa
 					 * all other operations ) */
 		if ((packet[1] == 'g') && (target->rtos != NULL)) {
 			threadid_t threadid;
-			sscanf(packet, "Hg%16" SCNx64, &threadid);
+			read_threadid(packet, "Hg%16", &threadid);
 			LOG_DEBUG("RTOS: GDB requested to set current thread to 0x%" PRIx64, threadid);
 			/* threadid of 0 indicates target should choose */
 			if (threadid == 0)
