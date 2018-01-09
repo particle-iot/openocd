@@ -1550,6 +1550,9 @@ static int aarch64_add_breakpoint(struct target *target,
 {
 	struct aarch64_common *aarch64 = target_to_aarch64(target);
 
+	if (!target_was_examined(target))
+		return ERROR_OK;
+
 	if ((breakpoint->type == BKPT_HARD) && (aarch64->brp_num_available < 1)) {
 		LOG_INFO("no hardware breakpoint available");
 		return ERROR_TARGET_RESOURCE_NOT_AVAILABLE;
