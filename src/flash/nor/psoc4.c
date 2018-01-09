@@ -11,6 +11,14 @@
  *   Copyright (C) 2014 by Tomas Vanek (PSoC 4 support derived from STM32) *
  *   vanekt@fbl.cz                                                         *
  *                                                                         *
+ *   Copyright (C) 2016 by George Ioakimedes                               *
+ *        (PRoC BLE support derived from PSoC 4 from Tomas)                *
+ *   georgeioak@gmail.com                                                  *
+ *                                                                         *
+ *   Copyright (C) 2018 by David Girault                                   *
+ *        (PRoC BLE integration from work initially done by George)        *
+ *   david.f.girault@gmail.com                                             *
+ *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
  *   the Free Software Foundation; either version 2 of the License, or     *
@@ -40,6 +48,9 @@
  PSoC(R) 4: PSoC 4200 Family Datasheet
 	Document Number: 001-87197 Rev. *B  Revised August 29, 2013
 
+ CYBL10X6X Family Datasheet
+	Document Number: 001-90478 Rev. *H  Revised February 11, 2015
+
  PSoC 4100/4200 Family PSoC(R) 4 Architecture TRM
 	Document No. 001-85634 Rev. *C March 25, 2014
 
@@ -50,13 +61,21 @@
 	Document No. 001-81799 Rev. *C March 4, 2014
 */
 
-/* register locations */
-#define PSOC4_CPUSS_SYSREQ	0x40000004
-#define PSOC4_CPUSS_SYSARG	0x40000008
-#define PSOC4_TEST_MODE		0x40030014
+/* PSoC 4 register locations */
+#define PSOC4_CPUSS_BASE	0x40000000
 #define PSOC4_SPCIF_GEOMETRY	0x400E0000
+/* PRoC BLE register locations */
+#define PROCBLE_CPUSS_BASE	0x40100000
+#define PROCBLE_SPCIF_GEOMETRY	0x40110000
+
+/* Offset from PSOC4_CPUSS_BASE/PROCBLE_CPUSS_BASE*/
+#define PSOC4_CPUSS_SYSREQ	(psoc4_base + 4)
+#define PSOC4_CPUSS_SYSARG	(psoc4_base + 8)
+
+#define PSOC4_TEST_MODE		0x40030014
 
 #define PSOC4_SFLASH_MACRO	0x0ffff000
+#define PSOC4_SFLASH_MACR1	0x0ffff400
 
 /* constants */
 #define PSOC4_SROM_KEY1			0xb6
@@ -69,11 +88,14 @@
 
 #define PSOC4_CMD_GET_SILICON_ID	0
 #define PSOC4_CMD_LOAD_LATCH		4
-#define PSOC4_CMD_WRITE_ROW		5
+#define PSOC4_CMD_WRITE_ROW			5
 #define PSOC4_CMD_PROGRAM_ROW		6
-#define PSOC4_CMD_ERASE_ALL		0xa
-#define PSOC4_CMD_CHECKSUM		0xb
+#define PSOC4_CMD_ERASE_ALL			0xa
+#define PSOC4_CMD_CHECKSUM			0xb
 #define PSOC4_CMD_WRITE_PROTECTION	0xd
+
+#define PSOC4_SROM_CMD_SET_IMO_48_Mhz	0x15
+#define PSOC4_SROM_CMD_WRITE_SFLASH_ROW	0x18
 
 #define PSOC4_CHIP_PROT_VIRGIN		0x0
 #define PSOC4_CHIP_PROT_OPEN		0x1
@@ -88,7 +110,7 @@ struct psoc4_chip_details {
 	uint32_t flash_size_in_kb;
 };
 
-/* list of PSoC 4 chips
+/* list of PSoC 4/PRoC BLE chips
  * flash_size_in_kb is not necessary as it can be decoded from SPCIF_GEOMETRY
  */
 const struct psoc4_chip_details psoc4_devices[] = {
@@ -120,6 +142,146 @@ const struct psoc4_chip_details psoc4_devices[] = {
 	{ 0x0498, "CYPD1132-16SXI",  "SOIC-16", .flash_size_in_kb = 32 },
 	{ 0x0481, "CYPD1134-28PVXI", "SSOP-28", .flash_size_in_kb = 32 },
 	{ 0x048B, "CYPD1134-40LQXI", "QFN-40",  .flash_size_in_kb = 32 },
+
+	/* PRoc BLE series 1193 Family*/
+	{ 0x0E01, "CYBL10161-56LQXI", "QFN-56", .flash_size_in_kb = 128},
+	{ 0x0E02, "CYBL10461-56LQXI", "QFN-56", .flash_size_in_kb = 128},
+	{ 0x0E03, "CYBL10462-56LQXI", "QFN-56", .flash_size_in_kb = 128},
+	{ 0x0E04, "CYBL10561-56LQXI", "QFN-56", .flash_size_in_kb = 128},
+	{ 0x0E04, "CYBL10561-56LQXIES", "QFN-56", .flash_size_in_kb = 128},
+	{ 0x0E05, "CYBL10562-56LQXI", "QFN-56", .flash_size_in_kb = 128},
+	{ 0x0E06, "CYBL10162-56LQXI", "QFN-56", .flash_size_in_kb = 128},
+	{ 0x0E06, "CYBL10162-56LQXIES", "QFN-56", .flash_size_in_kb = 128},
+	{ 0x0E07, "CYBL10163-56LQXI", "QFN-56", .flash_size_in_kb = 128},
+	{ 0x0E08, "CYBL10463-56LQXI", "QFN-56", .flash_size_in_kb = 128},
+	{ 0x0E09, "CYBL10563-56LQXI", "QFN-56", .flash_size_in_kb = 128},
+	{ 0x0E09, "CYBL10563-56LQXIES", "QFN-56", .flash_size_in_kb = 128},
+	{ 0x0E09, "CYBL10563-56LQXQ", "QFN-56", .flash_size_in_kb = 128},
+	{ 0x0E11, "CYBL10161-68FNXI", "WLCSP-68", .flash_size_in_kb = 128},
+	{ 0x0E12, "CYBL10461-68FNXI", "WLCSP-68", .flash_size_in_kb = 128},
+	{ 0x0E13, "CYBL10462-68FNXI", "WLCSP-68", .flash_size_in_kb = 128},
+	{ 0x0E14, "CYBL10561-68FNXI", "WLCSP-68", .flash_size_in_kb = 128},
+	{ 0x0E15, "CYBL10562-68FNXI", "WLCSP-68", .flash_size_in_kb = 128},
+	{ 0x0E16, "CYBL10162-68FNXI", "WLCSP-68", .flash_size_in_kb = 128},
+	{ 0x0E17, "CYBL10163-68FNXI", "WLCSP-68", .flash_size_in_kb = 128},
+	{ 0x0E18, "CYBL10463-68FNXI", "WLCSP-68", .flash_size_in_kb = 128},
+	{ 0x0E19, "CYBL10563-68FLXI", "WLCSP-68", .flash_size_in_kb = 128},
+	{ 0x0E19, "CYBL10563-68FNXI", "WLCSP-68", .flash_size_in_kb = 128},
+	{ 0x0E19, "CYBL10563-68FNXIES", "WLCSP-68", .flash_size_in_kb = 128},
+	{ 0x0E19, "CYBL10563-68FNXQ", "WLCSP-56", .flash_size_in_kb = 128},
+	{ 0x0E21, "CY8C4127LQI-BL473", "QFN-56", .flash_size_in_kb = 128},
+	{ 0x0E22, "CY8C4127LQI-BL453", "QFN-56", .flash_size_in_kb = 128},
+	{ 0x0E23, "CY8C4127LQI-BL483", "QFN-56", .flash_size_in_kb = 128},
+	{ 0x0E23, "CY8C4127LQI-BL483ES", "QFN-56", .flash_size_in_kb = 128},
+	{ 0x0E24, "CY8C4127LQI-BL493", "QFN-56", .flash_size_in_kb = 128},
+	{ 0x0E25, "CY8C4127FNI-BL483", "WLCSP-68", .flash_size_in_kb = 128},
+	{ 0x0E25, "CY8C4127FNI-BL483ES", "WLCSP-68", .flash_size_in_kb = 128},
+	{ 0x0E26, "CY8C4127FNI-BL493", "WLCSP-68", .flash_size_in_kb = 128},
+	{ 0x0E31, "CY8C4247LQI-BL473", "QFN-56", .flash_size_in_kb = 128},
+	{ 0x0E32, "CY8C4247LQI-BL453", "QFN-56", .flash_size_in_kb = 128},
+	{ 0x0E33, "CY8C4247LQI-BL463", "QFN-56", .flash_size_in_kb = 128},
+	{ 0x0E34, "CY8C4247LQI-BL483", "QFN-56", .flash_size_in_kb = 128},
+	{ 0x0E34, "CY8C4247LQI-BL483ES", "QFN-56", .flash_size_in_kb = 128},
+	{ 0x0E34, "CY8C4247LQQ-BL483", "QFN-56", .flash_size_in_kb = 128},
+	{ 0x0E35, "CY8C4247LQI-BL493", "QFN-56", .flash_size_in_kb = 128},
+	{ 0x0E36, "CY8C4247FLI-BL483", "WLCSP-56", .flash_size_in_kb = 128},
+	{ 0x0E36, "CY8C4247FNI-BL483", "WLCSP-68", .flash_size_in_kb = 128},
+	{ 0x0E36, "CY8C4247FNI-BL483ES", "WLCSP-68", .flash_size_in_kb = 128},
+	{ 0x0E36, "CY8C4247FNQ-BL483", "WLCSP-68", .flash_size_in_kb = 128},
+	{ 0x0E37, "CY8C4247FLI-BL493", "WLCSP-68", .flash_size_in_kb = 128},
+	{ 0x0E37, "CY8C4247FNI-BL493", "WLCSP-68", .flash_size_in_kb = 128},
+	{ 0x0E49, "CYBLE-014008-00", "11x11", .flash_size_in_kb = 128},
+	{ 0x0E50, "CYBLE-022001-00", "10x10", .flash_size_in_kb = 128},
+	{ 0x0E51, "CYBLE-012011-00", "14.5x19.2", .flash_size_in_kb = 128},
+	{ 0x0E51, "CYBLE-012012-10", "14.5x19.2", .flash_size_in_kb = 128},
+	
+	/* PRoc BLE series 11A3 Family*/
+	{ 0x1300, "CY8C4xxxBLE-PSVP256", "PSVP256", .flash_size_in_kb = 256},
+	{ 0x1301, "CY8C4128LQI-BL443", "QFN-56", .flash_size_in_kb = 256},
+	{ 0x1302, "CY8C4128LQI-BL453", "QFN-56", .flash_size_in_kb = 256},
+	{ 0x1303, "CY8C4128LQI-BL463", "QFN-56", .flash_size_in_kb = 256},
+	{ 0x1304, "CY8C4128LQI-BL473", "QFN-56", .flash_size_in_kb = 256},
+	{ 0x1305, "CY8C4128LQI-BL483", "QFN-56", .flash_size_in_kb = 256},
+	{ 0x1306, "CY8C4128LQI-BL493", "QFN-56", .flash_size_in_kb = 256},
+	{ 0x1307, "CY8C4128FNI-BL443", "WLCSP-76", .flash_size_in_kb = 256},
+	{ 0x1308, "CY8C4128FNI-BL453", "WLCSP-76", .flash_size_in_kb = 256},
+	{ 0x1309, "CY8C4128FNI-BL463", "WLCSP-76", .flash_size_in_kb = 256},
+	{ 0x1310, "CY8C4128FNI-BL473", "WLCSP-76", .flash_size_in_kb = 256},
+	{ 0x1311, "CY8C4128FNI-BL483", "WLCSP-76", .flash_size_in_kb = 256},
+	{ 0x1312, "CY8C4128FNI-BL493", "WLCSP-76", .flash_size_in_kb = 256},
+	{ 0x1313, "CY8C4248LQI-BL443", "QFN-56", .flash_size_in_kb = 256},
+	{ 0x1314, "CY8C4248LQI-BL453", "QFN-56", .flash_size_in_kb = 256},
+	{ 0x1315, "CY8C4248LQI-BL463", "QFN-56", .flash_size_in_kb = 256},
+	{ 0x1316, "CY8C4248LQI-BL473", "QFN-56", .flash_size_in_kb = 256},
+	{ 0x1317, "CY8C4248LQI-BL483", "QFN-56", .flash_size_in_kb = 256},
+	{ 0x1318, "CY8C4248LQI-BL493", "QFN-56", .flash_size_in_kb = 256},
+	{ 0x1319, "CY8C4248FNI-BL443", "WLCSP-76", .flash_size_in_kb = 256},
+	{ 0x1320, "CY8C4248FNI-BL453", "WLCSP-76", .flash_size_in_kb = 256},
+	{ 0x1321, "CY8C4248FNI-BL463", "WLCSP-76", .flash_size_in_kb = 256},
+	{ 0x1322, "CY8C4248FNI-BL473", "WLCSP-76", .flash_size_in_kb = 256},
+	{ 0x1323, "CY8C4248FNI-BL483", "WLCSP-76", .flash_size_in_kb = 256},
+	{ 0x1324, "CY8C4248FNI-BL493", "WLCSP-76", .flash_size_in_kb = 256},
+	{ 0x1325, "CYBL10171-56LQXI", "QFN-56", .flash_size_in_kb = 256},
+	{ 0x1326, "CYBL10471-56LQXI", "QFN-56", .flash_size_in_kb = 256},
+	{ 0x1327, "CYBL10573-56LQXI", "QFN-56", .flash_size_in_kb = 256},
+	{ 0x1328, "CYBL10573-76FNXI", "WLCSP-76", .flash_size_in_kb = 256},
+	{ 0x1331, "CY8C4248LQQ-BL483", "QFN-56", .flash_size_in_kb = 256},
+	{ 0x1332, "CY8C4248FNQ-BL483", "WLCSP-76", .flash_size_in_kb = 256},
+	{ 0x1333, "CYBL10573-56LQXQ", "QFN-56", .flash_size_in_kb = 256},
+	{ 0x1334, "CYBL10573-76FNXQ", "WLCSP-76", .flash_size_in_kb = 256},
+	{ 0x1335, "CYBL10172-56LQXI", "QFN-56", .flash_size_in_kb = 256},
+	{ 0x1336, "CYBL10173-56LQXI", "QFN-56", .flash_size_in_kb = 256},
+	{ 0x1337, "CYBL10472-56LQXI", "QFN-56", .flash_size_in_kb = 256},
+	{ 0x1338, "CYBL10473-56LQXI", "QFN-56", .flash_size_in_kb = 256},
+	{ 0x1339, "CYBL10571-56LQXI", "QFN-56", .flash_size_in_kb = 256},
+	{ 0x1340, "CYBL10572-56LQXI", "QFN-56", .flash_size_in_kb = 256},
+	{ 0x1350, "CYBLE-214009-00", "11x11", .flash_size_in_kb = 256},
+	{ 0x1351, "CYBLE-222005-00", "10x10", .flash_size_in_kb = 256},
+	{ 0x1352, "CYBLE-212019-00", "14.5x19.2", .flash_size_in_kb = 256},
+	{ 0x1352, "CYBLE-212023-10", "14.5x19.3", .flash_size_in_kb = 256},
+	{ 0x1353, "CYBLE-224110-00", "9.5x15.4", .flash_size_in_kb = 256},
+
+	/* PRoc BLE series 11A3 Family*/
+	{ 0x1A00, "CY8C4128FNI-BL543", "WLCSP-76", .flash_size_in_kb = 256},
+	{ 0x1A01, "CY8C4128FNI-BL553", "WLCSP-76", .flash_size_in_kb = 256},
+	{ 0x1A02, "CY8C4128FNI-BL563", "WLCSP-76", .flash_size_in_kb = 256},
+	{ 0x1A03, "CY8C4128FNI-BL573", "WLCSP-76", .flash_size_in_kb = 256},
+	{ 0x1A04, "CY8C4128FNI-BL583", "WLCSP-76", .flash_size_in_kb = 256},
+	{ 0x1A05, "CY8C4128FNI-BL593", "WLCSP-76", .flash_size_in_kb = 256},
+	{ 0x1A06, "CY8C4128LQI-BL543", "QFN-56", .flash_size_in_kb = 256},
+	{ 0x1A07, "CY8C4128LQI-BL553", "QFN-56", .flash_size_in_kb = 256},
+	{ 0x1A08, "CY8C4128LQI-BL563", "QFN-56", .flash_size_in_kb = 256},
+	{ 0x1A09, "CY8C4128LQI-BL573", "QFN-56", .flash_size_in_kb = 256},
+	{ 0x1A0A, "CY8C4128LQI-BL583", "QFN-56", .flash_size_in_kb = 256},
+	{ 0x1A0B, "CY8C4128LQI-BL593", "QFN-56", .flash_size_in_kb = 256},
+	{ 0x1A0C, "CY8C4248FNI-BL543", "WLCSP-76", .flash_size_in_kb = 256},
+	{ 0x1A0D, "CY8C4248FNI-BL553", "WLCSP-76", .flash_size_in_kb = 256},
+	{ 0x1A0E, "CY8C4248FNI-BL563", "WLCSP-76", .flash_size_in_kb = 256},
+	{ 0x1A0F, "CY8C4248FNI-BL573", "WLCSP-76", .flash_size_in_kb = 256},
+	{ 0x1A10, "CY8C4248FNI-BL583", "WLCSP-76", .flash_size_in_kb = 256},
+	{ 0x1A10, "CY8C4248FNQ-BL583", "WLCSP-76", .flash_size_in_kb = 256},
+	{ 0x1A11, "CY8C4248FNI-BL593", "WLCSP-76", .flash_size_in_kb = 256},
+	{ 0x1A13, "CY8C4248LQI-BL543", "QFN-56", .flash_size_in_kb = 256},
+	{ 0x1A14, "CY8C4248LQI-BL553", "QFN-56", .flash_size_in_kb = 256},
+	{ 0x1A15, "CY8C4248LQI-BL563", "QFN-56", .flash_size_in_kb = 256},
+	{ 0x1A16, "CY8C4248LQI-BL573", "QFN-56", .flash_size_in_kb = 256},
+	{ 0x1A17, "CY8C4248LQI-BL583", "QFN-56", .flash_size_in_kb = 256},
+	{ 0x1A17, "CY8C4248LQQ-BL583", "QFN-56", .flash_size_in_kb = 256},
+	{ 0x1A18, "CY8C4248LQI-BL593", "QFN-56", .flash_size_in_kb = 256},
+	{ 0x1A50, "CYBL11171-56LQXI", "QFN-56", .flash_size_in_kb = 256},
+	{ 0x1A51, "CYBL11471-56LQXI", "QFN-56", .flash_size_in_kb = 256},
+	{ 0x1A52, "CYBL11573-56LQXI", "QFN-56", .flash_size_in_kb = 256},
+	{ 0x1A52, "CYBL11573-56LQXQ", "QFN-56", .flash_size_in_kb = 256},
+	{ 0x1A54, "CYBL11573-76FNXI", "WLCSP-76", .flash_size_in_kb = 256},
+	{ 0x1A54, "CYBL11573-76FNXQ", "WLCSP-76", .flash_size_in_kb = 256},
+	{ 0x1A56, "CYBL11172-56LQXI", "QFN-56", .flash_size_in_kb = 256},
+	{ 0x1A57, "CYBL11173-56LQXI", "QFN-56", .flash_size_in_kb = 256},
+	{ 0x1A58, "CYBL11472-56LQXI", "QFN-56", .flash_size_in_kb = 256},
+	{ 0x1A59, "CYBL11473-56LQXI", "QFN-56", .flash_size_in_kb = 256},
+	{ 0x1A5A, "CYBL11571-56LQXI", "QFN-56", .flash_size_in_kb = 256},
+	{ 0x1A5B, "CYBL11572-56LQXI", "QFN-56", .flash_size_in_kb = 256},
+	{ 0x1A6B, "CYBLE-222014-00", "10x10", .flash_size_in_kb = 256},
+	{ 0x1A6C, "CYBLE-212020-01", "14.5x19.2", .flash_size_in_kb = 256},
 };
 
 
@@ -128,6 +290,7 @@ struct psoc4_flash_bank {
 	uint32_t user_bank_size;
 	int probed;
 	uint32_t silicon_id;
+	uint32_t base_addr;
 	uint8_t chip_protection;
 	uint8_t cmd_program_row;
 };
@@ -142,7 +305,7 @@ static const struct psoc4_chip_details *psoc4_details_by_id(uint32_t silicon_id)
 		if (p->id == id)
 			return p;
 	}
-	LOG_DEBUG("Unknown PSoC 4 device silicon id 0x%08" PRIx32 ".", silicon_id);
+	LOG_DEBUG("Unknown PSoC 4/PRoC BLE device silicon id 0x%08" PRIx32 ".", silicon_id);
 	return NULL;
 }
 
@@ -177,20 +340,22 @@ FLASH_BANK_COMMAND_HANDLER(psoc4_flash_bank_command)
 
 	bank->driver_priv = psoc4_info;
 	psoc4_info->user_bank_size = bank->size;
+    psoc4_info->base_addr = PSOC4_CPUSS_BASE;
 
 	return ERROR_OK;
 }
 
 
-/* PSoC 4 system ROM request
+/* PSoC 4/PRoC BLE system ROM request
  *  Setting SROM_SYSREQ_BIT in CPUSS_SYSREQ register runs NMI service
  *  in sysrem ROM. Algorithm just waits for NMI to finish.
  *  When sysreq_params_size == 0 only one parameter is passed in CPUSS_SYSARG register.
  *  Otherwise address of memory parameter block is set in CPUSS_SYSARG
  *  and the first parameter is written to the first word of parameter block
  */
-static int psoc4_sysreq(struct target *target, uint8_t cmd, uint16_t cmd_param,
-		uint32_t *sysreq_params, uint32_t sysreq_params_size)
+static int psoc4_sysreq(struct target *target, uint32_t psoc4_base,
+                        uint8_t cmd, uint16_t cmd_param,
+                        uint32_t *sysreq_params, uint32_t sysreq_params_size)
 {
 	struct working_area *sysreq_wait_algorithm;
 	struct working_area *sysreq_mem;
@@ -312,14 +477,15 @@ cleanup_algo:
 }
 
 
-/* helper routine to get silicon ID from a PSoC 4 chip */
-static int psoc4_get_silicon_id(struct target *target, uint32_t *silicon_id, uint8_t *protection)
+/* helper routine to get silicon ID from a PSoC 4/PRoC BLE chip */
+static int psoc4_get_silicon_id(struct target *target, uint32_t psoc4_base,
+                                uint32_t *silicon_id, uint8_t *protection)
 {
 	uint32_t params = PSOC4_SROM_KEY1
 			 | ((PSOC4_SROM_KEY2 + PSOC4_CMD_GET_SILICON_ID) << 8);
 	uint32_t part0, part1;
 
-	int retval = psoc4_sysreq(target, PSOC4_CMD_GET_SILICON_ID, 0, NULL, 0);
+	int retval = psoc4_sysreq(target, psoc4_base, PSOC4_CMD_GET_SILICON_ID, 0, NULL, 0);
 	if (retval != ERROR_OK)
 		return retval;
 
@@ -356,7 +522,7 @@ static int psoc4_protect_check(struct flash_bank *bank)
 {
 	struct target *target = bank->target;
 	struct psoc4_flash_bank *psoc4_info = bank->driver_priv;
-
+	uint32_t psoc4_base = psoc4_info->base_addr;
 	uint32_t prot_addr = PSOC4_SFLASH_MACRO;
 	uint32_t protection;
 	int i, s;
@@ -379,7 +545,7 @@ static int psoc4_protect_check(struct flash_bank *bank)
 		}
 	}
 
-	retval = psoc4_get_silicon_id(target, NULL, &(psoc4_info->chip_protection));
+	retval = psoc4_get_silicon_id(target, psoc4_base, NULL, &(psoc4_info->chip_protection));
 	return retval;
 }
 
@@ -387,6 +553,8 @@ static int psoc4_protect_check(struct flash_bank *bank)
 static int psoc4_mass_erase(struct flash_bank *bank)
 {
 	struct target *target = bank->target;
+	struct psoc4_flash_bank *psoc4_info = bank->driver_priv;
+	uint32_t psoc4_base = psoc4_info->base_addr;
 	int i;
 
 	if (bank->target->state != TARGET_HALTED) {
@@ -396,9 +564,9 @@ static int psoc4_mass_erase(struct flash_bank *bank)
 
 	/* Call "Erase All" system ROM API */
 	uint32_t param;
-	int retval = psoc4_sysreq(target, PSOC4_CMD_ERASE_ALL,
-			0,
-			&param, sizeof(param));
+	int retval = psoc4_sysreq(target, psoc4_base,
+                              PSOC4_CMD_ERASE_ALL, 0,
+                              &param, sizeof(param));
 
 	if (retval == ERROR_OK)
 		/* set all sectors as erased */
@@ -430,6 +598,7 @@ static int psoc4_protect(struct flash_bank *bank, int set, int first, int last)
 {
 	struct target *target = bank->target;
 	struct psoc4_flash_bank *psoc4_info = bank->driver_priv;
+	uint32_t psoc4_base = psoc4_info->base_addr;
 
 	if (psoc4_info->probed == 0)
 		return ERROR_FAIL;
@@ -465,14 +634,16 @@ static int psoc4_protect(struct flash_bank *bank, int set, int first, int last)
 
 	/* Call "Load Latch" system ROM API */
 	sysrq_buffer[1] = prot_sz - 1;
-	retval = psoc4_sysreq(target, PSOC4_CMD_LOAD_LATCH,
+	retval = psoc4_sysreq(target, psoc4_base,
+            PSOC4_CMD_LOAD_LATCH,
 			0,	/* Byte number in latch from what to write */
 			sysrq_buffer, param_sz + psoc4_info->row_size);
 	if (retval != ERROR_OK)
 		goto cleanup;
 
 	/* Call "Write Protection" system ROM API */
-	retval = psoc4_sysreq(target, PSOC4_CMD_WRITE_PROTECTION,
+	retval = psoc4_sysreq(target, psoc4_base,
+            PSOC4_CMD_WRITE_PROTECTION,
 			chip_prot | (flash_macro << 8), NULL, 0);
 cleanup:
 	if (retval != ERROR_OK)
@@ -518,6 +689,7 @@ static int psoc4_write(struct flash_bank *bank, const uint8_t *buffer,
 {
 	struct psoc4_flash_bank *psoc4_info = bank->driver_priv;
 	struct target *target = bank->target;
+	uint32_t psoc4_base = psoc4_info->base_addr;
 	uint32_t *sysrq_buffer = NULL;
 	int retval = ERROR_OK;
 	const int param_sz = 8;
@@ -559,7 +731,8 @@ static int psoc4_write(struct flash_bank *bank, const uint8_t *buffer,
 
 		/* Call "Load Latch" system ROM API */
 		sysrq_buffer[1] = psoc4_info->row_size - 1;
-		retval = psoc4_sysreq(target, PSOC4_CMD_LOAD_LATCH,
+		retval = psoc4_sysreq(target, psoc4_base,
+                PSOC4_CMD_LOAD_LATCH,
 				0,	/* Byte number in latch from what to write */
 				sysrq_buffer, param_sz + psoc4_info->row_size);
 		if (retval != ERROR_OK)
@@ -567,7 +740,8 @@ static int psoc4_write(struct flash_bank *bank, const uint8_t *buffer,
 
 		/* Call "Program Row" or "Write Row" system ROM API */
 		uint32_t sysrq_param;
-		retval = psoc4_sysreq(target, psoc4_info->cmd_program_row,
+		retval = psoc4_sysreq(target, psoc4_base,
+                psoc4_info->cmd_program_row,
 				row_num & 0xffff,
 				&sysrq_param, sizeof(sysrq_param));
 		if (retval != ERROR_OK)
@@ -624,26 +798,37 @@ static int psoc4_probe(struct flash_bank *bank)
 		max_flash_size_in_kb = 32;
 		break;
 	default:
-		LOG_WARNING("Cannot identify target as a PSoC 4 family.");
+		LOG_WARNING("Cannot identify target as a PSoC 4/PRoC BLE family.");
 		return ERROR_FAIL;
 	}
 
 	uint32_t spcif_geometry;
 	retval = target_read_u32(target, PSOC4_SPCIF_GEOMETRY, &spcif_geometry);
 	if (retval == ERROR_OK) {
+        psoc4_info->base_addr = PSOC4_CPUSS_BASE;
 		row_size = 128 * ((spcif_geometry >> 22) & 3);
 		flash_size_in_kb = (spcif_geometry & 0xffff) * 256 / 1024;
 		LOG_INFO("SPCIF geometry: %" PRIu32 " kb flash, row %" PRIu32 " bytes.",
 			 flash_size_in_kb, row_size);
 	}
+    else {
+        retval = target_read_u32(target, PROCBLE_SPCIF_GEOMETRY, &spcif_geometry);
+        if (retval == ERROR_OK) {
+            psoc4_info->base_addr = PROCBLE_CPUSS_BASE;
+            row_size = 128 * ((spcif_geometry >> 22) & 3);
+            flash_size_in_kb = (spcif_geometry & 0xffff) * 256 / 1024;
+            LOG_INFO("SPCIF geometry: %" PRIu32 " kb flash, row %" PRIu32 " bytes.",
+                     flash_size_in_kb, row_size);
+        }
+    }
 
 	/* Early revisions of ST-Link v2 have some problem reading PSOC4_SPCIF_GEOMETRY
 		and an error is reported late. Dummy read gets this error. */
-	uint32_t dummy;
+	uint32_t dummy, psoc4_base = psoc4_info->base_addr;
 	target_read_u32(target, PSOC4_CPUSS_SYSREQ, &dummy);
 
 	/* get silicon ID from target. */
-	retval = psoc4_get_silicon_id(target, &silicon_id, &protection);
+	retval = psoc4_get_silicon_id(target, psoc4_base, &silicon_id, &protection);
 	if (retval != ERROR_OK)
 		return retval;
 
@@ -663,7 +848,7 @@ static int psoc4_probe(struct flash_bank *bank)
 	/* failed reading flash size or flash size invalid (early silicon),
 	 * default to max target family */
 	if (retval != ERROR_OK || flash_size_in_kb == 0xffff || flash_size_in_kb == 0) {
-		LOG_WARNING("PSoC 4 flash size failed, probe inaccurate - assuming %" PRIu32 " k flash",
+		LOG_WARNING("PSoC 4/PRoC BLE flash size failed, probe inaccurate - assuming %" PRIu32 " k flash",
 			max_flash_size_in_kb);
 		flash_size_in_kb = max_flash_size_in_kb;
 	}
@@ -731,10 +916,10 @@ static int get_psoc4_info(struct flash_bank *bank, char *buf, int buf_size)
 
 	if (details) {
 		uint32_t chip_revision = psoc4_info->silicon_id & 0xffff;
-		printed = snprintf(buf, buf_size, "PSoC 4 %s rev 0x%04" PRIx32 " package %s",
+		printed = snprintf(buf, buf_size, "PSoC 4/PRoC BLE %s rev 0x%04" PRIx32 " package %s",
 				details->type, chip_revision, details->package);
 	} else
-		printed = snprintf(buf, buf_size, "PSoC 4 silicon id 0x%08" PRIx32 "",
+		printed = snprintf(buf, buf_size, "PSoC 4/PRoC BLE silicon id 0x%08" PRIx32 "",
 				psoc4_info->silicon_id);
 
 	buf += printed;
@@ -789,7 +974,7 @@ static const struct command_registration psoc4_command_handlers[] = {
 	{
 		.name = "psoc4",
 		.mode = COMMAND_ANY,
-		.help = "PSoC 4 flash command group",
+		.help = "PSoC 4/PRoC BLE flash command group",
 		.usage = "",
 		.chain = psoc4_exec_command_handlers,
 	},
