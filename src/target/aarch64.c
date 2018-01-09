@@ -28,6 +28,7 @@
 #include "target_type.h"
 #include "armv8_opcodes.h"
 #include "armv8_cache.h"
+#include <jtag/swd.h>
 #include <helper/time_support.h>
 
 enum restart_mode {
@@ -1637,7 +1638,14 @@ static int aarch64_assert_reset(struct target *target)
 		/* REVISIT handle "pulls" cases, if there's
 		 * hardware that needs them to work.
 		 */
-		jtag_add_reset(0, 1);
+
+		/*
+		 * FIXME: fix reset when transport is SWD. This is a temporary
+		 * work-around for release v0.10 that is not intended to stay!
+		 */
+		if (transport_is_swd() ||
+				(target->reset_halt && (jtag_get_reset_config() & RESET_SRST_NO_GATING)))
+			jtag_add_reset(0, 1);
 	} else {
 		LOG_ERROR("%s: how to reset?", target_name(target));
 		return ERROR_FAIL;
@@ -1674,9 +1682,12 @@ static int aarch64_deassert_reset(struct target *target)
 		if (target->state != TARGET_HALTED) {
 			LOG_WARNING("%s: ran after reset and before halt ...",
 				target_name(target));
-			retval = target_halt(target);
-			if (retval != ERROR_OK)
-				return retval;
+			if (target_was_examined(target)) {
+				retval = target_halt(target);
+				if (retval != ERROR_OK)
+					return retval;
+			} else
+				target->state = TARGET_UNKNOWN;
 		}
 	}
 
@@ -2304,11 +2315,9 @@ static int aarch64_examine_first(struct target *target)
 
 static int aarch64_examine(struct target *target)
 {
-	int retval = ERROR_OK;
+	int retval;
 
-	/* don't re-probe hardware after each reset */
-	if (!target_was_examined(target))
-		retval = aarch64_examine_first(target);
+	retval = aarch64_examine_first(target);
 
 	/* Configure core debug access */
 	if (retval == ERROR_OK)
