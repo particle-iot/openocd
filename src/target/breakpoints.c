@@ -41,7 +41,7 @@ static const char * const watchpoint_rw_strings[] = {
 /* monotonic counter/id-number for breakpoints and watch points */
 static int bpwp_unique_id;
 
-int breakpoint_add_internal(struct target *target,
+static int breakpoint_add_internal(struct target *target,
 	target_addr_t address,
 	uint32_t length,
 	enum breakpoint_type type)
@@ -106,7 +106,7 @@ fail:
 	return ERROR_OK;
 }
 
-int context_breakpoint_add_internal(struct target *target,
+static int context_breakpoint_add_internal(struct target *target,
 	uint32_t asid,
 	uint32_t length,
 	enum breakpoint_type type)
@@ -158,7 +158,7 @@ int context_breakpoint_add_internal(struct target *target,
 	return ERROR_OK;
 }
 
-int hybrid_breakpoint_add_internal(struct target *target,
+static int hybrid_breakpoint_add_internal(struct target *target,
 	target_addr_t address,
 	uint32_t asid,
 	uint32_t length,
@@ -232,10 +232,15 @@ int breakpoint_add(struct target *target,
 
 		while (head != (struct target_list *)NULL) {
 			curr = head->target;
+			head = head->next;
+
+			/* skip target if not exmined yet */
+			if (!target_was_examined(curr))
+				continue;
+
 			retval = breakpoint_add_internal(curr, address, length, type);
 			if (retval != ERROR_OK)
 				return retval;
-			head = head->next;
 		}
 		return retval;
 	} else
@@ -253,10 +258,15 @@ int context_breakpoint_add(struct target *target,
 		head = target->head;
 		while (head != (struct target_list *)NULL) {
 			curr = head->target;
+			head = head->next;
+
+			/* skip target if not examined yet */
+			if (!target_was_examined(curr))
+				continue;
+
 			retval = context_breakpoint_add_internal(curr, asid, length, type);
 			if (retval != ERROR_OK)
 				return retval;
-			head = head->next;
 		}
 		return retval;
 	} else
@@ -275,10 +285,15 @@ int hybrid_breakpoint_add(struct target *target,
 		head = target->head;
 		while (head != (struct target_list *)NULL) {
 			curr = head->target;
+			head = head->next;
+
+			/* skip target if not examined yet */
+			if (!target_was_examined(curr))
+				continue;
+
 			retval = hybrid_breakpoint_add_internal(curr, address, asid, length, type);
 			if (retval != ERROR_OK)
 				return retval;
-			head = head->next;
 		}
 		return retval;
 	} else
