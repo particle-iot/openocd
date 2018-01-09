@@ -1132,6 +1132,14 @@ int target_add_breakpoint(struct target *target,
 		LOG_WARNING("target %s is not halted (add breakpoint)", target_name(target));
 		return ERROR_TARGET_NOT_HALTED;
 	}
+
+	/*
+	 * if setting a hardware breakpoint, the target must have been examined first,
+	 * however it's not an error if it isn't (think -defer-examine).
+	 */
+	if ((breakpoint->type == BKPT_HARD) && !target_was_examined(target))
+		return ERROR_OK;
+
 	return target->type->add_breakpoint(target, breakpoint);
 }
 
@@ -1142,6 +1150,14 @@ int target_add_context_breakpoint(struct target *target,
 		LOG_WARNING("target %s is not halted (add context breakpoint)", target_name(target));
 		return ERROR_TARGET_NOT_HALTED;
 	}
+
+	/*
+	 * if setting a hardware breakpoint, the target must have been examined first,
+	 * however it's not an error if it isn't (think -defer-examine).
+	 */
+	if (!target_was_examined(target))
+		return ERROR_OK;
+
 	return target->type->add_context_breakpoint(target, breakpoint);
 }
 
@@ -1152,12 +1168,27 @@ int target_add_hybrid_breakpoint(struct target *target,
 		LOG_WARNING("target %s is not halted (add hybrid breakpoint)", target_name(target));
 		return ERROR_TARGET_NOT_HALTED;
 	}
+
+	/*
+	 * if setting a hardware breakpoint, the target must have been examined first,
+	 * however it's not an error if it isn't (think -defer-examine).
+	 */
+	if (!target_was_examined(target))
+		return ERROR_OK;
+
 	return target->type->add_hybrid_breakpoint(target, breakpoint);
 }
 
 int target_remove_breakpoint(struct target *target,
 		struct breakpoint *breakpoint)
 {
+	/*
+	 * if removing a hardware breakpoint, the target must have been examined first,
+	 * however it's not an error if it isn't (think -defer-examine).
+	 */
+	if ((breakpoint->type == BKPT_HARD) && !target_was_examined(target))
+		return ERROR_OK;
+
 	return target->type->remove_breakpoint(target, breakpoint);
 }
 
