@@ -318,14 +318,14 @@ int mem_ap_write_atomic_u32(struct adiv5_ap *ap, uint32_t address,
  * @return ERROR_OK on success, otherwise an error code.
  */
 static int mem_ap_write(struct adiv5_ap *ap, const uint8_t *buffer, uint32_t size, uint32_t count,
-		uint32_t address, bool addrinc)
+		uint32_t addr, bool addrinc)
 {
 	struct adiv5_dap *dap = ap->dap;
 	size_t nbytes = size * count;
 	const uint32_t csw_addrincr = addrinc ? CSW_ADDRINC_SINGLE : CSW_ADDRINC_OFF;
 	uint32_t csw_size;
 	uint32_t addr_xor;
-	int retval;
+	int retval = ERROR_OK;
 
 	/* TI BE-32 Quirks mode:
 	 * Writes on big-endian TMS570 behave very strangely. Observed behavior:
@@ -353,11 +353,12 @@ static int mem_ap_write(struct adiv5_ap *ap, const uint8_t *buffer, uint32_t siz
 		return ERROR_TARGET_UNALIGNED_ACCESS;
 	}
 
-	if (ap->unaligned_access_bad && (address % size != 0))
+	if (ap->unaligned_access_bad && (addr % size != 0))
 		return ERROR_TARGET_UNALIGNED_ACCESS;
 
 	while (nbytes > 0) {
 		uint32_t this_size = size;
+		uint32_t address = addr;
 
 		/* Select packed transfer if possible */
 		if (addrinc && ap->packed_transfers && nbytes >= 4
@@ -415,6 +416,9 @@ static int mem_ap_write(struct adiv5_ap *ap, const uint8_t *buffer, uint32_t siz
 			break;
 
 		mem_ap_update_tar_cache(ap);
+
+		if (addrinc)
+			addr = address;
 	}
 
 	/* REVISIT: Might want to have a queued version of this function that does not run. */
@@ -452,7 +456,7 @@ static int mem_ap_read(struct adiv5_ap *ap, uint8_t *buffer, uint32_t size, uint
 	const uint32_t csw_addrincr = addrinc ? CSW_ADDRINC_SINGLE : CSW_ADDRINC_OFF;
 	uint32_t csw_size;
 	uint32_t address = adr;
-	int retval;
+	int retval = ERROR_OK;
 
 	/* TI BE-32 Quirks mode:
 	 * Reads on big-endian TMS570 behave strangely differently than writes.
@@ -509,7 +513,9 @@ static int mem_ap_read(struct adiv5_ap *ap, uint8_t *buffer, uint32_t size, uint
 			break;
 
 		nbytes -= this_size;
-		address += this_size;
+
+		if (addrinc)
+			address += this_size;
 
 		mem_ap_update_tar_cache(ap);
 	}
