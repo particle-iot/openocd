@@ -111,6 +111,12 @@ TCP/IP packets handled by the server.
 
 - implement Serial Wire Debug interface
 
+@section thelistnexus Nexus Debug
+- implement Nexus Debug
+
+@section thelistsocds OCDS
+- implement On-Chip Debug Solution (OCDS-L1)
+
 @section thelistbs Boundary Scan Support
 
 - add STAPL support?
@@ -193,6 +199,15 @@ https://lists.berlios.de/pipermail/openocd-development/2009-October/011506.html
   - incrementally improve working prototype in trunk. (SQ)
   - work out how to debug this target
   - AVR debugging protocol.
+- AVR32
+  - rework Nexus for other targets (PPC,TriCore)
+- PPC
+  - PPC with BDM support
+  - PPC with NEXUS
+- VideoCore
+ - VC4 on RPi1/2/3 has own TAP, probably Nexus
+- TriCore
+  - Aurix TC275 (OCDS-L1)
 - FPGA:
   - Altera Nios Soft-CPU support
 - Coldfire (suggested by NC)
@@ -298,6 +313,7 @@ These ideas were first introduced here: @par
 @subsection thelisttestgenerichw Generic Hardware Tester
 
 - implement VHDL to use for FPGA-based JTAG TAP testing device
+  - ice40, yosys
 - develop test suite that utilizes this testing device
 
 @section thelistautotools Autotools Build System
