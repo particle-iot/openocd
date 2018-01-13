@@ -158,6 +158,10 @@ if KITPROG
 DRIVERFILES += %D%/kitprog.c
 endif
 
+if SUNXIGPIO
+DRIVERFILES += %D%/sunxigpio.c
+endif
+
 DRIVERHEADERS = \
 	%D%/bitbang.h \
 	%D%/bitq.h \
