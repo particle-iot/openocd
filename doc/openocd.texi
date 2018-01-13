@@ -7017,7 +7017,7 @@ Add @var{directory} to the file/script search path.
 
 @deffn Command bindto [name]
 Specify address by name on which to listen for incoming TCP/IP connections.
-By default, OpenOCD will listen on all available interfaces.
+By default, OpenOCD will listen on loopback interface only.
 @end deffn
 
 @anchor{targetstatehandling}
