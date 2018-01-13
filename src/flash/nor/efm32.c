@@ -46,6 +46,7 @@
 #define EFM_FAMILY_ID_WONDER_GECKO      75
 #define EFM_FAMILY_ID_ZERO_GECKO        76
 #define EFM_FAMILY_ID_HAPPY_GECKO	77
+#define EFM_FAMILY_ID_GIANT_GECKO_GG11  100
 #define EZR_FAMILY_ID_WONDER_GECKO		120
 #define EZR_FAMILY_ID_LEOPARD_GECKO		121
 
@@ -181,6 +182,7 @@ static int efm32x_read_info(struct flash_bank *bank,
 			EFM_FAMILY_ID_HAPPY_GECKO == efm32_info->part_family)
 		efm32_info->page_size = 1024;
 	else if (EFM_FAMILY_ID_GIANT_GECKO == efm32_info->part_family ||
+			EFM_FAMILY_ID_GIANT_GECKO_GG11 == efm32_info->part_family ||
 			EFM_FAMILY_ID_LEOPARD_GECKO == efm32_info->part_family) {
 		if (efm32_info->prod_rev >= 18) {
 			uint8_t pg_size = 0;
@@ -253,6 +255,7 @@ static int efm32x_decode_info(struct efm32_info *info, char *buf, int buf_size)
 			printed = snprintf(buf, buf_size, "Gecko");
 			break;
 		case EFM_FAMILY_ID_GIANT_GECKO:
+		case EFM_FAMILY_ID_GIANT_GECKO_GG11:
 			printed = snprintf(buf, buf_size, "Giant Gecko");
 			break;
 		case EFM_FAMILY_ID_TINY_GECKO:
