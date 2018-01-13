@@ -310,7 +310,7 @@ static void telnet_move_cursor(struct connection *connection, size_t pos)
 
 	tc = connection->priv;
 
-	if (pos < tc->line_cursor) {
+	if ((int)pos < tc->line_cursor) {
 		tmp = tc->line_cursor - pos;
 
 		for (size_t i = 0; i < tmp; i += 16)
