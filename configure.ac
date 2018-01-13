@@ -301,12 +301,16 @@ AS_CASE(["${host_cpu}"],
     AC_ARG_ENABLE([imx_gpio],
       AS_HELP_STRING([--enable-imx_gpio], [Enable building support for bitbanging on NXP IMX processors]),
       [build_imx_gpio=$enableval], [build_imx_gpio=no])
+    AC_ARG_ENABLE([sunxigpio],
+      AS_HELP_STRING([--enable-sunxigpio], [Enable building support for bitbanging on Allwinner SoCs.]),
+      [build_sunxigpio=$enableval], [build_sunxigpio=no])
   ],
   [
     build_ep93xx=no
     build_at91rm9200=no
     build_bcm2835gpio=no
     build_imx_gpio=no
+    build_sunxigpio=no
 ])
 
 AC_ARG_ENABLE([gw16012],
@@ -513,6 +517,13 @@ AS_IF([test "x$build_at91rm9200" = "xyes"], [
   AC_DEFINE([BUILD_AT91RM9200], [0], [0 if you don't want at91rm9200.])
 ])
 
+AS_IF([test "x$build_sunxigpio" = "xyes"], [
+  build_bitbang=yes
+  AC_DEFINE([BUILD_SUNXIGPIO], [1], [1 if you want sunxigpio.])
+], [
+  AC_DEFINE([BUILD_SUNXIGPIO], [0], [0 if you don't want sunxigpio.])
+])
+
 AS_IF([test "x$build_bcm2835gpio" = "xyes"], [
   build_bitbang=yes
   AC_DEFINE([BUILD_BCM2835GPIO], [1], [1 if you want bcm2835gpio.])
@@ -698,6 +709,7 @@ AM_CONDITIONAL([IOUTIL], [test "x$build_ioutil" = "xyes"])
 AM_CONDITIONAL([AT91RM9200], [test "x$build_at91rm9200" = "xyes"])
 AM_CONDITIONAL([BCM2835GPIO], [test "x$build_bcm2835gpio" = "xyes"])
 AM_CONDITIONAL([IMX_GPIO], [test "x$build_imx_gpio" = "xyes"])
+AM_CONDITIONAL([SUNXIGPIO], [test "x$build_sunxigpio" = "xyes"])
 AM_CONDITIONAL([BITBANG], [test "x$build_bitbang" = "xyes"])
 AM_CONDITIONAL([JTAG_VPI], [test "x$build_jtag_vpi" = "xyes" -o "x$build_jtag_vpi" = "xyes"])
 AM_CONDITIONAL([USB_BLASTER_DRIVER], [test "x$enable_usb_blaster" != "xno" -o "x$enable_usb_blaster_2" != "xno"])
