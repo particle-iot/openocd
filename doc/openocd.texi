@@ -5341,6 +5341,18 @@ The AVR 8-bit microcontrollers from Atmel integrate flash memory.
 @comment - defines mass_erase ... pointless given flash_erase_address
 @end deffn
 
+@deffn {Flash Driver} cc26xx
+All versions of the SimpleLink CC13xx and CC26xx microcontrollers from Texas
+Instruments include internal flash. The cc26xx flash driver supports both the
+CC13xx and CC26xx family of devices. The driver automatically recognizes the
+specific version's flash parameters and autoconfigures itself. Flash bank 0
+starts at address 0.
+
+@example
+flash bank $_FLASHNAME cc26xx 0 0 0 0 $_TARGETNAME
+@end example
+@end deffn
+
 @deffn {Flash Driver} efm32
 All members of the EFM32 microcontroller family from Energy Micro include
 internal flash and use ARM Cortex-M3 cores. The driver automatically recognizes
