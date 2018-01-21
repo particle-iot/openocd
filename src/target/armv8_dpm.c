@@ -650,19 +650,35 @@ int armv8_dpm_modeswitch(struct arm_dpm *dpm, enum arm_mode mode)
 static int dpmv8_read_reg(struct arm_dpm *dpm, struct reg *r, unsigned regnum)
 {
 	struct armv8_common *armv8 = dpm->arm->arch_info;
-	uint64_t value_64;
-	int retval;
+	int retval = ERROR_FAIL;
 
-	retval = armv8->read_reg_u64(armv8, regnum, &value_64);
+	if (r->size <= 64) {
+		uint64_t value_64;
+		retval = armv8->read_reg_u64(armv8, regnum, &value_64);
 
-	if (retval == ERROR_OK) {
-		r->valid = true;
-		r->dirty = false;
-		buf_set_u64(r->value, 0, r->size, value_64);
-		if (r->size == 64)
-			LOG_DEBUG("READ: %s, %16.8llx", r->name, (unsigned long long) value_64);
-		else
-			LOG_DEBUG("READ: %s, %8.8x", r->name, (unsigned int) value_64);
+		if (retval == ERROR_OK) {
+			r->valid = true;
+			r->dirty = false;
+			buf_set_u64(r->value, 0, r->size, value_64);
+			if (r->size == 64)
+				LOG_DEBUG("READ: %s, %16.8llx", r->name, (unsigned long long) value_64);
+			else
+				LOG_DEBUG("READ: %s, %8.8x", r->name, (unsigned int) value_64);
+		}
+	} else {
+		uint64_t value[2];
+		retval = armv8->read_reg_u64(armv8, regnum, value);
+
+		if (retval == ERROR_OK) {
+			r->valid = true;
+			r->dirty = false;
+
+			buf_set_u64(r->value, 0, 64, value[0]);
+			buf_set_u64(r->value, 64, r->size - 64, value[1]);
+
+			LOG_DEBUG("READ: %s, %16.8llx", r->name, (unsigned long long) value[0]);
+			LOG_DEBUG("READ: %s, %16.8llx", r->name, (unsigned long long) value[1]);
+		}
 	}
 	return ERROR_OK;
 }
@@ -674,17 +690,32 @@ static int dpmv8_write_reg(struct arm_dpm *dpm, struct reg *r, unsigned regnum)
 {
 	struct armv8_common *armv8 = dpm->arm->arch_info;
 	int retval = ERROR_FAIL;
-	uint64_t value_64;
 
-	value_64 = buf_get_u64(r->value, 0, r->size);
+	if (r->size <= 64) {
+		uint64_t value_64;
 
-	retval = armv8->write_reg_u64(armv8, regnum, value_64);
-	if (retval == ERROR_OK) {
-		r->dirty = false;
-		if (r->size == 64)
-			LOG_DEBUG("WRITE: %s, %16.8llx", r->name, (unsigned long long)value_64);
-		else
-			LOG_DEBUG("WRITE: %s, %8.8x", r->name, (unsigned int)value_64);
+		value_64 = buf_get_u64(r->value, 0, r->size);
+		retval = armv8->write_reg_u64(armv8, regnum, &value_64);
+
+		if (retval == ERROR_OK) {
+			r->dirty = false;
+			if (r->size == 64)
+				LOG_DEBUG("WRITE: %s, %16.8llx", r->name, (unsigned long long)value_64);
+			else
+				LOG_DEBUG("WRITE: %s, %8.8x", r->name, (unsigned int)value_64);
+		}
+	} else {
+		uint64_t value[2];
+
+		value[0] = buf_get_u64(r->value, 0, 64);
+		value[1] = buf_get_u64(r->value, 64, r->size - 64);
+		retval = armv8->write_reg_u64(armv8, regnum, value);
+
+		if (retval == ERROR_OK) {
+			r->dirty = false;
+			LOG_DEBUG("WRITE: %s, %16.8llx", r->name, (unsigned long long)value[0]);
+			LOG_DEBUG("WRITE: %s, %16.8llx", r->name, (unsigned long long)value[1]);
+		}
 	}
 
 	return ERROR_OK;
