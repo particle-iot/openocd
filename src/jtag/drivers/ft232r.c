@@ -99,75 +99,61 @@ static size_t ft232r_output_len;
  */
 static int ft232r_send_recv(void)
 {
-	size_t bytes_to_write, bytes_written, txdone, rxdone;
-	size_t empty_rxfifo, bytes_to_read, bytes_read;
-	uint8_t reply[64];
-
-	/* FIFO TX buffer of FT232R chip has 128 bytes.
-	 * FIFO RX buffer has 256 bytes. First two bytes
-	 * contain modem and line status.
+	/* FIFO TX buffer has 128 bytes.
+	 * FIFO RX buffer has 256 bytes.
+	 * First two bytes of received packet contain contain modem
+	 * and line status and are ignored.
 	 * Unfortunately, transfer sizes bigger than 64 bytes
 	 * frequently cause hang ups. */
 	assert(ft232r_output_len > 0);
 
-	/* RX buffer is empty, except two status bytes. */
-	empty_rxfifo = sizeof(reply) - 2;
+	size_t total_written = 0;
+	size_t total_read = 0;
+	int rxfifo_free = 128;
 
-	/* Indexes in data buffer. */
-	txdone = 0;
-	rxdone = 0;
-	while (rxdone < ft232r_output_len) {
-		/* Try to send as much as possible,
-		 * but avoid overflow of receive buffer. */
-		bytes_to_write = 64;
-		if (bytes_to_write > ft232r_output_len - txdone)
-			bytes_to_write = ft232r_output_len - txdone;
-		if (bytes_to_write > empty_rxfifo)
-			bytes_to_write = empty_rxfifo;
+	while (total_read < ft232r_output_len) {
+		/* Write */
+		int bytes_to_write = ft232r_output_len - total_written;
+		if (bytes_to_write > 64)
+			bytes_to_write = 64;
+		if (bytes_to_write > rxfifo_free)
+			bytes_to_write = rxfifo_free;
 
-		/* Write data. */
-		bytes_written = 0;
-		while (bytes_written < bytes_to_write) {
-			LOG_DEBUG_IO("usb bulk write %zd bytes",
-				bytes_to_write - bytes_written);
+		if (bytes_to_write) {
 			int n = jtag_libusb_bulk_write(adapter, IN_EP,
-					(char *) ft232r_output + txdone + bytes_written,
-					bytes_to_write - bytes_written, 1000);
-			if (n < 0) {
+				(char *) ft232r_output + total_written,
+				bytes_to_write, 1000);
+
+			if (n == 0) {
 				LOG_ERROR("usb bulk write failed");
 				return ERROR_JTAG_DEVICE_ERROR;
 			}
-			if ((unsigned int)n != bytes_to_write)
-				LOG_DEBUG_IO("usb bulk written %d bytes of %zd",
-					n, bytes_to_write - bytes_written);
-			bytes_written += n;
+
+			total_written += n;
+			rxfifo_free -= n;
 		}
-		txdone += bytes_written;
-		empty_rxfifo -= bytes_written;
 
-		if (empty_rxfifo == 0 || txdone == ft232r_output_len) {
-			/* Get reply. */
-			bytes_to_read = sizeof(reply) - empty_rxfifo;
-			bytes_read = 0;
-			while (bytes_read < bytes_to_read) {
-				int n = jtag_libusb_bulk_read(adapter, OUT_EP,
-						(char *) reply + bytes_read,
-						bytes_to_read - bytes_read, 2000);
-				if (n == 0) {
-					LOG_ERROR("usb bulk read failed");
-					return ERROR_JTAG_DEVICE_ERROR;
-				}
+		/* Read */
+		uint8_t reply[64];
 
-				LOG_DEBUG_IO("usb bulk read %d bytes of %zd",
-					     n, bytes_to_read - bytes_read + 2);
+		int n = jtag_libusb_bulk_read(adapter, OUT_EP,
+			(char *) reply,
+			sizeof(reply), 1000);
 
-				bytes_read += n;
+		if (n == 0) {
+			LOG_ERROR("usb bulk read failed");
+			return ERROR_JTAG_DEVICE_ERROR;
+		}
+		if (n > 2) {
+			/* Copy data, ignoring first 2 bytes. */
+			memcpy(ft232r_output + total_read, reply + 2, n - 2);
+			int bytes_read = n - 2;
+			total_read += bytes_read;
+			rxfifo_free += bytes_read;
+			if (total_read > total_written) {
+				LOG_ERROR("read more bytes than wrote");
+				return ERROR_JTAG_DEVICE_ERROR;
 			}
-			/* Copy data. */
-			memcpy(ft232r_output + rxdone, reply + 2, bytes_read - 2);
-			rxdone += bytes_read - 2;
-
-			empty_rxfifo = sizeof(reply) - 2;
 		}
 	}
 	ft232r_output_len = 0;
