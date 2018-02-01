@@ -256,8 +256,8 @@ static int bluenrgx_write_bytes(struct target *target, uint32_t address_base, ui
 	uint32_t pre_bytes = 0, post_bytes = 0, pre_word, post_word, pre_address, post_address;
 
 	if (count == 0) {
-	  /* Just return if there are no bytes to write */
-	  return retval;
+		/* Just return if there are no bytes to write */
+		return retval;
 	}
 
 	if (address_base & 3) {
