@@ -195,7 +195,9 @@ static int bluenrgx_write_word(struct target *target, uint32_t address_base, uin
 	for (uint32_t i = 0; i < count; i++) {
 		uint32_t address = address_base + i * FLASH_WORD_LEN;
 		uint32_t read_back;
-		uint32_t val = (values[0] | (values[1] << 8) |  (values[2] << 16) |  (values[3] << 24));
+		uint32_t val;
+
+		memcpy(&val, values + (i * FLASH_WORD_LEN), FLASH_WORD_LEN);
 
 		retval = target_write_u32(target, FLASH_REG_ADDRESS, address >> 2);
 		if (retval != ERROR_OK) {
@@ -203,7 +205,7 @@ static int bluenrgx_write_word(struct target *target, uint32_t address_base, uin
 			return retval;
 		}
 
-		retval = target_write_u32(target, FLASH_REG_DATA, val);
+		retval = target_write_buffer(target, FLASH_REG_DATA, 4, (uint8_t *) &val);
 		if (retval != ERROR_OK) {
 			LOG_ERROR("Register write failed, error code: %d", retval);
 			return retval;
@@ -233,7 +235,7 @@ static int bluenrgx_write_word(struct target *target, uint32_t address_base, uin
 			}
 		}
 
-		retval = target_read_u32(target, address, &read_back);
+		retval = target_read_buffer(target, address, 4, (uint8_t *) &read_back);
 		if (retval != ERROR_OK) {
 			LOG_ERROR("Flash read failed, error code: %d", retval);
 			return retval;
@@ -252,6 +254,11 @@ static int bluenrgx_write_bytes(struct target *target, uint32_t address_base, ui
 	int retval = ERROR_OK;
 	uint8_t *new_buffer = NULL;
 	uint32_t pre_bytes = 0, post_bytes = 0, pre_word, post_word, pre_address, post_address;
+
+	if (count == 0) {
+	  /* Just return if there are no bytes to write */
+	  return retval;
+	}
 
 	if (address_base & 3) {
 		pre_bytes = address_base & 3;
@@ -301,7 +308,7 @@ static int bluenrgx_write_bytes(struct target *target, uint32_t address_base, ui
 		buffer = new_buffer;
 	}
 
-	retval = bluenrgx_write_word(target, address_base - pre_bytes, new_buffer, count/4);
+	retval = bluenrgx_write_word(target, address_base - pre_bytes, buffer, count/4);
 
 	if (new_buffer)
 		free(new_buffer);
