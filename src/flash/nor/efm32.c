@@ -14,6 +14,9 @@
  *   Copyright (C) 2014 Nemui Trinomius                                    *
  *   nemuisan_kawausogasuki@live.jp                                        *
  *                                                                         *
+ *   Copyright (C) 2018 Ladislav Bábel                                     *
+ *   ladababel@seznam.cz                                                   *
+ *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
  *   the Free Software Foundation; either version 2 of the License, or     *
@@ -51,6 +54,7 @@
 #define EZR_FAMILY_ID_HAPPY_GECKO               122
 #define EFR_FAMILY_ID_MIGHTY_GECKO	16
 #define EFR_FAMILY_ID_BLUE_GECKO	20
+#define EFR_FAMILY_ID_FLEX_GECKO	25
 
 #define EFM32_FLASH_ERASE_TMO           100
 #define EFM32_FLASH_WDATAREADY_TMO      100
@@ -201,7 +205,8 @@ static int efm32x_read_info(struct flash_bank *bank,
 		return ret;
 
 	if (EFR_FAMILY_ID_BLUE_GECKO == efm32_info->part_family ||
-	    EFR_FAMILY_ID_MIGHTY_GECKO == efm32_info->part_family) {
+	    EFR_FAMILY_ID_MIGHTY_GECKO == efm32_info->part_family ||
+		EFR_FAMILY_ID_FLEX_GECKO == efm32_info->part_family) {
 		efm32x_info->reg_base = EFR32_MSC_REGBASE;
 		efm32x_info->reg_lock = EFR32_MSC_REG_LOCK;
 	} else {
@@ -244,7 +249,8 @@ static int efm32x_read_info(struct flash_bank *bank,
 			EZR_FAMILY_ID_WONDER_GECKO == efm32_info->part_family ||
 			EZR_FAMILY_ID_LEOPARD_GECKO == efm32_info->part_family ||
 			EFR_FAMILY_ID_BLUE_GECKO == efm32_info->part_family ||
-			EFR_FAMILY_ID_MIGHTY_GECKO == efm32_info->part_family) {
+			EFR_FAMILY_ID_MIGHTY_GECKO == efm32_info->part_family ||
+			EFR_FAMILY_ID_FLEX_GECKO == efm32_info->part_family) {
 		uint8_t pg_size = 0;
 		ret = target_read_u8(bank->target, EFM32_MSC_DI_PAGE_SIZE,
 			&pg_size);
@@ -279,6 +285,7 @@ static int efm32x_decode_info(struct efm32_info *info, char *buf, int buf_size)
 			break;
 		case EFR_FAMILY_ID_MIGHTY_GECKO:
 		case EFR_FAMILY_ID_BLUE_GECKO:
+		case EFR_FAMILY_ID_FLEX_GECKO:
 			printed = snprintf(buf, buf_size, "EFR32 ");
 			break;
 		default:
@@ -321,6 +328,9 @@ static int efm32x_decode_info(struct efm32_info *info, char *buf, int buf_size)
 			break;
 		case EFR_FAMILY_ID_MIGHTY_GECKO:
 			printed = snprintf(buf, buf_size, "Mighty Gecko");
+			break;
+		case EFR_FAMILY_ID_FLEX_GECKO:
+			printed = snprintf(buf, buf_size, "Flex Gecko");
 			break;
 	}
 
