@@ -93,7 +93,10 @@ static unsigned int jtag_delay;
 
 static bb_value_t bcm2835gpio_read(void)
 {
-	return (GPIO_LEV & 1<<tdo_gpio) ? BB_HIGH : BB_LOW;
+	uint32_t a = GPIO_LEV;		/* first read randomly fails to read tdo level */
+	a = GPIO_LEV;			/* second read, get ever the correct value */
+
+	return (a & 1<<tdo_gpio) ? BB_HIGH : BB_LOW;
 }
 
 static int bcm2835gpio_write(int tck, int tms, int tdi)
