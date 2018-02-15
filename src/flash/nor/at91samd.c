@@ -838,6 +838,22 @@ FLASH_BANK_COMMAND_HANDLER(samd_flash_bank_command)
 	return ERROR_OK;
 }
 
+/**
+ * Remove all chips from the internal list without distingushing which one
+ * is owned by this bank. This simplification works only for one shot
+ * deallocation like current flash_free_all_banks()
+ */
+void samd_free_driver_priv(struct flash_bank *bank)
+{
+	struct samd_info *chip = samd_chips;
+	while (chip) {
+		struct samd_info *next = chip->next;
+		free(chip);
+		chip = next;
+	}
+	samd_chips = NULL;
+}
+
 COMMAND_HANDLER(samd_handle_info_command)
 {
 	return ERROR_OK;
@@ -1121,4 +1137,5 @@ struct flash_driver at91samd_flash = {
 	.auto_probe = samd_probe,
 	.erase_check = default_flash_blank_check,
 	.protect_check = samd_protect_check,
+	.free_driver_priv = samd_free_driver_priv,
 };
