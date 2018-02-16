@@ -351,7 +351,8 @@ static int remove_services(void)
 
 	/* loop service */
 	while (c) {
-		struct service *next = c->next;
+		while (c->connections)
+			remove_connection(c, c->connections);
 
 		if (c->name)
 			free(c->name);
@@ -365,6 +366,8 @@ static int remove_services(void)
 
 		if (c->priv)
 			free(c->priv);
+
+		struct service *next = c->next;
 
 		/* delete service */
 		free(c);
