@@ -87,12 +87,22 @@ static int swdio_gpio = -1;
 static int swdio_gpio_mode;
 
 /* Transition delay coefficients */
-static int speed_coeff = 113714;
-static int speed_offset = 28;
+static int speed_coeff = 113714;	/* around 60000 in pi3 with this code */
+static int speed_offset = 28;		/* 3 */ /* not accurate for 5 to 15Mhz, real clock is higher */
 static unsigned int jtag_delay;
+
+static void gpio_delay(unsigned num)
+{
+	for (unsigned i = 0; i != num; i++)
+		GPIO_CLR = 0;
+}
 
 static bb_value_t bcm2835gpio_read(void)
 {
+	/* min delay at max speed */
+	/* added delay for isolator, si8641 with 10 + 10 ns propagation delay */
+	gpio_delay(5);
+
 	return (GPIO_LEV & 1<<tdo_gpio) ? BB_HIGH : BB_LOW;
 }
 
@@ -101,11 +111,11 @@ static int bcm2835gpio_write(int tck, int tms, int tdi)
 	uint32_t set = tck<<tck_gpio | tms<<tms_gpio | tdi<<tdi_gpio;
 	uint32_t clear = !tck<<tck_gpio | !tms<<tms_gpio | !tdi<<tdi_gpio;
 
-	GPIO_SET = set;
+	/* clear before set gives few ns more for tdo read, earlier tck high to low transition */
 	GPIO_CLR = clear;
+	GPIO_SET = set;
 
-	for (unsigned int i = 0; i < jtag_delay; i++)
-		asm volatile ("");
+	gpio_delay(jtag_delay);
 
 	return ERROR_OK;
 }
