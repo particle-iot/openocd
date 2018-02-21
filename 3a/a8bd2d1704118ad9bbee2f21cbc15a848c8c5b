@@ -1,0 +1,8 @@
+Verified+1: jenkins
+Code-Review+1: Sergey A. Borshch <sb-sf@users.sourceforge.net>
+Code-Review+2: Matthias Welwarsky <matthias@welwarsky.de>
+Submitted-by: Matthias Welwarsky <matthias@welwarsky.de>
+Submitted-at: Wed, 21 Feb 2018 12:13:57 +0000
+Reviewed-on: http://openocd.zylin.com/3998
+Project: openocd
+Branch: refs/heads/master
