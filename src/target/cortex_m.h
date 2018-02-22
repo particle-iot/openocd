@@ -159,6 +159,7 @@ enum cortex_m_isrmasking_mode {
 	CORTEX_M_ISRMASK_AUTO,
 	CORTEX_M_ISRMASK_OFF,
 	CORTEX_M_ISRMASK_ON,
+	CORTEX_M_ISRMASK_AUTO_HARD_BP,
 };
 
 struct cortex_m_common {
@@ -175,7 +176,6 @@ struct cortex_m_common {
 	int fp_code_available;
 	int fp_rev;
 	int fpb_enabled;
-	int auto_bp_type;
 	struct cortex_m_fp_comparator *fp_comparator_list;
 
 	/* Data Watchpoint and Trace (DWT) */

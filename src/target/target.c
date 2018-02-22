@@ -1160,6 +1160,19 @@ int target_hit_watchpoint(struct target *target,
 	return target->type->hit_watchpoint(target, hit_watchpoint);
 }
 
+bool target_addr_in_flash(struct target *target, target_addr_t addr)
+{
+	struct flash_bank *bank;
+	bank = flash_bank_list();
+	while (bank) {
+		if (bank->target == target)
+			if (addr >= bank->base && addr < bank->base + bank->size)
+				return true;
+		bank = bank->next;
+	}
+	return false;
+}
+
 int target_get_gdb_reg_list(struct target *target,
 		struct reg **reg_list[], int *reg_list_size,
 		enum target_register_class reg_class)

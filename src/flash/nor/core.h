@@ -174,6 +174,10 @@ int default_flash_read(struct flash_bank *bank,
 int default_flash_blank_check(struct flash_bank *bank);
 
 /**
+ * @return The first bank in the global list.
+ */
+struct flash_bank *flash_bank_list(void);
+/**
  * Returns the flash bank specified by @a name, which matches the
  * driver name and a suffix (option) specify the driver-specific
  * bank number. The suffix consists of the '.' and the driver-specific
