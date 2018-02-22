@@ -8392,19 +8392,23 @@ Enable or disable trace output for all ITM stimulus ports.
 @subsection Cortex-M specific commands
 @cindex Cortex-M
 
-@deffn Command {cortex_m maskisr} (@option{auto}|@option{on}|@option{off})
-Control masking (disabling) interrupts during target step/resume.
+@deffn Command {cortex_m maskisr} [@option{on}|@option{off}|@option{auto}|@option{auto_hard_bp}]
+Selects whether interrupts will be processed when single stepping.
 
-The @option{auto} option handles interrupts during stepping a way they get
+The @option{auto} and @option{auto_hard_bp} options handle interrupts during stepping a way they get
 served but don't disturb the program flow. The step command first allows
 pending interrupt handlers to execute, then disables interrupts and steps over
 the next instruction where the core was halted. After the step interrupts
 are enabled again. If the interrupt handlers don't complete within 500ms,
 the step command leaves with the core running.
 
-Note that a free breakpoint is required for the @option{auto} option. If no
-breakpoint is available at the time of the step, then the step is taken
+@option{auto} uses soft breakpoint outside defined flash banks.
+@option{auto_hard_bp} uses hw (FPB) breakpoint always.
+
+Note that a free breakpoint is required for the @option{auto} and @option{auto_hard_bp} options.
+If no breakpoint is available at the time of the step, then the step is taken
 with interrupts enabled, i.e. the same way the @option{off} option does.
+@end deffn
 
 Default is @option{auto}.
 @end deffn

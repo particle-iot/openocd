@@ -461,6 +461,11 @@ int target_hit_watchpoint(struct target *target,
 		struct watchpoint **watchpoint);
 
 /**
+ * Check if @a addr is in a flash bank of @a target
+ */
+bool target_addr_in_flash(struct target *target, target_addr_t addr);
+
+/**
  * Obtain the registers for GDB.
  *
  * This routine is a wrapper for target->type->get_gdb_reg_list.
