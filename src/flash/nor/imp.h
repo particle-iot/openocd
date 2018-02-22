@@ -30,11 +30,6 @@
  */
 void flash_bank_add(struct flash_bank *bank);
 
-/**
- * @return The first bank in the global list.
- */
-struct flash_bank *flash_bank_list(void);
-
 int flash_driver_erase(struct flash_bank *bank, int first, int last);
 int flash_driver_protect(struct flash_bank *bank, int set, int first, int last);
 int flash_driver_write(struct flash_bank *bank,
