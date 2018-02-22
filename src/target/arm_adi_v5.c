@@ -96,8 +96,7 @@ static uint32_t max_tar_block_size(uint32_t tar_autoincr_block, uint32_t address
 
 static int mem_ap_setup_csw(struct adiv5_ap *ap, uint32_t csw)
 {
-	csw = csw | CSW_DBGSWENABLE | CSW_MASTER_DEBUG | CSW_HPROT |
-		ap->csw_default;
+	csw |= ap->csw_default;
 
 	if (csw != ap->csw_value) {
 		/* LOG_DEBUG("DAP: Set CSW %x",csw); */
@@ -636,6 +635,8 @@ struct adiv5_dap *dap_init(void)
 		dap->ap[i].memaccess_tck = 255;
 		/* Number of bits for tar autoincrement, impl. dep. at least 10 */
 		dap->ap[i].tar_autoincr_block = (1<<10);
+		/* default CSW value */
+		dap->ap[i].csw_default = CSW_DBGSWENABLE | CSW_MASTER_DEBUG | CSW_HPROT;
 	}
 	INIT_LIST_HEAD(&dap->cmd_journal);
 	return dap;
@@ -1602,22 +1603,30 @@ COMMAND_HANDLER(dap_apcsw_command)
 	struct arm *arm = target_to_arm(target);
 	struct adiv5_dap *dap = arm->dap;
 
-	uint32_t apcsw = dap->ap[dap->apsel].csw_default, sprot = 0;
+	uint32_t apcsw = dap->ap[dap->apsel].csw_default;
+	uint32_t csw_val, csw_mask;
 
 	switch (CMD_ARGC) {
 	case 0:
 		command_print(CMD_CTX, "apsel %" PRIi32 " selected, csw 0x%8.8" PRIx32,
 			(dap->apsel), apcsw);
-		break;
+		return ERROR_OK;
 	case 1:
-		COMMAND_PARSE_NUMBER(u32, CMD_ARGV[0], sprot);
-		/* AP address is in bits 31:24 of DP_SELECT */
-		if (sprot > 1)
+		COMMAND_PARSE_NUMBER(u32, CMD_ARGV[0], csw_val);
+		if (csw_val & (CSW_SIZE_MASK | CSW_ADDRINC_MASK)) {
+			LOG_ERROR("CSW value cannot include size and addrinc fields");
 			return ERROR_COMMAND_SYNTAX_ERROR;
-		if (sprot)
-			apcsw |= CSW_SPROT;
-		else
-			apcsw &= ~CSW_SPROT;
+		}
+		apcsw = csw_val;
+		break;
+	case 2:
+		COMMAND_PARSE_NUMBER(u32, CMD_ARGV[0], csw_val);
+		COMMAND_PARSE_NUMBER(u32, CMD_ARGV[1], csw_mask);
+		if (csw_mask & (CSW_SIZE_MASK | CSW_ADDRINC_MASK)) {
+			LOG_ERROR("CSW mask cannot include size and addrinc fields");
+			return ERROR_COMMAND_SYNTAX_ERROR;
+		}
+		apcsw = (apcsw & ~csw_mask) | (csw_val & csw_mask);
 		break;
 	default:
 		return ERROR_COMMAND_SYNTAX_ERROR;
@@ -1750,8 +1759,8 @@ static const struct command_registration dap_commands[] = {
 		.name = "apcsw",
 		.handler = dap_apcsw_command,
 		.mode = COMMAND_EXEC,
-		.help = "Set csw access bit ",
-		.usage = "[sprot]",
+		.help = "Set CSW default bits",
+		.usage = "[value [mask]]",
 	},
 
 	{
