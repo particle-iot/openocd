@@ -8274,8 +8274,15 @@ Enable SMP mode
 Display/set the current core displayed in GDB
 @end deffn
 
-@deffn Command {cortex_a maskisr} [@option{on}|@option{off}]
-Selects whether interrupts will be processed when single stepping
+@deffn Command {cortex_a maskisr} [@option{on}|@option{off}|@option{auto}|@option{auto_hard_bp}]
+Selects whether interrupts will be processed when single stepping.
+
+auto and auto_hard_bp options make possible to service interrupts without
+distubing stepping flow: all pending interrupts are processed first by running
+the core to a temporary break point and then the real step takes place with
+masked interrupts.
+auto uses soft breakpoint outside defined flash banks.
+auto_hard_bp uses hw (FPB) breakpoint always.
 @end deffn
 
 @deffn Command {cache_config l2x}  [base way]
