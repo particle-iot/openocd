@@ -2598,8 +2598,8 @@ static bool gdb_handle_vcont_packet(struct connection *connection, const char *p
 	if (parse[0] == 'c') {
 		LOG_DEBUG("target %s continue", target_name(target));
 		log_add_callback(gdb_log_callback, connection);
-		retval = target_resume(target, 1, 0, 0, 0);
-		if (retval == ERROR_OK) {
+		target_resume(target, 1, 0, 0, 0);
+		if (target->state == TARGET_RUNNING) {
 			gdb_connection->frontend_state = TARGET_RUNNING;
 			target_call_event_callbacks(target, TARGET_EVENT_GDB_START);
 		}
@@ -2639,15 +2639,17 @@ static bool gdb_handle_vcont_packet(struct connection *connection, const char *p
 			}
 
 			LOG_DEBUG("target %s single-step thread %"PRId64, target_name(ct), thread_id);
+			log_add_callback(gdb_log_callback, connection);
+			target_call_event_callbacks(ct, TARGET_EVENT_GDB_START);
+
 			retval = target_step(ct, 1, 0, handle_breakpoint);
 			if (retval == ERROR_OK) {
 				gdb_signal_reply(target, connection);
 				/* stop forwarding log packets! */
 				log_remove_callback(gdb_log_callback, connection);
 			} else
-			if (retval == ERROR_TARGET_TIMEOUT) {
+			if (target->state == TARGET_RUNNING) {
 				gdb_connection->frontend_state = TARGET_RUNNING;
-				target_call_event_callbacks(ct, TARGET_EVENT_GDB_START);
 			}
 		} else {
 			LOG_ERROR("Unknown vCont packet");
