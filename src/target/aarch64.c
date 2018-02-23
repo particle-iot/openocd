@@ -452,7 +452,7 @@ static int update_halt_gdb(struct target *target, enum target_debug_reason debug
 	struct target *curr;
 
 	if (debug_reason == DBG_REASON_NOTHALTED) {
-		LOG_INFO("Halting remaining targets in SMP group");
+		LOG_DEBUG("Halting remaining targets in SMP group");
 		aarch64_halt_smp(target, true);
 	}
 
