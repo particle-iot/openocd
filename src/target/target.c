@@ -2941,6 +2941,9 @@ COMMAND_HANDLER(handle_halt_command)
 	int retval = target_halt(target);
 	if (ERROR_OK != retval)
 		return retval;
+	retval = target_poll(target);
+	if (ERROR_OK != retval)
+		return retval;
 
 	if (CMD_ARGC == 1) {
 		unsigned wait_local;
