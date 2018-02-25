@@ -377,6 +377,7 @@ static int aarch64_halt_one(struct target *target, enum halt_mode mode)
 				LOG_ERROR("Timeout waiting for target %s halt", target_name(target));
 			return retval;
 		}
+		return aarch64_poll(target);
 	}
 
 	return ERROR_OK;
@@ -442,7 +443,7 @@ static int aarch64_halt_smp(struct target *target, bool exc_target)
 			break;
 	}
 
-	return retval;
+	return aarch64_poll(target);
 }
 
 static int update_halt_gdb(struct target *target, enum target_debug_reason debug_reason)

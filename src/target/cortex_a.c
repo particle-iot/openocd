@@ -786,7 +786,7 @@ static struct target *get_cortex_a(struct target *target, int32_t coreid)
 	}
 	return target;
 }
-static int cortex_a_halt(struct target *target);
+static int cortex_a_halt_nopoll(struct target *target);
 
 static int cortex_a_halt_smp(struct target *target)
 {
@@ -798,7 +798,7 @@ static int cortex_a_halt_smp(struct target *target)
 		curr = head->target;
 		if ((curr != target) && (curr->state != TARGET_HALTED)
 			&& target_was_examined(curr))
-			retval += cortex_a_halt(curr);
+			retval += cortex_a_halt_nopoll(curr);
 		head = head->next;
 	}
 	return retval;
@@ -889,7 +889,7 @@ static int cortex_a_poll(struct target *target)
 	return retval;
 }
 
-static int cortex_a_halt(struct target *target)
+static int cortex_a_halt_nopoll(struct target *target)
 {
 	int retval = ERROR_OK;
 	uint32_t dscr;
@@ -932,8 +932,18 @@ static int cortex_a_halt(struct target *target)
 	}
 
 	target->debug_reason = DBG_REASON_DBGRQ;
-
 	return ERROR_OK;
+}
+
+static int cortex_a_halt(struct target *target)
+{
+	int retval;
+
+	retval = cortex_a_halt_nopoll(target);
+	if (retval == ERROR_OK)
+		return cortex_a_poll(target);
+
+	return retval;
 }
 
 static int cortex_a_internal_restore(struct target *target, int current,

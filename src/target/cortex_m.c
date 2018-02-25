@@ -604,7 +604,7 @@ static int cortex_m_halt(struct target *target)
 
 	target->debug_reason = DBG_REASON_DBGRQ;
 
-	return ERROR_OK;
+	return cortex_m_poll(target);
 }
 
 static int cortex_m_soft_reset_halt(struct target *target)
@@ -941,6 +941,7 @@ static int cortex_m_step(struct target *target, int current,
 	retval = cortex_m_debug_entry(target);
 	if (retval != ERROR_OK)
 		return retval;
+	target->state = TARGET_HALTED;
 	target_call_event_callbacks(target, TARGET_EVENT_HALTED);
 
 	LOG_DEBUG("target stepped dcb_dhcsr = 0x%" PRIx32
