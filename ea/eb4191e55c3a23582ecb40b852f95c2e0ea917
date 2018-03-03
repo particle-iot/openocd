@@ -1,0 +1,8 @@
+Verified+1: jenkins
+Code-Review+1: Richard Braun <rbraun@sceen.net>
+Code-Review+2: Matthias Welwarsky <matthias@welwarsky.de>
+Submitted-by: Matthias Welwarsky <matthias@welwarsky.de>
+Submitted-at: Sat, 03 Mar 2018 08:29:32 +0000
+Reviewed-on: http://openocd.zylin.com/4438
+Project: openocd
+Branch: refs/heads/master
