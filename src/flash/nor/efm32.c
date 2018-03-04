@@ -143,7 +143,7 @@ static const struct efm32_family_data efm32_families[] = {
 		{ 40, "EFR32MG13P Mighty", .series = 1 },
 		{ 41, "EFR32MG13B Mighty", .series = 1 },
 		{ 42, "EFR32MG13V Mighty", .series = 1 },
-		{ 43, "EFR32BG13P Blue", .series = 1 },
+		{ 43, "EFR32BG13P Blue", .series = 1, .bl_size = 16384, .bl_base = 0x0FE10000},
 		{ 44, "EFR32BG13B Blue", .series = 1 },
 		{ 45, "EFR32BG13V Blue", .series = 1 },
 		{ 49, "EFR32FG13P Flex", .series = 1 },
