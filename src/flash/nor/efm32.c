@@ -96,6 +96,12 @@ struct efm32_family_data {
 
 	/* MSC register base address, or 0 to use default */
 	uint32_t msc_regbase;
+
+	/* Bootloader address (if writeable) */
+	uint32_t bl_base;
+
+	/* Bootloader length (if writeable) */
+	uint32_t bl_size;
 };
 
 struct efm32x_flash_bank {
@@ -502,8 +508,9 @@ static int efm32x_read_lock_data(struct flash_bank *bank)
 	int data_size = 0;
 	uint32_t *ptr = NULL;
 	int ret = 0;
-
 	assert(bank->num_sectors > 0);
+	if (bank->base != 0)
+		return ERROR_FLASH_OPER_UNSUPPORTED;
 
 	/* calculate the number of 32-bit words to read (one lock bit per sector) */
 	data_size = (bank->num_sectors + 31) / 32;
@@ -575,7 +582,8 @@ static int efm32x_write_lock_data(struct flash_bank *bank)
 {
 	struct efm32x_flash_bank *efm32x_info = bank->driver_priv;
 	int ret = 0;
-
+	if (bank->base != 0)
+		return ERROR_FLASH_OPER_UNSUPPORTED;
 	ret = efm32x_erase_page(bank, EFM32_MSC_LOCK_BITS);
 	if (ERROR_OK != ret) {
 		LOG_ERROR("Failed to erase LB page");
@@ -984,6 +992,16 @@ static int efm32x_probe(struct flash_bank *bank)
 	int num_pages = efm32_mcu_info.flash_sz_kib * 1024 /
 		efm32_mcu_info.page_size;
 
+	if (bank->bank_number != 0) {
+		if (efm32_mcu_info.family_data->bl_size != 0) {
+			base_address = efm32_mcu_info.family_data->bl_base;
+			num_pages =  efm32_mcu_info.family_data->bl_size /
+				efm32_mcu_info.page_size;
+		} else {
+			return ERROR_FLASH_BANK_INVALID;
+		}
+	}
+
 	assert(num_pages > 0);
 
 	if (bank->sectors) {
@@ -995,10 +1013,12 @@ static int efm32x_probe(struct flash_bank *bank)
 	bank->size = (num_pages * efm32_mcu_info.page_size);
 	bank->num_sectors = num_pages;
 
-	ret = efm32x_read_lock_data(bank);
-	if (ERROR_OK != ret) {
-		LOG_ERROR("Failed to read LB data");
-		return ret;
+	if (bank->base == 0) {
+		ret = efm32x_read_lock_data(bank);
+		if (ERROR_OK != ret) {
+			LOG_ERROR("Failed to read LB data");
+			return ret;
+		}
 	}
 
 	bank->sectors = malloc(sizeof(struct flash_sector) * num_pages);
@@ -1034,10 +1054,12 @@ static int efm32x_protect_check(struct flash_bank *bank)
 		return ERROR_TARGET_NOT_HALTED;
 	}
 
-	ret = efm32x_read_lock_data(bank);
-	if (ERROR_OK != ret) {
-		LOG_ERROR("Failed to read LB data");
-		return ret;
+	if (bank->base == 0) {
+		ret = efm32x_read_lock_data(bank);
+		if (ERROR_OK != ret) {
+			LOG_ERROR("Failed to read LB data");
+			return ret;
+		}
 	}
 
 	assert(NULL != bank->sectors);
