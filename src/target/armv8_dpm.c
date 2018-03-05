@@ -760,6 +760,7 @@ int armv8_dpm_read_current_registers(struct arm_dpm *dpm)
 		if (retval != ERROR_OK)
 			goto fail;
 	}
+	r->dirty = true;
 
 	/* read cpsr to r0 and get it back */
 	retval = dpm->instr_read_data_r0(dpm,
