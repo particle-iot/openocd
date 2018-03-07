@@ -134,38 +134,38 @@
 #define STM32_FLASH_OPTCR2  0x40023c1c
 
 /* FLASH_CR register bits */
-#define FLASH_PG       (1 << 0)
-#define FLASH_SER      (1 << 1)
-#define FLASH_MER      (1 << 2)		/* MER/MER1 for f76x/77x */
-#define FLASH_MER1     (1 << 15)	/* MER2 for f76x/77x, confusing ... */
-#define FLASH_STRT     (1 << 16)
-#define FLASH_PSIZE_8  (0 << 8)
-#define FLASH_PSIZE_16 (1 << 8)
-#define FLASH_PSIZE_32 (2 << 8)
-#define FLASH_PSIZE_64 (3 << 8)
+#define FLASH_PG       (1ull << 0)
+#define FLASH_SER      (1ull << 1)
+#define FLASH_MER      (1ull << 2)		/* MER/MER1 for f76x/77x */
+#define FLASH_MER1     (1ull << 15)	/* MER2 for f76x/77x, confusing ... */
+#define FLASH_STRT     (1ull << 16)
+#define FLASH_PSIZE_8  (0ull << 8)
+#define FLASH_PSIZE_16 (1ull << 8)
+#define FLASH_PSIZE_32 (2ull << 8)
+#define FLASH_PSIZE_64 (3ull << 8)
 /* The sector number encoding is not straight binary for dual bank flash. */
 #define FLASH_SNB(a)   ((a) << 3)
-#define FLASH_LOCK     (1 << 31)
+#define FLASH_LOCK     (1ull << 31)
 
 /* FLASH_SR register bits */
-#define FLASH_BSY      (1 << 16)
-#define FLASH_PGSERR   (1 << 7) /* Programming sequence error */
-#define FLASH_PGPERR   (1 << 6) /* Programming parallelism error */
-#define FLASH_PGAERR   (1 << 5) /* Programming alignment error */
-#define FLASH_WRPERR   (1 << 4) /* Write protection error */
-#define FLASH_OPERR    (1 << 1) /* Operation error */
+#define FLASH_BSY      (1ull << 16)
+#define FLASH_PGSERR   (1ull << 7) /* Programming sequence error */
+#define FLASH_PGPERR   (1ull << 6) /* Programming parallelism error */
+#define FLASH_PGAERR   (1ull << 5) /* Programming alignment error */
+#define FLASH_WRPERR   (1ull << 4) /* Write protection error */
+#define FLASH_OPERR    (1ull << 1) /* Operation error */
 
 #define FLASH_ERROR (FLASH_PGSERR | FLASH_PGPERR | FLASH_PGAERR | FLASH_WRPERR | FLASH_OPERR)
 
 /* STM32_FLASH_OPTCR register bits */
-#define OPTCR_LOCK     (1 << 0)
-#define OPTCR_START    (1 << 1)
-#define OPTCR_NDBANK   (1 << 29)	/* not dual bank mode */
-#define OPTCR_DB1M     (1 << 30)	/* 1 MiB devices dual flash bank option */
-#define OPTCR_SPRMOD   (1 << 31)	/* switches PCROPi/nWPRi interpretation */
+#define OPTCR_LOCK     (1ull << 0)
+#define OPTCR_START    (1ull << 1)
+#define OPTCR_NDBANK   (1ull << 29)	/* not dual bank mode */
+#define OPTCR_DB1M     (1ull << 30)	/* 1 MiB devices dual flash bank option */
+#define OPTCR_SPRMOD   (1ull << 31)	/* switches PCROPi/nWPRi interpretation */
 
 /* STM32_FLASH_OPTCR2 register bits */
-#define OPTCR2_PCROP_RDP	(1 << 31)	/* erase PCROP zone when decreasing RDP */
+#define OPTCR2_PCROP_RDP	(1ull << 31)	/* erase PCROP zone when decreasing RDP */
 
 /* register unlock keys */
 #define KEY1           0x45670123
@@ -346,12 +346,12 @@ static int stm32x_read_options(struct flash_bank *bank)
 	stm32x_info->option_bytes.user_options = optiondata & 0xfc;
 	stm32x_info->option_bytes.RDP = (optiondata >> 8) & 0xff;
 	stm32x_info->option_bytes.protection =
-		(optiondata >> 16) & (~(0xffff << stm32x_info->protection_bits) & 0xffff);
+		(optiondata >> 16) & (~(0xffffull << stm32x_info->protection_bits) & 0xffff);
 
 	if (stm32x_info->has_extra_options) {
 		/* F42x/43x/469/479 and 7xx have up to 4 bits of extra options */
 		stm32x_info->option_bytes.user_options |= (optiondata >> 20) &
-			((0xf00 << (stm32x_info->protection_bits - 12)) & 0xf00);
+			((0xf00ull << (stm32x_info->protection_bits - 12)) & 0xf00);
 	}
 
 	if (stm32x_info->has_large_mem || stm32x_info->has_boot_addr) {
@@ -405,12 +405,12 @@ static int stm32x_write_options(struct flash_bank *bank)
 	optiondata = stm32x_info->option_bytes.user_options & 0xfc;
 	optiondata |= stm32x_info->option_bytes.RDP << 8;
 	optiondata |= (stm32x_info->option_bytes.protection &
-		(~(0xffff << stm32x_info->protection_bits))) << 16;
+		(~(0xffffull << stm32x_info->protection_bits))) << 16;
 
 	if (stm32x_info->has_extra_options) {
 		/* F42x/43x/469/479 and 7xx have up to 4 bits of extra options */
 		optiondata |= (stm32x_info->option_bytes.user_options &
-			((0xf00 << (stm32x_info->protection_bits - 12)) & 0xf00)) << 20;
+			((0xf00ull << (stm32x_info->protection_bits - 12)) & 0xf00)) << 20;
 	}
 
 	if (stm32x_info->has_large_mem || stm32x_info->has_boot_addr) {
@@ -560,9 +560,9 @@ static int stm32x_protect(struct flash_bank *bank, int set, int first, int last)
 
 	for (int i = first; i <= last; i++) {
 		if (set)
-			stm32x_info->option_bytes.protection &= ~(1 << i);
+			stm32x_info->option_bytes.protection &= ~(1ull << i);
 		else
-			stm32x_info->option_bytes.protection |= (1 << i);
+			stm32x_info->option_bytes.protection |= (1ull << i);
 	}
 
 	retval = stm32x_write_options(bank);
@@ -849,8 +849,8 @@ static int stm32x_get_device_id(struct flash_bank *bank, uint32_t *device_id)
 
 		/* check for cortex_m4 */
 		if (((cpuid >> 4) & 0xFFF) == 0xC24) {
-			*device_id &= ~((0xFFFF << 16) | 0xfff);
-			*device_id |= (0x1000 << 16) | 0x413;
+			*device_id &= ~((0xFFFFull << 16) | 0xfff);
+			*device_id |= (0x1000ull << 16) | 0x413;
 			LOG_INFO("stm32f4x errata detected - fixing incorrect MCU_IDCODE");
 		}
 	}
@@ -1497,8 +1497,8 @@ COMMAND_HANDLER(stm32f2x_handle_options_write_command)
 	}
 
 	COMMAND_PARSE_NUMBER(u16, CMD_ARGV[1], user_options);
-	options_mask = !stm32x_info->has_extra_options ? ~0xfc :
-		~(((0xf00 << (stm32x_info->protection_bits - 12)) | 0xff) & 0xffc);
+	options_mask = !stm32x_info->has_extra_options ? ~0xfcull :
+		~(((0xf00ull << (stm32x_info->protection_bits - 12)) | 0xff) & 0xffc);
 	if (user_options & options_mask) {
 		command_print(CMD_CTX, "stm32f2x invalid user_options");
 		return ERROR_COMMAND_ARGUMENT_INVALID;
