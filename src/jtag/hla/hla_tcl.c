@@ -40,17 +40,14 @@ static int jim_newtap_expected_id(Jim_Nvp *n, Jim_GetOptInfo *goi,
 	}
 
 	unsigned expected_len = sizeof(uint32_t) * pTap->expected_ids_cnt;
-	uint32_t *new_expected_ids = malloc(expected_len + sizeof(uint32_t));
+	uint32_t *new_expected_ids = realloc(pTap->expected_ids, expected_len + sizeof(uint32_t));
 	if (new_expected_ids == NULL) {
 		Jim_SetResultFormatted(goi->interp, "no memory");
 		return JIM_ERR;
 	}
 
-	memcpy(new_expected_ids, pTap->expected_ids, expected_len);
-
 	new_expected_ids[pTap->expected_ids_cnt] = w;
 
-	free(pTap->expected_ids);
 	pTap->expected_ids = new_expected_ids;
 	pTap->expected_ids_cnt++;
 
