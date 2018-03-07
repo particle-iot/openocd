@@ -1854,6 +1854,13 @@ static struct dwt_reg dwt_comp[] = {
 	DWT_COMPARATOR(1),
 	DWT_COMPARATOR(2),
 	DWT_COMPARATOR(3),
+	DWT_COMPARATOR(4),
+	DWT_COMPARATOR(5),
+	DWT_COMPARATOR(6),
+	DWT_COMPARATOR(7),
+	DWT_COMPARATOR(8),
+	DWT_COMPARATOR(9),
+	DWT_COMPARATOR(10),
 #undef DWT_COMPARATOR
 };
 
@@ -1887,15 +1894,24 @@ void cortex_m_dwt_setup(struct cortex_m_common *cm, struct target *target)
 	int reg, i;
 
 	target_read_u32(target, DWT_CTRL, &dwtcr);
+	LOG_INFO("DWT_CTRL: %" PRIu32, dwtcr);
 	if (!dwtcr) {
 		LOG_DEBUG("no DWT");
 		return;
 	}
 
 	cm->dwt_num_comp = (dwtcr >> 28) & 0xF;
+
+	if ((size_t)cm->dwt_num_comp > (ARRAY_SIZE(dwt_comp) / 3)) {
+		LOG_WARNING("Target supports %" PRIu32 " dwt comparitors, but openocd only supports up to %zu, limiting",
+				cm->dwt_num_comp, ARRAY_SIZE(dwt_comp)/3);
+		cm->dwt_num_comp = ARRAY_SIZE(dwt_comp)/3;
+	}
+
 	cm->dwt_comp_available = cm->dwt_num_comp;
 	cm->dwt_comparator_list = calloc(cm->dwt_num_comp,
 			sizeof(struct cortex_m_dwt_comparator));
+
 	if (!cm->dwt_comparator_list) {
 fail0:
 		cm->dwt_num_comp = 0;
