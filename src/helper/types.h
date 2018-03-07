@@ -123,7 +123,7 @@ static inline uint64_t le_to_h_u64(const uint8_t *buf)
 
 static inline uint32_t le_to_h_u32(const uint8_t* buf)
 {
-	return (uint32_t)(buf[0] | buf[1] << 8 | buf[2] << 16 | buf[3] << 24);
+	return (uint32_t)((uint32_t)buf[0] | (uint32_t)buf[1] << 8 | (uint32_t)buf[2] << 16 | (uint32_t)buf[3] << 24);
 }
 
 static inline uint32_t le_to_h_u24(const uint8_t* buf)
