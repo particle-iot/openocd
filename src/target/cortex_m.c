@@ -1887,15 +1887,24 @@ void cortex_m_dwt_setup(struct cortex_m_common *cm, struct target *target)
 	int reg, i;
 
 	target_read_u32(target, DWT_CTRL, &dwtcr);
+	LOG_DEBUG("DWT_CTRL: %" PRIu32, dwtcr);
 	if (!dwtcr) {
 		LOG_DEBUG("no DWT");
 		return;
 	}
 
 	cm->dwt_num_comp = (dwtcr >> 28) & 0xF;
+
+	if ((size_t)cm->dwt_num_comp > (ARRAY_SIZE(dwt_comp) / 3)) {
+		LOG_WARNING("Target supports %" PRIu32 " dwt comparitors, but openocd only supports up to %zu, limiting",
+				cm->dwt_num_comp, ARRAY_SIZE(dwt_comp)/3);
+		cm->dwt_num_comp = ARRAY_SIZE(dwt_comp)/3;
+	}
+
 	cm->dwt_comp_available = cm->dwt_num_comp;
 	cm->dwt_comparator_list = calloc(cm->dwt_num_comp,
 			sizeof(struct cortex_m_dwt_comparator));
+
 	if (!cm->dwt_comparator_list) {
 fail0:
 		cm->dwt_num_comp = 0;
