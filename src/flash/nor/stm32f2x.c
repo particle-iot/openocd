@@ -760,16 +760,13 @@ static int stm32x_write(struct flash_bank *bank, const uint8_t *buffer,
 	Double word access in case of x64 parallelism
 	Wait for the BSY bit to be cleared
 	*/
-	while (words_remaining > 0) {
-		uint16_t value;
-		memcpy(&value, buffer + bytes_written, sizeof(uint16_t));
-
+	if (words_remaining > 0) {
 		retval = target_write_u32(target, stm32x_get_flash_reg(bank, STM32_FLASH_CR),
 				FLASH_PG | FLASH_PSIZE_16);
 		if (retval != ERROR_OK)
 			return retval;
 
-		retval = target_write_u16(target, address, value);
+		retval = target_write_memory(target, address, 2, words_remaining, buffer);
 		if (retval != ERROR_OK)
 			return retval;
 
@@ -777,9 +774,9 @@ static int stm32x_write(struct flash_bank *bank, const uint8_t *buffer,
 		if (retval != ERROR_OK)
 			return retval;
 
-		bytes_written += 2;
-		words_remaining--;
-		address += 2;
+		bytes_written += words_remaining * 2;
+		words_remaining = 0;
+		address += words_remaining * 2;
 	}
 
 	if (bytes_remaining) {
