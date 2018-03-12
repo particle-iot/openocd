@@ -1,0 +1,10 @@
+Verified+1: jenkins
+Code-Review+1: Eric Work <work.eric@gmail.com>
+Code-Review+1: Thomas Jarosch <thomas.jarosch@intra2net.com>
+Code-Review+1: Jacob Alexander <haata@kiibohd.com>
+Code-Review+2: Tomas Vanek <vanekt@fbl.cz>
+Submitted-by: Tomas Vanek <vanekt@fbl.cz>
+Submitted-at: Mon, 12 Mar 2018 14:14:36 +0000
+Reviewed-on: http://openocd.zylin.com/3960
+Project: openocd
+Branch: refs/heads/master
