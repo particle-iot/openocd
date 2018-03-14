@@ -4773,6 +4773,10 @@ no_params:
 				if (tap == NULL)
 					return JIM_ERR;
 				/* make this exactly 1 or 0 */
+				if (target->tap != NULL) {
+					Jim_SetResultString(goi->interp, "-chain-position and -dap are mutually exclusive!", -1);
+					return JIM_ERR;
+				}
 				target->tap = tap;
 			} else {
 				if (goi->argc != 0)
@@ -5592,7 +5596,7 @@ static int target_create(Jim_GetOptInfo *goi)
 	e = target_configure(goi, target);
 
 	if (target->tap == NULL) {
-		Jim_SetResultString(goi->interp, "-chain-position required when creating target", -1);
+		Jim_SetResultString(goi->interp, "-chain-position or -dap required when creating target", -1);
 		e = JIM_ERR;
 	}
 
@@ -5610,14 +5614,23 @@ static int target_create(Jim_GetOptInfo *goi)
 	cp = Jim_GetString(new_cmd, NULL);
 	target->cmd_name = strdup(cp);
 
+	if (target->type->target_create) {
+		e = (*(target->type->target_create))(target, goi->interp);
+		if (e != ERROR_OK) {
+			LOG_DEBUG("target_create failed");
+			free(target->type);
+			free(target->cmd_name);
+			free(target);
+			return JIM_ERR;
+		}
+	}
+
 	/* create the target specific commands */
 	if (target->type->commands) {
 		e = register_commands(cmd_ctx, NULL, target->type->commands);
 		if (ERROR_OK != e)
 			LOG_ERROR("unable to register '%s' commands", cp);
 	}
-	if (target->type->target_create)
-		(*(target->type->target_create))(target, goi->interp);
 
 	/* append to end of list */
 	{
