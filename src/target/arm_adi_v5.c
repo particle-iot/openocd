@@ -1471,9 +1471,8 @@ int adiv5_jim_configure(struct target *target, Jim_GetOptInfo *goi)
 
 COMMAND_HANDLER(handle_dap_info_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
-	struct arm *arm = target_to_arm(target);
-	struct adiv5_dap *dap = arm->dap;
+	struct arm_dap_object *obj = CMD_DATA;
+	struct adiv5_dap *dap = &obj->dap;
 	uint32_t apsel;
 
 	switch (CMD_ARGC) {
@@ -1494,9 +1493,8 @@ COMMAND_HANDLER(handle_dap_info_command)
 
 COMMAND_HANDLER(dap_baseaddr_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
-	struct arm *arm = target_to_arm(target);
-	struct adiv5_dap *dap = arm->dap;
+	struct arm_dap_object *obj = CMD_DATA;
+	struct adiv5_dap *dap = &obj->dap;
 
 	uint32_t apsel, baseaddr;
 	int retval;
@@ -1534,9 +1532,8 @@ COMMAND_HANDLER(dap_baseaddr_command)
 
 COMMAND_HANDLER(dap_memaccess_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
-	struct arm *arm = target_to_arm(target);
-	struct adiv5_dap *dap = arm->dap;
+	struct arm_dap_object *obj = CMD_DATA;
+	struct adiv5_dap *dap = &obj->dap;
 
 	uint32_t memaccess_tck;
 
@@ -1560,9 +1557,8 @@ COMMAND_HANDLER(dap_memaccess_command)
 
 COMMAND_HANDLER(dap_apsel_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
-	struct arm *arm = target_to_arm(target);
-	struct adiv5_dap *dap = arm->dap;
+	struct arm_dap_object *obj = CMD_DATA;
+	struct adiv5_dap *dap = &obj->dap;
 
 	uint32_t apsel, apid;
 	int retval;
@@ -1598,9 +1594,8 @@ COMMAND_HANDLER(dap_apsel_command)
 
 COMMAND_HANDLER(dap_apcsw_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
-	struct arm *arm = target_to_arm(target);
-	struct adiv5_dap *dap = arm->dap;
+	struct arm_dap_object *obj = CMD_DATA;
+	struct adiv5_dap *dap = &obj->dap;
 
 	uint32_t apcsw = dap->ap[dap->apsel].csw_default, sprot = 0;
 
@@ -1631,9 +1626,8 @@ COMMAND_HANDLER(dap_apcsw_command)
 
 COMMAND_HANDLER(dap_apid_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
-	struct arm *arm = target_to_arm(target);
-	struct adiv5_dap *dap = arm->dap;
+	struct arm_dap_object *obj = CMD_DATA;
+	struct adiv5_dap *dap = &obj->dap;
 
 	uint32_t apsel, apid;
 	int retval;
@@ -1666,9 +1660,8 @@ COMMAND_HANDLER(dap_apid_command)
 
 COMMAND_HANDLER(dap_apreg_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
-	struct arm *arm = target_to_arm(target);
-	struct adiv5_dap *dap = arm->dap;
+	struct arm_dap_object *obj = CMD_DATA;
+	struct adiv5_dap *dap = &obj->dap;
 
 	uint32_t apsel, reg, value;
 	int retval;
@@ -1705,9 +1698,8 @@ COMMAND_HANDLER(dap_apreg_command)
 
 COMMAND_HANDLER(dap_ti_be_32_quirks_command)
 {
-	struct target *target = get_current_target(CMD_CTX);
-	struct arm *arm = target_to_arm(target);
-	struct adiv5_dap *dap = arm->dap;
+	struct arm_dap_object *obj = CMD_DATA;
+	struct adiv5_dap *dap = &obj->dap;
 
 	uint32_t enable = dap->ti_be_32_quirks;
 
@@ -1729,7 +1721,7 @@ COMMAND_HANDLER(dap_ti_be_32_quirks_command)
 	return 0;
 }
 
-static const struct command_registration dap_commands[] = {
+const struct command_registration dap_instance_commands[] = {
 	{
 		.name = "info",
 		.handler = handle_dap_info_command,
@@ -1802,7 +1794,7 @@ const struct command_registration dap_command_handlers[] = {
 		.mode = COMMAND_EXEC,
 		.help = "DAP command group",
 		.usage = "",
-		.chain = dap_commands,
+		.chain = dap_instance_commands,
 	},
 	COMMAND_REGISTRATION_DONE
 };

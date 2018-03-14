@@ -510,6 +510,19 @@ int dap_to_swd(struct target *target);
 int dap_to_jtag(struct target *target);
 
 extern const struct command_registration dap_command_handlers[];
+extern const struct command_registration dap_instance_commands[];
+
+/* DAP command support */
+struct arm_dap_object {
+	struct list_head lh;
+	struct adiv5_dap dap;
+	char *name;
+};
+
+extern struct adiv5_dap *dap_instance_by_jim_obj(Jim_Interp *interp, Jim_Obj *o);
+extern int dap_register_commands(struct command_context *cmd_ctx);
+extern const char *adiv5_dap_name(struct adiv5_dap *self);
+extern int dap_init_all(void);
 
 struct adiv5_private_config {
 	int ap_num;
