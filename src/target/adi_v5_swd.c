@@ -136,6 +136,7 @@ static int swd_connect(struct adiv5_dap *dap)
 	if (status == ERROR_OK) {
 		LOG_INFO("SWD DPIDR %#8.8" PRIx32, dpidr);
 		dap->do_reconnect = false;
+		status = dap_dp_init(dap);
 	} else
 		dap->do_reconnect = true;
 
@@ -279,6 +280,7 @@ static int swd_run(struct adiv5_dap *dap)
 }
 
 const struct dap_ops swd_dap_ops = {
+	.connect = swd_connect,
 	.queue_dp_read = swd_queue_dp_read,
 	.queue_dp_write = swd_queue_dp_write,
 	.queue_ap_read = swd_queue_ap_read,
@@ -404,33 +406,14 @@ static int swd_select(struct command_context *ctx)
 		return retval;
 	}
 
-	/* force DAP into SWD mode (not JTAG) */
-	/*retval = dap_to_swd(target);*/
-
-	if (ctx->current_target) {
-		/* force DAP into SWD mode (not JTAG) */
-		struct target *target = get_current_target(ctx);
-		retval = dap_to_swd(target);
-	}
-
 	return retval;
 }
 
 static int swd_init(struct command_context *ctx)
 {
-	struct target *target = get_current_target(ctx);
-	struct arm *arm = target_to_arm(target);
-	struct adiv5_dap *dap = arm->dap;
-	/* Force the DAP's ops vector for SWD mode.
-	 * messy - is there a better way? */
-	arm->dap->ops = &swd_dap_ops;
-	/* First connect after init is not reconnecting. */
-	dap->do_reconnect = false;
-
-	int retval = swd_connect(dap);
-	if (retval != ERROR_OK)
-		LOG_ERROR("SWD connect failed");
-	return retval;
+	/* nothing done here, SWD is initialized
+	 * together with the DAP */
+	return ERROR_OK;
 }
 
 static struct transport swd_transport = {

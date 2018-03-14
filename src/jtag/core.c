@@ -1480,6 +1480,8 @@ int adapter_quit(void)
 	if (ERROR_OK != result)
 		LOG_ERROR("failed: %d", result);
 
+	dap_cleanup_all();
+
 	return ERROR_OK;
 }
 
