@@ -473,9 +473,6 @@ int mem_ap_read_buf_noincr(struct adiv5_ap *ap,
 int mem_ap_write_buf_noincr(struct adiv5_ap *ap,
 		const uint8_t *buffer, uint32_t size, uint32_t count, uint32_t address);
 
-/* Create DAP struct */
-struct adiv5_dap *dap_init(void);
-
 /* Initialisation of the debug system, power domains and registers */
 int dap_dp_init(struct adiv5_dap *dap);
 int mem_ap_init(struct adiv5_ap *ap);
@@ -510,9 +507,23 @@ int dap_to_swd(struct target *target);
 int dap_to_jtag(struct target *target);
 
 extern const struct command_registration dap_command_handlers[];
+extern const struct command_registration dap_instance_commands[];
+
+/* DAP command support */
+struct arm_dap_object {
+	struct list_head lh;
+	struct adiv5_dap dap;
+	char *name;
+};
+
+extern struct adiv5_dap *dap_instance_by_jim_obj(Jim_Interp *interp, Jim_Obj *o);
+extern int dap_register_commands(struct command_context *cmd_ctx);
+extern const char *adiv5_dap_name(struct adiv5_dap *self);
+extern int dap_init_all(void);
 
 struct adiv5_private_config {
 	int ap_num;
+	struct adiv5_dap *dap;
 };
 
 extern int adiv5_jim_configure(struct target *target, Jim_GetOptInfo *goi);
