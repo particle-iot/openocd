@@ -4773,6 +4773,10 @@ no_params:
 				if (tap == NULL)
 					return JIM_ERR;
 				/* make this exactly 1 or 0 */
+				if (target->tap != NULL) {
+					Jim_SetResultString(goi->interp, "-chain-position and -dap are mutually exclusive!", -1);
+					return JIM_ERR;
+				}
 				target->tap = tap;
 			} else {
 				if (goi->argc != 0)
@@ -5592,7 +5596,7 @@ static int target_create(Jim_GetOptInfo *goi)
 	e = target_configure(goi, target);
 
 	if (target->tap == NULL) {
-		Jim_SetResultString(goi->interp, "-chain-position required when creating target", -1);
+		Jim_SetResultString(goi->interp, "-chain-position or -dap required when creating target", -1);
 		e = JIM_ERR;
 	}
 
