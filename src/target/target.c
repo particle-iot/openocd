@@ -5576,7 +5576,7 @@ static int target_create(Jim_GetOptInfo *goi)
 	e = target_configure(goi, target);
 
 	if (target->tap == NULL) {
-		Jim_SetResultString(goi->interp, "-chain-position required when creating target", -1);
+		Jim_SetResultString(goi->interp, "-chain-position or -dap required when creating target", -1);
 		e = JIM_ERR;
 	}
 
