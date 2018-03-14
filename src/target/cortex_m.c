@@ -2228,25 +2228,17 @@ static int cortex_m_handle_target_request(void *priv)
 }
 
 static int cortex_m_init_arch_info(struct target *target,
-	struct cortex_m_common *cortex_m, struct jtag_tap *tap)
+	struct cortex_m_common *cortex_m, struct adiv5_dap *dap)
 {
 	struct armv7m_common *armv7m = &cortex_m->armv7m;
 
 	armv7m_init_arch_info(target, armv7m);
 
-	/*  tap has no dap initialized */
-	if (!tap->dap) {
-		tap->dap = dap_init();
-
-		/* Leave (only) generic DAP stuff for debugport_init() */
-		tap->dap->tap = tap;
-	}
-
 	/* default reset mode is to use srst if fitted
 	 * if not it will use CORTEX_M3_RESET_VECTRESET */
 	cortex_m->soft_reset_config = CORTEX_M_RESET_VECTRESET;
 
-	armv7m->arm.dap = tap->dap;
+	armv7m->arm.dap = dap;
 
 	/* register arch-specific functions */
 	armv7m->examine_debug_reason = cortex_m_examine_debug_reason;
@@ -2266,16 +2258,16 @@ static int cortex_m_init_arch_info(struct target *target,
 static int cortex_m_target_create(struct target *target, Jim_Interp *interp)
 {
 	struct cortex_m_common *cortex_m = calloc(1, sizeof(struct cortex_m_common));
-
 	cortex_m->common_magic = CORTEX_M_COMMON_MAGIC;
-	cortex_m_init_arch_info(target, cortex_m, target->tap);
+	struct adiv5_private_config *pc;
 
-	if (target->private_config != NULL) {
-		struct adiv5_private_config *pc =
-				(struct adiv5_private_config *)target->private_config;
-		cortex_m->apsel = pc->ap_num;
-	} else
-		cortex_m->apsel = -1;
+	if (target->private_config == NULL)
+		return ERROR_FAIL;
+
+	pc = (struct adiv5_private_config *)target->private_config;
+	cortex_m->apsel = pc->ap_num;
+
+	cortex_m_init_arch_info(target, cortex_m, pc->dap);
 
 	return ERROR_OK;
 }
