@@ -376,6 +376,62 @@ static int adapter_target_create(struct target *target,
 	return ERROR_OK;
 }
 
+enum adiv5_cfg_param {
+	CFG_DAP,
+};
+
+static const Jim_Nvp nvp_config_opts[] = {
+	{ .name = "-dap",    .value = CFG_DAP },
+	{ .name = NULL, .value = -1 }
+};
+
+static int dummy_adiv5_jim_configure(struct target *target, Jim_GetOptInfo *goi)
+{
+	int e;
+
+	while (goi->argc > 0) {
+		Jim_Nvp *n;
+
+		Jim_SetEmptyResult(goi->interp);
+
+		/* check first if topmost item is for us */
+		e = Jim_Nvp_name2value_obj(goi->interp, nvp_config_opts,
+								   goi->argv[0], &n);
+		if (e != JIM_OK)
+			return JIM_CONTINUE;
+
+		e = Jim_GetOpt_Obj(goi, NULL);
+		if (e != JIM_OK)
+			return e;
+
+		switch (n->value) {
+		case CFG_DAP:
+			if (goi->isconfigure) {
+				Jim_Obj *o_t;
+				e = Jim_GetOpt_Obj(goi, &o_t);
+				if (e != JIM_OK)
+					return e;
+				struct adiv5_dap *dap;
+				dap = dap_instance_by_jim_obj(goi->interp, o_t);
+				if (dap == NULL)
+					return JIM_ERR;
+				target->tap = dap->tap;
+			} else {
+				if (goi->argc != 0) {
+					Jim_WrongNumArgs(goi->interp, goi->argc, goi->argv,
+									 "NO PARAMS");
+					return JIM_ERR;
+				}
+				Jim_SetResultString(goi->interp, "DAP not configured", -1);
+				return JIM_ERR;
+			}
+			break;
+		}
+	}
+
+	return JIM_OK;
+}
+
 static int adapter_load_context(struct target *target)
 {
 	struct armv7m_common *armv7m = target_to_armv7m(target);
@@ -801,6 +857,7 @@ struct target_type hla_target = {
 	.init_target = adapter_init_target,
 	.deinit_target = cortex_m_deinit_target,
 	.target_create = adapter_target_create,
+	.target_jim_configure = dummy_adiv5_jim_configure,
 	.examine = cortex_m_examine,
 	.commands = adapter_command_handlers,
 
