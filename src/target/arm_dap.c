@@ -26,6 +26,7 @@
 #include "target/arm_adi_v5.h"
 #include "helper/list.h"
 #include "helper/command.h"
+#include "transport/transport.h"
 #include "jtag/swd.h"
 
 static LIST_HEAD(all_dap);
@@ -91,9 +92,11 @@ static int dap_init_all(void)
 				return retval;
 		}
 
-		retval = dap_dp_init(dap);
-		if (retval != ERROR_OK)
-			return retval;
+		if (!transport_is_hla()) {
+			retval = dap_dp_init(dap);
+			if (retval != ERROR_OK)
+				return retval;
+		}
 	}
 
 	return ERROR_OK;
