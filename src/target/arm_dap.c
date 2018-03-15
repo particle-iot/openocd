@@ -91,9 +91,11 @@ static int dap_init_all(void)
 				return retval;
 		}
 
-		retval = dap_dp_init(dap);
-		if (retval != ERROR_OK)
-			return retval;
+		if (!transport_is_hla()) {
+			retval = dap_dp_init(dap);
+			if (retval != ERROR_OK)
+				return retval;
+		}
 	}
 
 	return ERROR_OK;
