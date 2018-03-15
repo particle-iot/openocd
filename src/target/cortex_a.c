@@ -56,6 +56,7 @@
 #include "arm_semihosting.h"
 #include "jtag/swd.h"
 #include <helper/time_support.h>
+#include "transport/transport.h"
 
 static int cortex_a_poll(struct target *target);
 static int cortex_a_debug_entry(struct target *target);
