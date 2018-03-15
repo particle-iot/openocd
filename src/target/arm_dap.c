@@ -26,7 +26,7 @@
 #include "target/arm_adi_v5.h"
 #include "helper/list.h"
 #include "helper/command.h"
-#include "jtag/swd.h"
+#include "transport/transport.h"
 
 static LIST_HEAD(all_dap);
 
