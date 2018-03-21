@@ -1,6 +1,6 @@
 /***************************************************************************
  *                                                                         *
- *   Copyright (C) 2017 by Bohdan Tymkiv                                   *
+ *   Copyright (C) 2018 by Bohdan Tymkiv                                   *
  *   bohdan.tymkiv@cypress.com bohdan200@gmail.com                         *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
@@ -101,7 +101,7 @@ struct row_region {
 	size_t size;
 };
 
-static struct row_region safe_sflash_regions[] = {
+static const struct row_region safe_sflash_regions[] = {
 	{0x16000800, 0x800},	/* SFLASH: User Data */
 	{0x16001A00, 0x200},	/* SFLASH: NAR */
 	{0x16005A00, 0xC00},	/* SFLASH: Public Key */
@@ -111,6 +111,8 @@ static struct row_region safe_sflash_regions[] = {
 #define SFLASH_NUM_REGIONS (sizeof(safe_sflash_regions) / sizeof(safe_sflash_regions[0]))
 
 static struct working_area *g_stack_area;
+static struct armv7m_algorithm g_armv7m_info;
+
 /**************************************************************************************************
  * Initializes timeout_s structure with given timeout in milliseconds
  *************************************************************************************************/
@@ -130,14 +132,30 @@ static bool timeout_expired(struct timeout *to)
 
 /**************************************************************************************************
  * Prepares PSoC6 for running pseudo flash algorithm. This function allocates Working Area for
- * the algorithm and for CPU Stack.
+ * the algorithm and for CPU Stack, uploads and starts the algorithm.
+ * Algorithm is running asynchronously while driver performs Flash operations.
  *************************************************************************************************/
 static int sromalgo_prepare(struct target *target)
 {
+	static const uint16_t async_algo[] = {
+		0x4802,	/* ldr	r0, =flag */
+		0x2800,	/* cmp	r0, #0    */
+		0xD0FC,	/* beq	start     */
+		0xBE00,	/* bkpt	#0        */
+		/* flag: .word 0  */
+		0x0000, 0x0000, 0x0000, 0x0000,
+	};
+
 	int hr;
 
 	/* Initialize Vector Table Offset register (in case FW modified it) */
 	hr = target_write_u32(target, 0xE000ED08, 0x00000000);
+	if (hr != ERROR_OK)
+		return hr;
+
+	/* Restore THUMB bit in xPSR register */
+	const struct armv7m_common *cm = target_to_armv7m(target);
+	hr = cm->store_core_reg_u32(target, ARMV7M_xPSR, 0x01000000);
 	if (hr != ERROR_OK)
 		return hr;
 
@@ -146,16 +164,32 @@ static int sromalgo_prepare(struct target *target)
 	if (hr != ERROR_OK)
 		return hr;
 
-	/* Restore THUMB bit in xPSR register */
-	const struct armv7m_common *cm = target_to_armv7m(target);
-	hr = cm->store_core_reg_u32(target, ARMV7M_xPSR, 0x01000000);
+	g_armv7m_info.common_magic = ARMV7M_COMMON_MAGIC;
+	g_armv7m_info.core_mode = ARM_MODE_THREAD;
+
+	struct reg_param reg_params;
+	init_reg_param(&reg_params, "sp", 32, PARAM_OUT);
+	buf_set_u32(reg_params.value, 0, 32, g_stack_area->address + g_stack_area->size);
+
+	/* Write async algorithm to target RAM */
+	hr = target_write_buffer(target, g_stack_area->address, sizeof(async_algo),
+			(uint8_t *)async_algo);
 	if (hr != ERROR_OK)
-		goto exit_free_wa;
+		goto destroy_rp_free_wa;
 
-	return ERROR_OK;
+	hr = target_start_algorithm(target, 0, NULL, 1, &reg_params, g_stack_area->address,
+			0, &g_armv7m_info);
+	if (hr != ERROR_OK)
+		goto destroy_rp_free_wa;
 
-exit_free_wa:
-	/* Something went wrong, free allocated area */
+	destroy_reg_param(&reg_params);
+
+	return hr;
+
+destroy_rp_free_wa:
+	/* Something went wrong, do some cleanup */
+	destroy_reg_param(&reg_params);
+
 	if (g_stack_area) {
 		target_free_working_area(target, g_stack_area);
 		g_stack_area = NULL;
@@ -166,53 +200,32 @@ exit_free_wa:
 
 /**************************************************************************************************
  * Releases working area
+ * This function is also used for cleanup in case of errors
+ * g_stack_area and target->running_al may contain NULL values
+ * these cases have to be handled gracefully
  *************************************************************************************************/
 static int sromalgo_release(struct target *target)
 {
 	int hr = ERROR_OK;
 
-	/* Free Stack/Flash algorithm working area */
 	if (g_stack_area) {
-		hr = target_free_working_area(target, g_stack_area);
+		/* Stop flash algorithm if it is running */
+		if (target->running_alg) {
+			hr = target_write_u32(target, g_stack_area->address + 12, 0x01);
+			if (hr != ERROR_OK)
+				goto exit_free_wa;
+
+			hr = target_wait_algorithm(target, 0, NULL, 0, NULL, 0,
+					IPC_TIMEOUT_MS, &g_armv7m_info);
+			if (hr != ERROR_OK)
+				goto exit_free_wa;
+		}
+
+exit_free_wa:
+		/* Free Stack/Flash algorithm working area */
+		target_free_working_area(target, g_stack_area);
 		g_stack_area = NULL;
 	}
-
-	return hr;
-}
-
-/**************************************************************************************************
- * Runs pseudo flash algorithm. Algorithm itself consist of couple of NOPs followed by BKPT
- * instruction. The trick here is that NMI has already been posted to CM0 via IPC structure
- * prior to calling this function. CM0 will immediately jump to NMI handler and execute
- * SROM API code.
- * This approach is borrowed from PSoC4 Flash Driver.
- *************************************************************************************************/
-static int sromalgo_run(struct target *target)
-{
-	int hr;
-
-	struct armv7m_algorithm armv7m_info;
-	armv7m_info.common_magic = ARMV7M_COMMON_MAGIC;
-	armv7m_info.core_mode = ARM_MODE_THREAD;
-
-	struct reg_param reg_params;
-	init_reg_param(&reg_params, "sp", 32, PARAM_OUT);
-	buf_set_u32(reg_params.value, 0, 32, g_stack_area->address + g_stack_area->size);
-
-	/* mov r8, r8; mov r8, r8 */
-	hr = target_write_u32(target, g_stack_area->address + 0, 0x46C046C0);
-	if (hr != ERROR_OK)
-		return hr;
-
-	/* mov r8, r8; bkpt #0    */
-	hr = target_write_u32(target, g_stack_area->address + 4, 0xBE0046C0);
-	if (hr != ERROR_OK)
-		return hr;
-
-	hr = target_run_algorithm(target, 0, NULL, 1, &reg_params, g_stack_area->address,
-			0, SROMAPI_CALL_TIMEOUT_MS, &armv7m_info);
-
-	destroy_reg_param(&reg_params);
 
 	return hr;
 }
@@ -336,10 +349,6 @@ static int call_sromapi(struct target *target,
 	if (hr != ERROR_OK)
 		return hr;
 
-	hr = sromalgo_run(target);
-	if (hr != ERROR_OK)
-		return hr;
-
 	/* Poll lock status */
 	hr = ipc_poll_lock_stat(target, IPC_ID, false);
 	if (hr != ERROR_OK)
@@ -375,17 +384,17 @@ static int get_silicon_id(struct target *target, uint32_t *si_id, uint8_t *prote
 
 	hr = sromalgo_prepare(target);
 	if (hr != ERROR_OK)
-		return hr;
+		goto exit;
 
 	/* Read FamilyID and Revision */
 	hr = call_sromapi(target, SROMAPI_SIID_REQ_FAMILY_REVISION, 0, &family_rev);
 	if (hr != ERROR_OK)
-		return hr;
+		goto exit;
 
 	/* Read SiliconID and Protection */
 	hr = call_sromapi(target, SROMAPI_SIID_REQ_SIID_PROTECTION, 0, &siid_prot);
 	if (hr != ERROR_OK)
-		return hr;
+		goto exit;
 
 	*si_id  = (siid_prot & 0x0000FFFF) << 16;
 	*si_id |= (family_rev & 0x00FF0000) >> 8;
@@ -393,6 +402,7 @@ static int get_silicon_id(struct target *target, uint32_t *si_id, uint8_t *prote
 
 	*protection = (siid_prot & 0x000F0000) >> 0x10;
 
+exit:
 	hr = sromalgo_release(target);
 	return hr;
 }
@@ -681,7 +691,7 @@ static int psoc6_erase(struct flash_bank *bank, int first, int last)
 
 	hr = sromalgo_prepare(target);
 	if (hr != ERROR_OK)
-		return hr;
+		goto exit;
 
 	hr = target_alloc_working_area(target, psoc6_info->row_sz + 32, &wa);
 	if (hr != ERROR_OK)
@@ -787,11 +797,11 @@ static int psoc6_program(struct flash_bank *bank,
 	const bool is_sflash = is_sflash_bank(bank);
 	int hr;
 
+	uint8_t page_buf[psoc6_info->row_sz];
+
 	hr = sromalgo_prepare(target);
 	if (hr != ERROR_OK)
-		return hr;
-
-	uint8_t page_buf[psoc6_info->row_sz];
+		goto exit;
 
 	while (count) {
 		uint32_t row_offset = offset % psoc6_info->row_sz;
@@ -804,7 +814,7 @@ static int psoc6_program(struct flash_bank *bank,
 		hr = psoc6_program_row(bank, aligned_addr, page_buf, is_sflash);
 		if (hr != ERROR_OK) {
 			LOG_ERROR("Failed to program Flash at address 0x%08X", aligned_addr);
-			break;
+			goto exit;
 		}
 
 		buffer += row_bytes;
@@ -812,6 +822,7 @@ static int psoc6_program(struct flash_bank *bank,
 		count -= row_bytes;
 	}
 
+exit:
 	hr = sromalgo_release(target);
 	return hr;
 }
@@ -889,31 +900,30 @@ int handle_reset_halt(struct target *target)
 
 	const struct armv7m_common *cm = target_to_armv7m(target);
 
+	/* PSoC6 reboots immediatelly after issuing SYSRESETREQ / VECTRESET
+	 * this disables SWD/JTAG pins momentarily and may break communication
+	 * Ignoring return value of mem_ap_write_atomic_u32 seems to be ok here */
 	if (is_cm0) {
 		/* Reset the CM0 by asserting SYSRESETREQ. This will also reset CM4 */
 		LOG_INFO("psoc6.cm0: bkpt @0x%08X, issuing SYSRESETREQ", reset_addr);
-		hr = mem_ap_write_atomic_u32(cm->debug_ap,
-				NVIC_AIRCR,
-				AIRCR_VECTKEY | AIRCR_SYSRESETREQ);
-
-		/* Wait for bootcode and initialize DAP */
-		usleep(3000);
-		dap_dp_init(cm->debug_ap->dap);
+		mem_ap_write_atomic_u32(cm->debug_ap, NVIC_AIRCR,
+			AIRCR_VECTKEY | AIRCR_SYSRESETREQ);
 	} else {
 		LOG_INFO("psoc6.cm4: bkpt @0x%08X, issuing VECTRESET", reset_addr);
-		hr = mem_ap_write_atomic_u32(cm->debug_ap,
-				NVIC_AIRCR,
-				AIRCR_VECTKEY | AIRCR_VECTRESET);
-		if (hr != ERROR_OK)
-			return hr;
+		mem_ap_write_atomic_u32(cm->debug_ap, NVIC_AIRCR,
+			AIRCR_VECTKEY | AIRCR_VECTRESET);
 	}
+
+	/* Wait 100ms for bootcode and reinitialize DAP */
+	usleep(100000);
+	dap_dp_init(cm->debug_ap->dap);
 
 	target_wait_state(target, TARGET_HALTED, IPC_TIMEOUT_MS);
 
 	/* Remove the break point */
 	breakpoint_remove(target, reset_addr);
 
-	return hr;
+	return ERROR_OK;
 }
 
 COMMAND_HANDLER(psoc6_handle_reset_halt)
