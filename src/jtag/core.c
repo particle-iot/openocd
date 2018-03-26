@@ -35,6 +35,7 @@
 #include "interface.h"
 #include <transport/transport.h>
 #include <helper/jep106.h>
+#include "target/arm_cti.h"
 
 #ifdef HAVE_STRINGS_H
 #include <strings.h>
@@ -1493,8 +1494,6 @@ int adapter_quit(void)
 		jtag_tap_free(t);
 		t = n;
 	}
-
-	dap_cleanup_all();
 
 	return ERROR_OK;
 }
