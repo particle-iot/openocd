@@ -35,6 +35,7 @@
 #include "interface.h"
 #include <transport/transport.h>
 #include <helper/jep106.h>
+#include "target/arm_cti.h"
 
 #ifdef HAVE_STRINGS_H
 #include <strings.h>
@@ -1495,6 +1496,7 @@ int adapter_quit(void)
 	}
 
 	dap_cleanup_all();
+	arm_cti_cleanup_all();
 
 	return ERROR_OK;
 }
