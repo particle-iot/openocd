@@ -1596,6 +1596,13 @@ int jtag_init(struct command_context *cmd_ctx)
 	if (retval != ERROR_OK)
 		return retval;
 
+	/* For interfaces supporting also SWD mode, be sure we are in JTAG mode */
+	if (jtag->swd && jtag->swd->switch_seq) {
+		retval = jtag->swd->switch_seq(SWD_TO_JTAG);
+		if (retval != ERROR_OK)
+			return retval;
+	}
+
 	if (Jim_Eval_Named(cmd_ctx->interp, "jtag_init", __FILE__, __LINE__) != JIM_OK)
 		return ERROR_FAIL;
 
