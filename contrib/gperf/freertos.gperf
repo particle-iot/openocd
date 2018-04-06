@@ -1,0 +1,27 @@
+%define lookup-function-name freertos_in_word_set
+%{
+typedef enum {
+	freertos_target_name = 0,
+	freertos_thread_count_width,
+	freertos_pointer_width,
+	freertos_list_next_offset,
+	freertos_list_width,
+	freertos_list_elem_next_offset,
+	freertos_list_elem_content_offset,
+	freertos_thread_stack_offset,
+	freertos_thread_name_offset,
+	freertos_option_count,
+	freertos_invalid = -1,
+} freertos_option_t;
+%}
+struct freertos_lookup_entry { char * name; freertos_option_t option; };
+%%
+target_name,                freertos_target_name
+thread_count_width,         freertos_thread_count_width
+pointer_width,              freertos_pointer_width
+list_next_offset,           freertos_list_next_offset
+list_width,                 freertos_list_width
+list_elem_next_offset,      freertos_list_elem_next_offset
+list_elem_content_offset,   freertos_list_elem_content_offset
+thread_stack_offset,        freertos_thread_stack_offset
+thread_name_offset,         freertos_thread_name_offset
