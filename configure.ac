@@ -2,6 +2,7 @@ AC_PREREQ(2.64)
 AC_INIT([openocd], [0.10.0+dev],
   [OpenOCD Mailing List <openocd-devel@lists.sourceforge.net>])
 AC_CONFIG_SRCDIR([src/openocd.c])
+AC_CONFIG_MACRO_DIR([m4])
 
 m4_include([config_subdir.m4])dnl
 
@@ -28,6 +29,16 @@ AC_PROG_CC_C99
 AM_PROG_CC_C_O
 AC_PROG_RANLIB
 PKG_PROG_PKG_CONFIG([0.23])
+
+AX_GPERF_VERSION([3.1])
+AC_CHECK_PROG([python3],[python3],[yes],[no])
+
+AS_IF([test "x$python3" = xno], [
+  AC_MSG_WARN([python3 not found: gperf files will not be rebuilt])
+  AM_CONDITIONAL([HAVE_PYTHON3], false)
+], [
+  AM_CONDITIONAL([HAVE_PYTHON3], true)
+])
 
 dnl disable checks for C++, Fortran and GNU Java Compiler
 m4_defun([_LT_AC_LANG_CXX_CONFIG], [:])
