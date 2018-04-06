@@ -1,0 +1,10 @@
+%define lookup-function-name rtos_in_word_set
+%{
+typedef enum {
+	rtos_freertos = 0,
+	rtos_invalid = -1
+} rtos_option_t;
+%}
+struct rtos_lookup_entry { char * name; rtos_option_t option; };
+%%
+freertos, rtos_freertos

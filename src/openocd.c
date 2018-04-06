@@ -39,6 +39,7 @@
 #include <flash/mflash.h>
 #include <target/arm_cti.h>
 #include <target/arm_adi_v5.h>
+#include <rtos/rtos.h>
 
 #include <server/server.h>
 #include <server/gdb_server.h>
@@ -232,6 +233,46 @@ static int openocd_register_commands(struct command_context *cmd_ctx)
 	return register_commands(cmd_ctx, NULL, openocd_command_handlers);
 }
 
+static int register_rtos_targets(struct command_context *cmd_ctx)
+{
+	static const char *sources[] = {
+		"rtos/freertos.tcl"
+	};
+
+	int result = ERROR_FAIL;
+	char *path;
+	const size_t buffer_size = 512;
+	char *buffer = calloc(buffer_size, 1);
+
+	for (size_t i = 0; i < ARRAY_SIZE(sources); i++) {
+		path = find_file(sources[i]);
+
+		if (path == NULL) {
+			LOG_WARNING("Unable to find file %s", sources[i]);
+			goto error;
+		}
+
+		buffer[0] = '\0';
+		strncat(buffer, "script ", buffer_size);
+		strncat(buffer, path, buffer_size);
+
+		if (command_run_line(cmd_ctx, buffer) != ERROR_OK) {
+			LOG_WARNING("Command failed: %s", buffer);
+			free(path);
+			goto error;
+		}
+
+		free(path);
+	}
+
+	result = ERROR_OK;
+error:
+	if (buffer)
+		free(buffer);
+
+	return result;
+}
+
 struct command_context *global_cmd_ctx;
 
 /* NB! this fn can be invoked outside this file for non PC hosted builds
@@ -260,6 +301,7 @@ struct command_context *setup_command_handler(Jim_Interp *interp)
 		&mflash_register_commands,
 		&cti_register_commands,
 		&dap_register_commands,
+		&rtos_register_commands,
 		NULL
 	};
 	for (unsigned i = 0; NULL != command_registrants[i]; i++) {
@@ -292,6 +334,9 @@ static int openocd_thread(int argc, char *argv[], struct command_context *cmd_ct
 
 	if (server_preinit() != ERROR_OK)
 		return ERROR_FAIL;
+
+	if (register_rtos_targets(cmd_ctx) != ERROR_OK)
+		LOG_WARNING("Couldn't register RTOS targets");
 
 	ret = parse_config_file(cmd_ctx);
 	if (ret == ERROR_COMMAND_CLOSE_CONNECTION) {
@@ -341,6 +386,9 @@ int openocd_main(int argc, char *argv[])
 		return EXIT_FAILURE;
 
 	if (ioutil_init(cmd_ctx) != ERROR_OK)
+		return EXIT_FAILURE;
+
+	if (rtos_init() != ERROR_OK)
 		return EXIT_FAILURE;
 
 	LOG_OUTPUT("For bug reports, read\n\t"
