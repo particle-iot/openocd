@@ -112,6 +112,7 @@ static const struct stack_register_offset rtos_threadx_arm926ejs_stack_offsets_i
 
 const struct rtos_register_stacking rtos_threadx_arm926ejs_stacking[] = {
 {
+	"threadx_arm926ejs_default",
 	ARM926EJS_REGISTERS_SIZE_SOLICITED,	/* stack_registers_size */
 	-1,									/* stack_growth_direction */
 	17,									/* num_output_registers */
@@ -119,6 +120,7 @@ const struct rtos_register_stacking rtos_threadx_arm926ejs_stacking[] = {
 	rtos_threadx_arm926ejs_stack_offsets_solicited	/* register_offsets */
 },
 {
+	"threadx_arm926ejs_interrupt",
 	ARM926EJS_REGISTERS_SIZE_INTERRUPT,	/* stack_registers_size */
 	-1,									/* stack_growth_direction */
 	17,									/* num_output_registers */
