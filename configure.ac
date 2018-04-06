@@ -773,6 +773,7 @@ AS_IF([test "x${gcc_wextra}" = "xyes"], [
 AS_IF([test "x${gcc_werror}" = "xyes"], [
   GCC_WARNINGS="${GCC_WARNINGS} -Werror"
 ])
+GCC_WARNINGS="${GCC_WARNINGS} -Wno-missing-field-initializers"
 
 # overide default gcc cflags
 AS_IF([test "x$gcc_warnings" = "xyes"], [

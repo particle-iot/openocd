@@ -20,6 +20,7 @@
 #define OPENOCD_RTOS_RTOS_H
 
 #include "server/server.h"
+#include "helper/list.h"
 #include <jim-nvp.h>
 
 typedef int64_t threadid_t;
@@ -58,6 +59,8 @@ struct rtos {
 	void *rtos_specific_params;
 };
 
+typedef int (*rtos_generic_conf_add)(Jim_Interp *, Jim_Obj **, int);
+
 struct rtos_type {
 	const char *name;
 	bool (*detect_rtos)(struct target *target);
@@ -68,6 +71,8 @@ struct rtos_type {
 	int (*get_symbol_list_to_lookup)(symbol_table_elem_t *symbol_list[]);
 	int (*clean)(struct target *target);
 	char * (*ps_command)(struct target *target);
+	int (*conf_add)(Jim_Interp *, Jim_Obj **, Jim_Obj *, int);
+	int (*conf_list)(void);
 };
 
 struct stack_register_offset {
@@ -78,6 +83,7 @@ struct stack_register_offset {
 };
 
 struct rtos_register_stacking {
+	const char *name;
 	unsigned char stack_registers_size;
 	signed char stack_growth_direction;
 	unsigned char num_output_registers;
@@ -91,6 +97,7 @@ struct rtos_register_stacking {
 		const struct rtos_register_stacking *stacking,
 		int64_t stack_ptr);
 	const struct stack_register_offset *register_offsets;
+	struct list_head list;
 };
 
 #define GDB_THREAD_PACKET_NOT_CONSUMED (-40)
@@ -108,5 +115,8 @@ void rtos_free_threadlist(struct rtos *rtos);
 int rtos_smp_init(struct target *target);
 /*  function for handling symbol access */
 int rtos_qsymbol(struct connection *connection, char const *packet, int packet_size);
+int rtos_register_commands(struct command_context *cmd_ctx);
+struct rtos_register_stacking *rtos_get_stacking(const char *name);
+int rtos_init(void);
 
 #endif /* OPENOCD_RTOS_RTOS_H */
