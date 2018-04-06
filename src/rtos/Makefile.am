@@ -24,6 +24,17 @@ noinst_LTLIBRARIES += %D%/librtos.la
 	%D%/rtos_mqx_stackings.h \
 	%D%/rtos_ucos_iii_stackings.h
 
+BUILT_SOURCES += \
+	%D%/FreeRTOS_gperf.c \
+	%D%/rtos_gperf.c
+
+SUFFIXES += .gperf _gperf.c
+
+GPERF_OPTIONS = -L ANSI-C -t
+
+.gperf_gperf.c:
+	$(GPERF) $(GPERF_OPTIONS) $< > $@
+
 %C%_librtos_la_CFLAGS = $(AM_CFLAGS)
 
 if IS_MINGW

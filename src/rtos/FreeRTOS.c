@@ -27,11 +27,11 @@
 #include "rtos.h"
 #include "helper/log.h"
 #include "helper/types.h"
+#include "helper/serdes.h"
 #include "rtos_standard_stackings.h"
 #include "target/armv7m.h"
 #include "target/cortex_m.h"
-
-
+#include "FreeRTOS_gperf.c"
 
 #define FREERTOS_MAX_PRIORITIES	63
 
@@ -104,6 +104,7 @@ static int FreeRTOS_create(struct target *target);
 static int FreeRTOS_update_threads(struct rtos *rtos);
 static int FreeRTOS_get_thread_reg_list(struct rtos *rtos, int64_t thread_id, char **hex_reg_list);
 static int FreeRTOS_get_symbol_list_to_lookup(symbol_table_elem_t *symbol_list[]);
+static int FreeRTOS_conf_add(Jim_Interp *interp, Jim_Obj **elements, int count);
 
 struct rtos_type FreeRTOS_rtos = {
 	.name = "FreeRTOS",
@@ -113,6 +114,7 @@ struct rtos_type FreeRTOS_rtos = {
 	.update_threads = FreeRTOS_update_threads,
 	.get_thread_reg_list = FreeRTOS_get_thread_reg_list,
 	.get_symbol_list_to_lookup = FreeRTOS_get_symbol_list_to_lookup,
+	.conf_add = FreeRTOS_conf_add,
 };
 
 enum FreeRTOS_symbol_values {
@@ -552,4 +554,36 @@ static int FreeRTOS_create(struct target *target)
 
 	target->rtos->rtos_specific_params = (void *) &FreeRTOS_params_list[i];
 	return 0;
+}
+
+static int FreeRTOS_conf_add(Jim_Interp *interp, Jim_Obj **elements, int count)
+{
+	static const struct serdes_field fields[] = {
+		{ serdes_string, offsetof(struct FreeRTOS_params, target_name) },
+		{ serdes_uint8,  offsetof(struct FreeRTOS_params, thread_count_width) },
+		{ serdes_uint8,  offsetof(struct FreeRTOS_params, pointer_width) },
+		{ serdes_uint8,  offsetof(struct FreeRTOS_params, list_next_offset) },
+		{ serdes_uint8,  offsetof(struct FreeRTOS_params, list_width) },
+		{ serdes_uint8,  offsetof(struct FreeRTOS_params, list_elem_next_offset) },
+		{ serdes_uint8,  offsetof(struct FreeRTOS_params, list_elem_content_offset) },
+		{ serdes_uint8,  offsetof(struct FreeRTOS_params, thread_stack_offset) },
+		{ serdes_uint8,  offsetof(struct FreeRTOS_params, thread_name_offset) },
+		{ 0, -1 }
+	};
+
+	struct FreeRTOS_params params;
+	int result = ERROR_FAIL;
+
+	if (count != freertos_option_count * 2) {
+		LOG_ERROR("freertos: invalid number of elements in configuration");
+	}
+
+	if (serdes_read_struct(interp, elements, fields, &params) != ERROR_OK) {
+		LOG_ERROR("freertos: unable to read configuration");
+		goto error;
+	}
+
+	result = ERROR_OK;
+error:
+	return result;
 }
