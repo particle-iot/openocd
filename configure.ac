@@ -13,6 +13,8 @@ AS_IF([test "x$MAKEINFO" = "x"], [
 ])
 AC_SUBST([MAKEINFO])
 
+AM_MISSING_PROG([GPERF], [gperf])
+
 AM_INIT_AUTOMAKE([-Wall -Wno-portability dist-bzip2 dist-zip subdir-objects])
 
 AC_CONFIG_HEADERS([config.h])
@@ -761,6 +763,7 @@ AC_DEFINE([_GNU_SOURCE],[1],[Use GNU C library extensions (e.g. stdndup).])
 
 # set default gcc warnings
 GCC_WARNINGS="-Wall -Wstrict-prototypes -Wformat-security -Wshadow"
+GCC_WARNINGS="${GCC_WARNINGS} -Wno-missing-field-initializers"
 AS_IF([test "x${gcc_wextra}" = "xyes"], [
   GCC_WARNINGS="${GCC_WARNINGS} -Wextra -Wno-unused-parameter"
   GCC_WARNINGS="${GCC_WARNINGS} -Wbad-function-cast"

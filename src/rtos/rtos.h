@@ -58,6 +58,8 @@ struct rtos {
 	void *rtos_specific_params;
 };
 
+typedef int (* rtos_generic_conf_add)(Jim_Interp *, Jim_Obj **, int);
+
 struct rtos_type {
 	const char *name;
 	bool (*detect_rtos)(struct target *target);
@@ -68,6 +70,7 @@ struct rtos_type {
 	int (*get_symbol_list_to_lookup)(symbol_table_elem_t *symbol_list[]);
 	int (*clean)(struct target *target);
 	char * (*ps_command)(struct target *target);
+	int (*conf_add)(Jim_Interp *, Jim_Obj **, int);
 };
 
 struct stack_register_offset {
@@ -108,5 +111,6 @@ void rtos_free_threadlist(struct rtos *rtos);
 int rtos_smp_init(struct target *target);
 /*  function for handling symbol access */
 int rtos_qsymbol(struct connection *connection, char const *packet, int packet_size);
+int rtos_register_commands(struct command_context *cmd_ctx);
 
 #endif /* OPENOCD_RTOS_RTOS_H */
