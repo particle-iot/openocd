@@ -43,6 +43,7 @@ static const struct stack_register_offset rtos_eCos_Cortex_M3_stack_offsets[ARMV
 };
 
 const struct rtos_register_stacking rtos_eCos_Cortex_M3_stacking = {
+	"ecos_cortex_m3",
 	0x44,					/* stack_registers_size */
 	-1,						/* stack_growth_direction */
 	ARMV7M_NUM_CORE_REGS,	/* num_output_registers */

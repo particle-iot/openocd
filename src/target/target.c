@@ -1403,7 +1403,6 @@ int target_register_reset_callback(int (*callback)(struct target *target,
 	entry->priv = priv;
 	list_add(&entry->list, &target_reset_callback_list);
 
-
 	return ERROR_OK;
 }
 
