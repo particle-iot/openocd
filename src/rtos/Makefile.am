@@ -26,6 +26,37 @@ noinst_LTLIBRARIES += %D%/librtos.la
 
 %C%_librtos_la_CFLAGS = $(AM_CFLAGS)
 
+noinst_LTLIBRARIES += %D%/librtos_gperf.la
+%C%_librtos_gperf_la_SOURCES = \
+	%D%/freertos_gperf.c \
+	%D%/freertos_gperf.h \
+	%D%/rtos_gperf.c \
+	%D%/rtos_gperf.h
+
+%C%_librtos_gperf_la_CFLAGS = $(AM_CFLAGS) -Wno-missing-field-initializers
+
+if HAVE_GPERF_VERSION
+if HAVE_PYTHON3
+
+GPERF_OPTIONS = -L ANSI-C -t
+GPERF_SRCDIR = $(srcdir)
+
+BUILT_SOURCES += \
+	$(GPERF_SRCDIR)/%D%/freertos_gperf.c \
+	$(GPERF_SRCDIR)/%D%/freertos_gperf.h \
+	$(GPERF_SRCDIR)/%D%/rtos_gperf.c \
+	$(GPERF_SRCDIR)/%D%/rtos_gperf.h
+
+%_gperf.c %_gperf.h: %.gperf
+	gperf $(GPERF_OPTIONS) $< > $@
+	$(srcdir)/%D%/gperf_convert.py $< $@ $(basename $@).h
+
+CLEANFILES += \
+	$(BUILT_SOURCES)
+
+endif # HAVE_PYTHON3
+endif # HAVE_GPERF_VERSION
+
 if IS_MINGW
 # FD_* macros are sloppy with their signs on MinGW32 platform
 %C%_librtos_la_CFLAGS += -Wno-sign-compare
