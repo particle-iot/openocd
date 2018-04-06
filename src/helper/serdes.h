@@ -1,6 +1,6 @@
 /***************************************************************************
- *   Copyright (C) 2011 by Broadcom Corporation                            *
- *   Evan Hunter - ehunter@broadcom.com                                    *
+ *   Copyright (C) 2018 by Vlad Ivanov                                     *
+ *   vlad@ivanov.email                                                     *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -16,25 +16,41 @@
  *   along with this program.  If not, see <http://www.gnu.org/licenses/>. *
  ***************************************************************************/
 
-#ifndef OPENOCD_RTOS_RTOS_STANDARD_STACKINGS_H
-#define OPENOCD_RTOS_RTOS_STANDARD_STACKINGS_H
+#ifndef OPENOCD_HELPER_SERDES_H
+#define OPENOCD_HELPER_SERDES_H
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
+#include <stdlib.h>
+#include <stddef.h>
 
-#include "rtos.h"
+enum serdes_type {
+	serdes_int8,
+	serdes_uint8,
+	serdes_int32,
+	serdes_uint32,
+	serdes_string,
+};
 
-extern struct rtos_register_stacking rtos_standard_Cortex_M3_stacking;
-extern struct rtos_register_stacking rtos_standard_Cortex_M4F_stacking;
-extern struct rtos_register_stacking rtos_standard_Cortex_M4F_FPU_stacking;
-extern struct rtos_register_stacking rtos_standard_Cortex_R4_stacking;
-extern struct rtos_register_stacking rtos_standard_NDS32_N1068_stacking;
-int64_t rtos_generic_stack_align8(struct target *target,
-	const uint8_t *stack_data, const struct rtos_register_stacking *stacking,
-	int64_t stack_ptr);
-int64_t rtos_Cortex_M_stack_align(struct target *target,
-	const uint8_t *stack_data, const struct rtos_register_stacking *stacking,
-	int64_t stack_ptr, size_t xpsr_offset);
+struct serdes_field {
+	enum serdes_type type;
+	off_t offset;
+	const char *name;
+};
 
-#endif /* OPENOCD_RTOS_RTOS_STANDARD_STACKINGS_H */
+typedef void *(*serdes_check_fn_t)(const char *text, size_t len);
+typedef int (*serdes_value_fn_t)(void *result);
+
+struct serdes_wordset {
+	serdes_check_fn_t check;
+	serdes_value_fn_t value;
+};
+
+#define SERDES_FIELD(type, base_type, name) \
+	{ (type), offsetof(base_type, name), (#name) }
+
+int serdes_read_struct(Jim_Interp *interp, Jim_Obj **objects,
+		const struct serdes_field *fields, const struct serdes_wordset *wordset,
+		void *storage);
+
+int serdes_print_struct(const struct serdes_field *fields, void *storage);
+
+#endif /* OPENOCD_HELPER_SERDES_H */
