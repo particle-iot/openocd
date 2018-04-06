@@ -78,6 +78,7 @@ Free Documentation License''.
 * Architecture and Core Commands::   Architecture and Core Commands
 * JTAG Commands::                    JTAG Commands
 * Boundary Scan Commands::           Boundary Scan Commands
+* RTOS Commands::                    RTOS Commands
 * Utility Commands::                 Utility Commands
 * TFTP::                             TFTP
 * GDB and OpenOCD::                  Using GDB and OpenOCD
@@ -9486,6 +9487,54 @@ two opcodes supporting a more accurate translation of SVF
 If @emph{xsvfdump} shows a file is using those opcodes, it
 probably will not be usable with other XSVF tools.
 
+@node RTOS Commands
+@chapter RTOS Commands
+@cindex RTOS Commands
+
+@section RTOS target configurations
+
+@deffn Command {rtos conf add} @option{-type @var{rtostype}}
+
+Add RTOS target configuration. Only FreeRTOS is currently supported.
+This command accepts a dictionary containing RTOS-specific configuration
+and a list of stack layouts passed to RTOS backend. Although the contents
+of the dictionary and number of stackings will be changing for different
+RTOSes, command format stays the same.
+
+@example
+rtos conf add -type freertos [ dict create \
+    @{ target_name              @} @{"cortex_m" @} \
+    @{ thread_count_width       @} @{ 4         @} \
+    @{ pointer_width            @} @{ 4         @} \
+    @{ list_next_offset         @} @{ 16        @} \
+    @{ list_width               @} @{ 20        @} \
+    @{ list_elem_next_offset    @} @{ 8         @} \
+    @{ list_elem_content_offset @} @{ 12        @} \
+    @{ thread_stack_offset      @} @{ 0         @} \
+    @{ thread_name_offset       @} @{ 52        @} \
+] [ list \
+    standard_cortex_m3 \
+    standard_cortex_m4f \
+    standard_cortex_m4f_fpu \
+]
+@end example
+
+@end deffn
+
+@deffn Command {rtos conf list} @option{-type @var{rtostype}}
+
+This command can be used for debugging purposes to list available RTOS
+configurations created so far.
+
+@end deffn
+
+@section RTOS stackings
+
+@deffn Command {rtos stack list}
+
+List stack layouts available for use with @command{rtos conf add}.
+
+@end deffn
 
 @node Utility Commands
 @chapter Utility Commands
@@ -9909,6 +9958,14 @@ contrib/rtos-helpers/FreeRTOS-openocd.c
 @item uC/OS-III
 contrib/rtos-helpers/uCOS-III-openocd.c
 @end table
+
+@section RTOS configurations
+
+Some RTOSes suppport target definitions provided in a form of command in a startup
+file. Users can create an RTOS target with custom settings such as target pointer
+width, task list element size, stack layout, and so on.
+
+As for now, only FreeRTOS supports this feature.
 
 @node Tcl Scripting API
 @chapter Tcl Scripting API

@@ -248,42 +248,52 @@ static int64_t rtos_standard_Cortex_M4F_FPU_stack_align(struct target *target,
 }
 
 
-const struct rtos_register_stacking rtos_standard_Cortex_M3_stacking = {
+struct rtos_register_stacking rtos_standard_Cortex_M3_stacking = {
+	"standard_cortex_m3",
 	0x40,					/* stack_registers_size */
 	-1,						/* stack_growth_direction */
 	ARMV7M_NUM_CORE_REGS,	/* num_output_registers */
 	rtos_standard_Cortex_M3_stack_align,	/* stack_alignment */
-	rtos_standard_Cortex_M3_stack_offsets	/* register_offsets */
+	rtos_standard_Cortex_M3_stack_offsets,	/* register_offsets */
+	{ NULL, NULL }
 };
 
-const struct rtos_register_stacking rtos_standard_Cortex_M4F_stacking = {
+struct rtos_register_stacking rtos_standard_Cortex_M4F_stacking = {
+	"standard_cortex_m4f",
 	0x44,					/* stack_registers_size 4 more for LR*/
 	-1,						/* stack_growth_direction */
 	ARMV7M_NUM_CORE_REGS,	/* num_output_registers */
 	rtos_standard_Cortex_M4F_stack_align,	/* stack_alignment */
-	rtos_standard_Cortex_M4F_stack_offsets	/* register_offsets */
+	rtos_standard_Cortex_M4F_stack_offsets,	/* register_offsets */
+	{ NULL, NULL }
 };
 
-const struct rtos_register_stacking rtos_standard_Cortex_M4F_FPU_stacking = {
+struct rtos_register_stacking rtos_standard_Cortex_M4F_FPU_stacking = {
+	"standard_cortex_m4f_fpu",
 	0xcc,					/* stack_registers_size 4 more for LR + 48 more for FPU S0-S15 register*/
 	-1,						/* stack_growth_direction */
 	ARMV7M_NUM_CORE_REGS,	/* num_output_registers */
 	rtos_standard_Cortex_M4F_FPU_stack_align,	/* stack_alignment */
-	rtos_standard_Cortex_M4F_FPU_stack_offsets	/* register_offsets */
+	rtos_standard_Cortex_M4F_FPU_stack_offsets,	/* register_offsets */
+	{ NULL, NULL }
 };
 
-const struct rtos_register_stacking rtos_standard_Cortex_R4_stacking = {
+struct rtos_register_stacking rtos_standard_Cortex_R4_stacking = {
+	"standard_cortex_r4",
 	0x48,				/* stack_registers_size */
 	-1,					/* stack_growth_direction */
 	26,					/* num_output_registers */
 	rtos_generic_stack_align8,	/* stack_alignment */
-	rtos_standard_Cortex_R4_stack_offsets	/* register_offsets */
+	rtos_standard_Cortex_R4_stack_offsets,	/* register_offsets */
+	{ NULL, NULL }
 };
 
-const struct rtos_register_stacking rtos_standard_NDS32_N1068_stacking = {
+struct rtos_register_stacking rtos_standard_NDS32_N1068_stacking = {
+	"standard_nds32_n1068",
 	0x90,				/* stack_registers_size */
 	-1,					/* stack_growth_direction */
 	32,					/* num_output_registers */
 	rtos_generic_stack_align8,	/* stack_alignment */
-	rtos_standard_NDS32_N1068_stack_offsets	/* register_offsets */
+	rtos_standard_NDS32_N1068_stack_offsets,	/* register_offsets */
+	{ NULL, NULL }
 };
