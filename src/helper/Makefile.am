@@ -15,6 +15,7 @@ noinst_LTLIBRARIES += %D%/libhelper.la
 	%D%/util.c \
 	%D%/jep106.c \
 	%D%/jim-nvp.c \
+	%D%/serdes.c \
 	%D%/binarybuffer.h \
 	%D%/configuration.h \
 	%D%/ioutil.h \
@@ -29,7 +30,8 @@ noinst_LTLIBRARIES += %D%/libhelper.la
 	%D%/system.h \
 	%D%/jep106.h \
 	%D%/jep106.inc \
-	%D%/jim-nvp.h
+	%D%/jim-nvp.h \
+	%D%/serdes.h
 
 if IOUTIL
 %C%_libhelper_la_SOURCES += %D%/ioutil.c
