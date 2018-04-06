@@ -20,11 +20,16 @@
 #include "config.h"
 #endif
 
+#include <jim-nvp.h>
+
 #include "rtos.h"
+#include "rtos_standard_stackings.h"
 #include "target/target.h"
 #include "helper/log.h"
 #include "helper/binarybuffer.h"
+#include "helper/list.h"
 #include "server/gdb_server.h"
+#include "rtos_gperf.c"
 
 /* RTOSs */
 extern struct rtos_type FreeRTOS_rtos;
@@ -35,6 +40,8 @@ extern struct rtos_type ChibiOS_rtos;
 extern struct rtos_type embKernel_rtos;
 extern struct rtos_type mqx_rtos;
 extern struct rtos_type uCOS_III_rtos;
+
+static LIST_HEAD(rtos_stackings_list);
 
 static struct rtos_type *rtos_types[] = {
 	&ThreadX_rtos,
@@ -575,4 +582,257 @@ void rtos_free_threadlist(struct rtos *rtos)
 		rtos->current_threadid = -1;
 		rtos->current_thread = 0;
 	}
+}
+
+struct rtos_register_stacking *rtos_get_stacking(const char *name)
+{
+	struct rtos_register_stacking *stacking;
+
+	list_for_each_entry(stacking, &rtos_stackings_list, list)
+		if (strcmp(name, stacking->name) == 0)
+			return stacking;
+
+	return NULL;
+}
+
+int rtos_init(void)
+{
+	static struct rtos_register_stacking *stackings[] = {
+		&rtos_standard_Cortex_M3_stacking,
+		&rtos_standard_Cortex_M4F_stacking,
+		&rtos_standard_Cortex_M4F_FPU_stacking,
+		&rtos_standard_Cortex_R4_stacking,
+		&rtos_standard_NDS32_N1068_stacking,
+	};
+
+	for (size_t i = 0; i < ARRAY_SIZE(stackings); i++)
+		list_add(&stackings[i]->list, &rtos_stackings_list);
+
+	return ERROR_OK;
+}
+
+static const struct rtos_type *rtos_conf_map[] = {
+	[rtos_freertos] = &FreeRTOS_rtos,
+};
+
+static rtos_option_t get_rtos_type(Jim_GetOptInfo *goi)
+{
+	enum rtos_add_options {
+		ADD_OPT_TYPE = 0,
+	};
+
+	static const Jim_Nvp options[] = {
+		{ .name = "-type", .value = ADD_OPT_TYPE },
+		{ NULL, -1 },
+	};
+
+	Jim_Nvp *nvp;
+	rtos_option_t result = rtos_invalid;
+
+	if (Jim_GetOpt_Nvp(goi, options, &nvp) != JIM_OK)
+		goto error;
+
+	if (nvp->value == ADD_OPT_TYPE) {
+		const char *value;
+		int value_len;
+		struct rtos_lookup_entry *entry;
+
+		if (Jim_GetOpt_String(goi, &value, &value_len) != JIM_OK)
+			goto error;
+
+		entry = rtos_in_word_set(value, value_len);
+
+		if (!entry) {
+			LOG_ERROR("unknown RTOS type");
+			goto error;
+		}
+
+		result = entry->option;
+	}
+
+error:
+	return result;
+}
+
+static int rtos_conf_list(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
+{
+	Jim_GetOptInfo goi;
+
+	rtos_option_t rtos_type = rtos_invalid;
+	int result = ERROR_FAIL;
+
+	if (Jim_GetOpt_Setup(&goi, interp, argc - 1, argv + 1) != JIM_OK)
+		goto error;
+
+	rtos_type = get_rtos_type(&goi);
+
+	if (rtos_type == rtos_invalid) {
+		LOG_ERROR("invalid RTOS type provided");
+		goto error;
+	}
+
+	if (!rtos_conf_map[rtos_type]->conf_list) {
+		LOG_ERROR("specified RTOS type does not support dynamic configurations");
+		goto error;
+	}
+
+	if (rtos_conf_map[rtos_type]->conf_list() != ERROR_OK)
+		goto error;
+
+	result = ERROR_OK;
+error:
+	return result;
+}
+
+static int rtos_conf_add(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
+{
+	Jim_GetOptInfo goi;
+	Jim_Obj *dict = NULL;
+	Jim_Obj *stackings_list = NULL;
+	Jim_Obj **pairs = NULL;
+	int pair_count;
+
+	int result = ERROR_FAIL;
+	int rtos_type = rtos_invalid;
+
+	if (Jim_GetOpt_Setup(&goi, interp, argc - 1, argv + 1) != JIM_OK)
+		goto error;
+
+	rtos_type = get_rtos_type(&goi);
+
+	if (rtos_type == rtos_invalid) {
+		LOG_ERROR("invalid RTOS type provided");
+		goto error;
+	}
+
+	if (Jim_GetOpt_Obj(&goi, &dict) != JIM_OK) {
+		LOG_ERROR("unable to retrieve configuration");
+		goto error;
+	}
+
+	if (Jim_DictPairs(interp, dict, &pairs, &pair_count) != JIM_OK) {
+		LOG_ERROR("unable to retrieve configuration elements");
+		goto error;
+	}
+
+	if (Jim_GetOpt_Obj(&goi, &stackings_list) != JIM_OK) {
+		LOG_ERROR("unable to retrieve stackings list");
+		goto error;
+	}
+
+	if (!rtos_conf_map[rtos_type]->conf_add) {
+		LOG_ERROR("specified RTOS type does not support dynamic configurations");
+		goto error;
+	}
+
+	if (rtos_conf_map[rtos_type]->conf_add(interp, pairs,
+			stackings_list, pair_count) != ERROR_OK)
+		goto error;
+
+	result = ERROR_OK;
+error:
+	if (pairs)
+		Jim_Free(pairs);
+
+	return result;
+}
+
+static int rtos_stack_add(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
+{
+	(void) interp;
+	(void) argc;
+	(void) argv;
+
+	return ERROR_OK;
+}
+
+static int rtos_stack_list(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
+{
+	(void) interp;
+	(void) argc;
+	(void) argv;
+
+	struct rtos_register_stacking *stacking;
+
+	if (list_empty(&rtos_stackings_list)) {
+		fprintf(stderr, "No RTOS stackings available\n");
+	} else {
+		fprintf(stderr, "Available RTOS stackings:\n");
+
+		list_for_each_entry(stacking, &rtos_stackings_list, list) {
+			fprintf(stderr, "%s\n", stacking->name);
+		}
+	}
+
+	return ERROR_OK;
+}
+
+static const struct command_registration rtos_conf_command_handlers[] = {
+	{
+		.name = "add",
+		.mode = COMMAND_ANY,
+		.jim_handler = rtos_conf_add,
+		.help = "Add RTOS target",
+		.usage = "-type <RTOS type> <parameter dictionary> <stackings list>",
+	},
+	{
+		.name = "list",
+		.mode = COMMAND_ANY,
+		.jim_handler = rtos_conf_list,
+		.help = "List available RTOS configurations",
+		.usage = "-type <RTOS type>",
+	},
+	COMMAND_REGISTRATION_DONE
+};
+
+static const struct command_registration rtos_stack_command_handlers[] = {
+	{
+		.name = "add",
+		.mode = COMMAND_ANY,
+		.jim_handler = rtos_stack_add,
+		.help = "Add RTOS stacking",
+		.usage = "-type <RTOS type>",
+	},
+	{
+		.name = "list",
+		.mode = COMMAND_ANY,
+		.jim_handler = rtos_stack_list,
+		.help = "List available RTOS stackings",
+		.usage = "-type <RTOS type>",
+	},
+	COMMAND_REGISTRATION_DONE
+};
+
+static const struct command_registration rtos_exec_command_handlers[] = {
+	{
+		.name = "conf",
+		.mode = COMMAND_ANY,
+		.help = "Add or list RTOS configuration",
+		.usage = "[[add | list]]",
+		.chain = rtos_conf_command_handlers
+	},
+	{
+		.name = "stack",
+		.mode = COMMAND_ANY,
+		.help = "Add or list RTOS stacking",
+		.usage = "[[add | list]]",
+		.chain = rtos_stack_command_handlers
+	},
+	COMMAND_REGISTRATION_DONE
+};
+
+static const struct command_registration rtos_command_handlers[] = {
+	{
+		.name = "rtos",
+		.mode = COMMAND_ANY,
+		.help = "Manage RTOS target definitions",
+		.usage = "[[conf | stack]]",
+		.chain = rtos_exec_command_handlers,
+	},
+	COMMAND_REGISTRATION_DONE
+};
+
+int rtos_register_commands(struct command_context *cmd_ctx)
+{
+	return register_commands(cmd_ctx, NULL, rtos_command_handlers);
 }

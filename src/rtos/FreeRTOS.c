@@ -21,23 +21,23 @@
 #endif
 
 #include <helper/time_support.h>
+#include <helper/list.h>
 #include <jtag/jtag.h>
 #include "target/target.h"
 #include "target/target_type.h"
 #include "rtos.h"
 #include "helper/log.h"
 #include "helper/types.h"
+#include "helper/serdes.h"
 #include "rtos_standard_stackings.h"
 #include "target/armv7m.h"
 #include "target/cortex_m.h"
-
-
+#include "FreeRTOS_gperf.c"
 
 #define FREERTOS_MAX_PRIORITIES	63
 
-#define FreeRTOS_STRUCT(int_type, ptr_type, list_prev_offset)
-
 struct FreeRTOS_params {
+	struct list_head list;
 	const char *target_name;
 	const unsigned char thread_count_width;
 	const unsigned char pointer_width;
@@ -52,58 +52,28 @@ struct FreeRTOS_params {
 	const struct rtos_register_stacking *stacking_info_cm4f_fpu;
 };
 
-static const struct FreeRTOS_params FreeRTOS_params_list[] = {
-	{
-	"cortex_m",			/* target_name */
-	4,						/* thread_count_width; */
-	4,						/* pointer_width; */
-	16,						/* list_next_offset; */
-	20,						/* list_width; */
-	8,						/* list_elem_next_offset; */
-	12,						/* list_elem_content_offset */
-	0,						/* thread_stack_offset; */
-	52,						/* thread_name_offset; */
-	&rtos_standard_Cortex_M3_stacking,	/* stacking_info */
-	&rtos_standard_Cortex_M4F_stacking,
-	&rtos_standard_Cortex_M4F_FPU_stacking,
-	},
-	{
-	"hla_target",			/* target_name */
-	4,						/* thread_count_width; */
-	4,						/* pointer_width; */
-	16,						/* list_next_offset; */
-	20,						/* list_width; */
-	8,						/* list_elem_next_offset; */
-	12,						/* list_elem_content_offset */
-	0,						/* thread_stack_offset; */
-	52,						/* thread_name_offset; */
-	&rtos_standard_Cortex_M3_stacking,	/* stacking_info */
-	&rtos_standard_Cortex_M4F_stacking,
-	&rtos_standard_Cortex_M4F_FPU_stacking,
-	},
-	{
-	"nds32_v3",			/* target_name */
-	4,						/* thread_count_width; */
-	4,						/* pointer_width; */
-	16,						/* list_next_offset; */
-	20,						/* list_width; */
-	8,						/* list_elem_next_offset; */
-	12,						/* list_elem_content_offset */
-	0,						/* thread_stack_offset; */
-	52,						/* thread_name_offset; */
-	&rtos_standard_NDS32_N1068_stacking,	/* stacking_info */
-	&rtos_standard_Cortex_M4F_stacking,
-	&rtos_standard_Cortex_M4F_FPU_stacking,
-	},
+static const struct serdes_field freertos_params_fields[] = {
+	SERDES_FIELD(serdes_string, struct FreeRTOS_params, target_name),
+	SERDES_FIELD(serdes_uint8,  struct FreeRTOS_params, thread_count_width),
+	SERDES_FIELD(serdes_uint8,  struct FreeRTOS_params, pointer_width),
+	SERDES_FIELD(serdes_uint8,  struct FreeRTOS_params, list_next_offset),
+	SERDES_FIELD(serdes_uint8,  struct FreeRTOS_params, list_width),
+	SERDES_FIELD(serdes_uint8,  struct FreeRTOS_params, list_elem_next_offset),
+	SERDES_FIELD(serdes_uint8,  struct FreeRTOS_params, list_elem_content_offset),
+	SERDES_FIELD(serdes_uint8,  struct FreeRTOS_params, thread_stack_offset),
+	SERDES_FIELD(serdes_uint8,  struct FreeRTOS_params, thread_name_offset),
+	{ 0, -1 }
 };
 
-#define FREERTOS_NUM_PARAMS ((int)(sizeof(FreeRTOS_params_list)/sizeof(struct FreeRTOS_params)))
+static LIST_HEAD(freertos_params_list);
 
 static bool FreeRTOS_detect_rtos(struct target *target);
 static int FreeRTOS_create(struct target *target);
 static int FreeRTOS_update_threads(struct rtos *rtos);
 static int FreeRTOS_get_thread_reg_list(struct rtos *rtos, int64_t thread_id, char **hex_reg_list);
 static int FreeRTOS_get_symbol_list_to_lookup(symbol_table_elem_t *symbol_list[]);
+static int FreeRTOS_conf_add(Jim_Interp *interp, Jim_Obj **elements, Jim_Obj *stackings, int count);
+static int FreeRTOS_conf_list(void);
 
 struct rtos_type FreeRTOS_rtos = {
 	.name = "FreeRTOS",
@@ -113,6 +83,8 @@ struct rtos_type FreeRTOS_rtos = {
 	.update_threads = FreeRTOS_update_threads,
 	.get_thread_reg_list = FreeRTOS_get_thread_reg_list,
 	.get_symbol_list_to_lookup = FreeRTOS_get_symbol_list_to_lookup,
+	.conf_add = FreeRTOS_conf_add,
+	.conf_list = FreeRTOS_conf_list
 };
 
 enum FreeRTOS_symbol_values {
@@ -540,16 +512,112 @@ static bool FreeRTOS_detect_rtos(struct target *target)
 
 static int FreeRTOS_create(struct target *target)
 {
-	int i = 0;
-	while ((i < FREERTOS_NUM_PARAMS) &&
-			(0 != strcmp(FreeRTOS_params_list[i].target_name, target->type->name))) {
-		i++;
-	}
-	if (i >= FREERTOS_NUM_PARAMS) {
-		LOG_ERROR("Could not find target in FreeRTOS compatibility list");
-		return -1;
+	struct FreeRTOS_params *param;
+	bool found = false;
+
+	list_for_each_entry(param, &freertos_params_list, list) {
+		if (strcmp(param->target_name, target->type->name) == 0) {
+			found = true;
+			break;
+		}
 	}
 
-	target->rtos->rtos_specific_params = (void *) &FreeRTOS_params_list[i];
-	return 0;
+	if (!found) {
+		LOG_ERROR("Could not find target in FreeRTOS compatibility list");
+		return ERROR_FAIL;
+	}
+
+	target->rtos->rtos_specific_params = param;
+
+	return ERROR_OK;
+}
+
+static int FreeRTOS_conf_list(void)
+{
+	struct FreeRTOS_params *param;
+
+	list_for_each_entry(param, &freertos_params_list, list) {
+		serdes_print_struct(freertos_params_fields, param);
+
+		fprintf(stderr, "stacking_info_cm3: %s\n", param->stacking_info_cm3->name);
+		fprintf(stderr, "stacking_info_cm4f: %s\n", param->stacking_info_cm4f->name);
+		fprintf(stderr, "stacking_info_cm4f_fpu: %s\n", param->stacking_info_cm4f_fpu->name);
+	}
+
+	return ERROR_OK;
+}
+
+static int FreeRTOS_wordset_value(struct freertos_lookup_entry *entry)
+{
+	return entry->option;
+}
+
+static int FreeRTOS_conf_add(Jim_Interp *interp, Jim_Obj **elements, Jim_Obj *stackings, int count)
+{
+	struct FreeRTOS_params *params = NULL;
+	int result = ERROR_FAIL;
+	int stackings_count = 0;
+
+	params = calloc(1, sizeof(struct FreeRTOS_params));
+
+	if (count != freertos_option_count * 2) {
+		LOG_ERROR("freertos: invalid number of elements in configuration");
+		goto error;
+	}
+
+	struct serdes_wordset wordset = {
+		.check = (serdes_check_fn_t) freertos_in_word_set,
+		.value = (serdes_value_fn_t) FreeRTOS_wordset_value,
+	};
+
+	if (serdes_read_struct(interp, elements, freertos_params_fields,
+			&wordset, params) != ERROR_OK) {
+		LOG_ERROR("freertos: unable to read configuration");
+		goto error;
+	}
+
+	stackings_count = Jim_ListLength(interp, stackings);
+	struct rtos_register_stacking *matched_stackings[3];
+
+	if (stackings_count != 3) {
+		LOG_ERROR("freertos: %d stackings provided, %d expected", stackings_count, 3);
+		goto error;
+	}
+
+	for (size_t i = 0; i < 3; i++) {
+		Jim_Obj *value;
+		const char *string;
+		int string_length;
+		struct rtos_register_stacking *stacking;
+
+		if (Jim_ListIndex(interp, stackings, i, &value, 0) != JIM_OK)
+			goto error;
+
+		string = Jim_GetString(value, &string_length);
+
+		if (string == NULL)
+			goto error;
+
+		stacking = rtos_get_stacking(string);
+
+		if (stacking == NULL) {
+			LOG_ERROR("freertos: unable to find stacking %s", string);
+			goto error;
+		}
+
+		matched_stackings[i] = stacking;
+	}
+
+	params->stacking_info_cm3 = matched_stackings[0];
+	params->stacking_info_cm4f = matched_stackings[1];
+	params->stacking_info_cm4f_fpu = matched_stackings[2];
+
+	list_add(&params->list, &freertos_params_list);
+
+	result = ERROR_OK;
+error:
+	if (result != ERROR_OK && params)
+		free(params);
+
+	return result;
 }
