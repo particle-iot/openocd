@@ -53,6 +53,7 @@ endif
 	%D%/target/libtarget.la \
 	%D%/server/libserver.la \
 	%D%/rtos/librtos.la \
+	%D%/rtos/librtos_gperf.la \
 	%D%/helper/libhelper.la
 
 BIN2C = $(srcdir)/%D%/helper/bin2char.sh
