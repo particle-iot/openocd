@@ -41,6 +41,10 @@
 
 #include "libusb_common.h"
 
+#ifdef HAVE_LIBUSB1
+#define USE_LIBUSB_ASYNCIO
+#endif
+
 #define ENDPOINT_IN  0x80
 #define ENDPOINT_OUT 0x00
 
@@ -288,6 +292,161 @@ static const struct {
 static void stlink_usb_init_buffer(void *handle, uint8_t direction, uint32_t size);
 static int stlink_swim_status(void *handle);
 
+
+
+#ifdef USE_LIBUSB_ASYNCIO
+
+
+static void sync_transfer_cb(struct libusb_transfer *transfer)
+{
+	int *completed = transfer->user_data;
+	*completed = 1;
+	/* caller interprets result and frees transfer */
+}
+
+
+static void sync_transfer_wait_for_completion(struct libusb_transfer *transfer)
+{
+	int r, *completed = transfer->user_data;
+
+	/* Assuming a single libusb context exists.  There no existing interface into this
+	 * module to pass a libusb context.
+	 */
+	struct libusb_context *ctx = NULL;
+
+	while (!*completed) {
+		r = libusb_handle_events_completed(ctx, completed);
+		if (r < 0) {
+			if (r == LIBUSB_ERROR_INTERRUPTED)
+				continue;
+			libusb_cancel_transfer(transfer);
+			continue;
+		}
+	}
+}
+
+
+static int transfer_error_status(const struct libusb_transfer *transfer)
+{
+	int r = 0;
+
+	switch (transfer->status) {
+		case LIBUSB_TRANSFER_COMPLETED:
+			r = 0;
+			break;
+		case LIBUSB_TRANSFER_TIMED_OUT:
+			r = LIBUSB_ERROR_TIMEOUT;
+			break;
+		case LIBUSB_TRANSFER_STALL:
+			r = LIBUSB_ERROR_PIPE;
+			break;
+		case LIBUSB_TRANSFER_OVERFLOW:
+			r = LIBUSB_ERROR_OVERFLOW;
+			break;
+		case LIBUSB_TRANSFER_NO_DEVICE:
+			r = LIBUSB_ERROR_NO_DEVICE;
+			break;
+		case LIBUSB_TRANSFER_ERROR:
+		case LIBUSB_TRANSFER_CANCELLED:
+			r = LIBUSB_ERROR_IO;
+			break;
+		default:
+			r = LIBUSB_ERROR_OTHER;
+			break;
+	}
+
+	return r;
+}
+
+struct jtag_xfer {
+	int ep;
+	uint8_t *buf;
+	size_t size;
+	/* Internal */
+	int retval;
+	int completed;
+	size_t transfer_size;
+	struct libusb_transfer *transfer;
+};
+
+static int jtag_libusb_bulk_transfer_n(
+		jtag_libusb_device_handle * dev_handle,
+		struct jtag_xfer *transfers,
+		size_t n_transfers,
+		int timeout)
+{
+	int retval = 0;
+	int returnval = ERROR_OK;
+
+
+	for (size_t i = 0; i < n_transfers; ++i) {
+		transfers[i].retval = 0;
+		transfers[i].completed = 0;
+		transfers[i].transfer_size = 0;
+		transfers[i].transfer = libusb_alloc_transfer(0);
+
+		if (transfers[i].transfer == NULL) {
+			for (size_t j = 0; j < i; ++j)
+				libusb_free_transfer(transfers[j].transfer);
+
+			LOG_DEBUG("ERROR, failed to alloc usb transfers");
+			for (size_t k = 0; k < n_transfers; ++k)
+				transfers[k].retval = LIBUSB_ERROR_NO_MEM;
+			return ERROR_FAIL;
+		}
+	}
+
+	for (size_t i = 0; i < n_transfers; ++i) {
+		libusb_fill_bulk_transfer(
+				transfers[i].transfer,
+				dev_handle,
+				transfers[i].ep, transfers[i].buf, transfers[i].size,
+				sync_transfer_cb, &transfers[i].completed, timeout);
+		transfers[i].transfer->type = LIBUSB_TRANSFER_TYPE_BULK;
+
+		retval = libusb_submit_transfer(transfers[i].transfer);
+		if (retval < 0) {
+			transfers[i].retval = retval;
+			LOG_DEBUG("ERROR, failed to submit transfer %lu", i);
+
+			/* Probably no point continuing to submit transfers once a submission fails.
+			 * As a result, tag all remaining transfers as errors.
+			 */
+			for (size_t j = i + 1; j < n_transfers; ++j) {
+				transfers[j].retval = retval;
+				returnval = ERROR_FAIL;
+			}
+			break;
+		}
+	}
+
+	/* Wait for every submitted USB transfer to complete.
+	*/
+	for (size_t i = 0; i < n_transfers; ++i) {
+		if (transfers[i].retval == 0) {
+			sync_transfer_wait_for_completion(transfers[i].transfer);
+
+			retval = transfer_error_status(transfers[i].transfer);
+			if (retval) {
+				returnval = ERROR_FAIL;
+				LOG_DEBUG("ERROR, transfer %lu failed with error %d", i, retval);
+			} else {
+				/* Assuming actual_length is only valid if there is no transfer error.
+				 */
+				transfers[i].transfer_size = transfers[i].transfer->actual_length;
+			}
+		}
+
+		libusb_free_transfer(transfers[i].transfer);
+		transfers[i].transfer = NULL;
+	}
+
+	return returnval;
+}
+
+#endif
+
+
 /** */
 static int stlink_usb_xfer_v1_get_status(void *handle)
 {
@@ -321,7 +480,45 @@ static int stlink_usb_xfer_v1_get_status(void *handle)
 	return ERROR_OK;
 }
 
-/** */
+#ifdef USE_LIBUSB_ASYNCIO
+static int stlink_usb_xfer_rw(void *handle, int cmdsize, const uint8_t *buf, int size)
+{
+	struct stlink_usb_handle_s *h = handle;
+
+	assert(handle != NULL);
+
+	size_t n_transfers = 0;
+	struct jtag_xfer transfers[2];
+
+	memset(transfers, 0, sizeof(transfers));
+
+	transfers[0].ep = h->tx_ep;
+	transfers[0].buf = h->cmdbuf;
+	transfers[0].size = cmdsize;
+
+	++n_transfers;
+
+	if (h->direction == h->tx_ep && size) {
+		transfers[1].ep = h->tx_ep;
+		transfers[1].buf = (uint8_t *)buf;
+		transfers[1].size = size;
+
+		++n_transfers;
+	} else if (h->direction == h->rx_ep && size) {
+		transfers[1].ep = h->rx_ep;
+		transfers[1].buf = (uint8_t *)buf;
+		transfers[1].size = size;
+
+		++n_transfers;
+	}
+
+	return jtag_libusb_bulk_transfer_n(
+			h->fd,
+			transfers,
+			n_transfers,
+			STLINK_WRITE_TIMEOUT);
+}
+#else
 static int stlink_usb_xfer_rw(void *handle, int cmdsize, const uint8_t *buf, int size)
 {
 	struct stlink_usb_handle_s *h = handle;
@@ -349,6 +546,7 @@ static int stlink_usb_xfer_rw(void *handle, int cmdsize, const uint8_t *buf, int
 
 	return ERROR_OK;
 }
+#endif
 
 /** */
 static int stlink_usb_xfer_v1_get_sense(void *handle)
@@ -526,7 +724,9 @@ static int stlink_cmd_allow_retry(void *handle, const uint8_t *buf, int size)
 
 		res = stlink_usb_error_check(handle);
 		if (res == ERROR_WAIT && retries < MAX_WAIT_RETRIES) {
-			usleep((1<<retries++) * 1000);
+			useconds_t delay_us = (1<<retries++) * 1000;
+			LOG_DEBUG("stlink_cmd_allow_retry ERROR_WAIT, retry %d, delaying %u microseconds", retries, delay_us);
+			usleep(delay_us);
 			continue;
 		}
 		return res;
