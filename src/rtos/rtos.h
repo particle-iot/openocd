@@ -71,6 +71,7 @@ struct rtos_type {
 	int (*clean)(struct target *target);
 	char * (*ps_command)(struct target *target);
 	int (*conf_add)(Jim_Interp *, Jim_Obj **, int);
+	int (*conf_list)(void);
 };
 
 struct stack_register_offset {

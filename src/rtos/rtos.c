@@ -580,16 +580,11 @@ void rtos_free_threadlist(struct rtos *rtos)
 	}
 }
 
-COMMAND_HANDLER(rtos_list) {
+static const struct rtos_type * rtos_conf_map[] = {
+	[ rtos_freertos ] = &FreeRTOS_rtos,
+};
 
-	return ERROR_OK;
-}
-
-static int rtos_conf_add(Jim_Interp *interp, int argc, Jim_Obj *const *argv) {
-	const struct rtos_type * rtos_conf_add_map[] = {
-		[ rtos_freertos ] = &FreeRTOS_rtos,
-	};
-
+static rtos_option_t get_rtos_type(Jim_GetOptInfo *goi) {
 	enum rtos_add_options {
 		ADD_OPT_TYPE = 0,
 	};
@@ -599,22 +594,10 @@ static int rtos_conf_add(Jim_Interp *interp, int argc, Jim_Obj *const *argv) {
 		{ NULL, -1 },
 	};
 
-	Jim_GetOptInfo goi;
-	Jim_Obj *dict;
-	Jim_Obj **pairs;
-	int pair_count;
 	Jim_Nvp *nvp;
+	rtos_option_t result = rtos_invalid;
 
-	int result = ERROR_FAIL;
-	int rtos_type = rtos_invalid;
-
-	if (Jim_GetOpt_Setup(&goi, interp, argc - 1, argv + 1) != JIM_OK) {
-		goto error;
-	}
-
-	Jim_GetOpt_Debug(&goi);
-
-	if (Jim_GetOpt_Nvp(&goi, options, &nvp) != JIM_OK) {
+	if (Jim_GetOpt_Nvp(goi, options, &nvp) != JIM_OK) {
 		goto error;
 	}
 
@@ -623,7 +606,7 @@ static int rtos_conf_add(Jim_Interp *interp, int argc, Jim_Obj *const *argv) {
 		int value_len;
 		struct rtos_lookup_entry *entry;
 
-		if (Jim_GetOpt_String(&goi, &value, &value_len) != JIM_OK) {
+		if (Jim_GetOpt_String(goi, &value, &value_len) != JIM_OK) {
 			goto error;
 		}
 
@@ -634,8 +617,58 @@ static int rtos_conf_add(Jim_Interp *interp, int argc, Jim_Obj *const *argv) {
 			goto error;
 		}
 
-		rtos_type = entry->option;
+		result = entry->option;
 	}
+
+error:
+	return result;
+}
+
+static int rtos_conf_list(Jim_Interp *interp, int argc, Jim_Obj *const *argv) {
+	Jim_GetOptInfo goi;
+
+	rtos_option_t rtos_type = rtos_invalid;
+	int result = ERROR_FAIL;
+
+	if (Jim_GetOpt_Setup(&goi, interp, argc - 1, argv + 1) != JIM_OK) {
+		goto error;
+	}
+
+	rtos_type = get_rtos_type(&goi);
+
+	if (rtos_type == rtos_invalid) {
+		LOG_ERROR("invalid RTOS type provided");
+		goto error;
+	}
+
+	if (!rtos_conf_map[rtos_type]->conf_list) {
+		LOG_ERROR("specified RTOS type does not support dynamic configurations");
+		goto error;
+	}
+
+	if (rtos_conf_map[rtos_type]->conf_list() != ERROR_OK) {
+		goto error;
+	}
+
+	result = ERROR_OK;
+error:
+	return result;
+}
+
+static int rtos_conf_add(Jim_Interp *interp, int argc, Jim_Obj *const *argv) {
+	Jim_GetOptInfo goi;
+	Jim_Obj *dict;
+	Jim_Obj **pairs;
+	int pair_count;
+
+	int result = ERROR_FAIL;
+	int rtos_type = rtos_invalid;
+
+	if (Jim_GetOpt_Setup(&goi, interp, argc - 1, argv + 1) != JIM_OK) {
+		goto error;
+	}
+
+	rtos_type = get_rtos_type(&goi);
 
 	if (rtos_type == rtos_invalid) {
 		LOG_ERROR("invalid RTOS type provided");
@@ -652,12 +685,12 @@ static int rtos_conf_add(Jim_Interp *interp, int argc, Jim_Obj *const *argv) {
 		goto error;
 	}
 
-	if (!rtos_conf_add_map[rtos_type]->conf_add) {
+	if (!rtos_conf_map[rtos_type]->conf_add) {
 		LOG_ERROR("specified RTOS type does not support dynamic configurations");
 		goto error;
 	}
 
-	if (rtos_conf_add_map[rtos_type]->conf_add(interp, pairs, pair_count) != ERROR_OK) {
+	if (rtos_conf_map[rtos_type]->conf_add(interp, pairs, pair_count) != ERROR_OK) {
 		goto error;
 	}
 
@@ -669,17 +702,17 @@ error:
 static const struct command_registration rtos_exec_command_handlers[] = {
 	{
 		.name = "list",
-		.handler = rtos_list,
-		.mode = COMMAND_EXEC,
-		.help = "List available RTOS / targets",
-		.usage = "",
+		.mode = COMMAND_ANY,
+		.jim_handler = rtos_conf_list,
+		.help = "List available RTOS configurations",
+		.usage = "-type <RTOS type>",
 	},
 	{
 		.name = "add",
 		.mode = COMMAND_ANY,
 		.jim_handler = rtos_conf_add,
 		.help = "Add RTOS target",
-		.usage = "-type <RTOS type>",
+		.usage = "-type <RTOS type> <parameter dictionary>",
 	},
 	COMMAND_REGISTRATION_DONE
 };

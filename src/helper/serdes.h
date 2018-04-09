@@ -33,9 +33,24 @@ enum serdes_type {
 struct serdes_field {
 	enum serdes_type type;
 	off_t offset;
+	const char * name;
 };
 
+typedef void * (* serdes_check_fn_t)(const char *text, size_t len);
+typedef int (* serdes_value_fn_t)(void *result);
+
+struct serdes_wordset {
+	serdes_check_fn_t check;
+	serdes_value_fn_t value;
+};
+
+#define SERDES_FIELD(type, base_type, name) \
+	{ (type), offsetof(base_type, name), (#name) }
+
 int serdes_read_struct(Jim_Interp *interp, Jim_Obj **objects,
-		const struct serdes_field *fields, void *storage);
+		const struct serdes_field *fields, const struct serdes_wordset *wordset,
+		void *storage);
+
+int serdes_print_struct(const struct serdes_field *fields, void *storage);
 
 #endif /* OPENOCD_HELPER_SERDES_H */
