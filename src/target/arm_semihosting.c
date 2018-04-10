@@ -43,6 +43,7 @@
 #include "arm7_9_common.h"
 #include "armv7m.h"
 #include "armv7a.h"
+#include "armv8.h"
 #include "cortex_m.h"
 #include "register.h"
 #include "arm_opcodes.h"
@@ -66,6 +67,9 @@ static const int open_modeflags[12] = {
 	O_RDWR | O_CREAT | O_APPEND,
 	O_RDWR | O_CREAT | O_APPEND | O_BINARY
 };
+
+static int flen_seek_steps = -1;
+static int flen_last_fd = -1;
 
 static int post_result(struct target *target)
 {
@@ -100,6 +104,16 @@ static int post_result(struct target *target)
 		if (spsr & 0x20)
 			arm->core_state = ARM_STATE_THUMB;
 
+	} else if (is_armv8(target_to_armv8(target))) {
+		if (arm->core_state == ARM_STATE_AARCH64) {
+			/* return value in R0 */
+			buf_set_u64(arm->core_cache->reg_list[0].value, 0, 64, arm->semihosting_result);
+			arm->core_cache->reg_list[0].dirty = 1;
+
+			uint64_t pc = buf_get_u64(arm->core_cache->reg_list[32].value, 0, 64);
+			buf_set_u64(arm->pc->value, 0, 64, pc + 4);
+			arm->pc->dirty = 1;
+		}
 	} else {
 		/* resume execution, this will be pc+2 to skip over the
 		 * bkpt instruction */
@@ -107,9 +121,46 @@ static int post_result(struct target *target)
 		/* return result in R0 */
 		buf_set_u32(arm->core_cache->reg_list[0].value, 0, 32, arm->semihosting_result);
 		arm->core_cache->reg_list[0].dirty = 1;
+
+		/* LR --> PC */
+		buf_set_u32(arm->core_cache->reg_list[15].value, 0, 32,
+			buf_get_u32(arm_reg_current(arm, 14)->value, 0, 32));
+		arm->core_cache->reg_list[15].dirty = 1;
+
 	}
 
 	return ERROR_OK;
+}
+
+static int arm_semihosting_complete(struct target *target, int *retval)
+{
+	*retval = post_result(target);
+	if (*retval != ERROR_OK) {
+		LOG_ERROR("Failed to post semihosting result");
+		return 0;
+	}
+
+	if (target->debug_reason == DBG_REASON_DBGRQ)
+		return 0;
+
+	if (is_armv8(target_to_armv8(target))) {
+		struct armv8_common *armv8 = target_to_armv8(target);
+		if (armv8->last_run_control_op == ARMV8_RUNCONTROL_RESUME) {
+			*retval = target_resume(target, 1, 0, 0, 0);
+			if (*retval != ERROR_OK) {
+				LOG_ERROR("Failed to resume target");
+				return 0;
+			}
+		} else if (armv8->last_run_control_op == ARMV8_RUNCONTROL_STEP)
+			target->debug_reason = DBG_REASON_SINGLESTEP;
+	} else {
+		*retval = target_resume(target, 1, 0, 0, 0);
+		if (*retval != ERROR_OK) {
+			LOG_ERROR("Failed to resume target");
+			return 0;
+		}
+	}
+	return 1;
 }
 
 static int do_semihosting(struct target *target)
@@ -146,7 +197,14 @@ static int do_semihosting(struct target *target)
 			fn[l] = 0;
 			if (arm->is_semihosting_fileio) {
 				if (strcmp((char *)fn, ":tt") == 0)
-					arm->semihosting_result = 0;
+					if (m == 0)
+						arm->semihosting_result = 0;
+					else if (m == 4)
+						arm->semihosting_result = 1;
+					else if (m == 8)
+						arm->semihosting_result = 2;
+					else
+						arm->semihosting_result = -1;
 				else {
 					arm->semihosting_hit_fileio = true;
 					fileio_info->identifier = "open";
@@ -184,6 +242,10 @@ static int do_semihosting(struct target *target)
 		else {
 			int fd = target_buffer_get_u32(target, params+0);
 			if (arm->is_semihosting_fileio) {
+				if (fd == 0 || fd == 1 || fd == 2) {
+					arm->semihosting_result = 0;
+					break;
+				}
 				arm->semihosting_hit_fileio = true;
 				fileio_info->identifier = "close";
 				fileio_info->param_1 = fd;
@@ -259,7 +321,7 @@ static int do_semihosting(struct target *target)
 			} else {
 				uint8_t *buf = malloc(l);
 				if (!buf) {
-					arm->semihosting_result = -1;
+					arm->semihosting_result = ULLONG_MAX;
 					arm->semihosting_errno = ENOMEM;
 				} else {
 					retval = target_read_buffer(target, a, l, buf);
@@ -269,7 +331,7 @@ static int do_semihosting(struct target *target)
 					}
 					arm->semihosting_result = write(fd, buf, l);
 					arm->semihosting_errno = errno;
-					if (arm->semihosting_result >= 0)
+					if (arm->semihosting_result != ULLONG_MAX)
 						arm->semihosting_result = l - arm->semihosting_result;
 					free(buf);
 				}
@@ -294,12 +356,12 @@ static int do_semihosting(struct target *target)
 			} else {
 				uint8_t *buf = malloc(l);
 				if (!buf) {
-					arm->semihosting_result = -1;
+					arm->semihosting_result = ULLONG_MAX;
 					arm->semihosting_errno = ENOMEM;
 				} else {
 					arm->semihosting_result = read(fd, buf, l);
 					arm->semihosting_errno = errno;
-					if (arm->semihosting_result >= 0) {
+					if (arm->semihosting_result != ULLONG_MAX) {
 						retval = target_write_buffer(target, a, arm->semihosting_result, buf);
 						if (retval != ERROR_OK) {
 							free(buf);
@@ -357,30 +419,36 @@ static int do_semihosting(struct target *target)
 			} else {
 				arm->semihosting_result = lseek(fd, pos, SEEK_SET);
 				arm->semihosting_errno = errno;
-				if (arm->semihosting_result == pos)
+				if (arm->semihosting_result == (uint64_t)pos)
 					arm->semihosting_result = 0;
 			}
 		}
 		break;
 
 	case 0x0c:	/* SYS_FLEN */
-		if (arm->is_semihosting_fileio) {
-			LOG_ERROR("SYS_FLEN not supported by semihosting fileio");
-			return ERROR_FAIL;
-		}
 		retval = target_read_memory(target, r1, 4, 1, params);
 		if (retval != ERROR_OK)
 			return retval;
 		else {
 			int fd = target_buffer_get_u32(target, params+0);
-			struct stat buf;
-			arm->semihosting_result = fstat(fd, &buf);
-			if (arm->semihosting_result == -1) {
-				arm->semihosting_errno = errno;
-				arm->semihosting_result = -1;
-				break;
+			if (arm->is_semihosting_fileio) {
+				arm->semihosting_hit_fileio = true;
+				flen_last_fd = fd;
+				flen_seek_steps = SEEK_CUR;
+				fileio_info->identifier = "lseek";
+				fileio_info->param_1 = fd;
+				fileio_info->param_2 = 0;
+				fileio_info->param_3 = SEEK_CUR;
+			} else {
+				struct stat buf;
+				arm->semihosting_result = fstat(fd, &buf);
+				if (arm->semihosting_result == ULLONG_MAX) {
+					arm->semihosting_errno = errno;
+					arm->semihosting_result = -1;
+					break;
+				}
+				arm->semihosting_result = buf.st_size;
 			}
-			arm->semihosting_result = buf.st_size;
 		}
 		break;
 
@@ -560,8 +628,488 @@ static int do_semihosting(struct target *target)
 	case 0x30:	/* SYS_ELAPSED */
 	case 0x31:	/* SYS_TICKFREQ */
 	default:
+		return ERROR_OK;
 		fprintf(stderr, "semihosting: unsupported call %#x\n",
 				(unsigned) r0);
+		arm->semihosting_result = -1;
+		arm->semihosting_errno = ENOTSUP;
+	}
+
+	return ERROR_OK;
+}
+
+static int do_semihosting64(struct target *target)
+{
+	struct arm *arm = target_to_arm(target);
+	struct gdb_fileio_info *fileio_info = target->fileio_info;
+	uint64_t x0 = buf_get_u64(arm->core_cache->reg_list[0].value, 0, 64);
+	uint64_t x1 = buf_get_u64(arm->core_cache->reg_list[1].value, 0, 64);
+	uint8_t params[32];
+	int retval;
+
+	/*
+	 * TODO: lots of security issues are not considered yet, such as:
+	 * - no validation on target provided file descriptors
+	 * - no safety checks on opened/deleted/renamed file paths
+	 * Beware the target app you use this support with.
+	 *
+	 * TODO: unsupported semihosting fileio operations could be
+	 * implemented if we had a small working area at our disposal.
+	 */
+	memset(params, 0, 4*8);
+	switch ((arm->semihosting_op = x0)) {
+	case 0x01:	/* SYS_OPEN */
+		retval = target_read_memory(target, x1, 8, 3, params);
+		if (retval != ERROR_OK)
+			return retval;
+		else {
+			uint64_t name = target_buffer_get_u64(target, params+0);
+			uint64_t mode = target_buffer_get_u64(target, params+8);
+			uint64_t len = target_buffer_get_u64(target, params+16);
+			uint8_t fn[256];
+			retval = target_read_memory(target, name, 1, len, fn);
+			if (retval != ERROR_OK)
+				return retval;
+			fn[len] = 0;
+			if (arm->is_semihosting_fileio) {
+				if (strcmp((char *)fn, ":tt") == 0) {
+					if (mode == 0)
+						arm->semihosting_result = 0;
+					else if (mode == 4)
+						arm->semihosting_result = 1;
+					else if (mode == 8)
+						arm->semihosting_result = 2;
+					else
+						arm->semihosting_result = -1;
+				} else {
+					arm->semihosting_hit_fileio = true;
+					fileio_info->identifier = "open";
+					fileio_info->param_1 = name;
+					fileio_info->param_2 = len;
+					fileio_info->param_3 = open_modeflags[mode];
+					fileio_info->param_4 = 0644;
+				}
+			} else {
+				if (len <= 255 && mode <= 11) {
+					if (strcmp((char *)fn, ":tt") == 0) {
+						if (mode < 4)
+							arm->semihosting_result = dup(STDIN_FILENO);
+						else
+							arm->semihosting_result = dup(STDOUT_FILENO);
+					} else {
+						/* cygwin requires the permission setting
+						 * otherwise it will fail to reopen a previously
+						 * written file */
+						arm->semihosting_result = open((char *)fn, open_modeflags[mode], 0644);
+					}
+					arm->semihosting_errno =  errno;
+				} else {
+					arm->semihosting_result = -1;
+					arm->semihosting_errno = EINVAL;
+				}
+			}
+		}
+		break;
+
+	case 0x02:	/* SYS_CLOSE */
+		retval = target_read_memory(target, x1, 8, 1, params);
+		if (retval != ERROR_OK)
+			return retval;
+		else {
+			uint64_t fhandle = target_buffer_get_u64(target, params+0);
+			if (arm->is_semihosting_fileio) {
+				if (fhandle == 0 || fhandle == 1 || fhandle == 2) {
+					arm->semihosting_result = 0;
+					break;
+				}
+				arm->semihosting_hit_fileio = true;
+				fileio_info->identifier = "close";
+				fileio_info->param_1 = fhandle;
+			} else {
+				arm->semihosting_result = close(fhandle);
+				arm->semihosting_errno = errno;
+			}
+		}
+		break;
+
+	case 0x03:	/* SYS_WRITEC */
+		if (arm->is_semihosting_fileio) {
+			arm->semihosting_hit_fileio = true;
+			fileio_info->identifier = "write";
+			fileio_info->param_1 = 1;
+			fileio_info->param_2 = x1;
+			fileio_info->param_3 = 1;
+		} else {
+			unsigned char ch;
+			retval = target_read_memory(target, x1, 1, 1, &ch);
+			if (retval != ERROR_OK)
+				return retval;
+			putchar(ch);
+			arm->semihosting_result = 0;
+		}
+		break;
+
+	case 0x04:	/* SYS_WRITE0 */
+		if (arm->is_semihosting_fileio) {
+			size_t count = 0;
+			for (uint64_t a = x1;; a++) {
+				unsigned char ch;
+				retval = target_read_memory(target, a, 1, 1, &ch);
+				if (retval != ERROR_OK)
+					return retval;
+				if (ch == '\0')
+					break;
+				count++;
+			}
+			arm->semihosting_hit_fileio = true;
+			fileio_info->identifier = "write";
+			fileio_info->param_1 = 1;
+			fileio_info->param_2 = x1;
+			fileio_info->param_3 = count;
+		} else {
+			do {
+				unsigned char ch;
+				retval = target_read_memory(target, x1++, 1, 1, &ch);
+				if (retval != ERROR_OK)
+					return retval;
+				if (ch == '\0')
+					break;
+				putchar(ch);
+			} while (1);
+			arm->semihosting_result = 0;
+		}
+		break;
+
+	case 0x05:	/* SYS_WRITE */
+		retval = target_read_memory(target, x1, 8, 3, params);
+		if (retval != ERROR_OK)
+			return retval;
+		else {
+			uint64_t fhandle = target_buffer_get_u64(target, params+0);
+			uint64_t dataptr = target_buffer_get_u64(target, params+8);
+			uint64_t length = target_buffer_get_u64(target, params+16);
+			if (arm->is_semihosting_fileio) {
+				arm->semihosting_hit_fileio = true;
+				fileio_info->identifier = "write";
+				fileio_info->param_1 = fhandle;
+				fileio_info->param_2 = dataptr;
+				fileio_info->param_3 = length;
+			} else {
+				uint8_t *buf = malloc(length);
+				if (!buf) {
+					arm->semihosting_result = -1;
+					arm->semihosting_errno = ENOMEM;
+				} else {
+					retval = target_read_buffer(target, dataptr, length, buf);
+					if (retval != ERROR_OK) {
+						free(buf);
+						return retval;
+					}
+					arm->semihosting_result = write(fhandle, buf, length);
+					arm->semihosting_errno = errno;
+					if (arm->semihosting_result != ULLONG_MAX)
+						arm->semihosting_result = length - arm->semihosting_result;
+					free(buf);
+				}
+			}
+		}
+		break;
+
+	case 0x06:	/* SYS_READ */
+		retval = target_read_memory(target, x1, 8, 3, params);
+		if (retval != ERROR_OK)
+			return retval;
+		else {
+			uint64_t fhandle = target_buffer_get_u64(target, params+0);
+			uint64_t bufptr = target_buffer_get_u64(target, params+8);
+			uint64_t length = target_buffer_get_u64(target, params+16);
+			if (arm->is_semihosting_fileio) {
+				arm->semihosting_hit_fileio = true;
+				fileio_info->identifier = "read";
+				fileio_info->param_1 = fhandle;
+				fileio_info->param_2 = bufptr;
+				fileio_info->param_3 = length;
+			} else {
+				uint8_t *buf = malloc(length);
+				if (!buf) {
+					arm->semihosting_result = -1;
+					arm->semihosting_errno = ENOMEM;
+				} else {
+					arm->semihosting_result = read(fhandle, buf, length);
+					arm->semihosting_errno = errno;
+					if (arm->semihosting_result != ULLONG_MAX) {
+						retval = target_write_buffer(target, bufptr, arm->semihosting_result, buf);
+						if (retval != ERROR_OK) {
+							free(buf);
+							return retval;
+						}
+						arm->semihosting_result = length - arm->semihosting_result;
+					}
+					free(buf);
+				}
+			}
+		}
+		break;
+
+	case 0x07:	/* SYS_READC */
+		if (arm->is_semihosting_fileio) {
+			LOG_ERROR("SYS_READC not supported by semihosting fileio");
+			return ERROR_FAIL;
+		}
+		arm->semihosting_result = getchar();
+		break;
+
+	case 0x08:	/* SYS_ISERROR */
+		retval = target_read_memory(target, x1, 8, 1, params);
+		if (retval != ERROR_OK)
+			return retval;
+		arm->semihosting_result = (target_buffer_get_u64(target, params+0) != 0);
+		break;
+
+	case 0x09:	/* SYS_ISTTY */
+		if (arm->is_semihosting_fileio) {
+			arm->semihosting_hit_fileio = true;
+			fileio_info->identifier = "isatty";
+			fileio_info->param_1 = x1;
+		} else {
+			retval = target_read_memory(target, x1, 8, 1, params);
+			if (retval != ERROR_OK)
+				return retval;
+			arm->semihosting_result = isatty(target_buffer_get_u64(target, params+0));
+		}
+		break;
+
+	case 0x0a:	/* SYS_SEEK */
+		retval = target_read_memory(target, x1, 8, 2, params);
+		if (retval != ERROR_OK)
+			return retval;
+		else {
+			uint64_t fd = target_buffer_get_u64(target, params+0);
+			uint64_t pos = target_buffer_get_u64(target, params+8);
+			if (arm->is_semihosting_fileio) {
+				arm->semihosting_hit_fileio = true;
+				fileio_info->identifier = "lseek";
+				fileio_info->param_1 = fd;
+				fileio_info->param_2 = pos;
+				fileio_info->param_3 = SEEK_SET;
+			} else {
+				arm->semihosting_result = lseek(fd, pos, SEEK_SET);
+				arm->semihosting_errno = errno;
+				if (arm->semihosting_result == pos)
+					arm->semihosting_result = 0;
+			}
+		}
+		break;
+
+	case 0x0c:	/* SYS_FLEN */
+		retval = target_read_memory(target, x1, 8, 1, params);
+		if (retval != ERROR_OK)
+			return retval;
+		else {
+			uint64_t fd = target_buffer_get_u64(target, params+0);
+			if (arm->is_semihosting_fileio) {
+				arm->semihosting_hit_fileio = true;
+				flen_last_fd = fd;
+				flen_seek_steps = SEEK_CUR;
+				fileio_info->identifier = "lseek";
+				fileio_info->param_1 = fd;
+				fileio_info->param_2 = 0;
+				fileio_info->param_3 = SEEK_CUR;
+			} else {
+				struct stat buf;
+				arm->semihosting_result = fstat(fd, &buf);
+				if (arm->semihosting_result == ULLONG_MAX) {
+					arm->semihosting_errno = errno;
+					arm->semihosting_result = -1;
+					break;
+				}
+				arm->semihosting_result = buf.st_size;
+			}
+		}
+		break;
+
+	case 0x0e:	/* SYS_REMOVE */
+		retval = target_read_memory(target, x1, 8, 2, params);
+		if (retval != ERROR_OK)
+			return retval;
+		else {
+			uint64_t a = target_buffer_get_u64(target, params+0);
+			uint64_t l = target_buffer_get_u64(target, params+8);
+			if (arm->is_semihosting_fileio) {
+				arm->semihosting_hit_fileio = true;
+				fileio_info->identifier = "unlink";
+				fileio_info->param_1 = a;
+				fileio_info->param_2 = l;
+			} else {
+				if (l <= 255) {
+					uint8_t fn[256];
+					retval = target_read_memory(target, a, 1, l, fn);
+					if (retval != ERROR_OK)
+						return retval;
+					fn[l] = 0;
+					arm->semihosting_result = remove((char *)fn);
+					arm->semihosting_errno =  errno;
+				} else {
+					arm->semihosting_result = -1;
+					arm->semihosting_errno = EINVAL;
+				}
+			}
+		}
+		break;
+
+	case 0x0f:	/* SYS_RENAME */
+		retval = target_read_memory(target, x1, 8, 4, params);
+		if (retval != ERROR_OK)
+			return retval;
+		else {
+			uint64_t a1 = target_buffer_get_u64(target, params+0);
+			uint64_t l1 = target_buffer_get_u64(target, params+8);
+			uint64_t a2 = target_buffer_get_u64(target, params+16);
+			uint64_t l2 = target_buffer_get_u64(target, params+24);
+			if (arm->is_semihosting_fileio) {
+				arm->semihosting_hit_fileio = true;
+				fileio_info->identifier = "rename";
+				fileio_info->param_1 = a1;
+				fileio_info->param_2 = l1;
+				fileio_info->param_3 = a2;
+				fileio_info->param_4 = l2;
+			} else {
+				if (l1 <= 255 && l2 <= 255) {
+					uint8_t fn1[256], fn2[256];
+					retval = target_read_memory(target, a1, 1, l1, fn1);
+					if (retval != ERROR_OK)
+						return retval;
+					retval = target_read_memory(target, a2, 1, l2, fn2);
+					if (retval != ERROR_OK)
+						return retval;
+					fn1[l1] = 0;
+					fn2[l2] = 0;
+					arm->semihosting_result = rename((char *)fn1, (char *)fn2);
+					arm->semihosting_errno =  errno;
+				} else {
+					arm->semihosting_result = -1;
+					arm->semihosting_errno = EINVAL;
+				}
+			}
+		}
+		break;
+
+	case 0x11:	/* SYS_TIME */
+		arm->semihosting_result = time(NULL);
+		break;
+
+	case 0x13:	/* SYS_ERRNO */
+		arm->semihosting_result = arm->semihosting_errno;
+		break;
+
+	case 0x15:	/* SYS_GET_CMDLINE */
+		retval = target_read_memory(target, x1, 8, 2, params);
+		if (retval != ERROR_OK)
+			return retval;
+		else {
+			uint64_t a = target_buffer_get_u64(target, params+0);
+			uint64_t l = target_buffer_get_u64(target, params+8);
+			char *arg = arm->semihosting_cmdline != NULL ? arm->semihosting_cmdline : "";
+			uint64_t s = strlen(arg) + 1;
+			if (l < s)
+				arm->semihosting_result = -1;
+			else {
+				retval = target_write_buffer(target, a, s, (uint8_t *)arg);
+				if (retval != ERROR_OK)
+					return retval;
+				arm->semihosting_result = 0;
+			}
+		}
+		break;
+
+	case 0x16:	/* SYS_HEAPINFO */
+		retval = target_read_memory(target, x1, 8, 1, params);
+		if (retval != ERROR_OK)
+			return retval;
+		else {
+			uint64_t block_addr = target_buffer_get_u64(target, params+0);
+			/* tell the remote we have no idea */
+			memset(params, 0, 4*8);
+			retval = target_write_memory(target, block_addr, 8, 4, params);
+			if (retval != ERROR_OK)
+				return retval;
+			arm->semihosting_result = 0;
+		}
+		break;
+
+	case 0x18:	/* angel_SWIreason_ReportException */
+		retval = target_read_memory(target, x1, 8, 2, params);
+		uint64_t type = target_buffer_get_u64(target, params+0);
+		switch (type) {
+		case 0x20026:	/* ADP_Stopped_ApplicationExit */
+			fprintf(stderr, "semihosting: *** application exited ***\n");
+			target->debug_reason = DBG_REASON_DBGRQ;
+			break;
+		case 0x20000:	/* ADP_Stopped_BranchThroughZero */
+		case 0x20001:	/* ADP_Stopped_UndefinedInstr */
+		case 0x20002:	/* ADP_Stopped_SoftwareInterrupt */
+		case 0x20003:	/* ADP_Stopped_PrefetchAbort */
+		case 0x20004:	/* ADP_Stopped_DataAbort */
+		case 0x20005:	/* ADP_Stopped_AddressException */
+		case 0x20006:	/* ADP_Stopped_IRQ */
+		case 0x20007:	/* ADP_Stopped_FIQ */
+		case 0x20020:	/* ADP_Stopped_BreakPoint */
+		case 0x20021:	/* ADP_Stopped_WatchPoint */
+		case 0x20022:	/* ADP_Stopped_StepComplete */
+		case 0x20023:	/* ADP_Stopped_RunTimeErrorUnknown */
+		case 0x20024:	/* ADP_Stopped_InternalError */
+		case 0x20025:	/* ADP_Stopped_UserInterruption */
+		case 0x20027:	/* ADP_Stopped_StackOverflow */
+		case 0x20028:	/* ADP_Stopped_DivisionByZero */
+		case 0x20029:	/* ADP_Stopped_OSSpecific */
+		default:
+			fprintf(stderr, "semihosting: exception %#x\n",
+					(unsigned) x1);
+		}
+		return target_call_event_callbacks(target, TARGET_EVENT_HALTED);
+
+	case 0x12:	/* SYS_SYSTEM */
+		/* Provide SYS_SYSTEM functionality.  Uses the
+		 * libc system command, there may be a reason *NOT*
+		 * to use this, but as I can't think of one, I
+		 * implemented it this way.
+		 */
+		retval = target_read_memory(target, x1, 8, 2, params);
+		if (retval != ERROR_OK)
+			return retval;
+		else {
+			uint64_t len = target_buffer_get_u64(target, params+8);
+			uint64_t c_ptr = target_buffer_get_u64(target, params);
+			if (arm->is_semihosting_fileio) {
+				arm->semihosting_hit_fileio = true;
+				fileio_info->identifier = "system";
+				fileio_info->param_1 = c_ptr;
+				fileio_info->param_2 = len;
+			} else {
+				uint8_t cmd[256];
+				if (len > 255) {
+					arm->semihosting_result = -1;
+					arm->semihosting_errno = EINVAL;
+				} else {
+					memset(cmd, 0x0, 256);
+					retval = target_read_memory(target, c_ptr, 1, len, cmd);
+					if (retval != ERROR_OK)
+						return retval;
+					else
+						arm->semihosting_result = system((const char *)cmd);
+				}
+			}
+		}
+		break;
+	case 0x0d:	/* SYS_TMPNAM */
+	case 0x10:	/* SYS_CLOCK */
+	case 0x17:	/* angel_SWIreason_EnterSVC */
+	case 0x30:	/* SYS_ELAPSED */
+	case 0x31:	/* SYS_TICKFREQ */
+	default:
+		return ERROR_OK;
+		fprintf(stderr, "semihosting: unsupported call %#x\n",
+				(unsigned) x0);
 		arm->semihosting_result = -1;
 		arm->semihosting_errno = ENOTSUP;
 	}
@@ -587,6 +1135,7 @@ static int gdb_fileio_end(struct target *target, int result, int fileio_errno, b
 {
 	struct arm *arm = target_to_arm(target);
 	struct gdb_fileio_info *fileio_info = target->fileio_info;
+	static int flen_pos_curr, flen_pos_end;
 
 	/* clear pending status */
 	arm->semihosting_hit_fileio = false;
@@ -617,9 +1166,44 @@ static int gdb_fileio_end(struct target *target, int result, int fileio_errno, b
 		if (result > 0)
 			arm->semihosting_result = 0;
 		break;
+
+	case 0x0c:	/* SYS_FLEN */
+		if (result < 0)
+			break;
+		if (flen_seek_steps == SEEK_CUR) {
+			flen_pos_curr = result;
+			flen_seek_steps = SEEK_END;
+			arm->semihosting_hit_fileio = true;
+			fileio_info->identifier = "lseek";
+			fileio_info->param_1 = flen_last_fd;
+			fileio_info->param_2 = 0;
+			fileio_info->param_3 = SEEK_END;
+			return target_call_event_callbacks(target, TARGET_EVENT_HALTED);
+		} else if (flen_seek_steps == SEEK_END) {
+			flen_pos_end = result;
+			flen_seek_steps = SEEK_SET;
+			arm->semihosting_hit_fileio = true;
+			fileio_info->identifier = "lseek";
+			fileio_info->param_1 = flen_last_fd;
+			fileio_info->param_2 = flen_pos_curr;
+			fileio_info->param_3 = SEEK_SET;
+			return target_call_event_callbacks(target, TARGET_EVENT_HALTED);
+		} else if (flen_seek_steps == SEEK_SET) {
+			flen_seek_steps = -1;
+			arm->semihosting_result = flen_pos_end;
+			break;
+		}
 	}
 
-	return post_result(target);
+	/* Post result to target if we are not waiting on a fileio
+	 * operation to complete:
+	 */
+	if (!arm->semihosting_hit_fileio) {
+		int retval = ERROR_OK;
+		arm_semihosting_complete(target, &retval);
+		return retval;
+	}
+	return ERROR_OK;
 }
 
 /**
@@ -758,6 +1342,24 @@ int arm_semihosting(struct target *target, int *retval)
 		/* bkpt 0xAB */
 		if (insn != 0xBEAB)
 			return 0;
+	} else if (is_armv8(target_to_armv8(target))) {
+		if (target->debug_reason != DBG_REASON_BREAKPOINT)
+			return 0;
+
+		if (arm->core_state == ARM_STATE_AARCH64) {
+			uint32_t insn = 0;
+			r = arm->pc;
+			uint64_t pc64 = buf_get_u64(r->value, 0, 64);
+			*retval = target_read_u32(target, pc64, &insn);
+
+			if (*retval != ERROR_OK)
+				return 1;
+
+			/* bkpt 0xAB */
+			if (insn != 0xD45E0000)
+				return 0;
+		} else
+			return 1;
 	} else {
 		LOG_ERROR("Unsupported semi-hosting Target");
 		return 0;
@@ -767,7 +1369,10 @@ int arm_semihosting(struct target *target, int *retval)
 	 * operation to complete.
 	 */
 	if (!arm->semihosting_hit_fileio) {
-		*retval = do_semihosting(target);
+		if (arm->core_state == ARM_STATE_AARCH64)
+			*retval = do_semihosting64(target);
+		else
+			*retval = do_semihosting(target);
 		if (*retval != ERROR_OK) {
 			LOG_ERROR("Failed semihosting operation");
 			return 0;
@@ -777,21 +1382,8 @@ int arm_semihosting(struct target *target, int *retval)
 	/* Post result to target if we are not waiting on a fileio
 	 * operation to complete:
 	 */
-	if (!arm->semihosting_hit_fileio) {
-		*retval = post_result(target);
-		if (*retval != ERROR_OK) {
-			LOG_ERROR("Failed to post semihosting result");
-			return 0;
-		}
-
-		*retval = target_resume(target, 1, 0, 0, 0);
-		if (*retval != ERROR_OK) {
-			LOG_ERROR("Failed to resume target");
-			return 0;
-		}
-
-		return 1;
-	}
+	if (!arm->semihosting_hit_fileio)
+		return arm_semihosting_complete(target, retval);
 
 	return 0;
 }

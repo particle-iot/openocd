@@ -194,10 +194,10 @@ struct arm {
 	int arm_vfp_version;
 
 	/** Current semihosting operation. */
-	int semihosting_op;
+	uint64_t semihosting_op;
 
 	/** Current semihosting result. */
-	int semihosting_result;
+	uint64_t semihosting_result;
 
 	/** Value to be returned by semihosting SYS_ERRNO request. */
 	int semihosting_errno;
