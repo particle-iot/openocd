@@ -618,6 +618,9 @@ static int stm32l4_probe(struct flash_bank *bank)
 
 	/* set max flash size depending on family */
 	switch (device_id & 0xfff) {
+    case 0x470:
+        max_flash_size_in_kb = 2048;
+        break;
 	case 0x461:
 	case 0x415:
 		max_flash_size_in_kb = 1024;
@@ -727,6 +730,9 @@ static int get_stm32l4_info(struct flash_bank *bank, char *buf, int buf_size)
 	const char *device_str;
 
 	switch (device_id) {
+    case 0x470:
+        device_str = "STM32L4R5";
+        break;
 	case 0x461:
 		device_str = "STM32L496/4A6";
 		break;
