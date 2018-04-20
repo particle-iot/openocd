@@ -760,7 +760,7 @@ static void openjtag_execute_runtest(struct jtag_command *cmd)
 	if (cmd->cmd.runtest->num_cycles > 16)
 		LOG_WARNING("num_cycles > 16 on run test");
 
-	if (openjtag_variant != OPENJTAG_VARIANT_CY7C65215 ||
+	if (openjtag_variant != OPENJTAG_VARIANT_CY7C65215 &&
 		cmd->cmd.runtest->num_cycles) {
 		uint8_t command;
 		command = 7;
