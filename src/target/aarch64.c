@@ -1854,8 +1854,8 @@ static int aarch64_write_cpu_memory(struct target *target,
 	if (retval != ERROR_OK)
 		return retval;
 
-	if (size == 4 && (address % 4) == 0)
-		retval = aarch64_write_cpu_memory_fast(target, count, buffer, &dscr);
+	if ((size % 4) == 0 && (address % 4) == 0)
+		retval = aarch64_write_cpu_memory_fast(target, count * size / 4, buffer, &dscr);
 	else
 		retval = aarch64_write_cpu_memory_slow(target, size, count, buffer, &dscr);
 
@@ -2072,8 +2072,8 @@ static int aarch64_read_cpu_memory(struct target *target,
 	if (retval != ERROR_OK)
 		return retval;
 
-	if (size == 4 && (address % 4) == 0)
-		retval = aarch64_read_cpu_memory_fast(target, count, buffer, &dscr);
+	if ((size % 4) == 0 && (address % 4) == 0)
+		retval = aarch64_read_cpu_memory_fast(target, count * size / 4, buffer, &dscr);
 	else
 		retval = aarch64_read_cpu_memory_slow(target, size, count, buffer, &dscr);
 
