@@ -1545,12 +1545,103 @@ COMMAND_HANDLER(lpc2000_handle_part_id_command)
 	return retval;
 }
 
+COMMAND_HANDLER(lpc2000_handle_erase_command)
+{
+	if (CMD_ARGC < 2)
+		return ERROR_COMMAND_SYNTAX_ERROR;
+
+	struct flash_bank *bank;
+	int retval = CALL_COMMAND_HANDLER(flash_command_get_bank, 0, &bank);
+	if (ERROR_OK != retval)
+		return retval;
+	int first_sector = 0;
+	COMMAND_PARSE_NUMBER(int, CMD_ARGV[1], first_sector);
+	if (!(first_sector >= 0)) {
+		LOG_ERROR("first sector index (%i) must be greater or equal to 0", first_sector);
+		return ERROR_COMMAND_SYNTAX_ERROR;
+	}
+	if (!(first_sector < bank->num_sectors)) {
+		LOG_ERROR("first sector index (%i) must be less than the bank number of sectors (%i)",
+			  first_sector, bank->num_sectors);
+		return ERROR_COMMAND_SYNTAX_ERROR;
+	}
+	int last_sector = first_sector;
+	if (CMD_ARGC == 3)
+		COMMAND_PARSE_NUMBER(int, CMD_ARGV[2], last_sector);
+	if (!(last_sector >= 0)) {
+		LOG_ERROR("last sector index (%i) must be greater or equal to 0", last_sector);
+		return ERROR_COMMAND_SYNTAX_ERROR;
+	}
+	if (!(last_sector < bank->num_sectors)) {
+		LOG_ERROR("last sector index (%i) must be less than the bank number of sectors (%i)",
+			  last_sector, bank->num_sectors);
+		return ERROR_COMMAND_SYNTAX_ERROR;
+	}
+
+	if (bank->target->state != TARGET_HALTED) {
+		LOG_ERROR("Target not halted");
+		return ERROR_TARGET_NOT_HALTED;
+	}
+
+	int status_code = lpc2000_erase(bank, first_sector, last_sector);
+	if (status_code != 0x0) {
+		if (status_code == ERROR_FLASH_OPERATION_FAILED)
+			command_print(CMD_CTX, "no sufficient working area specified, can't access LPC2000 IAP interface");
+		else
+			command_print(CMD_CTX, "lpc2000 IAP returned status code %i", status_code);
+	} else
+		command_print(CMD_CTX, "lpc2000 eased");
+
+	return retval;
+}
+
+COMMAND_HANDLER(lpc2000_handle_erase_all_sectors_command)
+{
+	if (CMD_ARGC < 1)
+		return ERROR_COMMAND_SYNTAX_ERROR;
+
+	struct flash_bank *bank;
+	int retval = CALL_COMMAND_HANDLER(flash_command_get_bank, 0, &bank);
+	if (ERROR_OK != retval)
+		return retval;
+
+	if (bank->target->state != TARGET_HALTED) {
+		LOG_ERROR("Target not halted");
+		return ERROR_TARGET_NOT_HALTED;
+	}
+
+	int status_code = lpc2000_erase(bank, 0, bank->num_sectors - 1);
+	if (status_code != 0x0) {
+		if (status_code == ERROR_FLASH_OPERATION_FAILED)
+			command_print(CMD_CTX, "no sufficient working area specified, can't access LPC2000 IAP interface");
+		else
+			command_print(CMD_CTX, "lpc2000 IAP returned status code %i", status_code);
+	} else
+		command_print(CMD_CTX, "lpc2000 eased");
+
+	return retval;
+}
+
 static const struct command_registration lpc2000_exec_command_handlers[] = {
 	{
 		.name = "part_id",
 		.handler = lpc2000_handle_part_id_command,
 		.mode = COMMAND_EXEC,
 		.help = "print part id of lpc2000 flash bank <num>",
+		.usage = "<bank>",
+	},
+	{
+		.name = "erase",
+		.handler = lpc2000_handle_erase_command,
+		.mode = COMMAND_EXEC,
+		.help = "erase lpc2000 flash bank <num> sector <index>, or from first sector <index> up to last sector <index>",
+		.usage = "<bank> <first_sector> [last_sector]",
+	},
+	{
+		.name = "erase_all_sectors",
+		.handler = lpc2000_handle_erase_all_sectors_command,
+		.mode = COMMAND_EXEC,
+		.help = "erase lpc2000 flash bank <num> sectors",
 		.usage = "<bank>",
 	},
 	COMMAND_REGISTRATION_DONE

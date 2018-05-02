@@ -5804,6 +5804,14 @@ flash bank $_FLASHNAME lpc2000 0x0 0x7d000 0 0 $_TARGETNAME \
 Displays the four byte part identifier associated with
 the specified flash @var{bank}.
 @end deffn
+
+@deffn {Command} {lpc2000 erase} bank first_sector [last_sector]
+Erase a sector or sectors range in the specified flash @var{bank}.
+@end deffn
+
+@deffn {Command} {lpc2000 erase_all_sectors} bank
+Erase all soectors in the specified flash @var{bank}.
+@end deffn
 @end deffn
 
 @deffn {Flash Driver} lpc288x
