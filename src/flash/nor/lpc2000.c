@@ -257,6 +257,11 @@
 #define LPC824_201     0x00008241
 #define LPC824_201_1   0x00008242
 
+#define LPC8N04        0x00008A04
+#define NHS3100        0x4e310020
+#define NHS3152        0x4e315220
+#define NHS3153        0x4e315320
+
 #define IAP_CODE_LEN 0x34
 
 #define LPC11xx_REG_SECTORS	24
@@ -525,6 +530,10 @@ static int lpc2000_build_sector_list(struct flash_bank *bank)
 				break;
 			case 16 * 1024:
 				bank->num_sectors = 16;
+				break;
+			case 30 * 1024:
+				lpc2000_info->cmd51_max_buffer = 1024;	/* For LPC8N04 and NHS31xx, have 8kB of SRAM */
+				bank->num_sectors = 30;			/* There have only 30kB of writable Flash out of 32kB */
 				break;
 			case 32 * 1024:
 				lpc2000_info->cmd51_max_buffer = 1024; /* For LPC824, has 8kB of SRAM */
@@ -1456,6 +1465,15 @@ static int lpc2000_auto_probe_flash(struct flash_bank *bank)
 		case LPC824_201_1:
 			lpc2000_info->variant = lpc800;
 			bank->size = 32 * 1024;
+			break;
+
+		case LPC8N04:
+		case NHS3100:
+		case NHS3152:
+		case NHS3153:
+			lpc2000_info->variant = lpc800;
+			lpc2000_info->calc_checksum = 0;
+			bank->size = 30 * 1024;
 			break;
 
 		default:
