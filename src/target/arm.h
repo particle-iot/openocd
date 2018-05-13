@@ -8,6 +8,9 @@
  * Copyright (C) 2009 by Øyvind Harboe
  * oyvind.harboe@zylin.com
  *
+ * Copyright (C) 2018 by Liviu Ionescu
+ *   <ilg@livius.net>
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -28,6 +31,11 @@
 #include <helper/command.h>
 #include "target.h"
 
+/*
+ * Use this to temporarily switch back to the original
+ * semihosting implementation.
+ * #define USE_ORIGINAL_SEMIHOSTING
+ */
 
 /**
  * @file
@@ -181,6 +189,7 @@ struct arm {
 	/** Flag reporting armv6m based core. */
 	bool is_armv6m;
 
+#if defined(USE_ORIGINAL_SEMIHOSTING)
 	/** Flag reporting whether semihosting is active. */
 	bool is_semihosting;
 
@@ -206,6 +215,12 @@ struct arm {
 
 	/** Semihosting command line. */
 	char *semihosting_cmdline;
+#else
+	/** Floating point or VFP version, 0 if disabled. */
+	int arm_vfp_version;
+
+	int (*setup_semihosting)(struct target *target, int enable);
+#endif /* USE_ORIGINAL_SEMIHOSTING */
 
 	/** Backpointer to the target. */
 	struct target *target;
