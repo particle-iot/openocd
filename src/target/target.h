@@ -205,6 +205,9 @@ struct target {
 
 	/* file-I/O information for host to do syscall */
 	struct gdb_fileio_info *fileio_info;
+
+	/* The semihosting information, extracted from the ARM target. */
+	struct semihosting *semihosting;
 };
 
 struct target_list {
