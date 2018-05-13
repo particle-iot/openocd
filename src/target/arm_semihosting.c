@@ -8,6 +8,9 @@
  *   Copyright (C) 2016 by Square, Inc.                                    *
  *   Steven Stallion <stallion@squareup.com>                               *
  *                                                                         *
+ *   Copyright (C) 2018 by Liviu Ionescu                                   *
+ *   <ilg@livius.net>                                                      *
+ *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
  *   the Free Software Foundation; either version 2 of the License, or     *
@@ -52,6 +55,8 @@
 #include <helper/log.h>
 #include <sys/stat.h>
 
+#if defined(USE_ORIGINAL_SEMIHOSTING)
+
 static const int open_modeflags[12] = {
 	O_RDONLY,
 	O_RDONLY | O_BINARY,
@@ -67,6 +72,8 @@ static const int open_modeflags[12] = {
 	O_RDWR | O_CREAT | O_APPEND | O_BINARY
 };
 
+#endif /* defined(USE_ORIGINAL_SEMIHOSTING) */
+
 static int post_result(struct target *target)
 {
 	struct arm *arm = target_to_arm(target);
@@ -79,7 +86,11 @@ static int post_result(struct target *target)
 		uint32_t spsr;
 
 		/* return value in R0 */
+#if defined(USE_ORIGINAL_SEMIHOSTING)
 		buf_set_u32(arm->core_cache->reg_list[0].value, 0, 32, arm->semihosting_result);
+#else
+		buf_set_u32(arm->core_cache->reg_list[0].value, 0, 32, target->semihosting->result);
+#endif
 		arm->core_cache->reg_list[0].dirty = 1;
 
 		/* LR --> PC */
@@ -105,12 +116,18 @@ static int post_result(struct target *target)
 		 * bkpt instruction */
 
 		/* return result in R0 */
+#if defined(USE_ORIGINAL_SEMIHOSTING)
 		buf_set_u32(arm->core_cache->reg_list[0].value, 0, 32, arm->semihosting_result);
+#else
+		buf_set_u32(arm->core_cache->reg_list[0].value, 0, 32, target->semihosting->result);
+#endif
 		arm->core_cache->reg_list[0].dirty = 1;
 	}
 
 	return ERROR_OK;
 }
+
+#if defined(USE_ORIGINAL_SEMIHOSTING)
 
 static int do_semihosting(struct target *target)
 {
@@ -622,6 +639,8 @@ static int gdb_fileio_end(struct target *target, int result, int fileio_errno, b
 	return post_result(target);
 }
 
+#endif /* defined(USE_ORIGINAL_SEMIHOSTING) */
+
 /**
  * Initialize ARM semihosting support.
  *
@@ -630,6 +649,8 @@ static int gdb_fileio_end(struct target *target, int result, int fileio_errno, b
  */
 int arm_semihosting_init(struct target *target)
 {
+#if defined(USE_ORIGINAL_SEMIHOSTING)
+
 	target->fileio_info = malloc(sizeof(*target->fileio_info));
 	if (target->fileio_info == NULL) {
 		LOG_ERROR("out of memory");
@@ -638,6 +659,14 @@ int arm_semihosting_init(struct target *target)
 
 	target->type->get_gdb_fileio_info = get_gdb_fileio_info;
 	target->type->gdb_fileio_end = gdb_fileio_end;
+
+#else
+
+	struct arm *arm = target_to_arm(target);
+	assert(arm->setup_semihosting);
+	semihosting_common_init(target, arm->setup_semihosting, post_result);
+
+#endif /* defined(USE_ORIGINAL_SEMIHOSTING) */
 
 	return ERROR_OK;
 }
@@ -662,8 +691,21 @@ int arm_semihosting(struct target *target, int *retval)
 	uint32_t pc, lr, spsr;
 	struct reg *r;
 
+#if defined(USE_ORIGINAL_SEMIHOSTING)
+
 	if (!arm->is_semihosting)
 		return 0;
+
+#else
+
+	struct semihosting *semihosting = target->semihosting;
+	if (!semihosting)
+		return 0;
+
+	if (!semihosting->is_active)
+		return 0;
+
+#endif /* defined(USE_ORIGINAL_SEMIHOSTING) */
 
 	if (is_arm7_9(target_to_arm7_9(target)) ||
 	    is_armv7a(armv7a)) {
@@ -766,6 +808,8 @@ int arm_semihosting(struct target *target, int *retval)
 	/* Perform semihosting if we are not waiting on a fileio
 	 * operation to complete.
 	 */
+#if defined(USE_ORIGINAL_SEMIHOSTING)
+
 	if (!arm->semihosting_hit_fileio) {
 		*retval = do_semihosting(target);
 		if (*retval != ERROR_OK) {
@@ -792,6 +836,46 @@ int arm_semihosting(struct target *target, int *retval)
 
 		return 1;
 	}
+
+#else
+
+	if (!semihosting->hit_fileio) {
+		/* TODO: update for 64-bits */
+		uint32_t r0 = buf_get_u32(arm->core_cache->reg_list[0].value, 0, 32);
+		uint32_t r1 = buf_get_u32(arm->core_cache->reg_list[1].value, 0, 32);
+
+		semihosting->op = r0;
+		semihosting->param = r1;
+		semihosting->word_size_bytes = 4;
+
+		/* Check for ARM operation numbers. */
+		if (0 <= semihosting->op && semihosting->op <= 0x31) {
+			*retval = semihosting_common(target);
+			if (*retval != ERROR_OK) {
+				LOG_ERROR("Failed semihosting operation");
+				return 0;
+			}
+		} else {
+			/* Unknown operation number, not a semihosting call. */
+			return 0;
+		}
+	}
+
+	/* Post result to target if we are not waiting on a fileio
+	 * operation to complete:
+	 */
+	if (semihosting->is_resumable && !semihosting->hit_fileio) {
+		/* Resume right after the EBREAK 4 bytes instruction. */
+		*retval = target_resume(target, 1, 0, 0, 0);
+		if (*retval != ERROR_OK) {
+			LOG_ERROR("Failed to resume target");
+			return 0;
+		}
+
+		return 1;
+	}
+
+#endif /* defined(USE_ORIGINAL_SEMIHOSTING) */
 
 	return 0;
 }
