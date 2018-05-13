@@ -1,6 +1,9 @@
 /***************************************************************************
  *   Copyright (C) 2015 by David Ung                                       *
  *                                                                         *
+ *   Copyright (C) 2018 by Liviu Ionescu                                   *
+ *   <ilg@livius.net>                                                      *
+ *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
  *   the Free Software Foundation; either version 2 of the License, or     *
@@ -1039,6 +1042,8 @@ int armv8_aarch64_state(struct target *target)
 		return ERROR_FAIL;
 	}
 
+#if defined(USE_ORIGINAL_SEMIHOSTING)
+
 	LOG_USER("target halted in %s state due to %s, current mode: %s\n"
 		"cpsr: 0x%8.8" PRIx32 " pc: 0x%" PRIx64 "%s",
 		armv8_state_strings[arm->core_state],
@@ -1047,6 +1052,19 @@ int armv8_aarch64_state(struct target *target)
 		buf_get_u32(arm->cpsr->value, 0, 32),
 		buf_get_u64(arm->pc->value, 0, 64),
 		arm->is_semihosting ? ", semihosting" : "");
+
+#else
+
+	LOG_USER("target halted in %s state due to %s, current mode: %s\n"
+		"cpsr: 0x%8.8" PRIx32 " pc: 0x%" PRIx64 "%s",
+		armv8_state_strings[arm->core_state],
+		debug_reason_name(target),
+		armv8_mode_name(arm->core_mode),
+		buf_get_u32(arm->cpsr->value, 0, 32),
+		buf_get_u64(arm->pc->value, 0, 64),
+		target->semihosting->is_active ? ", semihosting" : "");
+
+#endif /* defined(USE_ORIGINAL_SEMIHOSTING) */
 
 	return ERROR_OK;
 }
