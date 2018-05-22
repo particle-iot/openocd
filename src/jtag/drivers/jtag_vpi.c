@@ -212,15 +212,17 @@ static int jtag_vpi_queue_tdi(uint8_t *bits, int nb_bits, int tap_shift)
 	int xmit_nb_bits = nb_bits;
 	int i = 0;
 	int retval;
+	uint8_t *buf;
 
 	while (nb_xfer) {
+		buf = (bits == NULL) ? NULL : &xmit_buffer[i];
 
 		if (nb_xfer ==  1) {
-			retval = jtag_vpi_queue_tdi_xfer(&xmit_buffer[i], xmit_nb_bits, tap_shift);
+			retval = jtag_vpi_queue_tdi_xfer(buf, xmit_nb_bits, tap_shift);
 			if (retval != ERROR_OK)
 				return retval;
 		} else {
-			retval = jtag_vpi_queue_tdi_xfer(&xmit_buffer[i], XFERT_MAX_SIZE * 8, NO_TAP_SHIFT);
+			retval = jtag_vpi_queue_tdi_xfer(buf, XFERT_MAX_SIZE * 8, NO_TAP_SHIFT);
 			if (retval != ERROR_OK)
 				return retval;
 			xmit_nb_bits -= XFERT_MAX_SIZE * 8;
