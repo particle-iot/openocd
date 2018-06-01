@@ -46,8 +46,13 @@
 
 static struct service *services;
 
-/* shutdown_openocd == 1: exit the main event loop, and quit the
- * debugger; 2: quit with non-zero return code */
+/*
+ * shutdown_openocd values:
+ * 0: stay in main event loop
+ * 1: set by shutdown command; exit the event loop and quit the debugger
+ * 2: set by shutdown command; quit with non-zero return code
+ * 3: set by sig_handler; exec shutdown then exit with signal as return code
+ */
 static int shutdown_openocd;
 
 /* store received signal to exit application by killing ourselves */
@@ -555,10 +560,14 @@ int server_loop(struct command_context *command_context)
 		MSG msg;
 		while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
 			if (msg.message == WM_QUIT)
-				shutdown_openocd = 1;
+				shutdown_openocd = 3;
 		}
 #endif
 	}
+
+	/* when quit for signal or CTRL-C, run (eventually user implemented) "shutdown" */
+	if (shutdown_openocd == 3)
+		command_run_line(command_context, "shutdown");
 
 	return shutdown_openocd != 2 ? ERROR_OK : ERROR_FAIL;
 }
@@ -566,7 +575,7 @@ int server_loop(struct command_context *command_context)
 #ifdef _WIN32
 BOOL WINAPI ControlHandler(DWORD dwCtrlType)
 {
-	shutdown_openocd = 1;
+	shutdown_openocd = 3;
 	return TRUE;
 }
 #endif
@@ -576,7 +585,7 @@ void sig_handler(int sig)
 	/* store only first signal that hits us */
 	if (!last_signal)
 		last_signal = sig;
-	shutdown_openocd = 1;
+	shutdown_openocd = 3;
 }
 
 int server_preinit(void)
