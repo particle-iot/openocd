@@ -882,6 +882,9 @@ static int stm32x_probe(struct flash_bank *bank)
 	case 0x441: /* F412 */
 		max_flash_size_in_kb = 512;
 		break;
+	case 0x463:	/* F413 */
+		max_flash_size_in_kb = 1536;
+		break;
 
 	case 0x458: /* F410 */
 		max_flash_size_in_kb = 128;
