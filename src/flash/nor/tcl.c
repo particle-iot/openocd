@@ -373,7 +373,7 @@ COMMAND_HANDLER(handle_flash_protect_command)
 		return ERROR_FAIL;
 	}
 
-	if (!(last <= (uint32_t)(p->num_sectors - 1))) {
+	if (!(last <= (uint32_t)(num_blocks - 1))) {
 		command_print(CMD_CTX, "ERROR: "
 			"last %s must be <= %" PRIu32,
 			(p->num_prot_blocks) ? "block" : "sector",
