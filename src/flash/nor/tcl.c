@@ -381,9 +381,11 @@ COMMAND_HANDLER(handle_flash_protect_command)
 
 	retval = flash_driver_protect(p, set, first, last);
 	if (retval == ERROR_OK) {
-		command_print(CMD_CTX, "%s protection for sectors %" PRIu32
+		command_print(CMD_CTX, "%s protection for %s %" PRIu32
 			" through %" PRIu32 " on flash bank %d",
-			(set) ? "set" : "cleared", first, last, p->bank_number);
+			(set) ? "set" : "cleared",
+			(p->num_prot_blocks) ? "blocks" : "sectors",
+			first, last, p->bank_number);
 	}
 
 	return retval;
