@@ -279,7 +279,7 @@ static int kitprog_usb_open(void)
 	const uint16_t vids[] = { VID, 0 };
 	const uint16_t pids[] = { PID, 0 };
 
-	if (jtag_libusb_open(vids, pids, kitprog_serial,
+	if (jtag_libusb_open(vids, pids, kitprog_serial, NULL,
 			&kitprog_handle->usb_handle) != ERROR_OK) {
 		LOG_ERROR("Failed to open or find the device");
 		return ERROR_FAIL;
