@@ -64,7 +64,7 @@ static bool string_descriptor_equal(usb_dev_handle *device, uint8_t str_index,
 }
 
 int jtag_libusb_open(const uint16_t vids[], const uint16_t pids[],
-		const char *serial,
+		const char *serial, const char *location,
 		struct jtag_libusb_device_handle **out)
 {
 	int retval = -ENODEV;

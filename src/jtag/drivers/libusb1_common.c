@@ -23,6 +23,12 @@
 #include "log.h"
 #include "libusb1_common.h"
 
+/*
+ * comment from libusb:
+ * As per the USB 3.0 specs, the current maximum limit for the depth is 7.
+ */
+#define MAX_USB_PORTS	7
+
 static struct libusb_context *jtag_libusb_context; /**< Libusb context **/
 static libusb_device **devs; /**< The usb device list **/
 
@@ -36,6 +42,61 @@ static bool jtag_libusb_match(struct libusb_device_descriptor *dev_desc,
 		}
 	}
 	return false;
+}
+
+static bool jtag_libusb_location_equal(libusb_device *device, const char *location)
+{
+	uint8_t port_path[MAX_USB_PORTS];
+	uint8_t dev_bus;
+	int path_step, path_len;
+	int result = false;
+	char *ptr, *loc;
+
+	/* strtok need non const char */
+	loc = strdup(location);
+
+	path_len = libusb_get_port_numbers(device, port_path, MAX_USB_PORTS);
+	if (path_len == LIBUSB_ERROR_OVERFLOW) {
+		fprintf(stderr, "cannot determine path to usb device! (more than %i ports in path)\n",
+			MAX_USB_PORTS);
+		goto done;
+	}
+
+	ptr = strtok(loc, "-");
+	if (ptr == NULL) {
+		printf("no '-' in path\n");
+		goto done;
+	}
+
+	dev_bus = libusb_get_bus_number(device);
+	/* check bus mismatch */
+	if (atoi(ptr) != dev_bus)
+		goto done;
+
+	path_step = 0;
+	while (path_step < MAX_USB_PORTS) {
+		ptr = strtok(NULL, ".");
+
+		/* no more tokens in path */
+		if (ptr == NULL)
+			break;
+
+		/* path mismatch at some step */
+		if (path_step < path_len && atoi(ptr) != port_path[path_step])
+			break;
+
+		path_step++;
+	};
+
+	/* walked the full path, all elements match */
+	if (path_step == path_len)
+		result = true;
+	else
+		fprintf(stderr, " excluded by device path option\n");
+
+done:
+	free(loc);
+	return result;
 }
 
 /* Returns true if the string descriptor indexed by str_index in device matches string */
@@ -67,7 +128,7 @@ static bool string_descriptor_equal(libusb_device_handle *device, uint8_t str_in
 }
 
 int jtag_libusb_open(const uint16_t vids[], const uint16_t pids[],
-		const char *serial,
+		const char *serial, const char *location,
 		struct jtag_libusb_device_handle **out)
 {
 	int cnt, idx, errCode;
@@ -86,6 +147,9 @@ int jtag_libusb_open(const uint16_t vids[], const uint16_t pids[],
 			continue;
 
 		if (!jtag_libusb_match(&dev_desc, vids, pids))
+			continue;
+
+		if (location && !jtag_libusb_location_equal(devs[idx], location))
 			continue;
 
 		errCode = libusb_open(devs[idx], &libusb_handle);
