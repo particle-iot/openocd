@@ -20,6 +20,78 @@
 #endif
 #include "usb_common.h"
 
+static char *jtag_usb_location;
+/* we need 15 chars for a bus+7ports string. add one more char as marker for
+ * too long string */
+#define JTAG_USB_MAX_LOCATION_LENGHT	(15 + 1)
+
+void jtag_usb_set_location(const char *location)
+{
+	if (strnlen(location, JTAG_USB_MAX_LOCATION_LENGHT) ==
+	    JTAG_USB_MAX_LOCATION_LENGHT)
+		printf("usb location string is too long!!\n");
+
+	if (jtag_usb_location)
+		free(jtag_usb_location);
+
+	jtag_usb_location = strndup(location, JTAG_USB_MAX_LOCATION_LENGHT);
+}
+
+const char * jtag_usb_get_location(void)
+{
+	return jtag_usb_location;
+}
+
+bool jtag_usb_location_equal(uint8_t dev_bus, uint8_t *port_path,
+			     size_t path_len)
+{
+	size_t path_step, string_lengh;
+	int err;
+	char *ptr, *loc;
+	bool equal = false;
+
+	/* strtok need non const char */
+	loc = strndup(jtag_usb_get_location(), JTAG_USB_MAX_LOCATION_LENGHT);
+	string_lengh = strnlen(loc, JTAG_USB_MAX_LOCATION_LENGHT);
+
+	ptr = strtok(loc, "-");
+	if (ptr == NULL) {
+		printf("no '-' in path\n");
+		goto done;
+	}
+
+	string_lengh -= 1;
+	/* check bus mismatch */
+	if (atoi(ptr) != dev_bus)
+		goto done;
+
+	path_step = 0;
+	while (path_step < path_len) {
+		ptr = strtok(NULL, ".");
+
+		/* no more tokens in path */
+		if (ptr == NULL)
+			break;
+
+		/* path mismatch at some step */
+		if (path_step < path_len && atoi(ptr) != port_path[path_step])
+			break;
+
+		path_step++;
+		string_lengh -= 2;
+	};
+
+	/* walked the full path, all elements match */
+	if (path_step == path_len && !string_lengh)
+		equal = 1;
+	else
+		fprintf(stderr, " excluded by device path option: %s\n",
+			jtag_usb_get_location());
+
+done:
+	free(loc);
+	return equal;
+}
 
 static bool jtag_usb_match(struct usb_device *dev,
 		const uint16_t vids[], const uint16_t pids[])
