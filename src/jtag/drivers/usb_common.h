@@ -20,6 +20,8 @@
 
 #include <usb.h>
 
+bool jtag_usb_location_equal(const char *location, uint8_t dev_bus, uint8_t *port_path,
+			     size_t path_len);
 int jtag_usb_open(const uint16_t vids[], const uint16_t pids[],
 		struct usb_dev_handle **out);
 

@@ -2034,7 +2034,7 @@ static int stlink_usb_open(struct hl_interface_param_s *param, void **fd)
 	  in order to become operational.
 	 */
 	do {
-		if (jtag_libusb_open(param->vid, param->pid, param->serial, &h->fd) != ERROR_OK) {
+		if (jtag_libusb_open(param->vid, param->pid, NULL, param->serial, &h->fd) != ERROR_OK) {
 			LOG_ERROR("open failed");
 			goto error_open;
 		}
