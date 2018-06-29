@@ -123,6 +123,7 @@ struct ublast_info {
 	uint16_t ublast_vid_uninit, ublast_pid_uninit;
 	int flags;
 	char *firmware_path;
+	char *usb_location;
 };
 
 /*
@@ -874,6 +875,7 @@ static int ublast_init(void)
 	info.drv->ublast_pid_uninit = info.ublast_pid_uninit;
 	info.drv->ublast_device_desc = info.ublast_device_desc;
 	info.drv->firmware_path = info.firmware_path;
+	info.drv->usb_location = info.usb_location;
 
 	info.flags |= info.drv->flags;
 
@@ -901,9 +903,17 @@ static int ublast_quit(void)
 {
 	uint8_t byte0 = 0;
 	unsigned int retlen;
+	int ret;
 
 	ublast_buf_write(&byte0, 1, &retlen);
-	return info.drv->close(info.drv);
+	ret = info.drv->close(info.drv);
+
+	free(info.firmware_path);
+	free(info.ublast_device_desc);
+	free(info.usb_location);
+	free(info.lowlevel_name);
+
+	return ret;
 }
 
 COMMAND_HANDLER(ublast_handle_device_desc_command)
@@ -1027,6 +1037,20 @@ COMMAND_HANDLER(ublast_firmware_command)
 	return ERROR_OK;
 }
 
+#ifdef HAVE_LIBUSB_GET_PORT_NUMBERS
+COMMAND_HANDLER(ublast_handle_location_command)
+{
+	if (CMD_ARGC == 1) {
+		if (info.usb_location)
+			free(info.usb_location);
+		info.usb_location = strdup(CMD_ARGV[0]);
+	} else {
+		return ERROR_COMMAND_SYNTAX_ERROR;
+	}
+
+	return ERROR_OK;
+}
+#endif
 
 static const struct command_registration ublast_command_handlers[] = {
 	{
@@ -1066,6 +1090,15 @@ static const struct command_registration ublast_command_handlers[] = {
 		.help = "configure the USB-Blaster II firmware location",
 		.usage = "path/to/blaster_xxxx.hex",
 	},
+#ifdef HAVE_LIBUSB_GET_PORT_NUMBERS
+	{
+		.name = "usb_blaster_location",
+		.handler = &ublast_handle_location_command,
+		.mode = COMMAND_CONFIG,
+		.help = "set the USB bus location of the USB Blaster device",
+		.usage = "<bus>-port[.port]...",
+	},
+#endif
 	COMMAND_REGISTRATION_DONE
 };
 
