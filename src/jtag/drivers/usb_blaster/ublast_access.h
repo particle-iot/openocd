@@ -41,6 +41,7 @@ struct ublast_lowlevel {
 	char *ublast_device_desc;
 	struct jtag_libusb_device_handle *libusb_dev;
 	char *firmware_path;
+	char *usb_location;
 
 	int (*write)(struct ublast_lowlevel *low, uint8_t *buf, int size,
 		     uint32_t *bytes_written);
