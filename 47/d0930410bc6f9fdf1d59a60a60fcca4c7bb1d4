@@ -1,0 +1,8 @@
+Verified+1: jenkins
+Code-Review+2: Spencer Oliver <spen@spen-soft.co.uk>
+Code-Review+1: Tomas Vanek <vanekt@fbl.cz>
+Submitted-by: Tomas Vanek <vanekt@fbl.cz>
+Submitted-at: Tue, 03 Jul 2018 07:47:14 +0100
+Reviewed-on: http://openocd.zylin.com/4519
+Project: openocd
+Branch: refs/heads/master
