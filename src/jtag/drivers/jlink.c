@@ -41,6 +41,9 @@
 
 #include <libjaylink/libjaylink.h>
 
+#include "libusb1_common.h"
+#define MAX_USB_PORTS	7
+
 static struct jaylink_context *jayctx;
 static struct jaylink_device_handle *devh;
 static struct jaylink_connection conn;
@@ -54,6 +57,7 @@ static enum jaylink_usb_address usb_address;
 static bool use_usb_address;
 static enum jaylink_target_interface iface = JAYLINK_TIF_JTAG;
 static bool trace_enabled;
+static char *usb_location;
 
 #define JLINK_MAX_SPEED			12000
 #define JLINK_TAP_BUFFER_SIZE	2048
@@ -534,6 +538,66 @@ static int jaylink_log_handler(const struct jaylink_context *ctx,
 	return 0;
 }
 
+static bool jlink_usb_location_equal(struct jaylink_device *dev, const char *location)
+{
+	uint8_t port_path[MAX_USB_PORTS];
+	uint8_t dev_bus;
+	int path_step, path_len = MAX_USB_PORTS;
+	int ret;
+	char *ptr, *loc;
+
+	/* strtok need non const char */
+	loc = strdup(location);
+
+	ret = jaylink_device_get_usb_bus_ports(dev, &dev_bus, port_path, &path_len);
+
+	if (ret == JAYLINK_ERR_NOT_SUPPORTED) {
+		ret = 0;
+		goto done;
+	} else if (ret != JAYLINK_OK) {
+		LOG_WARNING("jaylink_device_get_usb_bus_ports() failed: %s.",
+			jaylink_strerror(ret));
+		ret = 0;
+		goto done;
+	}
+
+	ptr = strtok(loc, "-");
+	if (ptr == NULL) {
+		printf("no '-' in path\n");
+		goto done;
+	}
+
+	/* check bus mismatch */
+	if (atoi(ptr) != dev_bus)
+		goto done;
+
+	path_step = 0;
+	while (path_step < MAX_USB_PORTS) {
+		ptr = strtok(NULL, ".");
+
+		/* no more tokens in path */
+		if (ptr == NULL)
+			break;
+
+		/* path mismatch at some step */
+		if (path_step < path_len && atoi(ptr) != port_path[path_step])
+			break;
+
+		path_step++;
+	};
+
+	/* walked the full path, all elements match */
+	if (path_step == path_len)
+		ret = 1;
+	else
+		fprintf(stderr, " excluded by device path option\n");
+
+done:
+	free(loc);
+	return ret;
+}
+
+
 static int jlink_init(void)
 {
 	int ret;
@@ -605,8 +669,10 @@ static int jlink_init(void)
 	found_device = false;
 
 	for (i = 0; devs[i]; i++) {
+		struct jaylink_device *dev = devs[i];
+
 		if (use_serial_number) {
-			ret = jaylink_device_get_serial_number(devs[i], &tmp);
+			ret = jaylink_device_get_serial_number(dev, &tmp);
 
 			if (ret == JAYLINK_ERR_NOT_AVAILABLE) {
 				continue;
@@ -621,7 +687,7 @@ static int jlink_init(void)
 		}
 
 		if (use_usb_address) {
-			ret = jaylink_device_get_usb_address(devs[i], &address);
+			ret = jaylink_device_get_usb_address(dev, &address);
 
 			if (ret == JAYLINK_ERR_NOT_SUPPORTED) {
 				continue;
@@ -635,7 +701,10 @@ static int jlink_init(void)
 				continue;
 		}
 
-		ret = jaylink_open(devs[i], &devh);
+		if (usb_location && !jlink_usb_location_equal(dev, usb_location))
+			continue;
+
+		ret = jaylink_open(dev, &devh);
 
 		if (ret == JAYLINK_OK) {
 			found_device = true;
@@ -1738,6 +1807,21 @@ COMMAND_HANDLER(jlink_handle_emucom_read_command)
 	return ERROR_OK;
 }
 
+#ifdef HAVE_LIBUSB_GET_PORT_NUMBERS
+COMMAND_HANDLER(jlink_handle_location_command)
+{
+	if (CMD_ARGC == 1) {
+		if (usb_location)
+			free(usb_location);
+		usb_location = strdup(CMD_ARGV[0]);
+	} else {
+		return ERROR_COMMAND_SYNTAX_ERROR;
+	}
+
+	return ERROR_OK;
+}
+#endif
+
 static const struct command_registration jlink_config_subcommand_handlers[] = {
 	{
 		.name = "usb",
@@ -1856,6 +1940,15 @@ static const struct command_registration jlink_subcommand_handlers[] = {
 		.help = "access EMUCOM channel",
 		.chain = jlink_emucom_subcommand_handlers
 	},
+#ifdef HAVE_LIBUSB_GET_PORT_NUMBERS
+	{
+		.name = "usb_location",
+		.handler = &jlink_handle_location_command,
+		.mode = COMMAND_CONFIG,
+		.help = "set the USB bus location of the device",
+		.usage = "<bus>-port[.port]...",
+	},
+#endif
 	COMMAND_REGISTRATION_DONE
 };
 
