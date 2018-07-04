@@ -31,6 +31,7 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
+#include "usb_common.h"
 
 #include <stdint.h>
 #include <math.h>
@@ -54,6 +55,7 @@ static enum jaylink_usb_address usb_address;
 static bool use_usb_address;
 static enum jaylink_target_interface iface = JAYLINK_TIF_JTAG;
 static bool trace_enabled;
+static char *usb_location;
 
 #define JLINK_MAX_SPEED			12000
 #define JLINK_TAP_BUFFER_SIZE	2048
@@ -534,6 +536,32 @@ static int jaylink_log_handler(const struct jaylink_context *ctx,
 	return 0;
 }
 
+static bool jlink_usb_location_equal(struct jaylink_device *dev, const char *location)
+{
+	uint8_t *port_path;
+	uint8_t dev_bus;
+	size_t path_len;
+	int err;
+	bool equal = false;
+
+	err = jaylink_device_get_usb_bus_ports(dev, &dev_bus, &port_path, &path_len);
+
+	if (err == JAYLINK_ERR_NOT_SUPPORTED) {
+		goto done;
+	} else if (err != JAYLINK_OK) {
+		LOG_WARNING("jaylink_device_get_usb_bus_ports() failed: %s.",
+			jaylink_strerror(err));
+		goto done;
+	}
+
+	equal = jtag_usb_location_equal(location, dev_bus, port_path, path_len);
+
+done:
+	free(port_path);
+	return equal;
+}
+
+
 static int jlink_init(void)
 {
 	int ret;
@@ -595,7 +623,7 @@ static int jlink_init(void)
 		return ERROR_JTAG_INIT_FAILED;
 	}
 
-	if (!use_serial_number && !use_usb_address && num_devices > 1) {
+	if (!use_serial_number && !use_usb_address && !usb_location && num_devices > 1) {
 		LOG_ERROR("Multiple devices found, specify the desired device.");
 		jaylink_free_devices(devs, true);
 		jaylink_exit(jayctx);
@@ -605,8 +633,10 @@ static int jlink_init(void)
 	found_device = false;
 
 	for (i = 0; devs[i]; i++) {
+		struct jaylink_device *dev = devs[i];
+
 		if (use_serial_number) {
-			ret = jaylink_device_get_serial_number(devs[i], &tmp);
+			ret = jaylink_device_get_serial_number(dev, &tmp);
 
 			if (ret == JAYLINK_ERR_NOT_AVAILABLE) {
 				continue;
@@ -621,7 +651,7 @@ static int jlink_init(void)
 		}
 
 		if (use_usb_address) {
-			ret = jaylink_device_get_usb_address(devs[i], &address);
+			ret = jaylink_device_get_usb_address(dev, &address);
 
 			if (ret == JAYLINK_ERR_NOT_SUPPORTED) {
 				continue;
@@ -635,7 +665,10 @@ static int jlink_init(void)
 				continue;
 		}
 
-		ret = jaylink_open(devs[i], &devh);
+		if (usb_location && !jlink_usb_location_equal(dev, usb_location))
+			continue;
+
+		ret = jaylink_open(dev, &devh);
 
 		if (ret == JAYLINK_OK) {
 			found_device = true;
@@ -1738,6 +1771,21 @@ COMMAND_HANDLER(jlink_handle_emucom_read_command)
 	return ERROR_OK;
 }
 
+#ifdef HAVE_LIBUSB_GET_PORT_NUMBERS
+COMMAND_HANDLER(jlink_handle_location_command)
+{
+	if (CMD_ARGC == 1) {
+		if (usb_location)
+			free(usb_location);
+		usb_location = strdup(CMD_ARGV[0]);
+	} else {
+		return ERROR_COMMAND_SYNTAX_ERROR;
+	}
+
+	return ERROR_OK;
+}
+#endif
+
 static const struct command_registration jlink_config_subcommand_handlers[] = {
 	{
 		.name = "usb",
@@ -1856,6 +1904,15 @@ static const struct command_registration jlink_subcommand_handlers[] = {
 		.help = "access EMUCOM channel",
 		.chain = jlink_emucom_subcommand_handlers
 	},
+#ifdef HAVE_LIBUSB_GET_PORT_NUMBERS
+	{
+		.name = "usb_location",
+		.handler = &jlink_handle_location_command,
+		.mode = COMMAND_CONFIG,
+		.help = "set the USB bus location of the device",
+		.usage = "<bus>-port[.port]...",
+	},
+#endif
 	COMMAND_REGISTRATION_DONE
 };
 
