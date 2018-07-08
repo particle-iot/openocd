@@ -127,7 +127,7 @@ struct stm32x_flash_bank {
 };
 
 static int stm32x_mass_erase(struct flash_bank *bank);
-static int stm32x_get_device_id(struct flash_bank *bank, uint32_t *device_id);
+static int stm32x_get_device_id(struct flash_bank *bank, uint32_t *idcode);
 static int stm32x_write_block(struct flash_bank *bank, const uint8_t *buffer,
 		uint32_t offset, uint32_t count);
 
@@ -739,13 +739,13 @@ cleanup:
 	return retval;
 }
 
-static int stm32x_get_device_id(struct flash_bank *bank, uint32_t *device_id)
+static int stm32x_get_device_id(struct flash_bank *bank, uint32_t *idcode)
 {
 	/* This check the device CPUID core register to detect
 	 * the M0 from the M3 devices. */
 
 	struct target *target = bank->target;
-	uint32_t cpuid, device_id_register = 0;
+	uint32_t cpuid, dbgmcu_base;
 
 	/* Get the CPUID from the ARM Core
 	 * http://infocenter.arm.com/help/topic/com.arm.doc.ddi0432c/DDI0432C_cortex_m0_r0p0_trm.pdf 4.2.1 */
@@ -753,22 +753,21 @@ static int stm32x_get_device_id(struct flash_bank *bank, uint32_t *device_id)
 	if (retval != ERROR_OK)
 		return retval;
 
-	if (((cpuid >> 4) & 0xFFF) == 0xC20) {
-		/* 0xC20 is M0 devices */
-		device_id_register = 0x40015800;
-	} else if (((cpuid >> 4) & 0xFFF) == 0xC23) {
-		/* 0xC23 is M3 devices */
-		device_id_register = 0xE0042000;
-	} else if (((cpuid >> 4) & 0xFFF) == 0xC24) {
-		/* 0xC24 is M4 devices */
-		device_id_register = 0xE0042000;
-	} else {
-		LOG_ERROR("Cannot identify target as a stm32x");
-		return ERROR_FAIL;
+	/* stm32f0x has a different DBG_MCU address than the rest of the stm32 family */
+	switch ((cpuid >> 4) & 0xFFF) {
+	case 0xC20:	/* Cortex-M0 */
+		dbgmcu_base = 0x40015800;
+		break;
+	case 0xC23:	/* Cortex-M3 */
+	case 0xC24:	/* Cortex-M4 */
+	case 0xC27:	/* Cortex-M7 */
+	default:
+		dbgmcu_base = 0xE0042000;
+		break;
 	}
 
 	/* read stm32 device id register */
-	retval = target_read_u32(target, device_id_register, device_id);
+	retval = target_read_u32(target, dbgmcu_base, idcode);
 	if (retval != ERROR_OK)
 		return retval;
 
@@ -778,23 +777,56 @@ static int stm32x_get_device_id(struct flash_bank *bank, uint32_t *device_id)
 static int stm32x_get_flash_size(struct flash_bank *bank, uint16_t *flash_size_in_kb)
 {
 	struct target *target = bank->target;
-	uint32_t cpuid, flash_size_reg;
+	uint32_t idcode, flash_size_reg;
 
-	int retval = target_read_u32(target, 0xE000ED00, &cpuid);
+	/* read stm32 device id register */
+	int retval = stm32x_get_device_id(bank, &idcode);
 	if (retval != ERROR_OK)
 		return retval;
 
-	if (((cpuid >> 4) & 0xFFF) == 0xC20) {
-		/* 0xC20 is M0 devices */
-		flash_size_reg = 0x1FFFF7CC;
-	} else if (((cpuid >> 4) & 0xFFF) == 0xC23) {
-		/* 0xC23 is M3 devices */
+	uint16_t dev_id = idcode & 0xFFF;
+
+	switch (dev_id) {
+	case 0x410: /* stm32f101/2/3 medium-density & gd32x */
+	case 0x412: /* stm32f101/2/3 low-density */
+	case 0x414: /* stm32f101/3 high-density */
+	case 0x418: /* stm32f105/7 connectivity line */
+	case 0x420: /* stm32f100 low/medium-density value line */
+	case 0x428: /* stm32f100 high-density value line */
+	case 0x430: /* stm32f101/3 XL-density (dual flash banks) */
 		flash_size_reg = 0x1FFFF7E0;
-	} else if (((cpuid >> 4) & 0xFFF) == 0xC24) {
-		/* 0xC24 is M4 devices */
+		break;
+	case 0x411: /* stm32f205/07/15/17 */
+	case 0x413: /* stm32f405/07/15/17 */
+	case 0x419: /* stm32f42x/3x */
+	case 0x421: /* stm32f446 */
+	case 0x423: /* stm32f401xB/C */
+	case 0x431: /* stm32f411 */
+	case 0x433: /* stm32f401xD/E */
+	case 0x434: /* stm32f469/79 */
+	case 0x441: /* stm32f412 */
+	case 0x458: /* stm32f410 */
+	case 0x463: /* stm32f413/23 */
+		flash_size_reg = 0x1FFF7A22;
+		break;
+	case 0x440: /* stm32f05x | stm32f030x8 */
+	case 0x442: /* stm32f09x | stm32f030xC */
+	case 0x444: /* stm32f03x */
+	case 0x445: /* stm32f04x | stm32f070x6 */
+	case 0x448: /* stm32f07x */
+	case 0x422: /* stm32f303xB/C | stm32f358 | stm32f302xB/C */
+	case 0x432: /* stm32f37x */
+	case 0x438: /* stm32f303x6/8 | stm32f328 | stm32f334 */
+	case 0x439: /* stm32F301x6/8 | stm32f302x6/8 */
+	case 0x446: /* stm32f302xD/E | stm32f303xD/E | stm32f398xE */
 		flash_size_reg = 0x1FFFF7CC;
-	} else {
-		LOG_ERROR("Cannot identify target as a stm32x");
+		break;
+	case 0x449: /* stm32f74x/5x */
+	case 0x451: /* stm32f76x/7x */
+	case 0x452: /* stm32f72x/3x */
+		flash_size_reg = 0x1FF0F442;
+	default:
+		LOG_ERROR("Cannot identify target as a stm32fx nor a gd32x");
 		return ERROR_FAIL;
 	}
 
@@ -811,7 +843,7 @@ static int stm32x_probe(struct flash_bank *bank)
 	int i;
 	uint16_t flash_size_in_kb;
 	uint16_t max_flash_size_in_kb;
-	uint32_t device_id;
+	uint32_t idcode;
 	int page_size;
 	uint32_t base_address = 0x08000000;
 
@@ -824,18 +856,37 @@ static int stm32x_probe(struct flash_bank *bank)
 	stm32x_info->default_rdp = 0x5AA5;
 
 	/* read stm32 device id register */
-	int retval = stm32x_get_device_id(bank, &device_id);
+	int retval = stm32x_get_device_id(bank, &idcode);
 	if (retval != ERROR_OK)
 		return retval;
 
-	LOG_INFO("device id = 0x%08" PRIx32 "", device_id);
+	uint16_t dev_id = idcode & 0xfff;
+	uint16_t rev_id = idcode >> 16;
+
+	LOG_INFO("dev_id = 0x%03" PRIx16 "", dev_id);
+	LOG_INFO("rev_id = 0x%04" PRIx16 "", rev_id);
 
 	/* set page size, protection granularity and max flash size depending on family */
-	switch (device_id & 0xfff) {
+	switch (dev_id) {
 	case 0x410: /* medium density */
 		page_size = 1024;
 		stm32x_info->ppage_size = 4;
 		max_flash_size_in_kb = 128;
+		/* GigaDevice GD32 series devices share DEV_ID with STM32F101/2/3 medium-density line,
+		   however they use a REV_ID different from any STM32 device */
+		switch (rev_id) {
+		case 0x1303: /* gd32f1x0 */
+			stm32x_info->user_data_offset = 16;
+			stm32x_info->option_offset = 6;
+			max_flash_size_in_kb = 64;
+			break;
+		case 0x1704: /* gd32f3x0 */
+			stm32x_info->user_data_offset = 16;
+			stm32x_info->option_offset = 6;
+			break;
+		default: /* stm32f101/2/3 medium-density */
+			break;
+		}
 		break;
 	case 0x412: /* low density */
 		page_size = 1024;
@@ -1021,25 +1072,35 @@ static const char *get_stm32f0_revision(uint16_t rev_id)
 
 static int get_stm32x_info(struct flash_bank *bank, char *buf, int buf_size)
 {
-	uint32_t dbgmcu_idcode;
+	uint32_t idcode;
 
-		/* read stm32 device id register */
-	int retval = stm32x_get_device_id(bank, &dbgmcu_idcode);
+	/* read stm32 device id register */
+	int retval = stm32x_get_device_id(bank, &idcode);
 	if (retval != ERROR_OK)
 		return retval;
 
-	uint16_t device_id = dbgmcu_idcode & 0xfff;
-	uint16_t rev_id = dbgmcu_idcode >> 16;
+	uint16_t dev_id = idcode & 0xfff;
+	uint16_t rev_id = idcode >> 16;
 	const char *device_str;
 	const char *rev_str = NULL;
 
-	switch (device_id) {
+	switch (dev_id) {
 	case 0x410:
 		device_str = "STM32F10x (Medium Density)";
 
+		/* GigaDevice GD32 series devices share DEV_ID with STM32F101/2/3 medium-density line,
+		   however they use a REV_ID different from any STM32 device */
 		switch (rev_id) {
 		case 0x0000:
 			rev_str = "A";
+			break;
+
+		case 0x1303: /* gd32f1x0 */
+			device_str = "GD32F1x0";
+			break;
+
+		case 0x1704: /* gd32f3x0 */
+			device_str = "GD32F3x0";
 			break;
 
 		case 0x2000:
