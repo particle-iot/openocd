@@ -1268,40 +1268,31 @@ static const struct sam4_chip_details all_sam4_details[] = {
 		.total_flash_size     = 1024 * 1024,
 		.total_sram_size      = 160 * 1024,
 		.n_gpnvms       = 3,
-		.n_banks        = 2,
+		.n_banks        = 1,
 
 /*		.bank[0] = { */
 		{
-			{
-				.probed = 0,
-				.pChip  = NULL,
-				.pBank  = NULL,
-				.bank_number = 0,
-				.base_address = FLASH_BANK0_BASE_SD,
-				.controller_address = 0x400e0a00,
-				.flash_wait_states = 5,
-				.present = 1,
-				.size_bytes =  512 * 1024,
-				.nsectors   =  64,
-				.sector_size = 8192,
-				.page_size   = 512,
-			},
+		  {
+			.probed = 0,
+			.pChip  = NULL,
+			.pBank  = NULL,
+			.bank_number = 0,
+			.base_address = FLASH_BANK_BASE_S,
+			.controller_address = 0x400e0a00,
+			.flash_wait_states = 5,
+			.present = 1,
+			.size_bytes =  1024 * 1024,
+			.nsectors   =  128,
+			.sector_size = 8192,
+			.page_size   = 512,
+		  },
+/*		.bank[1] = {*/
+		  {
+			.present = 0,
+			.probed = 0,
+			.bank_number = 1,
 
-/*		.bank[1] = { */
-			{
-				.probed = 0,
-				.pChip  = NULL,
-				.pBank  = NULL,
-				.bank_number = 1,
-				.base_address = FLASH_BANK1_BASE_1024K_SD,
-				.controller_address = 0x400e0c00,
-				.flash_wait_states = 5,
-				.present = 1,
-				.size_bytes =  512 * 1024,
-				.nsectors   =  64,
-				.sector_size = 8192,
-				.page_size   = 512,
-			},
+		  },
 		},
 	},
 
@@ -2554,6 +2545,8 @@ static int sam4_GetDetails(struct sam4_bank_private *pPrivate)
 			pPrivate->pChip->cfg.CHIPID_CIDR);
 		sam4_explain_chipid_cidr(pPrivate->pChip);
 		return ERROR_FAIL;
+	} else {
+		LOG_INFO("SAM4 Found chip %s, CIDR 0x%08x", pDetails->name, pDetails->chipid_cidr);
 	}
 
 	/* DANGER: THERE ARE DRAGONS HERE */
@@ -2624,6 +2617,7 @@ static int _sam4_probe(struct flash_bank *bank, int noise)
 	for (x = 0; x < SAM4_MAX_FLASH_BANKS; x++) {
 		if (bank->base == pPrivate->pChip->details.bank[x].base_address) {
 			bank->size = pPrivate->pChip->details.bank[x].size_bytes;
+			LOG_INFO("SAM4 Set flash bank to %08X - %08X, idx %d", bank->base, bank->base + bank->size, x);
 			break;
 		}
 	}
