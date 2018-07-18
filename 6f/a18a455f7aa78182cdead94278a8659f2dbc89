@@ -1,0 +1,8 @@
+Verified+1: jenkins
+Code-Review+1: Jonathan Larmour <jifl@eCosCentric.com>
+Code-Review+2: Tomas Vanek <vanekt@fbl.cz>
+Submitted-by: Tomas Vanek <vanekt@fbl.cz>
+Submitted-at: Wed, 18 Jul 2018 21:10:53 +0100
+Reviewed-on: http://openocd.zylin.com/4603
+Project: openocd
+Branch: refs/heads/master
