@@ -1681,6 +1681,9 @@ static int aarch64_assert_reset(struct target *target)
 static int aarch64_deassert_reset(struct target *target)
 {
 	int retval;
+	uint8_t ack;
+	uint32_t ctrl_stat = 0;
+	struct armv8_common *armv8 = target_to_armv8(target);
 
 	LOG_DEBUG(" ");
 
@@ -1690,6 +1693,17 @@ static int aarch64_deassert_reset(struct target *target)
 	if (!target_was_examined(target))
 		return ERROR_OK;
 
+	retval = dap_dp_read_atomic(armv8->debug_ap->dap, DP_CTRL_STAT, &ctrl_stat);
+	if (retval != ERROR_OK) {
+		LOG_DEBUG("%s: Failed to read DP_CTRL_STAT - Aborting DAP queue...", target_name(target));
+
+		dap_invalidate_cache(armv8->debug_ap->dap);
+		retval = dap_queue_ap_abort(armv8->debug_ap->dap, &ack);
+		if (retval != ERROR_OK) {
+			LOG_WARNING("%s: dap_queue_ap_abort() failed", target_name(target));
+			return retval;
+		}
+	}
 	retval = aarch64_poll(target);
 	if (retval != ERROR_OK)
 		return retval;
@@ -1700,7 +1714,7 @@ static int aarch64_deassert_reset(struct target *target)
 
 	if (target->reset_halt) {
 		if (target->state != TARGET_HALTED) {
-			LOG_WARNING("%s: ran after reset and before halt ...",
+			LOG_DEBUG("%s: ran after reset and before halt ...",
 				target_name(target));
 			retval = target_halt(target);
 		}
