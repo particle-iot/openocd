@@ -1,0 +1,8 @@
+Verified+1: jenkins
+Code-Review+1: Christopher Head <chead@zaber.com>
+Code-Review+2: Matthias Welwarsky <matthias@welwarsky.de>
+Submitted-by: Matthias Welwarsky <matthias@welwarsky.de>
+Submitted-at: Tue, 24 Jul 2018 13:07:44 +0100
+Reviewed-on: http://openocd.zylin.com/4245
+Project: openocd
+Branch: refs/heads/master
