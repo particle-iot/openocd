@@ -649,10 +649,10 @@ static int stm32l4_probe(struct flash_bank *bank)
 		return retval;
 
 	/* only devices with < 1024 kiB may be set to single bank dual banks */
-	if ((flash_size_in_kb == 1024) || !(options & OPT_DUALBANK))
+	if ((flash_size_in_kb == 1024) || !(options & (1<<OPT_DUALBANK)))
 		stm32l4_info->option_bytes.bank_b_start = 256;
 	else
-		stm32l4_info->option_bytes.bank_b_start = flash_size_in_kb << 9;
+		stm32l4_info->option_bytes.bank_b_start = flash_size_in_kb >> 2;
 
 	/* did we assign flash size? */
 	assert((flash_size_in_kb != 0xffff) && flash_size_in_kb);
