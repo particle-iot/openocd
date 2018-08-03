@@ -78,6 +78,7 @@
 #define FLASH_STRT		(1 << 6)
 #define FLASH_LOCK		(1 << 7)
 #define FLASH_OPTWRE	(1 << 9)
+#define FLASH_OBL_LAUNCH (1 << 13)
 
 /* FLASH_SR register bits */
 
@@ -344,6 +345,11 @@ static int stm32x_write_options(struct flash_bank *bank)
 			LOG_ERROR("working area required to erase options bytes");
 		return retval;
 	}
+
+	/* Take the new option byte settings into use. Causes a system reset */
+	retval = target_write_u32(target, STM32_FLASH_CR_B0, FLASH_OBL_LAUNCH);
+	if (retval != ERROR_OK)
+		return retval;
 
 	retval = target_write_u32(target, STM32_FLASH_CR_B0, FLASH_LOCK);
 	if (retval != ERROR_OK)
@@ -1320,10 +1326,7 @@ COMMAND_HANDLER(stm32x_handle_unlock_command)
 		return ERROR_OK;
 	}
 
-	command_print(CMD_CTX, "stm32x unlocked.\n"
-			"INFO: a reset or power cycle is required "
-			"for the new settings to take effect.");
-
+	command_print(CMD_CTX, "stm32x unlocked");
 	return ERROR_OK;
 }
 
@@ -1478,9 +1481,7 @@ COMMAND_HANDLER(stm32x_handle_options_write_command)
 		return ERROR_OK;
 	}
 
-	command_print(CMD_CTX, "stm32x write options complete.\n"
-				"INFO: a reset or power cycle is required "
-				"for the new settings to take effect.");
+	command_print(CMD_CTX, "stm32x write options complete.");
 
 	return ERROR_OK;
 }
