@@ -2486,7 +2486,7 @@ If not specified, serial numbers are not considered.
 and are not restricted to containing only decimal digits.)
 @end deffn
 
-@deffn {Config Command} {ftdi_location} <bus>:<port>[,<port>]...
+@deffn {Config Command} {ftdi_location} <bus>-<port>[.<port>]...
 Specifies the physical USB port of the adapter to use. The path
 roots at @var{bus} and walks down the physical ports, with each
 @var{port} option specifying a deeper level in the bus topology, the last
@@ -2678,6 +2678,16 @@ reset_config srst_only
 @end example
 @end deffn
 
+@deffn {Command} {usb_blaster_location} <bus>-<port>[.<port>]...
+Specifies the physical USB port of the adapter to use. The path
+roots at @var{bus} and walks down the physical ports, with each
+@var{port} option specifying a deeper level in the bus topology, the last
+@var{port} denoting where the target adapter is actually plugged.
+The USB bus topology can be queried with the command @emph{lsusb -t}.
+
+As a configuration command, it can be used only before 'init'.
+@end deffn
+
 @deffn {Command} {usb_blaster_lowlevel_driver} (@option{ftdi}|@option{ublast2})
 Chooses the low level access method for the adapter. If not specified,
 @option{ftdi} is selected unless it wasn't enabled during the
@@ -2781,6 +2791,15 @@ Set the USB address of the interface, in case more than one adapter is connected
 to the host. If not specified, USB addresses are not considered. Device
 selection via USB address is deprecated and the serial number should be used
 instead.
+
+As a configuration command, it can be used only before 'init'.
+@end deffn
+@deffn {Config} {jlink usb_location} <bus>-<port>[.<port>]...
+Specifies the physical USB port of the adapter to use. The path
+roots at @var{bus} and walks down the physical ports, with each
+@var{port} option specifying a deeper level in the bus topology, the last
+@var{port} denoting where the target adapter is actually plugged.
+The USB bus topology can be queried with the command @emph{lsusb -t}.
 
 As a configuration command, it can be used only before 'init'.
 @end deffn
