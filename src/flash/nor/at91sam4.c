@@ -1791,20 +1791,21 @@ static int FLASHD_SetGPNVM(struct sam4_bank_private *pPrivate, unsigned gpnvm)
 }
 
 /**
- * Returns a bit field (at most 64) of locked regions within a page.
+ * Returns a bit field of locked regions within a bank.
  * @param pPrivate info about the bank
  * @param v where to store locked bits
+ * @param num_lock_bits number of locked regions
  */
-static int FLASHD_GetLockBits(struct sam4_bank_private *pPrivate, uint32_t *v)
+static int FLASHD_GetLockBits(struct sam4_bank_private *pPrivate, uint32_t *v, unsigned num_lock_bits)
 {
 	int r;
+	unsigned lock_bits_fetched = 0;
 	LOG_DEBUG("Here");
 	r = EFC_PerformCommand(pPrivate, AT91C_EFC_FCMD_GLB, 0, NULL);
-	if (r == ERROR_OK)	{
-		EFC_GetResult(pPrivate, v);
-		EFC_GetResult(pPrivate, v);
-		EFC_GetResult(pPrivate, v);
-		r = EFC_GetResult(pPrivate, v);
+	while (r == ERROR_OK && lock_bits_fetched < num_lock_bits) {
+ 		r = EFC_GetResult(pPrivate, v);
+		v++;
+		lock_bits_fetched += 32;
 	}
 	LOG_DEBUG("End: %d", r);
 	return r;
@@ -2411,6 +2412,8 @@ static int sam4_protect_check(struct flash_bank *bank)
 {
 	int r;
 	uint32_t v[4] = {0};
+	uint32_t *lock_bits;
+	unsigned num_lock_regions;
 	unsigned x;
 	struct sam4_bank_private *pPrivate;
 
@@ -2428,14 +2431,24 @@ static int sam4_protect_check(struct flash_bank *bank)
 	if (!(pPrivate->probed))
 		return ERROR_FLASH_BANK_NOT_PROBED;
 
-	r = FLASHD_GetLockBits(pPrivate, v);
-	if (r != ERROR_OK) {
-		LOG_DEBUG("Failed: %d", r);
-		return r;
-	}
+	num_lock_regions = pPrivate->nsectors;
+	if (num_lock_regions > 4*32)
+		lock_bits = calloc(num_lock_regions/32, sizeof(uint32_t));
+	else
+		lock_bits = v;
 
-	for (x = 0; x < pPrivate->nsectors; x++)
+	r = FLASHD_GetLockBits(pPrivate, lock_bits, num_lock_regions);
+ 	if (r != ERROR_OK) {
+ 		LOG_DEBUG("Failed: %d", r);
+ 		return r;
+ 	}
+ 
+	for (x = 0; x < num_lock_regions; x++)
 		bank->sectors[x].is_protected = (!!(v[x >> 5] & (1 << (x % 32))));
+
+	if (lock_bits != v)
+		free(lock_bits);
+
 	LOG_DEBUG("Done");
 	return ERROR_OK;
 }
