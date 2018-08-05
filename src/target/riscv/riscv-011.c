@@ -1787,6 +1787,8 @@ static riscv_error_t handle_halt_routine(struct target *target)
 					reg = CSR_DCSR;
 					break;
 				default:
+					LOG_ERROR("Got invalid register result %d", result);
+					goto error;
 					assert(0);
 			}
 			if (riscv_xlen(target) == 32) {
