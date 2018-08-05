@@ -186,6 +186,7 @@ struct sam4_bank_private {
 	unsigned nsectors;
 	unsigned sector_size;
 	unsigned page_size;
+	unsigned lock_region_size;
 };
 
 struct sam4_chip_details {
@@ -1827,7 +1828,10 @@ static int FLASHD_Unlock(struct sam4_bank_private *pPrivate,
 	uint32_t pg;
 	uint32_t pages_per_sector;
 
-	pages_per_sector = pPrivate->sector_size / pPrivate->page_size;
+	if (pPrivate->lock_region_size)
+		pages_per_sector = pPrivate->lock_region_size / pPrivate->page_size;
+	else
+		pages_per_sector = pPrivate->sector_size / pPrivate->page_size;
 
 	/* Unlock all pages */
 	while (start_sector <= end_sector) {
@@ -1857,7 +1861,10 @@ static int FLASHD_Lock(struct sam4_bank_private *pPrivate,
 	uint32_t pages_per_sector;
 	int r;
 
-	pages_per_sector = pPrivate->sector_size / pPrivate->page_size;
+	if (pPrivate->lock_region_size)
+		pages_per_sector = pPrivate->lock_region_size / pPrivate->page_size;
+	else
+		pages_per_sector = pPrivate->sector_size / pPrivate->page_size;
 
 	/* Lock all pages */
 	while (start_sector <= end_sector) {
@@ -2438,13 +2445,17 @@ static int sam4_protect_check(struct flash_bank *bank)
 		lock_bits = v;
 
 	r = FLASHD_GetLockBits(pPrivate, lock_bits, num_lock_regions);
- 	if (r != ERROR_OK) {
- 		LOG_DEBUG("Failed: %d", r);
- 		return r;
- 	}
- 
-	for (x = 0; x < num_lock_regions; x++)
-		bank->sectors[x].is_protected = (!!(v[x >> 5] & (1 << (x % 32))));
+	if (r != ERROR_OK) {
+		LOG_DEBUG("Failed: %d", r);
+		return r;
+	}
+
+	if (pPrivate->lock_region_size)
+		for (x = 0; x < num_lock_regions; x++)
+			bank->prot_blocks[x].is_protected = (!!(lock_bits[x >> 5] & (1 << (x % 32))));
+	else
+		for (x = 0; x < num_lock_regions; x++)
+			bank->sectors[x].is_protected = (!!(lock_bits[x >> 5] & (1 << (x % 32))));
 
 	if (lock_bits != v)
 		free(lock_bits);
@@ -2635,19 +2646,36 @@ static int _sam4_probe(struct flash_bank *bank, int noise)
 	}
 
 	if (bank->sectors == NULL) {
-		bank->sectors = calloc(pPrivate->nsectors, (sizeof((bank->sectors)[0])));
+		bank->num_sectors = pPrivate->nsectors;
+		bank->sectors = calloc(bank->num_sectors, (sizeof((bank->sectors)[0])));
 		if (bank->sectors == NULL) {
 			LOG_ERROR("No memory!");
 			return ERROR_FAIL;
 		}
-		bank->num_sectors = pPrivate->nsectors;
 
 		for (x = 0; ((int)(x)) < bank->num_sectors; x++) {
 			bank->sectors[x].size = pPrivate->sector_size;
-			bank->sectors[x].offset = x * (pPrivate->sector_size);
+			bank->sectors[x].offset = x * bank->sectors[x].size;
 			/* mark as unknown */
 			bank->sectors[x].is_erased = -1;
 			bank->sectors[x].is_protected = -1;
+		}
+	}
+
+	if (pPrivate->lock_region_size) {
+		if (bank->prot_blocks == NULL) {
+			bank->num_prot_blocks = pPrivate->size_bytes / pPrivate->lock_region_size;
+			bank->prot_blocks = calloc(bank->num_prot_blocks, (sizeof((bank->prot_blocks)[0])));
+			if (bank->prot_blocks == NULL) {
+				LOG_ERROR("No memory!");
+				return ERROR_FAIL;
+			}
+
+			for (x = 0; ((int)(x)) < bank->num_prot_blocks; x++) {
+				bank->prot_blocks[x].size = pPrivate->lock_region_size;
+				bank->prot_blocks[x].offset = x * bank->prot_blocks[x].size;
+				bank->prot_blocks[x].is_protected = -1;
+			}
 		}
 	}
 
@@ -2684,8 +2712,6 @@ static int sam4_erase(struct flash_bank *bank, int first, int last)
 	int r;
 	int i;
 	int pageCount;
-	/*16 pages equals 8KB - Same size as a lock region*/
-	pageCount = 16;
 	uint32_t status;
 
 	LOG_DEBUG("Here");
@@ -2709,6 +2735,8 @@ static int sam4_erase(struct flash_bank *bank, int first, int last)
 		LOG_DEBUG("Here");
 		return FLASHD_EraseEntireBank(pPrivate);
 	}
+
+	pageCount = pPrivate->sector_size / pPrivate->page_size;
 	LOG_INFO("sam4 does not auto-erase while programming (Erasing relevant sectors)");
 	LOG_INFO("sam4 First: 0x%08x Last: 0x%08x", (unsigned int)(first), (unsigned int)(last));
 	for (i = first; i <= last; i++) {
