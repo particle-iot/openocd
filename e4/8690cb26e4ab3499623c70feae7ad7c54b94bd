@@ -1,0 +1,9 @@
+Verified+1: jenkins
+Code-Review+1: Antonio Borneo <borneo.antonio@gmail.com>
+Code-Review+2: Matthias Welwarsky <matthias@welwarsky.de>
+Code-Review+2: Tomas Vanek <vanekt@fbl.cz>
+Submitted-by: Matthias Welwarsky <matthias@welwarsky.de>
+Submitted-at: Mon, 06 Aug 2018 11:19:11 +0100
+Reviewed-on: http://openocd.zylin.com/4624
+Project: openocd
+Branch: refs/heads/master
