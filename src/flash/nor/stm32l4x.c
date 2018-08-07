@@ -70,8 +70,10 @@
 #define FLASH_CR_BKER  (1 << 11)
 #define FLASH_MER2     (1 << 15)
 #define FLASH_STRT     (1 << 16)
+#define FLASH_OPTSTRT  (1 << 17)
 #define FLASH_EOPIE    (1 << 24)
 #define FLASH_ERRIE    (1 << 25)
+#define FLASH_OBLLAUNCH (1 << 27)
 #define FLASH_OPTLOCK  (1 << 30)
 #define FLASH_LOCK     (1 << 31)
 
@@ -110,7 +112,7 @@
 struct stm32l4_options {
 	uint8_t RDP;
 	uint16_t bank_b_start;
-	uint8_t user_options;
+	uint32_t user_options;
 	uint8_t wpr1a_start;
 	uint8_t wpr1a_end;
 	uint8_t wpr1b_start;
@@ -284,24 +286,28 @@ static int stm32l4_read_options(struct flash_bank *bank)
 	retval = target_read_u32(target, STM32_FLASH_WRP1AR, &optiondata);
 	if (retval != ERROR_OK)
 		return retval;
+
 	stm32l4_info->option_bytes.wpr1a_start =  optiondata         & 0xff;
 	stm32l4_info->option_bytes.wpr1a_end   = (optiondata >> 16)  & 0xff;
 
 	retval = target_read_u32(target, STM32_FLASH_WRP2AR, &optiondata);
 	if (retval != ERROR_OK)
 		return retval;
+
 	stm32l4_info->option_bytes.wpr2a_start =  optiondata         & 0xff;
 	stm32l4_info->option_bytes.wpr2a_end   = (optiondata >> 16)  & 0xff;
 
 	retval = target_read_u32(target, STM32_FLASH_WRP1BR, &optiondata);
 	if (retval != ERROR_OK)
 		return retval;
+
 	stm32l4_info->option_bytes.wpr1b_start =  optiondata         & 0xff;
 	stm32l4_info->option_bytes.wpr1b_end   = (optiondata >> 16)  & 0xff;
 
 	retval = target_read_u32(target, STM32_FLASH_WRP2BR, &optiondata);
 	if (retval != ERROR_OK)
 		return retval;
+
 	stm32l4_info->option_bytes.wpr2b_start =  optiondata         & 0xff;
 	stm32l4_info->option_bytes.wpr2b_end   = (optiondata >> 16)  & 0xff;
 
@@ -322,10 +328,58 @@ static int stm32l4_write_options(struct flash_bank *bank)
 	(void) optiondata;
 	(void) stm32l4_info;
 
+	stm32l4_unlock_reg(target);
+
 	int retval = stm32l4_unlock_option_reg(target);
 	if (retval != ERROR_OK)
 		return retval;
-	/* FIXME: Implement Option writing!*/
+
+	optiondata = (((uint32_t)stm32l4_info->option_bytes.user_options) << 8);
+	optiondata += ((uint32_t)stm32l4_info->option_bytes.RDP);
+
+	retval = target_write_u32(target, STM32_FLASH_OPTR, optiondata);
+	if (retval != ERROR_OK)
+		return retval;
+
+	optiondata = ((uint32_t)stm32l4_info->option_bytes.wpr1a_end << 16);
+	optiondata += ((uint32_t)stm32l4_info->option_bytes.wpr1a_start);
+	retval = target_write_u32(target, STM32_FLASH_WRP1AR, optiondata);
+	if (retval != ERROR_OK)
+		return retval;
+
+	optiondata = ((uint32_t)stm32l4_info->option_bytes.wpr2a_end << 16);
+	optiondata += ((uint32_t)stm32l4_info->option_bytes.wpr2a_start);
+	retval = target_write_u32(target, STM32_FLASH_WRP2AR, optiondata);
+	if (retval != ERROR_OK)
+		return retval;
+
+	optiondata = ((uint32_t)stm32l4_info->option_bytes.wpr1b_end << 16);
+	optiondata += ((uint32_t)stm32l4_info->option_bytes.wpr1b_start);
+	retval = target_write_u32(target, STM32_FLASH_WRP1BR, optiondata);
+	if (retval != ERROR_OK)
+		return retval;
+
+	optiondata = ((uint32_t)stm32l4_info->option_bytes.wpr2b_end << 16);
+	optiondata += ((uint32_t)stm32l4_info->option_bytes.wpr2b_start);
+	retval = target_write_u32(target, STM32_FLASH_WRP2BR, optiondata);
+	if (retval != ERROR_OK)
+		return retval;
+
+	retval = target_write_u32(target,
+			stm32l4_get_flash_reg(bank, STM32_FLASH_CR), FLASH_OPTSTRT);
+	if (retval != ERROR_OK)
+		return retval;
+
+	retval = stm32l4_wait_status_busy(bank, FLASH_ERASE_TIMEOUT);
+	if (retval != ERROR_OK)
+		return retval;
+
+	/* Force reset to reload options registers */
+	retval = target_write_u32(target,
+			stm32l4_get_flash_reg(bank, STM32_FLASH_CR), FLASH_OBLLAUNCH);
+	if (retval != ERROR_OK)
+		return retval;
+
 	return ERROR_OK;
 }
 
@@ -649,10 +703,10 @@ static int stm32l4_probe(struct flash_bank *bank)
 		return retval;
 
 	/* only devices with < 1024 kiB may be set to single bank dual banks */
-	if ((flash_size_in_kb == 1024) || !(options & OPT_DUALBANK))
+	if ((flash_size_in_kb == 1024) || !(options & (1<<OPT_DUALBANK)))
 		stm32l4_info->option_bytes.bank_b_start = 256;
 	else
-		stm32l4_info->option_bytes.bank_b_start = flash_size_in_kb << 9;
+		stm32l4_info->option_bytes.bank_b_start = flash_size_in_kb >> 2;
 
 	/* did we assign flash size? */
 	assert((flash_size_in_kb != 0xffff) && flash_size_in_kb);
@@ -774,7 +828,7 @@ COMMAND_HANDLER(stm32l4_handle_lock_command)
 		return ERROR_OK;
 	}
 
-	/* set readout protection */
+	/* set readout protection level 1 */
 	stm32l4_info->option_bytes.RDP = 0;
 
 	if (stm32l4_write_options(bank) != ERROR_OK) {
