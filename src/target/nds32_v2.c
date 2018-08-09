@@ -754,6 +754,7 @@ struct target_type nds32_v2_target = {
 
 	/* register access */
 	.get_gdb_reg_list = nds32_get_gdb_reg_list,
+	.gdb_architecture = "n1h",
 
 	/* memory access */
 	.read_buffer = nds32_v2_read_buffer,

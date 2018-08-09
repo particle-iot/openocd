@@ -711,6 +711,7 @@ struct target_type feroceon_target = {
 	.soft_reset_halt = arm926ejs_soft_reset_halt,
 
 	.get_gdb_reg_list = arm_get_gdb_reg_list,
+	.gdb_architecture = "arm",
 
 	.read_memory = arm7_9_read_memory,
 	.write_memory = arm7_9_write_memory_opt,
@@ -748,6 +749,7 @@ struct target_type dragonite_target = {
 	.soft_reset_halt = arm7_9_soft_reset_halt,
 
 	.get_gdb_reg_list = arm_get_gdb_reg_list,
+	.gdb_architecture = "arm",
 
 	.read_memory = arm7_9_read_memory,
 	.write_memory = arm7_9_write_memory_opt,

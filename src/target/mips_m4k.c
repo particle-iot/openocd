@@ -1481,6 +1481,7 @@ struct target_type mips_m4k_target = {
 	.deassert_reset = mips_m4k_deassert_reset,
 
 	.get_gdb_reg_list = mips32_get_gdb_reg_list,
+	.gdb_architecture = "mips",
 
 	.read_memory = mips_m4k_read_memory,
 	.write_memory = mips_m4k_write_memory,

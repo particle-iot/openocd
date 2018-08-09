@@ -365,6 +365,7 @@ struct target_type fa526_target = {
 	.soft_reset_halt = arm920t_soft_reset_halt,
 
 	.get_gdb_reg_list = arm_get_gdb_reg_list,
+	.gdb_architecture = "arm",
 
 	.read_memory = arm920t_read_memory,
 	.write_memory = arm7_9_write_memory_opt,

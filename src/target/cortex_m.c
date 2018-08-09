@@ -2500,6 +2500,7 @@ struct target_type cortexm_target = {
 	.soft_reset_halt = cortex_m_soft_reset_halt,
 
 	.get_gdb_reg_list = armv7m_get_gdb_reg_list,
+	.gdb_architecture = "arm",
 
 	.read_memory = cortex_m_read_memory,
 	.write_memory = cortex_m_write_memory,

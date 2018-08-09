@@ -1580,6 +1580,7 @@ struct target_type riscv_target = {
 	.checksum_memory = riscv_checksum_memory,
 
 	.get_gdb_reg_list = riscv_get_gdb_reg_list,
+	.gdb_architecture = "riscv",
 
 	.add_breakpoint = riscv_add_breakpoint,
 	.remove_breakpoint = riscv_remove_breakpoint,

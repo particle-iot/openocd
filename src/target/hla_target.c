@@ -821,6 +821,7 @@ struct target_type hla_target = {
 	.step = adapter_step,
 
 	.get_gdb_reg_list = armv7m_get_gdb_reg_list,
+	.gdb_architecture = "arm",
 
 	.read_memory = adapter_read_memory,
 	.write_memory = adapter_write_memory,

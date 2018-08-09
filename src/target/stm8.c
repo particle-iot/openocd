@@ -2200,6 +2200,7 @@ struct target_type stm8_target = {
 	.deassert_reset = stm8_reset_deassert,
 
 	.get_gdb_reg_list = stm8_get_gdb_reg_list,
+	.gdb_architecture = "stm8", /* REVISIT value not upstreamed in gdb yet */
 
 	.read_memory = stm8_read_memory,
 	.write_memory = stm8_write_memory,

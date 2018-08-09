@@ -561,6 +561,7 @@ struct target_type arm720t_target = {
 	.soft_reset_halt = arm720t_soft_reset_halt,
 
 	.get_gdb_reg_list = arm_get_gdb_reg_list,
+	.gdb_architecture = "arm",
 
 	.read_memory = arm720t_read_memory,
 	.write_memory = arm7_9_write_memory_opt,

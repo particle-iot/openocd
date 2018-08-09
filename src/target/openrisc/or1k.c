@@ -1443,6 +1443,7 @@ struct target_type or1k_target = {
 	.soft_reset_halt = or1k_soft_reset_halt,
 
 	.get_gdb_reg_list = or1k_get_gdb_reg_list,
+	.gdb_architecture = "or1k",
 
 	.read_memory = or1k_read_memory,
 	.write_memory = or1k_write_memory,

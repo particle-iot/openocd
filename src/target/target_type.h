@@ -102,6 +102,15 @@ struct target_type {
 	int (*get_gdb_reg_list)(struct target *target, struct reg **reg_list[],
 			int *reg_list_size, enum target_register_class reg_class);
 
+	/**
+	 * Architecture name passed to GDB for automatic selection in case of
+	 * multi-architecture GDB.
+	 * If this field is not set, user can still use a single-architecture
+	 * GDB or can select it in multi-architecture GDB with the command
+	 * "set architecture <arch>".
+	 */
+	const char *gdb_architecture;
+
 	/* target memory access
 	* size: 1 = byte (8bit), 2 = half-word (16bit), 4 = word (32bit)
 	* count: number of items of <size>

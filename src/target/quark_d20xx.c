@@ -102,6 +102,7 @@ struct target_type quark_d20xx_target = {
 	/* common x86 code */
 	.commands = x86_32_command_handlers,
 	.get_gdb_reg_list = x86_32_get_gdb_reg_list,
+	.gdb_architecture = "i386",
 	.read_memory = x86_32_common_read_memory,
 	.write_memory = x86_32_common_write_memory,
 	.add_breakpoint = x86_32_common_add_breakpoint,

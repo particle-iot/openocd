@@ -2229,6 +2229,11 @@ static int gdb_generate_target_description(struct target *target, char **tdesc_o
 			"<!DOCTYPE target SYSTEM \"gdb-target.dtd\">\n"
 			"<target version=\"1.0\">\n");
 
+	if (target->type->gdb_architecture)
+		xml_printf(&retval, &tdesc, &pos, &size,
+				"<architecture>%s</architecture>\n",
+				target->type->gdb_architecture);
+
 	/* generate target description according to register list */
 	if (features != NULL) {
 		while (features[current_feature]) {

@@ -86,6 +86,7 @@ struct target_type quark_x10xx_target = {
 	.add_watchpoint		= x86_32_common_add_watchpoint,
 	.commands		= x86_32_command_handlers,
 	.get_gdb_reg_list	= x86_32_get_gdb_reg_list,
+	.gdb_architecture	= "i386",
 	.mmu			= x86_32_common_mmu,
 	.read_memory		= x86_32_common_read_memory,
 	.read_phys_memory	= x86_32_common_read_phys_mem,

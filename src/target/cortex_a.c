@@ -3479,6 +3479,7 @@ struct target_type cortexa_target = {
 
 	/* REVISIT allow exporting VFP3 registers ... */
 	.get_gdb_reg_list = arm_get_gdb_reg_list,
+	.gdb_architecture = "arm",
 
 	.read_memory = cortex_a_read_memory,
 	.write_memory = cortex_a_write_memory,
@@ -3558,6 +3559,7 @@ struct target_type cortexr4_target = {
 
 	/* REVISIT allow exporting VFP3 registers ... */
 	.get_gdb_reg_list = arm_get_gdb_reg_list,
+	.gdb_architecture = "arm",
 
 	.read_memory = cortex_a_read_phys_memory,
 	.write_memory = cortex_a_write_phys_memory,

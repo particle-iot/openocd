@@ -485,6 +485,7 @@ struct target_type nds32_v3_target = {
 
 	/* register access */
 	.get_gdb_reg_list = nds32_get_gdb_reg_list,
+	.gdb_architecture = "nds32",
 
 	/* memory access */
 	.read_buffer = nds32_v3_read_buffer,

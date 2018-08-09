@@ -3702,8 +3702,12 @@ struct target_type xscale_target = {
 	.assert_reset = xscale_assert_reset,
 	.deassert_reset = xscale_deassert_reset,
 
-	/* REVISIT on some cores, allow exporting iwmmxt registers ... */
+	/*
+	 * REVISIT on some cores, allow exporting iwmmxt registers ...
+	 * (then also change gdb_architecture to "iwmmxt" or "iwmmxt2" to let GDB know it)
+	 */
 	.get_gdb_reg_list = arm_get_gdb_reg_list,
+	.gdb_architecture = "arm", /* "iwmmxt" or "iwmmxt2" */
 
 	.read_memory = xscale_read_memory,
 	.read_phys_memory = xscale_read_phys_memory,
