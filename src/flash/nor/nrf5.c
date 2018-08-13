@@ -240,7 +240,7 @@ static int nrf5_wait_for_nvmc(struct nrf5_info *chip)
 {
 	uint32_t ready;
 	int res;
-	int timeout = 100;
+	int timeout = 200;
 
 	do {
 		res = target_read_u32(chip->target, NRF5_NVMC_READY, &ready);
