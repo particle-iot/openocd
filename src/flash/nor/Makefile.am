@@ -23,6 +23,7 @@ NOR_DRIVERS = \
 	%D%/cc26xx.c \
 	%D%/cfi.c \
 	%D%/dsp5680xx_flash.c \
+	%D%/ec1.c \
 	%D%/efm32.c \
 	%D%/em357.c \
 	%D%/faux.c \
