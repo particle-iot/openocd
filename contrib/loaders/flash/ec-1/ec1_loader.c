@@ -99,7 +99,7 @@ unsigned ec1_write(
 							*(unsigned *)SMCR = SSLKP | SPIWE | SPIE;
 						r0_count -= 2;
 						r3_p_buffer += 2;
-						r2_offset +=2;
+						r2_offset += 2;
 				}
 				break;
 			default:
@@ -122,7 +122,7 @@ unsigned ec1_write(
 							*(unsigned *)SMCR = SSLKP | SPIWE | SPIE;
 						r0_count -= 2;
 						r3_p_buffer += 2;
-						r2_offset +=2;
+						r2_offset += 2;
 						break;
 					default:
 						*(unsigned *)SMENR = v_smenr | SPIDE_WORD;
@@ -133,7 +133,7 @@ unsigned ec1_write(
 							*(unsigned *)SMCR = SSLKP | SPIWE | SPIE;
 						r0_count -= 4;
 						r3_p_buffer += 4;
-						r2_offset +=4;
+						r2_offset += 4;
 				}
 		}
 

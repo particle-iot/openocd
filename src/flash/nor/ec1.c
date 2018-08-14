@@ -190,7 +190,7 @@ static int spibsc_start_transfer(struct flash_bank *bank)
 				spibsc_get_reg(bank, CMNSR), &regval);
 		if (retval != ERROR_OK)
 			return retval;
-	} while(!(regval & TEND));
+	} while (!(regval & TEND));
 
 	return ERROR_OK;
 }
@@ -254,7 +254,7 @@ static int spibsc_set_mode(struct flash_bank *bank, bool mode)
 				spibsc_get_reg(bank, CMNSR), &regval);
 		if (retval != ERROR_OK)
 			return retval;
-	} while(regval != 1);
+	} while (regval != 1);
 
 	/* Flush SPIBSC cache */
 	retval = spibsc_cache_flush(bank);
