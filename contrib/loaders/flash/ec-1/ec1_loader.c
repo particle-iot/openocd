@@ -1,6 +1,7 @@
 /***************************************************************************
  *
- *   Copyright (C) 2018 by Konstantin Kraskovskiy <kraskovski@otsl.jp>                *
+ *   Copyright (C) 2018 by Konstantin Kraskovskiy <kraskovski@otsl.jp>     *
+ *   Copyright (C) 2018 by OTSL Inc. <info@otsl.jp>                        *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -20,9 +21,9 @@
  To compile: arm-none-eabi-gcc -march=armv7-r -marm -c ./ec1_loader.c
  To strip: arm-none-eabi-objcopy -O binary ec1_loader.o ec1.bin
  To hex: xxd -c4 -i ./ec1.h
- */
+*/
 
-#define BASE 0xA0005000
+#define BASE 0xA0005000U
 #define SMCR (BASE + 0x20)
 #define SMCMR (BASE + 0x24)
 #define SMADR (BASE + 0x28)
@@ -31,23 +32,23 @@
 #define SMWDR0 (BASE + 0x40)
 #define CMNSR (BASE + 0x48)
 
-#define CDE (1 << 14)
+#define CDE (1U << 14)
 #define SPIE (1)
 #define SPIWE (2)
 #define SPIRE (4)
-#define SSLKP (1 << 8)
+#define SSLKP (1U << 8)
 #define TEND (1)
-#define ADE_24 (7 << 8)
+#define ADE_24 (7U << 8)
 #define BUSY (1)
 #define SPIDE_BYTE (8)
 #define SPIDE_HALF (12)
 #define SPIDE_WORD (15)
 
-#define SPIFLASH_PAGE_PROGRAM (2 << 16)
-#define SPIFLASH_READ_STATUS (5 << 16)
-#define SPIFLASH_WRITE_ENABLE (6 << 16)
+#define SPIFLASH_PAGE_PROGRAM (2U << 16)
+#define SPIFLASH_READ_STATUS (5U << 16)
+#define SPIFLASH_WRITE_ENABLE (6U << 16)
 
-#define PAGE_MASK (0xFF)
+#define PAGE_MASK (0xFFU)
 
 
 __attribute__((noreturn, naked, pcs("aapcs"), aligned(4)))
