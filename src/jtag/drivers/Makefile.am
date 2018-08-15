@@ -147,6 +147,9 @@ endif
 if BCM2835GPIO
 DRIVERFILES += %D%/bcm2835gpio.c
 endif
+if AM335X_GPIO
+DRIVERFILES += %D%/am335x_gpio.c
+endif
 if OPENJTAG
 DRIVERFILES += %D%/openjtag.c
 endif
@@ -181,4 +184,3 @@ DRIVERHEADERS = \
 	%D%/versaloon/versaloon.h \
 	%D%/versaloon/versaloon_include.h \
 	%D%/versaloon/versaloon_internal.h
-

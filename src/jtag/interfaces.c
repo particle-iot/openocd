@@ -123,6 +123,9 @@ extern struct jtag_interface aice_interface;
 #if BUILD_BCM2835GPIO == 1
 extern struct jtag_interface bcm2835gpio_interface;
 #endif
+#if BUILD_AM335X_GPIO == 1
+extern struct jtag_interface am335x_gpio_interface;
+#endif
 #if BUILD_CMSIS_DAP == 1
 extern struct jtag_interface cmsis_dap_interface;
 #endif
@@ -227,6 +230,9 @@ struct jtag_interface *jtag_interfaces[] = {
 #endif
 #if BUILD_BCM2835GPIO == 1
 		&bcm2835gpio_interface,
+#endif
+#if BUILD_AM335X_GPIO == 1
+		&am335x_gpio_interface,
 #endif
 #if BUILD_CMSIS_DAP == 1
 		&cmsis_dap_interface,
