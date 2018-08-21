@@ -1,0 +1,9 @@
+Verified+1: jenkins
+Code-Review+1: Ismail H. KOSE <ihkose@gmail.com>
+Code-Review+2: Tomas Vanek <vanekt@fbl.cz>
+Code-Review+1: Andreas Fritiofson <andreas.fritiofson@gmail.com>
+Submitted-by: Tomas Vanek <vanekt@fbl.cz>
+Submitted-at: Tue, 21 Aug 2018 19:24:58 +0100
+Reviewed-on: http://openocd.zylin.com/3543
+Project: openocd
+Branch: refs/heads/master
