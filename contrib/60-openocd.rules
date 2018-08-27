@@ -1,4 +1,5 @@
-# Copy this file to /etc/udev/rules.d/
+# Copy this file to /etc/udev/rules.d/ then refresh udev rules
+# with the command "udevadm control --reload-rules"
 
 ACTION!="add|change", GOTO="openocd_rules_end"
 SUBSYSTEM!="usb|tty|hidraw", GOTO="openocd_rules_end"
