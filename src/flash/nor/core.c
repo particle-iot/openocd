@@ -866,8 +866,10 @@ int flash_write_unlock(struct target *target, struct image *image,
 			goto done;
 		}
 
-		if (padding_at_start)
+		if (padding_at_start) {
+			LOG_INFO("Padding at start: %x %zu", c->default_padded_value, padding_at_start);
 			memset(buffer, c->default_padded_value, padding_at_start);
+		}
 
 		buffer_idx = padding_at_start;
 
