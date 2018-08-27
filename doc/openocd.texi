@@ -494,7 +494,9 @@ its implementation is completely broken. The result is this causes issues under 
 The simplest solution is to get Linux to ignore the ST-LINK using one of the following methods:
 @itemize @bullet
 @item modprobe -r usb-storage && modprobe usb-storage quirks=483:3744:i
-@item add "options usb-storage quirks=483:3744:i" to /etc/modprobe.conf
+@item add "options usb-storage quirks=483:3744:i" to @file{/etc/modprobe.conf} or
+to a separate file in @file{/etc/modprobe.d/}, like the example file
+@file{openocd-modprobe.conf} shipped with OpenOCD in the @file{contrib} directory
 @end itemize
 
 @section USB TI/Stellaris ICDI based
