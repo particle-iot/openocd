@@ -160,6 +160,8 @@ enum {
 	NAND_CMD_RNDIN = 0x85,
 	NAND_CMD_READID = 0x90,
 	NAND_CMD_ERASE2 = 0xd0,
+	NAND_CMD_GET_FEATURE = 0xee,
+	NAND_CMD_SET_FEATURE = 0xef,
 	NAND_CMD_RESET = 0xff,
 
 	/* Extended commands for large page devices */
@@ -208,6 +210,9 @@ int nand_write_page_raw(struct nand_device *nand, uint32_t page,
 			uint8_t *data, uint32_t data_size, uint8_t *oob, uint32_t oob_size);
 
 int nand_read_status(struct nand_device *nand, uint8_t *status);
+
+int nand_get_feature(struct nand_device *nand, uint8_t feature, uint32_t* value);
+int nand_set_feature(struct nand_device *nand, uint8_t feature, uint32_t value);
 
 int nand_calculate_ecc(struct nand_device *nand,
 		       const uint8_t *dat, uint8_t *ecc_code);

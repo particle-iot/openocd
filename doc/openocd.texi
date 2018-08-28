@@ -7071,6 +7071,15 @@ bypassing hardware ECC logic.
 with the wrong ECC data can cause them to be marked as bad.
 @end deffn
 
+@deffn Command {nand feature} num address [value]
+Manage NAND chip features
+
+If a value is given, set the feature at address to the given value.
+
+If no value is given, get the current value of the requested feature.
+
+@end deffn
+
 @anchor{nanddriverlist}
 @subsection NAND Driver List
 As noted above, the @command{nand device} command allows

@@ -405,6 +405,39 @@ COMMAND_HANDLER(handle_nand_raw_access_command)
 	return ERROR_OK;
 }
 
+COMMAND_HANDLER(handle_nand_feature_command)
+{
+	if ((CMD_ARGC < 2) || (CMD_ARGC > 3))
+		return ERROR_COMMAND_SYNTAX_ERROR;
+
+	struct nand_device *p;
+	int retval = CALL_COMMAND_HANDLER(nand_command_get_device, 0, &p);
+	if (ERROR_OK != retval)
+		return retval;
+
+	if (NULL == p->device) {
+		command_print(CMD_CTX, "#%s: not probed", CMD_ARGV[0]);
+		return ERROR_OK;
+	}
+
+	uint8_t address;
+	uint32_t val;
+
+	COMMAND_PARSE_NUMBER(u8, CMD_ARGV[1], address);
+
+	if (CMD_ARGC == 3) {
+		COMMAND_PARSE_NUMBER(u32, CMD_ARGV[2], val);
+		retval = nand_set_feature(p, address, val);
+	} else {
+		val = 0;
+		retval = nand_get_feature(p, address, &val);
+		if (retval == ERROR_OK)
+			command_print(CMD_CTX, "#%s feature %d: %x", CMD_ARGV[0], address, val);
+	}
+
+	return retval;
+}
+
 static const struct command_registration nand_exec_command_handlers[] = {
 	{
 		.name = "list",
@@ -470,6 +503,13 @@ static const struct command_registration nand_exec_command_handlers[] = {
 		.mode = COMMAND_EXEC,
 		.usage = "bank_id ['enable'|'disable']",
 		.help = "raw access to NAND flash device",
+	},
+	{
+		.name = "feature",
+		.handler = handle_nand_feature_command,
+		.mode = COMMAND_EXEC,
+		.usage = "bank_id address [value]",
+		.help = "manage device features",
 	},
 	COMMAND_REGISTRATION_DONE
 };

@@ -298,6 +298,79 @@ static int nand_poll_ready(struct nand_device *nand, int timeout)
 	return (status & NAND_STATUS_READY) != 0;
 }
 
+int nand_get_feature(struct nand_device *nand, uint8_t feature, uint32_t* value)
+{
+	int retval;
+	uint8_t byte;
+	int i;
+
+	if (!nand->device)
+		return ERROR_NAND_DEVICE_NOT_PROBED;
+
+
+	/* Send "get feature" command */
+	nand->controller->command(nand, NAND_CMD_GET_FEATURE);
+
+	/* Send feature address */
+	nand->controller->address(nand, feature);
+
+	alive_sleep(1);
+
+	retval = nand->controller->nand_ready ?
+		nand->controller->nand_ready(nand, 1000) : ERROR_OK;
+	if (!retval) {
+		LOG_ERROR("timeout waiting for NAND flash feature get to complete");
+		return ERROR_NAND_OPERATION_TIMEOUT;
+	}
+
+	alive_sleep(1);
+
+	retval = ERROR_OK;
+	for (i = 0; retval == ERROR_OK && i < 4; i++) {
+		retval = nand->controller->read_data(nand, &byte);
+		if (value != NULL)
+			*value = (*value >> 8) | (((uint32_t)byte) << 24);
+	}
+
+	return ERROR_OK;
+}
+
+int nand_set_feature(struct nand_device *nand, uint8_t feature, uint32_t value)
+{
+	int retval;
+	int i;
+
+	if (!nand->device)
+		return ERROR_NAND_DEVICE_NOT_PROBED;
+
+
+	/* Send "get feature" command */
+	nand->controller->command(nand, NAND_CMD_SET_FEATURE);
+
+	/* Send feature address */
+	nand->controller->address(nand, feature);
+
+	alive_sleep(1);
+
+	retval = ERROR_OK;
+	for (i = 0; retval == ERROR_OK && i < 4; i++) {
+		retval = nand->controller->write_data(nand, value & 0xFF);
+		value >>= 8;
+	}
+
+	alive_sleep(1);
+
+	retval = nand->controller->nand_ready ?
+		nand->controller->nand_ready(nand, 1000) :
+		nand_poll_ready(nand, 1000);
+	if (!retval) {
+		LOG_ERROR("timeout waiting for NAND flash feature set to complete");
+		return ERROR_NAND_OPERATION_TIMEOUT;
+	}
+
+	return ERROR_OK;
+}
+
 int nand_probe(struct nand_device *nand)
 {
 	uint8_t manufacturer_id, device_id;
