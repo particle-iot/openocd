@@ -78,6 +78,72 @@
 #include <helper/list.h>
 #include <helper/jim-nvp.h>
 
+/**
+ * SWD Line reset.
+ *
+ * SWD Line reset is at least 50 SWCLK cycles with SWDIO driven high,
+ * followed by at least one idle (low) cycle.
+ */
+const uint8_t adiv5_seq_swd_line_reset[] = {
+	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x03
+};
+const unsigned adiv5_seq_swd_line_reset_len = 51;
+
+/**
+ * JTAG-to-SWD sequence.
+ *
+ * The JTAG-to-SWD sequence is at least 50 TCK/SWCLK cycles with TMS/SWDIO
+ * high, putting either interface logic into reset state, followed by a
+ * specific 16-bit sequence and finally a line reset in case the SWJ-DP was
+ * already in SWD mode.
+ */
+const uint8_t adiv5_seq_jtag_to_swd[] = {
+	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x7b, 0x9e,
+	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x0f,
+};
+const unsigned adiv5_seq_jtag_to_swd_len = 118;
+
+/**
+ * SWD-to-JTAG sequence.
+ *
+ * The SWD-to-JTAG sequence is at least 50 TCK/SWCLK cycles with TMS/SWDIO
+ * high, putting either interface logic into reset state, followed by a
+ * specific 16-bit sequence and finally at least 5 TCK cycles to put the
+ * JTAG TAP in TLR.
+ */
+const uint8_t adiv5_seq_swd_to_jtag[] = {
+	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xf3, 0x9c, 0xff
+};
+const unsigned adiv5_seq_swd_to_jtag_len = 71;
+
+/**
+ * SWD-to-dormant sequence.
+ *
+ * This is at least 50 SWCLK cycles with SWDIO high to put the interface
+ * in reset state, followed by a specific 16-bit sequence.
+ */
+const uint8_t adiv5_seq_swd_to_dormant[] = {
+	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xf3, 0x8e, 0x03
+};
+const unsigned adiv5_seq_swd_to_dormant_len = 66;
+
+/**
+ * Dormant-to-SWD sequence.
+ *
+ * This is at least 8 TCK/SWCLK cycles with TMS/SWDIO high to abort any ongoing
+ * selection alert sequence, followed by a specific 128-bit selection alert
+ * sequence, followed by 4 TCK/SWCLK cycles with TMS/SWDIO low, followed by
+ * a specific protocol-dependent activation code. For SWD the activation code
+ * is an 8-bit sequence. The sequence ends with a line reset.
+ */
+const uint8_t adiv5_seq_dormant_to_swd[] = {
+	0xff,
+	0x92, 0xf3, 0x09, 0x62, 0x95, 0x2d, 0x85, 0x86,
+	0xe9, 0xaf, 0xdd, 0xe3, 0xa2, 0x0e, 0xbc, 0x19,
+	0x10, 0xfa, 0xff, 0xff, 0xff, 0xff, 0xff, 0x3f
+};
+const unsigned adiv5_seq_dormant_to_swd_len = 199;
+
 /* ARM ADI Specification requires at least 10 bits used for TAR autoincrement  */
 
 /*

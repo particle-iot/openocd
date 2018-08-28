@@ -449,15 +449,15 @@ int bitbang_swd_switch_seq(enum swd_special_seq seq)
 	switch (seq) {
 	case LINE_RESET:
 		LOG_DEBUG("SWD line reset");
-		bitbang_exchange(false, (uint8_t *)swd_seq_line_reset, 0, swd_seq_line_reset_len);
+		bitbang_exchange(false, (uint8_t *)adiv5_seq_swd_line_reset, 0, adiv5_seq_swd_line_reset_len);
 		break;
 	case JTAG_TO_SWD:
 		LOG_DEBUG("JTAG-to-SWD");
-		bitbang_exchange(false, (uint8_t *)swd_seq_jtag_to_swd, 0, swd_seq_jtag_to_swd_len);
+		bitbang_exchange(false, (uint8_t *)adiv5_seq_jtag_to_swd, 0, adiv5_seq_jtag_to_swd_len);
 		break;
 	case SWD_TO_JTAG:
 		LOG_DEBUG("SWD-to-JTAG");
-		bitbang_exchange(false, (uint8_t *)swd_seq_swd_to_jtag, 0, swd_seq_swd_to_jtag_len);
+		bitbang_exchange(false, (uint8_t *)adiv5_seq_swd_to_jtag, 0, adiv5_seq_swd_to_jtag_len);
 		break;
 	default:
 		LOG_ERROR("Sequence %d not supported", seq);
@@ -470,7 +470,7 @@ int bitbang_swd_switch_seq(enum swd_special_seq seq)
 void bitbang_switch_to_swd(void)
 {
 	LOG_DEBUG("bitbang_switch_to_swd");
-	bitbang_exchange(false, (uint8_t *)swd_seq_jtag_to_swd, 0, swd_seq_jtag_to_swd_len);
+	bitbang_exchange(false, (uint8_t *)adiv5_seq_jtag_to_swd, 0, adiv5_seq_jtag_to_swd_len);
 }
 
 static void swd_clear_sticky_errors(void)

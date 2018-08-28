@@ -295,6 +295,20 @@ struct dap_ops {
 };
 
 /*
+ * Bit sequences
+ */
+extern const uint8_t  adiv5_seq_swd_line_reset[];
+extern const unsigned adiv5_seq_swd_line_reset_len;
+extern const uint8_t  adiv5_seq_jtag_to_swd[];
+extern const unsigned adiv5_seq_jtag_to_swd_len;
+extern const uint8_t  adiv5_seq_swd_to_jtag[];
+extern const unsigned adiv5_seq_swd_to_jtag_len;
+extern const uint8_t  adiv5_seq_swd_to_dormant[];
+extern const unsigned adiv5_seq_swd_to_dormant_len;
+extern const uint8_t  adiv5_seq_dormant_to_swd[];
+extern const unsigned adiv5_seq_dormant_to_swd_len;
+
+/*
  * Access Port classes
  */
 enum ap_class {

@@ -764,18 +764,18 @@ static int vsllink_swd_switch_seq(enum swd_special_seq seq)
 	switch (seq) {
 	case LINE_RESET:
 		LOG_DEBUG("SWD line reset");
-		versaloon_interface.adaptors.swd.seqout(0, swd_seq_line_reset,
-				swd_seq_line_reset_len);
+		versaloon_interface.adaptors.swd.seqout(0, adiv5_seq_swd_line_reset,
+				adiv5_seq_swd_line_reset_len);
 		break;
 	case JTAG_TO_SWD:
 		LOG_DEBUG("JTAG-to-SWD");
-		versaloon_interface.adaptors.swd.seqout(0, swd_seq_jtag_to_swd,
-				swd_seq_jtag_to_swd_len);
+		versaloon_interface.adaptors.swd.seqout(0, adiv5_seq_jtag_to_swd,
+				adiv5_seq_jtag_to_swd_len);
 		break;
 	case SWD_TO_JTAG:
 		LOG_DEBUG("SWD-to-JTAG");
-		versaloon_interface.adaptors.swd.seqout(0, swd_seq_swd_to_jtag,
-				swd_seq_swd_to_jtag_len);
+		versaloon_interface.adaptors.swd.seqout(0, adiv5_seq_swd_to_jtag,
+				adiv5_seq_swd_to_jtag_len);
 		break;
 	default:
 		LOG_ERROR("Sequence %d not supported", seq);

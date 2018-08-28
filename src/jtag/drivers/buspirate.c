@@ -1316,18 +1316,18 @@ static int buspirate_swd_switch_seq(enum swd_special_seq seq)
 	switch (seq) {
 	case LINE_RESET:
 		LOG_DEBUG("SWD line reset");
-		sequence = swd_seq_line_reset;
-		sequence_len = DIV_ROUND_UP(swd_seq_line_reset_len, 8);
+		sequence = adiv5_seq_swd_line_reset;
+		sequence_len = DIV_ROUND_UP(adiv5_seq_swd_line_reset_len, 8);
 		break;
 	case JTAG_TO_SWD:
 		LOG_DEBUG("JTAG-to-SWD");
-		sequence = swd_seq_jtag_to_swd;
-		sequence_len = DIV_ROUND_UP(swd_seq_jtag_to_swd_len, 8);
+		sequence = adiv5_seq_jtag_to_swd;
+		sequence_len = DIV_ROUND_UP(adiv5_seq_jtag_to_swd_len, 8);
 		break;
 	case SWD_TO_JTAG:
 		LOG_DEBUG("SWD-to-JTAG");
-		sequence = swd_seq_swd_to_jtag;
-		sequence_len = DIV_ROUND_UP(swd_seq_swd_to_jtag_len, 8);
+		sequence = adiv5_seq_swd_to_jtag;
+		sequence_len = DIV_ROUND_UP(adiv5_seq_swd_to_jtag_len, 8);
 		break;
 	default:
 		LOG_ERROR("Sequence %d not supported", seq);

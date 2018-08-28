@@ -922,18 +922,18 @@ static int cmsis_dap_swd_switch_seq(enum swd_special_seq seq)
 	switch (seq) {
 	case LINE_RESET:
 		LOG_DEBUG("SWD line reset");
-		s = swd_seq_line_reset;
-		s_len = swd_seq_line_reset_len;
+		s = adiv5_seq_swd_line_reset;
+		s_len = adiv5_seq_swd_line_reset_len;
 		break;
 	case JTAG_TO_SWD:
 		LOG_DEBUG("JTAG-to-SWD");
-		s = swd_seq_jtag_to_swd;
-		s_len = swd_seq_jtag_to_swd_len;
+		s = adiv5_seq_jtag_to_swd;
+		s_len = adiv5_seq_jtag_to_swd_len;
 		break;
 	case SWD_TO_JTAG:
 		LOG_DEBUG("SWD-to-JTAG");
-		s = swd_seq_swd_to_jtag;
-		s_len = swd_seq_swd_to_jtag_len;
+		s = adiv5_seq_swd_to_jtag;
+		s_len = adiv5_seq_swd_to_jtag_len;
 		break;
 	default:
 		LOG_ERROR("Sequence %d not supported", seq);
