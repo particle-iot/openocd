@@ -1384,11 +1384,11 @@ COMMAND_HANDLER(stellaris_handle_recover_command)
 	adapter_assert_reset();
 
 	for (int i = 0; i < 5; i++) {
-		retval = dap_to_swd(bank->target);
+		retval = dap_to_swd();
 		if (retval != ERROR_OK)
 			goto done;
 
-		retval = dap_to_jtag(bank->target);
+		retval = dap_to_jtag();
 		if (retval != ERROR_OK)
 			goto done;
 	}

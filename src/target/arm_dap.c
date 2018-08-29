@@ -29,6 +29,7 @@
 #include "helper/command.h"
 #include "transport/transport.h"
 #include "jtag/interface.h"
+#include "jtag/swd.h"
 
 static LIST_HEAD(all_dap);
 
@@ -144,6 +145,75 @@ int dap_cleanup_all(void)
 	}
 
 	return ERROR_OK;
+}
+
+/**
+ * Put the debug link into SWD mode, if the target supports it.
+ * The link's initial mode may be either JTAG (for example,
+ * with SWJ-DP after reset) or SWD.
+ *
+ * Note that targets using the JTAG-DP do not support SWD, and that
+ * some targets which could otherwise support it may have have been
+ * configured to disable SWD signaling
+ *
+ * @return ERROR_OK or else a fault code.
+ */
+int dap_to_swd(void)
+{
+	int retval;
+
+	LOG_DEBUG("Enter SWD mode");
+
+	if (transport_is_jtag()) {
+		retval =  jtag_add_tms_seq(swd_seq_jtag_to_swd_len,
+				swd_seq_jtag_to_swd, TAP_INVALID);
+		if (retval == ERROR_OK)
+			retval = jtag_execute_queue();
+		return retval;
+	}
+
+	if (transport_is_swd()) {
+		const struct swd_driver *swd = jtag_interface->swd;
+
+		return swd->switch_seq(JTAG_TO_SWD);
+	}
+
+	LOG_ERROR("Nor JTAG nor SWD transport");
+	return ERROR_FAIL;
+}
+
+/**
+ * Put the debug link into JTAG mode, if the target supports it.
+ * The link's initial mode may be either SWD or JTAG.
+ *
+ * Note that targets implemented with SW-DP do not support JTAG, and
+ * that some targets which could otherwise support it may have been
+ * configured to disable JTAG signaling
+ *
+ * @return ERROR_OK or else a fault code.
+ */
+int dap_to_jtag(void)
+{
+	int retval;
+
+	LOG_DEBUG("Enter JTAG mode");
+
+	if (transport_is_jtag()) {
+		retval = jtag_add_tms_seq(swd_seq_swd_to_jtag_len,
+				swd_seq_swd_to_jtag, TAP_RESET);
+		if (retval == ERROR_OK)
+			retval = jtag_execute_queue();
+		return retval;
+	}
+
+	if (transport_is_swd()) {
+		const struct swd_driver *swd = jtag_interface->swd;
+
+		return swd->switch_seq(SWD_TO_JTAG);
+	}
+
+	LOG_ERROR("Nor JTAG nor SWD transport");
+	return ERROR_FAIL;
 }
 
 enum dap_cfg_param {
