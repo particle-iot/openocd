@@ -1,6 +1,6 @@
 noinst_LTLIBRARIES += %D%/libjtag.la
 
-JTAG_SRCS = %D%/commands.c
+JTAG_SRCS =
 %C%_libjtag_la_LIBADD =
 
 BUILT_SOURCES += %D%/minidriver_imp.h
@@ -13,7 +13,7 @@ JTAG_SRCS += %D%/zy1000/zy1000.c
 JTAG_MINIDRIVER_DIR = %D%/zy1000
 endif
 if MINIDRIVER_DUMMY
-JTAG_SRCS += %D%/minidummy/minidummy.c
+JTAG_SRCS += %D%/minidummy/minidummy.c %D%/commands.c
 JTAG_MINIDRIVER_DIR = %D%/minidummy
 endif
 
@@ -29,6 +29,7 @@ CLEANFILES += %D%/jtag_minidriver.h
 else
 
 MINIDRIVER_IMP_DIR = %D%/drivers
+JTAG_SRCS += %D%/commands.c
 
 if HLADAPTER
 include %D%/hla/Makefile.am
