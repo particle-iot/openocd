@@ -24,6 +24,7 @@
 #include <rtos/rtos.h>
 #include <rtos/rtos_standard_stackings.h>
 #include <target/armv7m.h>
+#include <target/esirisc.h>
 
 static const struct stack_register_offset rtos_uCOS_III_Cortex_M_stack_offsets[] = {
 	{ ARMV7M_R0,   0x20, 32 },	/* r0   */
@@ -45,10 +46,39 @@ static const struct stack_register_offset rtos_uCOS_III_Cortex_M_stack_offsets[]
 	{ ARMV7M_xPSR, 0x3c, 32 },	/* xPSR */
 };
 
+static const struct stack_register_offset rtos_uCOS_III_eSi_RISC_stack_offsets[] = {
+	{ REG_SP,  -2,   32 },		/* sp   */
+	{ REG_RA,  0x48, 32 },		/* ra   */
+	{ REG_R2,  0x44, 32 },		/* r2   */
+	{ REG_R3,  0x40, 32 },		/* r3   */
+	{ REG_R4,  0x3c, 32 },		/* r4   */
+	{ REG_R5,  0x38, 32 },		/* r5   */
+	{ REG_R6,  0x34, 32 },		/* r6   */
+	{ REG_R7,  0x30, 32 },		/* r7   */
+	{ REG_R8,  0x2c, 32 },		/* r8   */
+	{ REG_R9,  0x28, 32 },		/* r9   */
+	{ REG_R10, 0x24, 32 },		/* r10  */
+	{ REG_R11, 0x20, 32 },		/* r11  */
+	{ REG_R12, 0x1c, 32 },		/* r12  */
+	{ REG_R13, 0x18, 32 },		/* r13  */
+	{ REG_R14, 0x14, 32 },		/* r14  */
+	{ REG_R15, 0x10, 32 },		/* r15  */
+	{ REG_PC,  0x04, 32 },		/* PC   */
+	{ REG_CAS, 0x08, 32 },		/* CAS  */
+};
+
 const struct rtos_register_stacking rtos_uCOS_III_Cortex_M_stacking = {
 	0x40,												/* stack_registers_size */
 	-1,													/* stack_growth_direction */
 	ARRAY_SIZE(rtos_uCOS_III_Cortex_M_stack_offsets),	/* num_output_registers */
 	rtos_generic_stack_align8,							/* stack_alignment */
 	rtos_uCOS_III_Cortex_M_stack_offsets				/* register_offsets */
+};
+
+const struct rtos_register_stacking rtos_uCOS_III_eSi_RISC_stacking = {
+	0x4c,												/* stack_registers_size */
+	-1,													/* stack_growth_direction */
+	ARRAY_SIZE(rtos_uCOS_III_eSi_RISC_stack_offsets),	/* num_output_registers */
+	NULL,												/* stack_alignment */
+	rtos_uCOS_III_eSi_RISC_stack_offsets				/* register_offsets */
 };
