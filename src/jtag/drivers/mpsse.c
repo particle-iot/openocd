@@ -512,6 +512,8 @@ void mpsse_clock_data(struct mpsse_ctx *ctx, const uint8_t *out, unsigned out_of
 		mode |= 0x10;
 	if (in)
 		mode |= 0x20;
+	else
+		mode &= ~NEG_EDGE_IN;
 
 	while (length > 0) {
 		/* Guarantee buffer space enough for a minimum size transfer */
@@ -587,6 +589,8 @@ void mpsse_clock_tms_cs(struct mpsse_ctx *ctx, const uint8_t *out, unsigned out_
 	mode |= 0x42;
 	if (in)
 		mode |= 0x20;
+	else
+		mode &= ~NEG_EDGE_IN;
 
 	while (length > 0) {
 		/* Guarantee buffer space enough for a minimum size transfer */
