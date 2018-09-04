@@ -1407,6 +1407,7 @@ COMMAND_HANDLER(stm32x_handle_options_write_command)
 	struct target *target = NULL;
 	struct stm32x_flash_bank *stm32x_info = NULL;
 	uint16_t optionbyte;
+	uint16_t useropt;
 
 	if (CMD_ARGC < 2)
 		return ERROR_COMMAND_SYNTAX_ERROR;
@@ -1435,6 +1436,7 @@ COMMAND_HANDLER(stm32x_handle_options_write_command)
 
 	/* start with current options */
 	optionbyte = stm32x_info->option_bytes.user_options;
+	useropt = stm32x_info->option_bytes.user_data;
 
 	/* skip over flash bank */
 	CMD_ARGC--;
@@ -1453,6 +1455,14 @@ COMMAND_HANDLER(stm32x_handle_options_write_command)
 			optionbyte |= (1 << 2);
 		else if (strcmp("RSTSTNDBY", CMD_ARGV[0]) == 0)
 			optionbyte &= ~(1 << 2);
+		else if (strcmp("USEROPT", CMD_ARGV[0]) == 0) {
+			if (CMD_ARGC < 2) {
+				return ERROR_COMMAND_SYNTAX_ERROR;
+			}
+			COMMAND_PARSE_NUMBER(u16, CMD_ARGV[1], useropt);
+			CMD_ARGC--;
+			CMD_ARGV++;
+		}
 		else if (stm32x_info->has_dual_banks) {
 			if (strcmp("BOOT0", CMD_ARGV[0]) == 0)
 				optionbyte |= (1 << 3);
@@ -1472,6 +1482,7 @@ COMMAND_HANDLER(stm32x_handle_options_write_command)
 	}
 
 	stm32x_info->option_bytes.user_options = optionbyte;
+	stm32x_info->option_bytes.user_data = useropt;
 
 	if (stm32x_write_options(bank) != ERROR_OK) {
 		command_print(CMD_CTX, "stm32x failed to write options");
@@ -1582,7 +1593,7 @@ static const struct command_registration stm32x_exec_command_handlers[] = {
 		.mode = COMMAND_EXEC,
 		.usage = "bank_id ('SWWDG'|'HWWDG') "
 			"('RSTSTNDBY'|'NORSTSTNDBY') "
-			"('RSTSTOP'|'NORSTSTOP')",
+			"('RSTSTOP'|'NORSTSTOP') (USEROPT user_data)",
 		.help = "Replace bits in device option byte.",
 	},
 	COMMAND_REGISTRATION_DONE
