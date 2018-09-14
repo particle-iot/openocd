@@ -646,6 +646,7 @@ void dap_invalidate_cache(struct adiv5_dap *dap)
  */
 int dap_dp_init(struct adiv5_dap *dap)
 {
+	uint32_t dp_ctrl_stat;
 	int retval;
 
 	LOG_DEBUG("%s", adiv5_dap_name(dap));
@@ -655,12 +656,14 @@ int dap_dp_init(struct adiv5_dap *dap)
 	for (size_t i = 0; i < 30; i++) {
 		/* DP initialization */
 
-		retval = dap_dp_read_atomic(dap, DP_CTRL_STAT, NULL);
+		retval = dap_dp_read_atomic(dap, DP_CTRL_STAT, &dp_ctrl_stat);
 		if (retval == ERROR_OK)
 			break;
 	}
 
-	retval = dap_queue_dp_write(dap, DP_CTRL_STAT, SSTICKYERR);
+	/* clean sticky errors, but do not deactivate power domains */
+	dap->dp_ctrl_stat = dp_ctrl_stat & (CDBGPWRUPREQ | CSYSPWRUPREQ);
+	retval = dap_queue_dp_write(dap, DP_CTRL_STAT, dap->dp_ctrl_stat | SSTICKYERR);
 	if (retval != ERROR_OK)
 		return retval;
 
