@@ -1738,7 +1738,7 @@ COMMAND_HANDLER(dap_apreg_command)
 		COMMAND_PARSE_NUMBER(u32, CMD_ARGV[2], value);
 		switch (reg) {
 		case MEM_AP_REG_CSW:
-			ap->csw_default = 0;  /* invalid, force write */
+			ap->csw_value = 0;  /* invalid, force write */
 			retval = mem_ap_setup_csw(ap, value);
 			break;
 		case MEM_AP_REG_TAR:
