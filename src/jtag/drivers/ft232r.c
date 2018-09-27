@@ -544,7 +544,7 @@ COMMAND_HANDLER(ft232r_handle_srst_num_command)
 
 COMMAND_HANDLER(ft232r_handle_buffer_size_command)
 {
-	uint32_t buf_size;
+	uint32_t buf_size = ft232r_buf_size;
 	if (CMD_ARGC == 1)
 		COMMAND_PARSE_NUMBER(u32, CMD_ARGV[0], buf_size);
 	else if (CMD_ARGC != 0)
