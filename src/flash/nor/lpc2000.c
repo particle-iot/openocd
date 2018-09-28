@@ -77,6 +77,7 @@
  * lpc800:
  * - 810 | 1 | 2 (tested with LPC810/LPC811/LPC812)
  * - 822 | 4 (tested with LPC824)
+ * - 844 | 5 (tested with LPC845)
  *
  * lpc1100:
  * - 11xx
@@ -257,6 +258,18 @@
 #define LPC824_201     0x00008241
 #define LPC824_201_1   0x00008242
 
+#define LPC844_201     0x00008441
+#define LPC844_201_1   0x00008442
+#define LPC844_201_2   0x00008444
+
+#define LPC845_301     0x00008451
+#define LPC845_301_1   0x00008452
+#define LPC845_301_2   0x00008453
+#define LPC845_301_3   0x00008454
+
+/* Changed IAP entry point for the LPC84x */
+#define LPC840_IAP_ENTRY 0x0F001FF1
+
 #define IAP_CODE_LEN 0x34
 
 #define LPC11xx_REG_SECTORS	24
@@ -282,6 +295,7 @@ struct lpc2000_flash_bank {
 	int checksum_vector;
 	uint32_t iap_max_stack;
 	uint32_t lpc4300_bank;
+	uint32_t iap_entry_alternitive;
 	bool probed;
 };
 
@@ -310,338 +324,6 @@ enum lpc2000_status_codes {
 	LPC2000_USER_CODE_CHECKSUM = 21,
 	LCP2000_ERROR_SETTING_ACTIVE_PARTITION = 22,
 };
-
-static int lpc2000_build_sector_list(struct flash_bank *bank)
-{
-	struct lpc2000_flash_bank *lpc2000_info = bank->driver_priv;
-	uint32_t offset = 0;
-
-	/* default to a 4096 write buffer */
-	lpc2000_info->cmd51_max_buffer = 4096;
-
-	if (lpc2000_info->variant == lpc2000_v1) {
-		lpc2000_info->cmd51_dst_boundary = 512;
-		lpc2000_info->checksum_vector = 5;
-		lpc2000_info->iap_max_stack = 128;
-
-		/* variant 1 has different layout for 128kb and 256kb flashes */
-		if (bank->size == 128 * 1024) {
-			bank->num_sectors = 16;
-			bank->sectors = malloc(sizeof(struct flash_sector) * 16);
-			for (int i = 0; i < 16; i++) {
-				bank->sectors[i].offset = offset;
-				bank->sectors[i].size = 8 * 1024;
-				offset += bank->sectors[i].size;
-				bank->sectors[i].is_erased = -1;
-				bank->sectors[i].is_protected = 1;
-			}
-		} else if (bank->size == 256 * 1024) {
-			bank->num_sectors = 18;
-			bank->sectors = malloc(sizeof(struct flash_sector) * 18);
-
-			for (int i = 0; i < 8; i++) {
-				bank->sectors[i].offset = offset;
-				bank->sectors[i].size = 8 * 1024;
-				offset += bank->sectors[i].size;
-				bank->sectors[i].is_erased = -1;
-				bank->sectors[i].is_protected = 1;
-			}
-			for (int i = 8; i < 10; i++) {
-				bank->sectors[i].offset = offset;
-				bank->sectors[i].size = 64 * 1024;
-				offset += bank->sectors[i].size;
-				bank->sectors[i].is_erased = -1;
-				bank->sectors[i].is_protected = 1;
-			}
-			for (int i = 10; i < 18; i++) {
-				bank->sectors[i].offset = offset;
-				bank->sectors[i].size = 8 * 1024;
-				offset += bank->sectors[i].size;
-				bank->sectors[i].is_erased = -1;
-				bank->sectors[i].is_protected = 1;
-			}
-		} else {
-			LOG_ERROR("BUG: unknown bank->size encountered");
-			exit(-1);
-		}
-	} else if (lpc2000_info->variant == lpc2000_v2) {
-		lpc2000_info->cmd51_dst_boundary = 256;
-		lpc2000_info->checksum_vector = 5;
-		lpc2000_info->iap_max_stack = 128;
-
-		/* variant 2 has a uniform layout, only number of sectors differs */
-		switch (bank->size) {
-			case 4 * 1024:
-				lpc2000_info->cmd51_max_buffer = 1024;
-				bank->num_sectors = 1;
-				break;
-			case 8 * 1024:
-				lpc2000_info->cmd51_max_buffer = 1024;
-				bank->num_sectors = 2;
-				break;
-			case 16 * 1024:
-				bank->num_sectors = 4;
-				break;
-			case 32 * 1024:
-				bank->num_sectors = 8;
-				break;
-			case 64 * 1024:
-				bank->num_sectors = 9;
-				break;
-			case 128 * 1024:
-				bank->num_sectors = 11;
-				break;
-			case 256 * 1024:
-				bank->num_sectors = 15;
-				break;
-			case 500 * 1024:
-				bank->num_sectors = 27;
-				break;
-			case 512 * 1024:
-			case 504 * 1024:
-				bank->num_sectors = 28;
-				break;
-			default:
-				LOG_ERROR("BUG: unknown bank->size encountered");
-				exit(-1);
-				break;
-		}
-
-		bank->sectors = malloc(sizeof(struct flash_sector) * bank->num_sectors);
-
-		for (int i = 0; i < bank->num_sectors; i++) {
-			if (i < 8) {
-				bank->sectors[i].offset = offset;
-				bank->sectors[i].size = 4 * 1024;
-				offset += bank->sectors[i].size;
-				bank->sectors[i].is_erased = -1;
-				bank->sectors[i].is_protected = 1;
-			} else if (i < 22) {
-				bank->sectors[i].offset = offset;
-				bank->sectors[i].size = 32 * 1024;
-				offset += bank->sectors[i].size;
-				bank->sectors[i].is_erased = -1;
-				bank->sectors[i].is_protected = 1;
-			} else if (i < 28) {
-				bank->sectors[i].offset = offset;
-				bank->sectors[i].size = 4 * 1024;
-				offset += bank->sectors[i].size;
-				bank->sectors[i].is_erased = -1;
-				bank->sectors[i].is_protected = 1;
-			}
-		}
-	} else if (lpc2000_info->variant == lpc1700) {
-		lpc2000_info->cmd51_dst_boundary = 256;
-		lpc2000_info->checksum_vector = 7;
-		lpc2000_info->iap_max_stack = 128;
-
-		switch (bank->size) {
-			case 4 * 1024:
-				lpc2000_info->cmd51_max_buffer = 256;
-				bank->num_sectors = 1;
-				break;
-			case 8 * 1024:
-				lpc2000_info->cmd51_max_buffer = 512;
-				bank->num_sectors = 2;
-				break;
-			case 16 * 1024:
-				lpc2000_info->cmd51_max_buffer = 512;
-				bank->num_sectors = 4;
-				break;
-			case 32 * 1024:
-				lpc2000_info->cmd51_max_buffer = 1024;
-				bank->num_sectors = 8;
-				break;
-			case 64 * 1024:
-				bank->num_sectors = 16;
-				break;
-			case 128 * 1024:
-				bank->num_sectors = 18;
-			break;
-			case 256 * 1024:
-				bank->num_sectors = 22;
-				break;
-			case 512 * 1024:
-				bank->num_sectors = 30;
-				break;
-			default:
-				LOG_ERROR("BUG: unknown bank->size encountered");
-				exit(-1);
-		}
-
-		bank->sectors = malloc(sizeof(struct flash_sector) * bank->num_sectors);
-
-		for (int i = 0; i < bank->num_sectors; i++) {
-			bank->sectors[i].offset = offset;
-			/* sectors 0-15 are 4kB-sized, 16 and above are 32kB-sized for LPC17xx/LPC40xx devices */
-			bank->sectors[i].size = (i < 16) ? 4 * 1024 : 32 * 1024;
-			offset += bank->sectors[i].size;
-			bank->sectors[i].is_erased = -1;
-			bank->sectors[i].is_protected = 1;
-		}
-	} else if (lpc2000_info->variant == lpc4300) {
-		lpc2000_info->cmd51_dst_boundary = 512;
-		lpc2000_info->checksum_vector = 7;
-		lpc2000_info->iap_max_stack = 208;
-
-		switch (bank->size) {
-			case 256 * 1024:
-				bank->num_sectors = 11;
-				break;
-			case 384 * 1024:
-				bank->num_sectors = 13;
-				break;
-			case 512 * 1024:
-				bank->num_sectors = 15;
-				break;
-			default:
-				LOG_ERROR("BUG: unknown bank->size encountered");
-				exit(-1);
-		}
-
-		bank->sectors = malloc(sizeof(struct flash_sector) * bank->num_sectors);
-
-		for (int i = 0; i < bank->num_sectors; i++) {
-			bank->sectors[i].offset = offset;
-			/* sectors 0-7 are 8kB-sized, 8 and above are 64kB-sized for LPC43xx devices */
-			bank->sectors[i].size = (i < 8) ? 8 * 1024 : 64 * 1024;
-			offset += bank->sectors[i].size;
-			bank->sectors[i].is_erased = -1;
-			bank->sectors[i].is_protected = 1;
-		}
-
-	} else if (lpc2000_info->variant == lpc800) {
-		lpc2000_info->cmd51_dst_boundary = 64;
-		lpc2000_info->checksum_vector = 7;
-		lpc2000_info->iap_max_stack = 208;		/* 148byte for LPC81x,208byte for LPC82x. */
-		lpc2000_info->cmd51_max_buffer = 256;	/* smallest MCU in the series, LPC810, has 1 kB of SRAM */
-
-		switch (bank->size) {
-			case 4 * 1024:
-				bank->num_sectors = 4;
-				break;
-			case 8 * 1024:
-				bank->num_sectors = 8;
-				break;
-			case 16 * 1024:
-				bank->num_sectors = 16;
-				break;
-			case 32 * 1024:
-				lpc2000_info->cmd51_max_buffer = 1024; /* For LPC824, has 8kB of SRAM */
-				bank->num_sectors = 32;
-				break;
-			default:
-				LOG_ERROR("BUG: unknown bank->size encountered");
-				exit(-1);
-		}
-
-		bank->sectors = malloc(sizeof(struct flash_sector) * bank->num_sectors);
-
-		for (int i = 0; i < bank->num_sectors; i++) {
-			bank->sectors[i].offset = offset;
-			/* all sectors are 1kB-sized for LPC8xx devices */
-			bank->sectors[i].size = 1 * 1024;
-			offset += bank->sectors[i].size;
-			bank->sectors[i].is_erased = -1;
-			bank->sectors[i].is_protected = 1;
-		}
-
-	} else if (lpc2000_info->variant == lpc1100) {
-		lpc2000_info->cmd51_dst_boundary = 256;
-		lpc2000_info->checksum_vector = 7;
-		lpc2000_info->iap_max_stack = 128;
-
-		if ((bank->size % (4 * 1024)) != 0) {
-			LOG_ERROR("BUG: unknown bank->size encountered,\nLPC1100 flash size must be a multiple of 4096");
-			exit(-1);
-		}
-		lpc2000_info->cmd51_max_buffer = 512; /* smallest MCU in the series, LPC1110, has 1 kB of SRAM */
-		unsigned int large_sectors = 0;
-		unsigned int normal_sectors = bank->size / 4096;
-
-		if (normal_sectors > LPC11xx_REG_SECTORS) {
-			large_sectors = (normal_sectors - LPC11xx_REG_SECTORS) / 8;
-			normal_sectors = LPC11xx_REG_SECTORS;
-		}
-
-		bank->num_sectors = normal_sectors + large_sectors;
-
-		bank->sectors = malloc(sizeof(struct flash_sector) * bank->num_sectors);
-
-		for (int i = 0; i < bank->num_sectors; i++) {
-			bank->sectors[i].offset = offset;
-			bank->sectors[i].size = (i < LPC11xx_REG_SECTORS ? 4 : 32) * 1024;
-			offset += bank->sectors[i].size;
-			bank->sectors[i].is_erased = -1;
-			bank->sectors[i].is_protected = 1;
-		}
-
-	} else if (lpc2000_info->variant == lpc1500) {
-		lpc2000_info->cmd51_dst_boundary = 256;
-		lpc2000_info->checksum_vector = 7;
-		lpc2000_info->iap_max_stack = 128;
-
-		switch (bank->size) {
-			case 64 * 1024:
-				bank->num_sectors = 16;
-				break;
-			case 128 * 1024:
-				bank->num_sectors = 32;
-				break;
-			case 256 * 1024:
-				bank->num_sectors = 64;
-				break;
-			default:
-				LOG_ERROR("BUG: unknown bank->size encountered");
-				exit(-1);
-		}
-
-		bank->sectors = malloc(sizeof(struct flash_sector) * bank->num_sectors);
-
-		for (int i = 0; i < bank->num_sectors; i++) {
-			bank->sectors[i].offset = offset;
-			/* all sectors are 4kB-sized */
-			bank->sectors[i].size = 4 * 1024;
-			offset += bank->sectors[i].size;
-			bank->sectors[i].is_erased = -1;
-			bank->sectors[i].is_protected = 1;
-		}
-
-	} else if (lpc2000_info->variant == lpc54100) {
-		lpc2000_info->cmd51_dst_boundary = 256;
-		lpc2000_info->checksum_vector = 7;
-		lpc2000_info->iap_max_stack = 128;
-
-		switch (bank->size) {
-			case 256 * 1024:
-				bank->num_sectors = 8;
-				break;
-			case 512 * 1024:
-				bank->num_sectors = 16;
-				break;
-			default:
-				LOG_ERROR("BUG: unknown bank->size encountered");
-				exit(-1);
-		}
-
-		bank->sectors = malloc(sizeof(struct flash_sector) * bank->num_sectors);
-
-		for (int i = 0; i < bank->num_sectors; i++) {
-			bank->sectors[i].offset = offset;
-			/* all sectors are 32kB-sized */
-			bank->sectors[i].size = 32 * 1024;
-			offset += bank->sectors[i].size;
-			bank->sectors[i].is_erased = -1;
-			bank->sectors[i].is_protected = 1;
-		}
-
-	} else {
-		LOG_ERROR("BUG: unknown lpc2000_info->variant encountered");
-		exit(-1);
-	}
-
-	return ERROR_OK;
-}
 
 /* this function allocates and initializes working area used for IAP algorithm
  * uses 52 + max IAP stack bytes working area
@@ -716,6 +398,8 @@ static int lpc2000_iap_call(struct flash_bank *bank, struct working_area *iap_wo
 			armv7m_info.common_magic = ARMV7M_COMMON_MAGIC;
 			armv7m_info.core_mode = ARM_MODE_THREAD;
 			iap_entry_point = 0x1fff1ff1;
+			if (lpc2000_info->iap_entry_alternitive != 0x0)
+				iap_entry_point = lpc2000_info->iap_entry_alternitive;
 			break;
 		case lpc1500:
 		case lpc54100:
@@ -903,6 +587,9 @@ FLASH_BANK_COMMAND_HANDLER(lpc2000_flash_bank_command)
 		lpc2000_info->variant = lpc4300;
 	} else if (strcmp(CMD_ARGV[6], "lpc800") == 0) {
 		lpc2000_info->variant = lpc800;
+	} else if (strcmp(CMD_ARGV[6], "lpc840") == 0) {
+		lpc2000_info->variant = lpc800;
+		lpc2000_info->iap_entry_alternitive = LPC840_IAP_ENTRY;
 	} else if (strcmp(CMD_ARGV[6], "lpc1100") == 0) {
 		lpc2000_info->variant = lpc1100;
 	} else if (strcmp(CMD_ARGV[6], "lpc1500") == 0) {
@@ -1458,9 +1145,362 @@ static int lpc2000_auto_probe_flash(struct flash_bank *bank)
 			bank->size = 32 * 1024;
 			break;
 
+		case LPC844_201 :
+		case LPC844_201_1 :
+		case LPC844_201_2 :
+		case LPC845_301 :
+		case LPC845_301_1 :
+		case LPC845_301_2 :
+		case LPC845_301_3 :
+			lpc2000_info->variant = lpc800;
+			bank->size = 64 * 1024;
+			break;
+
 		default:
 			LOG_ERROR("BUG: unknown Part ID encountered: 0x%" PRIx32, part_id);
 			exit(-1);
+	}
+
+	return ERROR_OK;
+}
+
+static int lpc2000_build_sector_list(struct flash_bank *bank)
+{
+	struct lpc2000_flash_bank *lpc2000_info = bank->driver_priv;
+	uint32_t offset = 0;
+
+	/* default to a 4096 write buffer */
+	lpc2000_info->cmd51_max_buffer = 4096;
+
+	if (lpc2000_info->variant == lpc2000_v1) {
+		lpc2000_info->cmd51_dst_boundary = 512;
+		lpc2000_info->checksum_vector = 5;
+		lpc2000_info->iap_max_stack = 128;
+
+		/* variant 1 has different layout for 128kb and 256kb flashes */
+		if (bank->size == 128 * 1024) {
+			bank->num_sectors = 16;
+			bank->sectors = malloc(sizeof(struct flash_sector) * 16);
+			for (int i = 0; i < 16; i++) {
+				bank->sectors[i].offset = offset;
+				bank->sectors[i].size = 8 * 1024;
+				offset += bank->sectors[i].size;
+				bank->sectors[i].is_erased = -1;
+				bank->sectors[i].is_protected = 1;
+			}
+		} else if (bank->size == 256 * 1024) {
+			bank->num_sectors = 18;
+			bank->sectors = malloc(sizeof(struct flash_sector) * 18);
+
+			for (int i = 0; i < 8; i++) {
+				bank->sectors[i].offset = offset;
+				bank->sectors[i].size = 8 * 1024;
+				offset += bank->sectors[i].size;
+				bank->sectors[i].is_erased = -1;
+				bank->sectors[i].is_protected = 1;
+			}
+			for (int i = 8; i < 10; i++) {
+				bank->sectors[i].offset = offset;
+				bank->sectors[i].size = 64 * 1024;
+				offset += bank->sectors[i].size;
+				bank->sectors[i].is_erased = -1;
+				bank->sectors[i].is_protected = 1;
+			}
+			for (int i = 10; i < 18; i++) {
+				bank->sectors[i].offset = offset;
+				bank->sectors[i].size = 8 * 1024;
+				offset += bank->sectors[i].size;
+				bank->sectors[i].is_erased = -1;
+				bank->sectors[i].is_protected = 1;
+			}
+		} else {
+			LOG_ERROR("BUG: unknown bank->size encountered");
+			exit(-1);
+		}
+	} else if (lpc2000_info->variant == lpc2000_v2) {
+		lpc2000_info->cmd51_dst_boundary = 256;
+		lpc2000_info->checksum_vector = 5;
+		lpc2000_info->iap_max_stack = 128;
+
+		/* variant 2 has a uniform layout, only number of sectors differs */
+		switch (bank->size) {
+			case 4 * 1024:
+				lpc2000_info->cmd51_max_buffer = 1024;
+				bank->num_sectors = 1;
+				break;
+			case 8 * 1024:
+				lpc2000_info->cmd51_max_buffer = 1024;
+				bank->num_sectors = 2;
+				break;
+			case 16 * 1024:
+				bank->num_sectors = 4;
+				break;
+			case 32 * 1024:
+				bank->num_sectors = 8;
+				break;
+			case 64 * 1024:
+				bank->num_sectors = 9;
+				break;
+			case 128 * 1024:
+				bank->num_sectors = 11;
+				break;
+			case 256 * 1024:
+				bank->num_sectors = 15;
+				break;
+			case 500 * 1024:
+				bank->num_sectors = 27;
+				break;
+			case 512 * 1024:
+			case 504 * 1024:
+				bank->num_sectors = 28;
+				break;
+			default:
+				LOG_ERROR("BUG: unknown bank->size encountered");
+				exit(-1);
+				break;
+		}
+
+		bank->sectors = malloc(sizeof(struct flash_sector) * bank->num_sectors);
+
+		for (int i = 0; i < bank->num_sectors; i++) {
+			if (i < 8) {
+				bank->sectors[i].offset = offset;
+				bank->sectors[i].size = 4 * 1024;
+				offset += bank->sectors[i].size;
+				bank->sectors[i].is_erased = -1;
+				bank->sectors[i].is_protected = 1;
+			} else if (i < 22) {
+				bank->sectors[i].offset = offset;
+				bank->sectors[i].size = 32 * 1024;
+				offset += bank->sectors[i].size;
+				bank->sectors[i].is_erased = -1;
+				bank->sectors[i].is_protected = 1;
+			} else if (i < 28) {
+				bank->sectors[i].offset = offset;
+				bank->sectors[i].size = 4 * 1024;
+				offset += bank->sectors[i].size;
+				bank->sectors[i].is_erased = -1;
+				bank->sectors[i].is_protected = 1;
+			}
+		}
+	} else if (lpc2000_info->variant == lpc1700) {
+		lpc2000_info->cmd51_dst_boundary = 256;
+		lpc2000_info->checksum_vector = 7;
+		lpc2000_info->iap_max_stack = 128;
+
+		switch (bank->size) {
+			case 4 * 1024:
+				lpc2000_info->cmd51_max_buffer = 256;
+				bank->num_sectors = 1;
+				break;
+			case 8 * 1024:
+				lpc2000_info->cmd51_max_buffer = 512;
+				bank->num_sectors = 2;
+				break;
+			case 16 * 1024:
+				lpc2000_info->cmd51_max_buffer = 512;
+				bank->num_sectors = 4;
+				break;
+			case 32 * 1024:
+				lpc2000_info->cmd51_max_buffer = 1024;
+				bank->num_sectors = 8;
+				break;
+			case 64 * 1024:
+				bank->num_sectors = 16;
+				break;
+			case 128 * 1024:
+				bank->num_sectors = 18;
+				break;
+			case 256 * 1024:
+				bank->num_sectors = 22;
+				break;
+			case 512 * 1024:
+				bank->num_sectors = 30;
+				break;
+			default:
+				LOG_ERROR("BUG: unknown bank->size encountered");
+				exit(-1);
+		}
+
+		bank->sectors = malloc(sizeof(struct flash_sector) * bank->num_sectors);
+
+		for (int i = 0; i < bank->num_sectors; i++) {
+			bank->sectors[i].offset = offset;
+			/* sectors 0-15 are 4kB-sized, 16 and above are 32kB-sized for LPC17xx/LPC40xx devices */
+			bank->sectors[i].size = (i < 16) ? 4 * 1024 : 32 * 1024;
+			offset += bank->sectors[i].size;
+			bank->sectors[i].is_erased = -1;
+			bank->sectors[i].is_protected = 1;
+		}
+	} else if (lpc2000_info->variant == lpc4300) {
+		lpc2000_info->cmd51_dst_boundary = 512;
+		lpc2000_info->checksum_vector = 7;
+		lpc2000_info->iap_max_stack = 208;
+
+		switch (bank->size) {
+			case 256 * 1024:
+				bank->num_sectors = 11;
+				break;
+			case 384 * 1024:
+				bank->num_sectors = 13;
+				break;
+			case 512 * 1024:
+				bank->num_sectors = 15;
+				break;
+			default:
+				LOG_ERROR("BUG: unknown bank->size encountered");
+				exit(-1);
+		}
+
+		bank->sectors = malloc(sizeof(struct flash_sector) * bank->num_sectors);
+
+		for (int i = 0; i < bank->num_sectors; i++) {
+			bank->sectors[i].offset = offset;
+			/* sectors 0-7 are 8kB-sized, 8 and above are 64kB-sized for LPC43xx devices */
+			bank->sectors[i].size = (i < 8) ? 8 * 1024 : 64 * 1024;
+			offset += bank->sectors[i].size;
+			bank->sectors[i].is_erased = -1;
+			bank->sectors[i].is_protected = 1;
+		}
+
+	} else if (lpc2000_info->variant == lpc800) {
+		lpc2000_info->cmd51_dst_boundary = 64;
+		lpc2000_info->checksum_vector = 7;
+		lpc2000_info->iap_max_stack = 208;              /* 148byte for LPC81x,208byte for LPC82x. */
+		lpc2000_info->cmd51_max_buffer = 256;   /* smallest MCU in the series, LPC810, has 1 kB of SRAM */
+
+		if (bank->size == 0 ) {
+			int status = lpc2000_auto_probe_flash(bank);
+			if (status != ERROR_OK)
+				return status;
+		}
+
+		switch (bank->size) {
+			case 4 * 1024:
+				bank->num_sectors = 4;
+				break;
+			case 8 * 1024:
+				bank->num_sectors = 8;
+				break;
+			case 16 * 1024:
+				bank->num_sectors = 16;
+				break;
+			case 32 * 1024:
+				lpc2000_info->cmd51_max_buffer = 1024; /* For LPC824, has 8kB of SRAM */
+				bank->num_sectors = 32;
+				break;
+			case 64 * 1024:
+				lpc2000_info->cmd51_max_buffer = 1024; /* For LPC844, has 8kB of SRAM */
+				bank->num_sectors = 64;
+				break;
+			default:
+				LOG_ERROR("BUG: unknown bank->size encountered");
+				exit(-1);
+		}
+
+		bank->sectors = malloc(sizeof(struct flash_sector) * bank->num_sectors);
+
+		for (int i = 0; i < bank->num_sectors; i++) {
+			bank->sectors[i].offset = offset;
+			/* all sectors are 1kB-sized for LPC8xx devices */
+			bank->sectors[i].size = 1 * 1024;
+			offset += bank->sectors[i].size;
+			bank->sectors[i].is_erased = -1;
+			bank->sectors[i].is_protected = 1;
+		}
+
+	} else if (lpc2000_info->variant == lpc1100) {
+		lpc2000_info->cmd51_dst_boundary = 256;
+		lpc2000_info->checksum_vector = 7;
+		lpc2000_info->iap_max_stack = 128;
+
+		if ((bank->size % (4 * 1024)) != 0) {
+			LOG_ERROR("BUG: unknown bank->size encountered,\nLPC1100 flash size must be a multiple of 4096");
+			exit(-1);
+		}
+		lpc2000_info->cmd51_max_buffer = 512; /* smallest MCU in the series, LPC1110, has 1 kB of SRAM */
+		unsigned int large_sectors = 0;
+		unsigned int normal_sectors = bank->size / 4096;
+
+		if (normal_sectors > LPC11xx_REG_SECTORS) {
+			large_sectors = (normal_sectors - LPC11xx_REG_SECTORS) / 8;
+			normal_sectors = LPC11xx_REG_SECTORS;
+		}
+
+		bank->num_sectors = normal_sectors + large_sectors;
+
+		bank->sectors = malloc(sizeof(struct flash_sector) * bank->num_sectors);
+
+		for (int i = 0; i < bank->num_sectors; i++) {
+			bank->sectors[i].offset = offset;
+			bank->sectors[i].size = (i < LPC11xx_REG_SECTORS ? 4 : 32) * 1024;
+			offset += bank->sectors[i].size;
+			bank->sectors[i].is_erased = -1;
+			bank->sectors[i].is_protected = 1;
+		}
+
+	} else if (lpc2000_info->variant == lpc1500) {
+		lpc2000_info->cmd51_dst_boundary = 256;
+		lpc2000_info->checksum_vector = 7;
+		lpc2000_info->iap_max_stack = 128;
+
+		switch (bank->size) {
+			case 64 * 1024:
+				bank->num_sectors = 16;
+				break;
+			case 128 * 1024:
+				bank->num_sectors = 32;
+				break;
+			case 256 * 1024:
+				bank->num_sectors = 64;
+				break;
+			default:
+				LOG_ERROR("BUG: unknown bank->size encountered");
+				exit(-1);
+		}
+
+		bank->sectors = malloc(sizeof(struct flash_sector) * bank->num_sectors);
+
+		for (int i = 0; i < bank->num_sectors; i++) {
+			bank->sectors[i].offset = offset;
+			/* all sectors are 4kB-sized */
+			bank->sectors[i].size = 4 * 1024;
+			offset += bank->sectors[i].size;
+			bank->sectors[i].is_erased = -1;
+			bank->sectors[i].is_protected = 1;
+		}
+
+	} else if (lpc2000_info->variant == lpc54100) {
+		lpc2000_info->cmd51_dst_boundary = 256;
+		lpc2000_info->checksum_vector = 7;
+		lpc2000_info->iap_max_stack = 128;
+
+		switch (bank->size) {
+			case 256 * 1024:
+				  bank->num_sectors = 8;
+				  break;
+			case 512 * 1024:
+				bank->num_sectors = 16;
+				break;
+			default:
+				LOG_ERROR("BUG: unknown bank->size encountered");
+				exit(-1);
+		}
+
+		bank->sectors = malloc(sizeof(struct flash_sector) * bank->num_sectors);
+
+		for (int i = 0; i < bank->num_sectors; i++) {
+			bank->sectors[i].offset = offset;
+			/* all sectors are 32kB-sized */
+			bank->sectors[i].size = 32 * 1024;
+			offset += bank->sectors[i].size;
+			bank->sectors[i].is_erased = -1;
+			bank->sectors[i].is_protected = 1;
+		}
+
+	} else {
+		LOG_ERROR("BUG: unknown lpc2000_info->variant encountered");
+		exit(-1);
 	}
 
 	return ERROR_OK;
