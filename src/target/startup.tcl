@@ -157,6 +157,9 @@ proc ocd_process_reset_inner { MODE } {
 		# Use TRST or TMS/TCK operations to reset all the tap controllers.
 		# TAP reset events get reported; they might enable some taps.
 		init_reset $MODE
+
+		# after resetting the JTAG chain, re-initialize all existing DAPs
+		dap init
 	}
 
 	# Assert SRST, and report the pre/post events.
@@ -180,6 +183,7 @@ proc ocd_process_reset_inner { MODE } {
 	reset_deassert_initial $MODE
 	if { !$early_reset_init } {
 		if [using_jtag] { jtag arp_init }
+		dap init
 	}
 
 	foreach t $targets {
