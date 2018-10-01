@@ -192,9 +192,21 @@ static int aarch64_init_debug_access(struct target *target)
 {
 	struct armv8_common *armv8 = target_to_armv8(target);
 	int retval;
-	uint32_t dummy;
+	uint32_t val;
 
 	LOG_DEBUG("%s", target_name(target));
+
+	/* Clear Sticky Power Down status Bit in PRSR to enable access to
+	   the registers in the Core Power Domain */
+	retval = mem_ap_read_atomic_u32(armv8->debug_ap,
+					armv8->debug_base + CPUV8_DBG_PRSR, &val);
+	if (retval != ERROR_OK)
+		return retval;
+
+	if (!(val & CPUV8_DBG_PRSR_PU)) {
+		LOG_WARNING("Target %s is powered down!", target_name(target));
+		return ERROR_OK;
+	}
 
 	retval = mem_ap_write_atomic_u32(armv8->debug_ap,
 			armv8->debug_base + CPUV8_DBG_OSLAR, 0);
@@ -202,13 +214,6 @@ static int aarch64_init_debug_access(struct target *target)
 		LOG_DEBUG("Examine %s failed", "oslock");
 		return retval;
 	}
-
-	/* Clear Sticky Power Down status Bit in PRSR to enable access to
-	   the registers in the Core Power Domain */
-	retval = mem_ap_read_atomic_u32(armv8->debug_ap,
-			armv8->debug_base + CPUV8_DBG_PRSR, &dummy);
-	if (retval != ERROR_OK)
-		return retval;
 
 	/*
 	 * Static CTI configuration:
@@ -2257,6 +2262,18 @@ static int aarch64_examine_first(struct target *target)
 				" apid: %08" PRIx32, coreidx, armv8->debug_base, apid);
 	} else
 		armv8->debug_base = target->dbgbase;
+
+	/* Clear Sticky Power Down status Bit in PRSR to enable access to
+	 * the registers in the Core Power Domain */
+	retval = mem_ap_read_atomic_u32(armv8->debug_ap,
+					armv8->debug_base + CPUV8_DBG_PRSR, &tmp0);
+	if (retval != ERROR_OK)
+		return retval;
+
+	if ((tmp0 & 0x01) /* EDPRSR.PU */ == 0) {
+		LOG_INFO("target %s is powered down!", target_name(target));
+		return ERROR_TARGET_INIT_FAILED;
+	}
 
 	retval = mem_ap_write_atomic_u32(armv8->debug_ap,
 			armv8->debug_base + CPUV8_DBG_OSLAR, 0);

@@ -262,7 +262,9 @@ static inline bool is_armv8(struct armv8_common *armv8)
 #define CPUV8_DBG_DSCR		0x088
 #define CPUV8_DBG_DRCR		0x090
 #define CPUV8_DBG_PRCR		0x310
+
 #define CPUV8_DBG_PRSR		0x314
+#define CPUV8_DBG_PRSR_PU	0x01
 
 #define CPUV8_DBG_DTRRX		0x080
 #define CPUV8_DBG_ITR		0x084
