@@ -1818,6 +1818,15 @@ COMMAND_HANDLER(dap_ti_be_32_quirks_command)
 	return 0;
 }
 
+COMMAND_HANDLER(dap_do_reconnect_command)
+{
+	struct adiv5_dap *dap = adiv5_get_dap(CMD_DATA);
+
+	dap->do_reconnect = true;
+
+	return 0;
+}
+
 const struct command_registration dap_instance_commands[] = {
 	{
 		.name = "info",
@@ -1889,6 +1898,13 @@ const struct command_registration dap_instance_commands[] = {
 		.mode = COMMAND_CONFIG,
 		.help = "set/get quirks mode for TI TMS450/TMS570 processors",
 		.usage = "[enable]",
+	},
+	{
+		.name = "do_reconnect",
+		.handler = dap_do_reconnect_command,
+		.mode = COMMAND_EXEC,
+		.help = "trigger a reconnect of the dap on next scan",
+		.usage = "",
 	},
 	COMMAND_REGISTRATION_DONE
 };
