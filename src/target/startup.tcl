@@ -81,6 +81,9 @@ proc ocd_process_reset_inner { MODE } {
 		# TAP reset events get reported; they might enable some taps.
 		init_reset $MODE
 
+		# after resetting the JTAG chain, re-initialize all existing DAPs
+		dap init
+
 		# Examine all targets on enabled taps.
 		arp_examine_all
 	}
@@ -109,6 +112,7 @@ proc ocd_process_reset_inner { MODE } {
 	reset_deassert_initial $MODE
 	if { !$early_reset_init } {
 		if [using_jtag] { jtag arp_init }
+		dap init
 		arp_examine_all
 	}
 	foreach t $targets {
