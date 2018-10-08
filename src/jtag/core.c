@@ -1515,6 +1515,8 @@ int swd_init_reset(struct command_context *cmd_ctx)
 
 int jtag_init_reset(struct command_context *cmd_ctx)
 {
+	bool have_srst;
+	bool have_srst_nogate;
 	int retval = adapter_init(cmd_ctx);
 	if (retval != ERROR_OK)
 		return retval;
@@ -1545,21 +1547,14 @@ int jtag_init_reset(struct command_context *cmd_ctx)
 	 * REVISIT once Tcl code can read the reset_config modes, this won't
 	 * need to be a C routine at all...
 	 */
-	if ((jtag_reset_config & RESET_HAS_SRST)
-	     && (jtag_reset_config & RESET_SRST_NO_GATING)) {
-		jtag_add_reset(1, 1);
-	} else {
-		jtag_add_reset(1, 0);	/* TAP_RESET, using TMS+TCK or TRST */
-	}
+	have_srst = !!(jtag_reset_config & RESET_HAS_SRST);
+	have_srst_nogate = have_srst && !!(jtag_reset_config & RESET_SRST_NO_GATING);
 
-	/* some targets enable us to connect with srst asserted */
-	if (jtag_reset_config & RESET_SRST_NO_GATING)
-		jtag_add_reset(0, 1);
-	else {
-		if (jtag_reset_config & RESET_CNCT_UNDER_SRST)
-			LOG_WARNING("\'srst_nogate\' reset_config option is required");
-		jtag_add_reset(0, 0);
-	}
+	jtag_add_reset(1, have_srst);
+	jtag_add_reset(0, have_srst_nogate);
+
+	if (!have_srst_nogate && (jtag_reset_config & RESET_CNCT_UNDER_SRST))
+		LOG_WARNING("\'srst_nogate\' reset_config option is required");
 
 	retval = jtag_execute_queue();
 	if (retval != ERROR_OK)
