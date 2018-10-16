@@ -91,12 +91,9 @@ static int speed_coeff = 113714;
 static int speed_offset = 28;
 static unsigned int jtag_delay;
 
-/* dummy value for synchronizing bcm2835 GPIO transactions */
-static uint32_t lev;
-
 static bb_value_t bcm2835gpio_read(void)
 {
-	lev = GPIO_LEV; /* dummy read to synchronize bcm2835 gpio block */
+	(void) GPIO_LEV; /* dummy read to synchronize bcm2835 gpio block */
 
 	return (GPIO_LEV & 1<<tdo_gpio) ? BB_HIGH : BB_LOW;
 }
@@ -106,9 +103,9 @@ static int bcm2835gpio_write(int tck, int tms, int tdi)
 	uint32_t set = tck<<tck_gpio | tms<<tms_gpio | tdi<<tdi_gpio;
 	uint32_t clear = !tck<<tck_gpio | !tms<<tms_gpio | !tdi<<tdi_gpio;
 
-	lev = GPIO_LEV;  /* dummy read to synch bcm2835 gpio block */
 	GPIO_SET = set;
 	GPIO_CLR = clear;
+	(void) GPIO_LEV;  /* dummy read to synch bcm2835 gpio block */
 
 	for (unsigned int i = 0; i < jtag_delay; i++)
 		asm volatile ("");
@@ -121,9 +118,9 @@ static int bcm2835gpio_swd_write(int tck, int tms, int tdi)
 	uint32_t set = tck<<swclk_gpio | tdi<<swdio_gpio;
 	uint32_t clear = !tck<<swclk_gpio | !tdi<<swdio_gpio;
 
-	lev = GPIO_LEV;
 	GPIO_SET = set;
 	GPIO_CLR = clear;
+	(void) GPIO_LEV;
 
 	for (unsigned int i = 0; i < jtag_delay; i++)
 		asm volatile ("");
@@ -147,9 +144,9 @@ static int bcm2835gpio_reset(int trst, int srst)
 		clear |= srst<<srst_gpio;
 	}
 
-	lev = GPIO_LEV;
 	GPIO_SET = set;
 	GPIO_CLR = clear;
+	(void) GPIO_LEV;
 
 	return ERROR_OK;
 }
@@ -493,9 +490,9 @@ static int bcm2835gpio_init(void)
 	 */
 	INP_GPIO(tdo_gpio);
 
-	lev = GPIO_LEV;
 	GPIO_CLR = 1<<tdi_gpio | 1<<tck_gpio | 1<<swdio_gpio | 1<<swclk_gpio;
 	GPIO_SET = 1<<tms_gpio;
+	(void) GPIO_LEV;
 
 	OUT_GPIO(tdi_gpio);
 	OUT_GPIO(tck_gpio);
@@ -504,13 +501,13 @@ static int bcm2835gpio_init(void)
 	OUT_GPIO(swdio_gpio);
 	if (trst_gpio != -1) {
 		trst_gpio_mode = MODE_GPIO(trst_gpio);
-		lev = GPIO_LEV;
 		GPIO_SET = 1 << trst_gpio;
+		(void) GPIO_LEV;
 		OUT_GPIO(trst_gpio);
 	}
 	if (srst_gpio != -1) {
 		srst_gpio_mode = MODE_GPIO(srst_gpio);
-		lev = GPIO_LEV;
+		(void) GPIO_LEV;
 		GPIO_SET = 1 << srst_gpio;
 		OUT_GPIO(srst_gpio);
 	}
