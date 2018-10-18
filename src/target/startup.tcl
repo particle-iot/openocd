@@ -36,6 +36,13 @@ proc arp_is_tap_enabled { target } {
 	return [jtag tapisenabled [$target cget -chain-position]]
 }
 
+proc arp_is_tap_enabled_by_dap { dap } {
+	if (![using_jtag]) {
+		return 1
+	}
+	return [jtag tapisenabled [$dap chain_position]]
+}
+
 # duplicate of target_examine_one(), keep in sync
 proc arp_examine_one { target } {
 	if [arp_is_tap_enabled $target] {
@@ -49,6 +56,16 @@ proc arp_examine_one { target } {
 	}
 }
 
+proc arp_dap_reconnect { MODE } {
+	if { [reset_config_includes srst] && ![reset_config_includes srst_nogate]} {
+		set daps [dap names]
+		foreach d $daps {
+			if [arp_is_tap_enabled_by_dap $d] {
+				$d force_reconnect
+			}
+		}
+	}
+}
 
 proc arp_reset_plan_no_srst { phase target { secondary_core 0 } } {
 	global arp_reset_mode
@@ -125,11 +142,6 @@ proc arp_reset_plan_srst_dbg_cleared { phase target { secondary_core 0 } } {
 			}
 		}
 		post {
-			if { ! $secondary_core } {
-				if { ! [catch { set dap [$target cget -dap] }]} {
-					$dap force_reconnect
-				}
-			}
 			arp_examine_one $target
 			$target arp_reset post_deassert $arp_reset_mode
 		}
@@ -236,6 +248,7 @@ proc ocd_process_reset_inner { MODE } {
 	if { !$early_reset_init } {
 		if [using_jtag] { jtag arp_init }
 	}
+	arp_dap_reconnect $MODE
 
 	foreach t $targets {
 		$t invoke-event reset-deassert-post
