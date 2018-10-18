@@ -1827,6 +1827,18 @@ COMMAND_HANDLER(dap_force_reconnect_command)
 	return 0;
 }
 
+static int jim_dap_chain_position(Jim_Interp *interp, int argc, Jim_Obj*const *argv)
+{
+	struct arm_dap_object *obj = Jim_CmdPrivData(interp);
+
+	if (argc != 1) {
+		Jim_WrongNumArgs(interp, 1, argv, "Too many parameters");
+		return JIM_ERR;
+	}
+	Jim_SetResult(interp, Jim_NewStringObj(interp, adiv5_get_dap(obj)->tap->dotted_name, -1));
+	return JIM_OK;
+}
+
 const struct command_registration dap_instance_commands[] = {
 	{
 		.name = "info",
@@ -1906,5 +1918,13 @@ const struct command_registration dap_instance_commands[] = {
 		.help = "force a reconnect of the dap on next access",
 		.usage = "",
 	},
+	{
+		.name = "chain_position",
+		.jim_handler = jim_dap_chain_position,
+		.mode = COMMAND_ANY,
+		.help = "Get configured chain position",
+		.usage = "",
+	},
+
 	COMMAND_REGISTRATION_DONE
 };
