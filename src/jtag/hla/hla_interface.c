@@ -294,6 +294,32 @@ COMMAND_HANDLER(hl_interface_handle_vid_pid_command)
 	return ERROR_OK;
 }
 
+COMMAND_HANDLER(hl_interface_handle_reset_command)
+{
+	LOG_DEBUG("hl_interface_handle_reset_command");
+
+	if (CMD_ARGC != 0) {
+		LOG_ERROR("Do not need any argument");
+		return ERROR_COMMAND_SYNTAX_ERROR;
+	}
+
+	if (hl_if.layout->api->assert_srst)
+		return hl_if.layout->api->assert_srst(hl_if.handle, 0);
+}
+
+COMMAND_HANDLER(hl_interface_handle_close_command)
+{
+	LOG_DEBUG("hl_interface_handle_close_command");
+
+	if (CMD_ARGC != 0) {
+		LOG_ERROR("Do not need any argument");
+		return ERROR_COMMAND_SYNTAX_ERROR;
+	}
+
+	if (hl_if.layout->api->close)
+		return hl_if.layout->api->close(hl_if.handle);
+}
+
 COMMAND_HANDLER(interface_handle_hla_command)
 {
 	if (CMD_ARGC != 1)
@@ -338,6 +364,20 @@ static const struct command_registration hl_interface_command_handlers[] = {
 	 .help = "the vendor and product ID of the adapter",
 	 .usage = "(vid pid)* ",
 	 },
+	 {
+	 .name = "hla_reset",
+	 .handler = &hl_interface_handle_reset_command,
+	 .mode = COMMAND_EXEC,
+	 .help = "reset hl interface",
+	 .usage = "",
+	},
+	{
+	 .name = "hla_close",
+	 .handler = &hl_interface_handle_close_command,
+	 .mode = COMMAND_EXEC,
+	 .help = "close hl interface",
+	 .usage = "",
+	},
 	 {
 	 .name = "hla_command",
 	 .handler = &interface_handle_hla_command,
