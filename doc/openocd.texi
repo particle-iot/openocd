@@ -2360,7 +2360,7 @@ Each of the interface drivers listed here must be explicitly
 enabled when OpenOCD is configured, in order to be made
 available at run time.
 
-@deffn {Interface Driver} {amt_jtagaccel}
+@subsection Amontec Chameleon amt_jtagaccel
 Amontec Chameleon in its JTAG Accelerator configuration,
 connected to a PC's EPP mode parallel port.
 This defines some driver-specific commands:
@@ -2374,26 +2374,23 @@ the number of the @file{/dev/parport} device.
 Displays status of RTCK option.
 Optionally sets that option first.
 @end deffn
-@end deffn
 
-@deffn {Interface Driver} {arm-jtag-ew}
+@subsection Olimex ARM-JTAG-EW arm-jtag-ew
 Olimex ARM-JTAG-EW USB adapter
 This has one driver-specific command:
 
 @deffn Command {armjtagew_info}
 Logs some status
 @end deffn
-@end deffn
 
-@deffn {Interface Driver} {at91rm9200}
+@subsection at91rm9200
 Supports bitbanged JTAG from the local system,
 presuming that system is an Atmel AT91rm9200
 and a specific set of GPIOs is used.
 @c command:	at91rm9200_device NAME
 @c chooses among list of bit configs ... only one option
-@end deffn
 
-@deffn {Interface Driver} {cmsis-dap}
+@subsection ARM CMSIS-DAP compliant adapters cmsis-dap
 ARM CMSIS-DAP compliant based adapter.
 
 @deffn {Config Command} {cmsis_dap_vid_pid} [vid pid]+
@@ -2413,17 +2410,14 @@ If not specified, serial numbers are not considered.
 @deffn {Command} {cmsis-dap info}
 Display various device information, like hardware version, firmware version, current bus status.
 @end deffn
-@end deffn
 
-@deffn {Interface Driver} {dummy}
+@subsection dummy
 A dummy software-only driver for debugging.
-@end deffn
 
-@deffn {Interface Driver} {ep93xx}
+@subsection Cirrus Logic EP93xx ep93xx
 Cirrus Logic EP93xx based single-board computer bit-banging (in development)
-@end deffn
 
-@deffn {Interface Driver} {ftdi}
+@subsection FTDI
 This driver is for adapters using the MPSSE (Multi-Protocol Synchronous Serial
 Engine) mode built into many FTDI chips, such as the FT2232, FT4232 and FT232H.
 
@@ -2570,9 +2564,8 @@ stability at higher JTAG clocks.
 For example adapter definitions, see the configuration files shipped in the
 @file{interface/ftdi} directory.
 
-@end deffn
 
-@deffn {Interface Driver} {ft232r}
+@subsection FTDI FT232R ft232r
 This driver is implementing synchronous bitbang mode of an FTDI FT232R
 USB UART bridge IC.
 
@@ -2600,9 +2593,7 @@ vendor provides unique IDs and more than one adapter is connected to
 the host. If not specified, serial numbers are not considered.
 @end deffn
 
-@end deffn
-
-@deffn {Interface Driver} {remote_bitbang}
+@subsection Remote bitbang remote_bitbang
 Drive JTAG from a remote process. This sets up a UNIX or TCP socket connection
 with a remote process and sends ASCII encoded bitbang requests to that process
 instead of directly driving JTAG.
@@ -2637,9 +2628,8 @@ interface remote_bitbang
 remote_bitbang_port 0
 remote_bitbang_host mysocket
 @end example
-@end deffn
 
-@deffn {Interface Driver} {usb_blaster}
+@subsection USB-Blaster usb_blaster
 USB JTAG/USB-Blaster compatibles over one of the userspace libraries
 for FTDI chips. These interfaces have several commands, used to
 configure the driver before initializing the JTAG scan chain:
@@ -2689,9 +2679,8 @@ This command specifies @var{path} to access USB-Blaster II firmware
 image. To be used with USB-Blaster II only.
 @end deffn
 
-@end deffn
 
-@deffn {Interface Driver} {gw16012}
+@subsection Gateworks GW16012 gw16012
 Gateworks GW16012 JTAG programmer.
 This has one driver-specific command:
 
@@ -2701,9 +2690,8 @@ Display either the address of the I/O port
 If a parameter is provided, first switch to use that port.
 This is a write-once setting.
 @end deffn
-@end deffn
 
-@deffn {Interface Driver} {jlink}
+@subsection Segger J-Link jlink
 SEGGER J-Link family of USB adapters. It currently supports JTAG and SWD
 transports.
 
@@ -2790,9 +2778,8 @@ connected to the host. If not specified, serial numbers are not considered.
 
 As a configuration command, it can be used only before 'init'.
 @end deffn
-@end deffn
 
-@deffn {Interface Driver} {kitprog}
+@subsection Cypress Semiconductor KitProg kitprog
 This driver is for Cypress Semiconductor's KitProg adapters. The KitProg is an
 SWD-only adapter that is designed to be used with Cypress's PSoC and PRoC device
 families, but it is possible to use it with some other devices. If you are using
@@ -2846,9 +2833,8 @@ This is necessary for "reset halt" on some PSoC 4 series devices.
 Display various adapter information, such as the hardware version, firmware
 version, and target voltage.
 @end deffn
-@end deffn
 
-@deffn {Interface Driver} {parport}
+@subsection PC Parallel port parport
 Supports PC parallel port bit-banging cables:
 Wigglers, PLD download cable, and more.
 These interfaces have several commands, used to configure the driver
@@ -2944,34 +2930,29 @@ interface parport
 parport_port 0x278
 parport_cable wiggler
 @end example
-@end deffn
 
-@deffn {Interface Driver} {presto}
+@subsection ASIX Presto presto
 ASIX PRESTO USB JTAG programmer.
 @deffn {Config Command} {presto_serial} serial_string
 Configures the USB serial number of the Presto device to use.
 @end deffn
-@end deffn
 
-@deffn {Interface Driver} {rlink}
+@subsection Raisonance RLink
 Raisonance RLink USB adapter
-@end deffn
 
-@deffn {Interface Driver} {usbprog}
+@subsection usbprog
 usbprog is a freely programmable USB adapter.
-@end deffn
 
-@deffn {Interface Driver} {vsllink}
+@subsection Versaloon vsllink
 vsllink is part of Versaloon which is a versatile USB programmer.
 
 @quotation Note
 This defines quite a few driver-specific commands,
 which are not currently documented here.
 @end quotation
-@end deffn
 
 @anchor{hla_interface}
-@deffn {Interface Driver} {hla}
+@subsection High Level Adapters hla
 This is a driver that supports multiple High Level Adapters.
 This type of adapter does not expose some of the lower level api's
 that OpenOCD would normally use to access the target.
@@ -3002,22 +2983,18 @@ Pairs of vendor IDs and product IDs of the device.
 Execute a custom adapter-specific command. The @var{command} string is
 passed as is to the underlying adapter layout handler.
 @end deffn
-@end deffn
 
-@deffn {Interface Driver} {opendous}
+@subsection opendous-jtag
 opendous-jtag is a freely programmable USB adapter.
-@end deffn
 
-@deffn {Interface Driver} {ulink}
+@subsection Keil ULINK ulink
 This is the Keil ULINK v1 JTAG debugger.
-@end deffn
 
-@deffn {Interface Driver} {ZY1000}
+@subsection Zylin ZY1000 ZY1000
 This is the Zylin ZY1000 JTAG debugger.
-@end deffn
 
 @quotation Note
-This defines some driver-specific commands,
+This defines some extra driver-specific commands,
 which are not currently documented here.
 @end quotation
 
@@ -3026,7 +3003,7 @@ Turn power switch to target on/off.
 No arguments: print status.
 @end deffn
 
-@deffn {Interface Driver} {bcm2835gpio}
+@subsection bcm2835gpio
 This SoC is present in Raspberry Pi which is a cheap single-board computer
 exposing some GPIOs on its expansion header.
 
@@ -3040,9 +3017,8 @@ configuration on exit.
 See @file{interface/raspberrypi-native.cfg} for a sample config and
 pinout.
 
-@end deffn
 
-@deffn {Interface Driver} {imx_gpio}
+@subsection imx_gpio
 i.MX SoC is present in many community boards. Wandboard is an example
 of the one which is most popular.
 
@@ -3051,10 +3027,8 @@ This driver is mostly the same as bcm2835gpio.
 See @file{interface/imx-native.cfg} for a sample config and
 pinout.
 
-@end deffn
 
-
-@deffn {Interface Driver} {openjtag}
+@subsection OpenJTAG openjtag
 OpenJTAG compatible USB adapter.
 This defines some driver-specific commands:
 
@@ -3072,7 +3046,6 @@ Currently valid @var{variant} values include:
 @deffn {Config Command} {openjtag_device_desc} string
 The USB device description string of the adapter.
 This value is only used with the standard variant.
-@end deffn
 @end deffn
 
 @section Transport Configuration
