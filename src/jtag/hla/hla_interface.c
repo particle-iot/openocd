@@ -304,7 +304,9 @@ COMMAND_HANDLER(hl_interface_handle_reset_command)
 	}
 
 	if (hl_if.layout->api->assert_srst)
-		return hl_if.layout->api->assert_srst(hl_if.handle, 0);
+		hl_if.layout->api->assert_srst(hl_if.handle, 0);
+
+	return ERROR_OK;
 }
 
 COMMAND_HANDLER(hl_interface_handle_close_command)
@@ -317,7 +319,9 @@ COMMAND_HANDLER(hl_interface_handle_close_command)
 	}
 
 	if (hl_if.layout->api->close)
-		return hl_if.layout->api->close(hl_if.handle);
+		hl_if.layout->api->close(hl_if.handle);
+
+	return ERROR_OK;
 }
 
 COMMAND_HANDLER(interface_handle_hla_command)

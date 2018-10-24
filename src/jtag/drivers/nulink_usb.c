@@ -20,6 +20,12 @@
 #include "config.h"
 #endif
 
+#ifdef _WIN32
+#include <Windows.h>
+#else
+#include <unistd.h>
+#endif
+
 /* project specific includes */
 #include <helper/binarybuffer.h>
 #include <jtag/interface.h>
@@ -141,7 +147,6 @@ double GetTickCount(void)
 #endif
 
 static void nulink_usb_init_buffer(void *handle, uint32_t size);
-static void nulink_usb_init_buffer2(void *handle, uint32_t size);
 
 static int nulink_usb_xfer_rw(void *handle, int cmdsize, uint8_t *buf)
 {
@@ -469,7 +474,7 @@ static int nulink_usb_reset(void *handle)
 	return res;
 }
 
-int nulink_usb_M2351_erase()
+int nulink_usb_M2351_erase(void)
 {
 	int res = ERROR_FAIL;
 	struct nulink_usb_handle_s *h = m_nulink_usb_handle;
@@ -530,7 +535,7 @@ int nulink_usb_M2351_erase()
 	return res;
 }
 
-int nulink_usb_assert_reset()
+int nulink_usb_assert_reset(void)
 {
 	int res;
 	struct nulink_usb_handle_s *h = m_nulink_usb_handle;
@@ -1279,7 +1284,11 @@ static int nulink_speed(void *handle, int khz, bool query)
 				);
 		}		
 		/* wait for NUC505 IBR operations */
+#ifdef _WIN32
 		Sleep(50);
+#else
+		usleep(50 * 1000);
+#endif
 	}
 
 	return max_ice_clock;
@@ -1287,7 +1296,6 @@ static int nulink_speed(void *handle, int khz, bool query)
 
 static int nulink_usb_close(void *handle)
 {
-	int res;
 	struct nulink_usb_handle_s *h = handle;
 
 	LOG_DEBUG("nulink_usb_close");
@@ -1308,7 +1316,7 @@ static int nulink_usb_close(void *handle)
 		h_u32_to_le(h->cmdbuf + h->cmdidx, 0);
 		h->cmdidx += 4;
 
-		res = m_nulink_usb_api.nulink_usb_xfer(handle, h->databuf, 4 * 1);
+		m_nulink_usb_api.nulink_usb_xfer(handle, h->databuf, 4 * 1);
 	}
 
 	return ERROR_OK;
@@ -1316,7 +1324,7 @@ static int nulink_usb_close(void *handle)
 
 static int nulink_usb_open(struct hl_interface_param_s *param, void **fd)
 {
-	int err, retry_count = 1, result = 0;
+	int err, retry_count = 1;
 	struct nulink_usb_handle_s *h;
 
 	LOG_DEBUG("nulink_usb_open");
