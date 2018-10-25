@@ -143,7 +143,8 @@ INTEL_IA32_SRC = \
 
 ESIRISC_SRC = \
 	%D%/esirisc.c \
-	%D%/esirisc_jtag.c
+	%D%/esirisc_jtag.c \
+	%D%/esirisc_trace.c
 
 %C%_libtarget_la_SOURCES += \
 	%D%/algorithm.h \
