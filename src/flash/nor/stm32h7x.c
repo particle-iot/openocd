@@ -325,7 +325,7 @@ static int stm32x_read_options(struct flash_bank *bank)
 	stm32x_info->option_bytes.user_options = optiondata & 0xfc;
 	stm32x_info->option_bytes.RDP = (optiondata >> 8) & 0xff;
 	stm32x_info->option_bytes.user2_options = (optiondata >> 16) & 0xff;
-	stm32x_info->option_bytes.user3_options = (optiondata >> 24) & 0x83;
+	stm32x_info->option_bytes.user3_options = (optiondata >> 24) & 0xa3;
 
 	if (optiondata & IWDG1_HW)
 		stm32x_info->option_bytes.independent_watchdog_selection = 1;
@@ -366,7 +366,7 @@ static int stm32x_write_options(struct flash_bank *bank)
 	optiondata = stm32x_info->option_bytes.user_options;
 	optiondata |= (stm32x_info->option_bytes.RDP << 8);
 	optiondata |= (stm32x_info->option_bytes.user2_options & 0xff) << 16;
-	optiondata |= (stm32x_info->option_bytes.user3_options & 0x83) << 24;
+	optiondata |= (stm32x_info->option_bytes.user3_options & 0xa3) << 24;
 
 	if (stm32x_info->option_bytes.independent_watchdog_selection)
 		optiondata |= IWDG1_HW;
