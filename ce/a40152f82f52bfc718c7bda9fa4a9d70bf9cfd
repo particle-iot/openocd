@@ -1,0 +1,8 @@
+Verified+1: jenkins
+Code-Review+1: Jan Vojtěch <honza.vojtech@gmail.com>
+Code-Review+2: Tomas Vanek <vanekt@fbl.cz>
+Submitted-by: Matthias Welwarsky <matthias@welwarsky.de>
+Submitted-at: Sat, 03 Nov 2018 11:18:18 +0000
+Reviewed-on: http://openocd.zylin.com/4576
+Project: openocd
+Branch: refs/heads/master
