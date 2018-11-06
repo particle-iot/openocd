@@ -52,7 +52,7 @@
 #define NUMICRO_FLASH_ISPDAT    0x5000C008
 #define NUMICRO_FLASH_ISPCMD    0x5000C00C
 #define NUMICRO_FLASH_ISPTRG    0x5000C010
-#define NUMICRO_FLASH_CHEAT	  0x5000C01C	/* Undocumented isp register(may be cheat register) */
+#define NUMICRO_FLASH_CHEAT     0x5000C01C	/* Undocumented isp register(may be cheat register) */
 
 #define NUMICRO_SCS_BASE        0xE000E000
 #define NUMICRO_SCS_AIRCR       0xE000ED0C
@@ -60,7 +60,6 @@
 #define NUMICRO_SCS_DEMCR       0xE000EDFC
 
 #define NUMICRO_APROM_BASE      0x00000000
-#define NUMICRO_DATA_BASE       0x0001F000
 #define NUMICRO_LDROM_BASE      0x00100000
 #define NUMICRO_CONFIG_BASE     0x00300000
 
@@ -125,29 +124,30 @@ struct numicro_cpu_type {
 	struct numicro_flash_bank_type bank[NUMICRO_MAX_FLASH_BANKS];
 };
 
-/* TODO : Support variable DataFlash region for 128kB Flash model */
+/* start address for APROM,LDROM,ConfigROM */
 #define NUMICRO_BANKS_NUC100(aprom_size) \
-	.n_banks = 4, \
-	{ {NUMICRO_APROM_BASE, (aprom_size)}, {NUMICRO_DATA_BASE, 4*1024}, {NUMICRO_LDROM_BASE, 4*1024}, \
+	.n_banks = 3, \
+	{ {NUMICRO_APROM_BASE, (aprom_size)}, {NUMICRO_LDROM_BASE, 4*1024}, \
 	{NUMICRO_CONFIG_BASE, 1024} }
 
 #define NUMICRO_BANKS_M051(aprom_size) \
-	.n_banks = 4, \
-	{ {NUMICRO_APROM_BASE, (aprom_size)}, {NUMICRO_DATA_BASE, 4*1024}, {NUMICRO_LDROM_BASE, 4*1024}, \
+	.n_banks = 3, \
+	{ {NUMICRO_APROM_BASE, (aprom_size)}, {NUMICRO_LDROM_BASE, 4*1024}, \
 	{NUMICRO_CONFIG_BASE, 1024} }
 
 #define NUMICRO_BANKS_MINI51(aprom_size) \
 	.n_banks = 3, \
-	{ {NUMICRO_APROM_BASE, (aprom_size)}, {NUMICRO_LDROM_BASE, 2*1024}, {NUMICRO_CONFIG_BASE, 512} }
+	{ {NUMICRO_APROM_BASE, (aprom_size)}, {NUMICRO_LDROM_BASE, 2*1024}, \
+	{NUMICRO_CONFIG_BASE, 512} }
 
 #define NUMICRO_BANKS_NANO(aprom_size) \
-	.n_banks = 4, \
-	{ {NUMICRO_APROM_BASE, (aprom_size)}, {NUMICRO_DATA_BASE, 4*1024}, {NUMICRO_LDROM_BASE, 4*1024}, \
+	.n_banks = 3, \
+	{ {NUMICRO_APROM_BASE, (aprom_size)}, {NUMICRO_LDROM_BASE, 4*1024}, \
 	{NUMICRO_CONFIG_BASE, 1024} }
 
 #define NUMICRO_BANKS_NUC400(aprom_size) \
-	.n_banks = 4, \
-	{ {NUMICRO_APROM_BASE, (aprom_size)}, {NUMICRO_DATA_BASE, 4*1024}, {NUMICRO_LDROM_BASE, 16*1024}, \
+	.n_banks = 3, \
+	{ {NUMICRO_APROM_BASE, (aprom_size)}, {NUMICRO_LDROM_BASE, 16*1024}, \
 	{NUMICRO_CONFIG_BASE, 1024} }
 
 
