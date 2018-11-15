@@ -274,23 +274,6 @@ static int ambiqmicro_read_part_info(struct flash_bank *bank)
 *	flash operations                                                       *
 ***************************************************************************/
 
-static int ambiqmicro_protect_check(struct flash_bank *bank)
-{
-	struct ambiqmicro_flash_bank *ambiqmicro = bank->driver_priv;
-	int status = ERROR_OK;
-	uint32_t i;
-
-
-	if (ambiqmicro->probed == 0) {
-		LOG_ERROR("Target not probed");
-		return ERROR_FLASH_BANK_NOT_PROBED;
-	}
-
-	for (i = 0; i < (unsigned) bank->num_sectors; i++)
-		bank->sectors[i].is_protected = -1;
-
-	return status;
-}
 /** Read flash status from bootloader. */
 static int check_flash_status(struct target *target, uint32_t address)
 {
@@ -526,24 +509,6 @@ static int ambiqmicro_erase(struct flash_bank *bank, int first, int last)
 	}
 
 	return retval;
-}
-
-static int ambiqmicro_protect(struct flash_bank *bank, int set, int first, int last)
-{
-	/* struct ambiqmicro_flash_bank *ambiqmicro_info = bank->driver_priv;
-	 * struct target *target = bank->target; */
-
-	/*
-	 * TODO
-	 */
-	LOG_INFO("Not yet implemented");
-
-	if (bank->target->state != TARGET_HALTED) {
-		LOG_ERROR("Target not halted");
-		return ERROR_TARGET_NOT_HALTED;
-	}
-
-	return ERROR_OK;
 }
 
 static int ambiqmicro_write_block(struct flash_bank *bank,
@@ -893,13 +858,11 @@ struct flash_driver ambiqmicro_flash = {
 	.commands = ambiqmicro_command_handlers,
 	.flash_bank_command = ambiqmicro_flash_bank_command,
 	.erase = ambiqmicro_erase,
-	.protect = ambiqmicro_protect,
 	.write = ambiqmicro_write,
 	.read = default_flash_read,
 	.probe = ambiqmicro_probe,
 	.auto_probe = ambiqmicro_probe,
 	.erase_check = default_flash_blank_check,
-	.protect_check = ambiqmicro_protect_check,
 	.info = get_ambiqmicro_info,
 	.free_driver_priv = default_flash_free_driver_priv,
 };
