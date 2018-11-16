@@ -2501,7 +2501,7 @@ If not specified, serial numbers are not considered.
 and are not restricted to containing only decimal digits.)
 @end deffn
 
-@deffn {Config Command} {ftdi_location} <bus>:<port>[,<port>]...
+@deffn {Config Command} {ftdi_location} <bus>:<port>[.<port>]...
 Specifies the physical USB port of the adapter to use. The path
 roots at @var{bus} and walks down the physical ports, with each
 @var{port} option specifying a deeper level in the bus topology, the last
