@@ -23,6 +23,7 @@
 #include "mpsse.h"
 #include "helper/log.h"
 #include <libusb.h>
+#include <jtag/drivers/jtag_usb_common.h>
 
 /* Compatibility define for older libusb-1.0 */
 #ifndef LIBUSB_CALL
@@ -321,9 +322,10 @@ error:
 }
 
 struct mpsse_ctx *mpsse_open(const uint16_t *vid, const uint16_t *pid, const char *description,
-	const char *serial, const char *location, int channel)
+	const char *serial, int channel)
 {
 	struct mpsse_ctx *ctx = calloc(1, sizeof(*ctx));
+	const char *location = jtag_usb_get_location();
 	int err;
 
 	if (!ctx)
