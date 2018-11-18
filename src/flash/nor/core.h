@@ -93,7 +93,20 @@ struct flash_bank {
 	struct flash_driver *driver; /**< Driver for this bank. */
 	void *driver_priv; /**< Private driver storage pointer */
 
-	int bank_number; /**< The 'bank' (or chip number) of this instance. */
+	/** Additional variable for private driver use.
+	 * If driver_priv points to the chip related structure
+	 * and the chip has more than one flash bank,
+	 * use driver_priv_u32 as a flash bank index or ID */
+	uint32_t driver_priv_u32;
+
+	/** The 'bank' number of this instance.
+	 * WARNING: The numbering is global to all targets configured in OpenOCD.
+	 * Be aware this number may not correspond to the numbering of flash
+	 * bank instances of the chip.
+	 * Use driver_priv_u32 for chip related flash bank numbering.
+	 * Do not change bank_number in the flash driver */
+	int bank_number;
+
 	uint32_t base; /**< The base address of this bank */
 	uint32_t size; /**< The size of this chip bank, in bytes */
 
