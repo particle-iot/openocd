@@ -66,6 +66,12 @@ static int jim_adapter_name(Jim_Interp *interp, int argc, Jim_Obj * const *argv)
 	return JIM_OK;
 }
 
+static int jim_adapter_name_old(Jim_Interp *interp, int argc, Jim_Obj * const *argv)
+{
+	LOG_WARNING("this command is deprecated, please use: adapter name");
+	return jim_adapter_name(interp, argc, argv);
+}
+
 static int default_khz(int khz, int *jtag_speed)
 {
 	LOG_ERROR("Translation from khz to jtag_speed not implemented");
@@ -90,7 +96,7 @@ static int default_srst_asserted(int *srst_asserted)
 	return ERROR_OK;
 }
 
-COMMAND_HANDLER(interface_transport_command)
+COMMAND_HANDLER(adapter_transports_command)
 {
 	char **transports;
 	int retval;
@@ -109,9 +115,15 @@ COMMAND_HANDLER(interface_transport_command)
 	return retval;
 }
 
-COMMAND_HANDLER(handle_interface_list_command)
+COMMAND_HANDLER(interface_transport_command)
 {
-	if (strcmp(CMD_NAME, "interface_list") == 0 && CMD_ARGC > 0)
+	LOG_WARNING("this command is deprecated, please use: adapter transports");
+	return CALL_COMMAND_HANDLER(adapter_transports_command);
+}
+
+COMMAND_HANDLER(handle_adapter_list_command)
+{
+	if (strcmp(CMD_NAME, "list") == 0 && CMD_ARGC > 0)
 		return ERROR_COMMAND_SYNTAX_ERROR;
 
 	command_print(CMD_CTX, "The following debug interfaces are available:");
@@ -123,7 +135,14 @@ COMMAND_HANDLER(handle_interface_list_command)
 	return ERROR_OK;
 }
 
-COMMAND_HANDLER(handle_interface_command)
+COMMAND_HANDLER(handle_interface_list_command)
+{
+	LOG_WARNING("this command is deprecated, please use: adapter list");
+	return CALL_COMMAND_HANDLER(handle_adapter_list_command);
+}
+
+
+COMMAND_HANDLER(handle_adapter_driver_command)
 {
 	int retval;
 
@@ -180,11 +199,17 @@ COMMAND_HANDLER(handle_interface_command)
 	 */
 	LOG_ERROR("The specified debug interface was not found (%s)",
 				CMD_ARGV[0]);
-	CALL_COMMAND_HANDLER(handle_interface_list_command);
+	CALL_COMMAND_HANDLER(handle_adapter_list_command);
 	return ERROR_JTAG_INVALID_INTERFACE;
 }
 
-COMMAND_HANDLER(handle_reset_config_command)
+COMMAND_HANDLER(handle_interface_command)
+{
+	LOG_WARNING("this command is deprecated, please use: adapter driver");
+	return CALL_COMMAND_HANDLER(handle_adapter_driver_command);
+}
+
+COMMAND_HANDLER(handle_adapter_reset_config_command)
 {
 	int new_cfg = 0;
 	int mask = 0;
@@ -401,6 +426,12 @@ next:
 	return ERROR_OK;
 }
 
+COMMAND_HANDLER(handle_reset_config_command)
+{
+	LOG_WARNING("this command is deprecated, please use: adapter reset_config");
+	return CALL_COMMAND_HANDLER(handle_adapter_reset_config_command);
+}
+
 COMMAND_HANDLER(handle_adapter_nsrst_delay_command)
 {
 	if (CMD_ARGC > 1)
@@ -415,6 +446,12 @@ COMMAND_HANDLER(handle_adapter_nsrst_delay_command)
 	return ERROR_OK;
 }
 
+COMMAND_HANDLER(handle_adapter_nsrst_delay_command_old)
+{
+	LOG_WARNING("this command is deprecated, please use: adapter nsrst delay");
+	return CALL_COMMAND_HANDLER(handle_adapter_nsrst_delay_command);
+}
+
 COMMAND_HANDLER(handle_adapter_nsrst_assert_width_command)
 {
 	if (CMD_ARGC > 1)
@@ -427,6 +464,12 @@ COMMAND_HANDLER(handle_adapter_nsrst_assert_width_command)
 	}
 	command_print(CMD_CTX, "adapter_nsrst_assert_width: %u", jtag_get_nsrst_assert_width());
 	return ERROR_OK;
+}
+
+COMMAND_HANDLER(handle_adapter_nsrst_assert_width_command_old)
+{
+	LOG_WARNING("this command is deprecated, please use: adapter nsrst assert_width");
+	return CALL_COMMAND_HANDLER(handle_adapter_nsrst_assert_width_command);
 }
 
 COMMAND_HANDLER(handle_adapter_khz_command)
@@ -457,6 +500,12 @@ COMMAND_HANDLER(handle_adapter_khz_command)
 	return retval;
 }
 
+COMMAND_HANDLER(handle_adapter_khz_command_old)
+{
+	LOG_WARNING("this command is deprecated, please use: adapter khz");
+	return CALL_COMMAND_HANDLER(handle_adapter_khz_command);
+}
+
 #ifndef HAVE_JTAG_MINIDRIVER_H
 #ifdef HAVE_LIBUSB_GET_PORT_NUMBERS
 COMMAND_HANDLER(handle_usb_location_command)
@@ -484,7 +533,81 @@ static const struct command_registration adapter_usb_command_handlers[] = {
 };
 #endif /* MINIDRIVER */
 
+static const struct command_registration adapter_nsrst_command_handlers[] = {
+	{
+		.name = "delay",
+		.handler = handle_adapter_nsrst_delay_command,
+		.mode = COMMAND_ANY,
+		.help = "delay after deasserting SRST in ms",
+		.usage = "[milliseconds]",
+	},
+	{
+		.name = "assert_width",
+		.handler = handle_adapter_nsrst_assert_width_command,
+		.mode = COMMAND_ANY,
+		.help = "delay after asserting SRST in ms",
+		.usage = "[milliseconds]",
+	},
+	COMMAND_REGISTRATION_DONE
+};
+
 static const struct command_registration adapter_command_handlers[] = {
+	{
+		.name = "driver",
+		.handler = handle_adapter_driver_command,
+		.mode = COMMAND_CONFIG,
+		.help = "Select a debug adapter driver",
+		.usage = "driver_name",
+	},
+	{
+		.name = "khz",
+		.handler = handle_adapter_khz_command,
+		.mode = COMMAND_ANY,
+		.help = "With an argument, change to the specified maximum "
+			"jtag speed.  For JTAG, 0 KHz signifies adaptive "
+			" clocking. "
+			"With or without argument, display current setting.",
+		.usage = "[khz]",
+	},
+	{
+		.name = "list",
+		.handler = handle_adapter_list_command,
+		.mode = COMMAND_ANY,
+		.help = "List all built-in debug adapter drivers",
+	},
+	{
+		.name = "name",
+		.mode = COMMAND_ANY,
+		.jim_handler = jim_adapter_name,
+		.help = "Returns the name of the currently "
+			"selected adapter (driver)",
+	},
+	{
+		.name = "nsrst",
+		.mode = COMMAND_ANY,
+		.help = "nsrst adapter command group",
+		.usage = "",
+		.chain = adapter_nsrst_command_handlers,
+	},
+	{
+		.name = "reset_config",
+		.handler = handle_adapter_reset_config_command,
+		.mode = COMMAND_ANY,
+		.help = "configure adapter reset behavior",
+		.usage = "[none|trst_only|srst_only|trst_and_srst] "
+			"[srst_pulls_trst|trst_pulls_srst|combined|separate] "
+			"[srst_gates_jtag|srst_nogate] "
+			"[trst_push_pull|trst_open_drain] "
+			"[srst_push_pull|srst_open_drain] "
+			"[connect_deassert_srst|connect_assert_srst]",
+	},
+	{
+		.name = "transports",
+		.handler = adapter_transports_command,
+		.mode = COMMAND_CONFIG,
+		.help = "Declare transports the adapter supports.",
+		.usage = "transport ... ",
+	},
 #ifndef HAVE_JTAG_MINIDRIVER_H
 	{
 		.name = "usb",
@@ -507,7 +630,7 @@ static const struct command_registration interface_command_handlers[] = {
 	},
 	{
 		.name = "adapter_khz",
-		.handler = handle_adapter_khz_command,
+		.handler = handle_adapter_khz_command_old,
 		.mode = COMMAND_ANY,
 		.help = "With an argument, change to the specified maximum "
 			"jtag speed.  For JTAG, 0 KHz signifies adaptive "
@@ -518,20 +641,20 @@ static const struct command_registration interface_command_handlers[] = {
 	{
 		.name = "adapter_name",
 		.mode = COMMAND_ANY,
-		.jim_handler = jim_adapter_name,
+		.jim_handler = jim_adapter_name_old,
 		.help = "Returns the name of the currently "
 			"selected adapter (driver)",
 	},
 	{
 		.name = "adapter_nsrst_delay",
-		.handler = handle_adapter_nsrst_delay_command,
+		.handler = handle_adapter_nsrst_delay_command_old,
 		.mode = COMMAND_ANY,
 		.help = "delay after deasserting SRST in ms",
 		.usage = "[milliseconds]",
 	},
 	{
 		.name = "adapter_nsrst_assert_width",
-		.handler = handle_adapter_nsrst_assert_width_command,
+		.handler = handle_adapter_nsrst_assert_width_command_old,
 		.mode = COMMAND_ANY,
 		.help = "delay after asserting SRST in ms",
 		.usage = "[milliseconds]",
