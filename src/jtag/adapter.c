@@ -90,7 +90,7 @@ static int default_srst_asserted(int *srst_asserted)
 	return ERROR_OK;
 }
 
-COMMAND_HANDLER(interface_transport_command)
+COMMAND_HANDLER(adapter_transports_command)
 {
 	char **transports;
 	int retval;
@@ -109,9 +109,9 @@ COMMAND_HANDLER(interface_transport_command)
 	return retval;
 }
 
-COMMAND_HANDLER(handle_interface_list_command)
+COMMAND_HANDLER(handle_adapter_list_command)
 {
-	if (strcmp(CMD_NAME, "interface_list") == 0 && CMD_ARGC > 0)
+	if (strcmp(CMD_NAME, "list") == 0 && CMD_ARGC > 0)
 		return ERROR_COMMAND_SYNTAX_ERROR;
 
 	command_print(CMD_CTX, "The following debug interfaces are available:");
@@ -123,7 +123,7 @@ COMMAND_HANDLER(handle_interface_list_command)
 	return ERROR_OK;
 }
 
-COMMAND_HANDLER(handle_interface_command)
+COMMAND_HANDLER(handle_adapter_driver_command)
 {
 	int retval;
 
@@ -180,7 +180,7 @@ COMMAND_HANDLER(handle_interface_command)
 	 */
 	LOG_ERROR("The specified debug interface was not found (%s)",
 				CMD_ARGV[0]);
-	CALL_COMMAND_HANDLER(handle_interface_list_command);
+	CALL_COMMAND_HANDLER(handle_adapter_list_command);
 	return ERROR_JTAG_INVALID_INTERFACE;
 }
 
@@ -484,7 +484,69 @@ static const struct command_registration adapter_usb_command_handlers[] = {
 };
 #endif /* MINIDRIVER */
 
+static const struct command_registration adapter_nsrst_command_handlers[] = {
+	{
+		.name = "delay",
+		.handler = handle_adapter_nsrst_delay_command,
+		.mode = COMMAND_ANY,
+		.help = "delay after deasserting SRST in ms",
+		.usage = "[milliseconds]",
+	},
+	{
+		.name = "assert_width",
+		.handler = handle_adapter_nsrst_assert_width_command,
+		.mode = COMMAND_ANY,
+		.help = "delay after asserting SRST in ms",
+		.usage = "[milliseconds]",
+	},
+	COMMAND_REGISTRATION_DONE
+};
+
 static const struct command_registration adapter_command_handlers[] = {
+	{
+		.name = "driver",
+		.handler = handle_adapter_driver_command,
+		.mode = COMMAND_CONFIG,
+		.help = "Select a debug adapter driver",
+		.usage = "driver_name",
+	},
+	{
+		.name = "khz",
+		.handler = handle_adapter_khz_command,
+		.mode = COMMAND_ANY,
+		.help = "With an argument, change to the specified maximum "
+			"jtag speed.  For JTAG, 0 KHz signifies adaptive "
+			" clocking. "
+			"With or without argument, display current setting.",
+		.usage = "[khz]",
+	},
+	{
+		.name = "list",
+		.handler = handle_adapter_list_command,
+		.mode = COMMAND_ANY,
+		.help = "List all built-in debug adapter drivers",
+	},
+	{
+		.name = "name",
+		.mode = COMMAND_ANY,
+		.jim_handler = jim_adapter_name,
+		.help = "Returns the name of the currently "
+			"selected adapter (driver)",
+	},
+	{
+		.name = "nsrst",
+		.mode = COMMAND_ANY,
+		.help = "nsrst adapter command group",
+		.usage = "",
+		.chain = adapter_nsrst_command_handlers,
+	},
+	{
+		.name = "transports",
+		.handler = adapter_transports_command,
+		.mode = COMMAND_CONFIG,
+		.help = "Declare transports the adapter supports.",
+		.usage = "transport ... ",
+	},
 #ifndef HAVE_JTAG_MINIDRIVER_H
 	{
 		.name = "usb",
@@ -504,57 +566,6 @@ static const struct command_registration interface_command_handlers[] = {
 		.help = "adapter command group",
 		.usage = "",
 		.chain = adapter_command_handlers,
-	},
-	{
-		.name = "adapter_khz",
-		.handler = handle_adapter_khz_command,
-		.mode = COMMAND_ANY,
-		.help = "With an argument, change to the specified maximum "
-			"jtag speed.  For JTAG, 0 KHz signifies adaptive "
-			" clocking. "
-			"With or without argument, display current setting.",
-		.usage = "[khz]",
-	},
-	{
-		.name = "adapter_name",
-		.mode = COMMAND_ANY,
-		.jim_handler = jim_adapter_name,
-		.help = "Returns the name of the currently "
-			"selected adapter (driver)",
-	},
-	{
-		.name = "adapter_nsrst_delay",
-		.handler = handle_adapter_nsrst_delay_command,
-		.mode = COMMAND_ANY,
-		.help = "delay after deasserting SRST in ms",
-		.usage = "[milliseconds]",
-	},
-	{
-		.name = "adapter_nsrst_assert_width",
-		.handler = handle_adapter_nsrst_assert_width_command,
-		.mode = COMMAND_ANY,
-		.help = "delay after asserting SRST in ms",
-		.usage = "[milliseconds]",
-	},
-	{
-		.name = "interface",
-		.handler = handle_interface_command,
-		.mode = COMMAND_CONFIG,
-		.help = "Select a debug adapter interface (driver)",
-		.usage = "driver_name",
-	},
-	{
-		.name = "interface_transports",
-		.handler = interface_transport_command,
-		.mode = COMMAND_CONFIG,
-		.help = "Declare transports the interface supports.",
-		.usage = "transport ... ",
-	},
-	{
-		.name = "interface_list",
-		.handler = handle_interface_list_command,
-		.mode = COMMAND_ANY,
-		.help = "List all built-in debug adapter interfaces (drivers)",
 	},
 	{
 		.name = "reset_config",

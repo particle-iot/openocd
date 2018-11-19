@@ -221,3 +221,39 @@ proc cortex_a8 args {
 	echo "DEPRECATED! use 'cortex_a' not 'cortex_a8'"
 	eval cortex_a $args
 }
+
+# deprecated adapter cmds
+proc adapter_khz args {
+	echo "DEPRECATED! use 'adapter khz' not 'adapter_khz'"
+	eval adapter khz $args
+}
+
+proc adapter_name args {
+	echo "DEPRECATED! use 'adapter name' not 'adapter_name'"
+	eval adapter name $args
+}
+
+proc adapter_nsrst_delay args {
+	echo "DEPRECATED! use 'adapter nsrst delay' not 'adapter_nsrst_delay'"
+	eval adapter nsrst delay $args
+}
+
+proc dapter_nsrst_assert_widthargs args {
+	echo "DEPRECATED! use 'adapter nsrst assert_width' not 'adapter_nsrst_assert_width'"
+	eval adapter nsrst assert_width $args
+}
+
+proc interface args {
+	echo "DEPRECATED! use 'adapter driver' not 'interface'"
+	eval adapter driver $args
+}
+
+proc  interface_transports args {
+	echo "DEPRECATED! use 'adapter transports' not 'interface_transports'"
+	eval adapter transports $args
+}
+
+proc  interface_list args {
+	echo "DEPRECATED! use 'adapter list' not 'interface_list'"
+	eval adapter list $args
+}
