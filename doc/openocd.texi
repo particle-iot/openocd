@@ -6222,14 +6222,17 @@ if @{ [info exists IMEMORY] && [string equal $IMEMORY true] @} @{
 All versions of the SimpleLink MSP432 microcontrollers from Texas
 Instruments include internal flash. The msp432 flash driver automatically
 recognizes the specific version's flash parameters and autoconfigures itself.
-Main program flash (starting at address 0) is flash bank 0. Information flash
-region on MSP432P4 versions (starting at address 0x200000) is flash bank 1.
+Main program flash starts at address 0. Information flash region on MSP432P4
+versions starts at address 0x200000. Use a name ending with .main for the main
+flash bank, and use a name ending with .info for the information bank. Always
+create both regions, and create the main flash bank first.
 
 @example
-flash bank $_FLASHNAME msp432 0 0 0 0 $_TARGETNAME
+flash bank $_CHIPNAME.main msp432 0 0 0 0 $_TARGETNAME
+flash bank $_CHIPNAME.info msp432 0 0 0 0 $_TARGETNAME
 @end example
 
-@deffn Command {msp432 mass_erase} [main|all]
+@deffn Command {msp432 mass_erase} <bank> [main|all]
 Performs a complete erase of flash. By default, @command{mass_erase} will erase
 only the main program flash.
 
@@ -6238,17 +6241,17 @@ main program and information flash regions. To also erase the BSL in information
 flash, the user must first use the @command{bsl} command.
 @end deffn
 
-@deffn Command {msp432 bsl} [unlock|lock]
+@deffn Command {msp432 bsl} <bank> [unlock|lock]
 On MSP432P4 versions, @command{bsl} unlocks and locks the bootstrap loader (BSL)
 region in information flash so that flash commands can erase or write the BSL.
 Leave the BSL locked to prevent accidentally corrupting the bootstrap loader.
 
 To erase and program the BSL:
 @example
-msp432 bsl unlock
+msp432 bsl 0 unlock
 flash erase_address 0x202000 0x2000
 flash write_image bsl.bin 0x202000
-msp432 bsl lock
+msp432 bsl 0 lock
 @end example
 @end deffn
 @end deffn
