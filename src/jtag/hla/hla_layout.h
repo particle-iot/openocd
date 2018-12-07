@@ -49,8 +49,6 @@ struct hl_layout_api_s {
 	/** */
 	int (*step) (void *handle);
 	/** */
-	int (*read_regs) (void *handle);
-	/** */
 	int (*read_reg) (void *handle, int num, uint32_t *val);
 	/** */
 	int (*write_reg) (void *handle, int num, uint32_t val);

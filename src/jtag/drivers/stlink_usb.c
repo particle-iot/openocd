@@ -1680,6 +1680,7 @@ static int stlink_usb_step(void *handle)
 }
 
 /** */
+__attribute__((unused))
 static int stlink_usb_read_regs(void *handle)
 {
 	int res;
@@ -2703,8 +2704,6 @@ struct hl_layout_api_s stlink_usb_layout_api = {
 	.halt = stlink_usb_halt,
 	/** */
 	.step = stlink_usb_step,
-	/** */
-	.read_regs = stlink_usb_read_regs,
 	/** */
 	.read_reg = stlink_usb_read_reg,
 	/** */

@@ -470,12 +470,6 @@ static int icdi_usb_step(void *handle)
 	return result;
 }
 
-static int icdi_usb_read_regs(void *handle)
-{
-	/* currently unsupported */
-	return ERROR_OK;
-}
-
 static int icdi_usb_read_reg(void *handle, int num, uint32_t *val)
 {
 	int result;
@@ -776,7 +770,6 @@ struct hl_layout_api_s icdi_usb_layout_api = {
 	.run = icdi_usb_run,
 	.halt = icdi_usb_halt,
 	.step = icdi_usb_step,
-	.read_regs = icdi_usb_read_regs,
 	.read_reg = icdi_usb_read_reg,
 	.write_reg = icdi_usb_write_reg,
 	.read_mem = icdi_usb_read_mem,
