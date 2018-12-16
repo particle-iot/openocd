@@ -1592,6 +1592,10 @@ int jtag_init(struct command_context *cmd_ctx)
 		else
 			LOG_WARNING("\'srst_nogate\' reset_config option is required");
 	}
+	if (jtag_reset_config & PULSE_SRST_THEN_CNCT) {
+		jtag_add_reset(0, 1);
+		jtag_add_reset(0, 0);
+	}
 	retval = jtag_execute_queue();
 	if (retval != ERROR_OK)
 		return retval;

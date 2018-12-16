@@ -46,6 +46,7 @@ struct hl_interface_param_s {
 	enum hl_transports transport;
 	/** */
 	bool connect_under_reset;
+	bool pulse_srst_then_connect;
 	/** Initial interface clock clock speed */
 	int initial_interface_speed;
 };
