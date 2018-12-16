@@ -293,6 +293,10 @@ COMMAND_HANDLER(handle_reset_config_command)
 			tmp |= RESET_CNCT_UNDER_SRST;
 		else if (strcmp(*CMD_ARGV, "connect_deassert_srst") == 0)
 			/* connect normally - default */;
+		else if (strcmp(*CMD_ARGV, "connect_pulse_srst") == 0) {
+			m = PULSE_SRST_THEN_CNCT;
+			tmp |= PULSE_SRST_THEN_CNCT;
+		}
 		else
 			m = 0;
 		if (mask & m) {
@@ -383,7 +387,9 @@ next:
 		else
 			modes[4] = " srst_open_drain";
 
-		if (new_cfg & RESET_CNCT_UNDER_SRST)
+		if (new_cfg & PULSE_SRST_THEN_CNCT)
+			modes[5] = " connect_pulse_srst";
+		else if (new_cfg & RESET_CNCT_UNDER_SRST)
 			modes[5] = " connect_assert_srst";
 		else
 			modes[5] = " connect_deassert_srst";

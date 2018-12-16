@@ -116,6 +116,10 @@ static int swd_connect(struct adiv5_dap *dap)
 			else
 				LOG_WARNING("\'srst_nogate\' reset_config option is required");
 		}
+		if (jtag_reset_config & PULSE_SRST_THEN_CNCT) {
+			swd_add_reset(1);
+			swd_add_reset(0);
+		}
 	}
 
 	/* Note, debugport_init() does setup too */

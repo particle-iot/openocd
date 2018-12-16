@@ -35,7 +35,7 @@
 
 #include <target/target.h>
 
-static struct hl_interface_s hl_if = { {0, 0, { 0 }, { 0 }, 0, HL_TRANSPORT_UNKNOWN, false, -1}, 0, 0 };
+static struct hl_interface_s hl_if = { {0, 0, { 0 }, { 0 }, 0, HL_TRANSPORT_UNKNOWN, false, false, -1}, 0, 0 };
 
 int hl_interface_open(enum hl_transports tr)
 {
@@ -49,7 +49,9 @@ int hl_interface_open(enum hl_transports tr)
 		else
 			LOG_WARNING("\'srst_nogate\' reset_config option is required");
 	}
-
+	if (jtag_reset_config & PULSE_SRST_THEN_CNCT) {
+		hl_if.param.pulse_srst_then_connect = true;
+	}
 	/* set transport mode */
 	hl_if.param.transport = tr;
 
@@ -141,6 +143,10 @@ int hl_interface_init_reset(void)
 	if (hl_if.param.connect_under_reset) {
 		jtag_add_reset(0, 1);
 		hl_if.layout->api->assert_srst(hl_if.handle, 0);
+	} else if (hl_if.param.pulse_srst_then_connect) {
+		jtag_add_reset(0, 1);
+		hl_if.layout->api->assert_srst(hl_if.handle, 0);
+		jtag_add_reset(0, 0);
 	} else {
 		jtag_add_reset(0, 0);
 	}
