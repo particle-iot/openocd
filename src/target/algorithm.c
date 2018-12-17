@@ -27,7 +27,7 @@ void init_mem_param(struct mem_param *param, uint32_t address, uint32_t size, en
 {
 	param->address = address;
 	param->size = size;
-	param->value = malloc(size);
+	param->value = calloc(size, sizeof(uint8_t));
 	param->direction = direction;
 }
 
@@ -41,7 +41,7 @@ void init_reg_param(struct reg_param *param, char *reg_name, uint32_t size, enum
 {
 	param->reg_name = reg_name;
 	param->size = size;
-	param->value = malloc(DIV_ROUND_UP(size, 8));
+	param->value = calloc(DIV_ROUND_UP(size, 8), sizeof(uint8_t));
 	param->direction = direction;
 }
 
