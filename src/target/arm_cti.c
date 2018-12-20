@@ -218,6 +218,8 @@ static int cti_find_reg_offset(const char *name)
 		if (!strcmp(name, cti_names[i].label))
 			return cti_names[i].offset;
 	}
+
+	LOG_ERROR("unknown CTI register %s", name);
 	return -1;
 }
 
@@ -299,7 +301,7 @@ COMMAND_HANDLER(handle_cti_write)
 	uint32_t value;
 
 	if (CMD_ARGC != 2) {
-		Jim_SetResultString(interp, "Wrong numer of args", -1);
+		Jim_SetResultString(interp, "Wrong number of args", -1);
 		return ERROR_FAIL;
 	}
 
@@ -322,7 +324,7 @@ COMMAND_HANDLER(handle_cti_read)
 	uint32_t value;
 
 	if (CMD_ARGC != 1) {
-		Jim_SetResultString(interp, "Wrong numer of args", -1);
+		Jim_SetResultString(interp, "Wrong number of args", -1);
 		return ERROR_FAIL;
 	}
 
