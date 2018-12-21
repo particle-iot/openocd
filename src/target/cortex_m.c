@@ -564,6 +564,12 @@ static int cortex_m_poll(struct target *target)
 		}
 	}
 
+	/* Check that target is truly halted, since the target could be resumed externally */
+	if ((prev_target_state == TARGET_HALTED) && !(cortex_m->dcb_dhcsr & S_HALT)) {
+		target->state = TARGET_RUNNING;
+		retval = ERROR_OK;
+	}
+
 	/* Did we detect a failure condition that we cleared? */
 	if (detected_failure != ERROR_OK)
 		retval = detected_failure;
