@@ -725,38 +725,25 @@ static int cortex_a_poll(struct target *target)
 			/* We have a halting debug event */
 			LOG_DEBUG("Target halted");
 			target->state = TARGET_HALTED;
-			if ((prev_target_state == TARGET_RUNNING)
-				|| (prev_target_state == TARGET_UNKNOWN)
-				|| (prev_target_state == TARGET_RESET)) {
-				retval = cortex_a_debug_entry(target);
+
+			retval = cortex_a_debug_entry(target);
+			if (retval != ERROR_OK)
+				return retval;
+
+			if (target->smp) {
+				retval = update_halt_gdb(target);
 				if (retval != ERROR_OK)
 					return retval;
-				if (target->smp) {
-					retval = update_halt_gdb(target);
-					if (retval != ERROR_OK)
-						return retval;
-				}
+			}
 
+			if (prev_target_state == TARGET_DEBUG_RUNNING) {
+				target_call_event_callbacks(target, TARGET_EVENT_DEBUG_HALTED);
+			} else { /* prev_target_state is RUNNING, UNKNOWN or RESET */
 				if (arm_semihosting(target, &retval) != 0)
 					return retval;
 
 				target_call_event_callbacks(target,
 					TARGET_EVENT_HALTED);
-			}
-			if (prev_target_state == TARGET_DEBUG_RUNNING) {
-				LOG_DEBUG(" ");
-
-				retval = cortex_a_debug_entry(target);
-				if (retval != ERROR_OK)
-					return retval;
-				if (target->smp) {
-					retval = update_halt_gdb(target);
-					if (retval != ERROR_OK)
-						return retval;
-				}
-
-				target_call_event_callbacks(target,
-					TARGET_EVENT_DEBUG_HALTED);
 			}
 		}
 	} else
@@ -819,15 +806,15 @@ static int cortex_a_internal_restore(struct target *target, int current,
 		 * C_MASKINTS in parallel with disabled interrupts can cause
 		 * local faults to not be taken. */
 		buf_set_u32(armv7m->core_cache->reg_list[ARMV7M_PRIMASK].value, 0, 32, 1);
-		armv7m->core_cache->reg_list[ARMV7M_PRIMASK].dirty = 1;
-		armv7m->core_cache->reg_list[ARMV7M_PRIMASK].valid = 1;
+		armv7m->core_cache->reg_list[ARMV7M_PRIMASK].dirty = true;
+		armv7m->core_cache->reg_list[ARMV7M_PRIMASK].valid = true;
 
 		/* Make sure we are in Thumb mode */
 		buf_set_u32(armv7m->core_cache->reg_list[ARMV7M_xPSR].value, 0, 32,
 			buf_get_u32(armv7m->core_cache->reg_list[ARMV7M_xPSR].value, 0,
 			32) | (1 << 24));
-		armv7m->core_cache->reg_list[ARMV7M_xPSR].dirty = 1;
-		armv7m->core_cache->reg_list[ARMV7M_xPSR].valid = 1;
+		armv7m->core_cache->reg_list[ARMV7M_xPSR].dirty = true;
+		armv7m->core_cache->reg_list[ARMV7M_xPSR].valid = true;
 	}
 #endif
 
@@ -861,8 +848,8 @@ static int cortex_a_internal_restore(struct target *target, int current,
 	}
 	LOG_DEBUG("resume pc = 0x%08" PRIx32, resume_pc);
 	buf_set_u32(arm->pc->value, 0, 32, resume_pc);
-	arm->pc->dirty = 1;
-	arm->pc->valid = 1;
+	arm->pc->dirty = true;
+	arm->pc->valid = true;
 
 	/* restore dpm_mode at system halt */
 	arm_dpm_modeswitch(&armv7a->dpm, ARM_MODE_ANY);
@@ -2846,15 +2833,15 @@ static int cortex_a_init_arch_info(struct target *target,
 
 	/* REVISIT v7a setup should be in a v7a-specific routine */
 	armv7a_init_arch_info(target, armv7a);
-	target_register_timer_callback(cortex_a_handle_target_request, 1, 1, target);
+	target_register_timer_callback(cortex_a_handle_target_request, 1,
+		TARGET_TIMER_TYPE_PERIODIC, target);
 
 	return ERROR_OK;
 }
 
 static int cortex_a_target_create(struct target *target, Jim_Interp *interp)
 {
-	struct cortex_a_common *cortex_a = calloc(1, sizeof(struct cortex_a_common));
-	cortex_a->common_magic = CORTEX_A_COMMON_MAGIC;
+	struct cortex_a_common *cortex_a;
 	struct adiv5_private_config *pc;
 
 	if (target->private_config == NULL)
@@ -2862,8 +2849,13 @@ static int cortex_a_target_create(struct target *target, Jim_Interp *interp)
 
 	pc = (struct adiv5_private_config *)target->private_config;
 
+	cortex_a = calloc(1, sizeof(struct cortex_a_common));
+	if (cortex_a == NULL) {
+		LOG_ERROR("Out of memory");
+		return ERROR_FAIL;
+	}
+	cortex_a->common_magic = CORTEX_A_COMMON_MAGIC;
 	cortex_a->armv7a_common.is_armv7r = false;
-
 	cortex_a->armv7a_common.arm.arm_vfp_version = ARM_VFP_V3;
 
 	return cortex_a_init_arch_info(target, cortex_a, pc->dap);
@@ -2871,14 +2863,19 @@ static int cortex_a_target_create(struct target *target, Jim_Interp *interp)
 
 static int cortex_r4_target_create(struct target *target, Jim_Interp *interp)
 {
-	struct cortex_a_common *cortex_a = calloc(1, sizeof(struct cortex_a_common));
-	cortex_a->common_magic = CORTEX_A_COMMON_MAGIC;
+	struct cortex_a_common *cortex_a;
 	struct adiv5_private_config *pc;
 
 	pc = (struct adiv5_private_config *)target->private_config;
 	if (adiv5_verify_config(pc) != ERROR_OK)
 		return ERROR_FAIL;
 
+	cortex_a = calloc(1, sizeof(struct cortex_a_common));
+	if (cortex_a == NULL) {
+		LOG_ERROR("Out of memory");
+		return ERROR_FAIL;
+	}
+	cortex_a->common_magic = CORTEX_A_COMMON_MAGIC;
 	cortex_a->armv7a_common.is_armv7r = true;
 
 	return cortex_a_init_arch_info(target, cortex_a, pc->dap);
@@ -3171,6 +3168,7 @@ struct target_type cortexa_target = {
 	.deassert_reset = cortex_a_deassert_reset,
 
 	/* REVISIT allow exporting VFP3 registers ... */
+	.get_gdb_arch = arm_get_gdb_arch,
 	.get_gdb_reg_list = arm_get_gdb_reg_list,
 
 	.read_memory = cortex_a_read_memory,
@@ -3250,6 +3248,7 @@ struct target_type cortexr4_target = {
 	.deassert_reset = cortex_a_deassert_reset,
 
 	/* REVISIT allow exporting VFP3 registers ... */
+	.get_gdb_arch = arm_get_gdb_arch,
 	.get_gdb_reg_list = arm_get_gdb_reg_list,
 
 	.read_memory = cortex_a_read_phys_memory,

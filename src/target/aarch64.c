@@ -100,6 +100,7 @@ static int aarch64_restore_system_control_reg(struct target *target)
 		case ARM_MODE_ABT:
 		case ARM_MODE_FIQ:
 		case ARM_MODE_IRQ:
+		case ARM_MODE_SYS:
 			instr = ARMV4_5_MCR(15, 0, 0, 1, 0, 0);
 			break;
 
@@ -172,6 +173,7 @@ static int aarch64_mmu_modify(struct target *target, int enable)
 	case ARM_MODE_ABT:
 	case ARM_MODE_FIQ:
 	case ARM_MODE_IRQ:
+	case ARM_MODE_SYS:
 		instr = ARMV4_5_MCR(15, 0, 0, 1, 0, 0);
 		break;
 
@@ -599,8 +601,8 @@ static int aarch64_restore_one(struct target *target, int current,
 	}
 	LOG_DEBUG("resume pc = 0x%016" PRIx64, resume_pc);
 	buf_set_u64(arm->pc->value, 0, 64, resume_pc);
-	arm->pc->dirty = 1;
-	arm->pc->valid = 1;
+	arm->pc->dirty = true;
+	arm->pc->valid = true;
 
 	/* called it now before restoring context because it uses cpu
 	 * register r0 for restoring system control register */
@@ -1032,6 +1034,7 @@ static int aarch64_post_debug_entry(struct target *target)
 	case ARM_MODE_ABT:
 	case ARM_MODE_FIQ:
 	case ARM_MODE_IRQ:
+	case ARM_MODE_SYS:
 		instr = ARMV4_5_MRC(15, 0, 0, 1, 0, 0);
 		break;
 
@@ -2385,7 +2388,8 @@ static int aarch64_init_arch_info(struct target *target,
 	armv8->armv8_mmu.read_physical_memory = aarch64_read_phys_memory;
 
 	armv8_init_arch_info(target, armv8);
-	target_register_timer_callback(aarch64_handle_target_request, 1, 1, target);
+	target_register_timer_callback(aarch64_handle_target_request, 1,
+		TARGET_TIMER_TYPE_PERIODIC, target);
 
 	return ERROR_OK;
 }
@@ -2393,10 +2397,16 @@ static int aarch64_init_arch_info(struct target *target,
 static int aarch64_target_create(struct target *target, Jim_Interp *interp)
 {
 	struct aarch64_private_config *pc = target->private_config;
-	struct aarch64_common *aarch64 = calloc(1, sizeof(struct aarch64_common));
+	struct aarch64_common *aarch64;
 
 	if (adiv5_verify_config(&pc->adiv5_config) != ERROR_OK)
 		return ERROR_FAIL;
+
+	aarch64 = calloc(1, sizeof(struct aarch64_common));
+	if (aarch64 == NULL) {
+		LOG_ERROR("Out of memory");
+		return ERROR_FAIL;
+	}
 
 	return aarch64_init_arch_info(target, aarch64, pc->adiv5_config.dap);
 }
@@ -2824,6 +2834,7 @@ struct target_type aarch64_target = {
 	.deassert_reset = aarch64_deassert_reset,
 
 	/* REVISIT allow exporting VFP3 registers ... */
+	.get_gdb_arch = armv8_get_gdb_arch,
 	.get_gdb_reg_list = armv8_get_gdb_reg_list,
 
 	.read_memory = aarch64_read_memory,
