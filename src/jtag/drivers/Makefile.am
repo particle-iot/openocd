@@ -150,8 +150,15 @@ endif
 if OPENJTAG
 DRIVERFILES += %D%/openjtag.c
 endif
-if CMSIS_DAP
+if CMSIS_DAP_HID
+DRIVERFILES += %D%/cmsis_dap_hid.c
+DRIVERFILES += %D%/cmsis_dap.c
+endif
+if CMSIS_DAP_USB
 DRIVERFILES += %D%/cmsis_dap_usb.c
+if !CMSIS_DAP_HID
+DRIVERFILES += %D%/cmsis_dap.c
+endif
 endif
 if IMX_GPIO
 DRIVERFILES += %D%/imx_gpio.c
