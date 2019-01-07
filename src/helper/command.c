@@ -639,7 +639,13 @@ static int run_command(struct command_context *context,
 		/* we do not print out an error message because the command *should*
 		 * have printed out an error
 		 */
-		LOG_DEBUG("Command '%s' failed with error code %d", c->name, retval);
+		char *full_name = command_name(c, ' ');
+		if (full_name) {
+			LOG_DEBUG("Command '%s' failed with error code %d", full_name, retval);
+			free(full_name);
+		} else {
+			LOG_DEBUG("Command failed with error code %d", retval);
+		}
 	}
 
 	return retval;
