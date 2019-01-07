@@ -116,8 +116,6 @@ static int buspirate_vreg;
 static int buspirate_pullup;
 static char *buspirate_port;
 
-static enum tap_state last_tap_state = TAP_RESET;
-
 /* SWD interface */
 static int buspirate_swd_init(void);
 static void buspirate_swd_read_reg(uint8_t cmd, uint32_t *value, uint32_t ap_delay_clk);
@@ -126,12 +124,76 @@ static int buspirate_swd_switch_seq(enum swd_special_seq seq);
 static int buspirate_swd_run_queue(void);
 
 /* TAP interface */
-static void buspirate_tap_init(void);
 static int buspirate_tap_execute(void);
 static void buspirate_tap_append(int tms, int tdi);
 static void buspirate_tap_append_scan(int length, uint8_t *buffer,
 		struct scan_command *command);
-static void buspirate_tap_make_space(int scan, int bits);
+
+/* Scan chain fragment interface
+
+   For performance reasons we want to send as large packets as
+   possible to the bus pirate. We do this by processing the complete
+   jtag_command_queue in buspirate_execute_queue() and buffering the
+   shifted out bits in a linked list (the fragment_queue) of scan
+   chain fragments.
+
+   While shifting out bits to the target, we simultanously receive
+   bits shifted in. When bits are scheduled for output with
+   buspirate_tap_append_scan(), we are required to store these
+   incoming bits and when we have received them all, send them up the
+   protocol stack.
+
+   When buspirate_tap_append() is called to add bits for output, they
+   are added to the chain fragment at the end of the fragment_queue if
+   it exists and space is available. Otherwise a new fragment is
+   appended. When buspirate_tap_append_scan() is called, it appends a
+   new fragment containing exactly the number of bits in the scan. The
+   fragment for the scan also stores the command and destination
+   buffer pointers.
+
+   In buspirate_tap_execute() the queue is processed. Until the queue
+   is empty we repeatedly:
+
+   * Fill up a bus pirate command buffer with the bits from the fragments.
+
+   * Write the command to the bus pirate and read the response.
+
+   * For scans, we copy shifted in bits to the destination buffer. If
+     the scan is complete, we report the result to the overlying
+     protocol layer.
+
+   * Unlink and free fragments which are complete.
+
+   */
+
+
+struct fragment {
+	struct fragment *next;
+
+	/* Bit arrays for at least 'noof_bits' bits */
+	unsigned noof_bits;
+	uint8_t *tms;
+	uint8_t *tdi;
+
+	unsigned write_pos;
+	unsigned read_pos;
+
+	/* If this is a scan added by buspirate_tap_append_scan(),
+	   'command' and 'buffer' will be non-NULL */
+	struct scan_command *command; /* The corresponding scan command */
+	uint8_t *buffer;
+};
+
+static struct fragment *fragment_new(unsigned, struct scan_command *,
+				     uint8_t *);
+static void fragment_free(struct fragment *);
+static struct fragment *fragment_enqueue(struct fragment *);
+static void fragment_dequeue(void);
+static void fragment_interleave_tdi_tms(uint8_t *, unsigned,
+					struct fragment *, unsigned);
+
+static struct fragment *fragment_queue_head;
+static struct fragment *fragment_queue_tail;
 
 static void buspirate_reset(int trst, int srst);
 static void buspirate_set_feature(int, char, char);
@@ -341,9 +403,6 @@ static int buspirate_init(void)
 
 	LOG_INFO("Buspirate %s Interface ready!", swd_mode ? "SWD" : "JTAG");
 
-	if (!swd_mode)
-		buspirate_tap_init();
-
 	buspirate_set_mode(buspirate_fd, buspirate_pinmode);
 	buspirate_set_feature(buspirate_fd, FEATURE_VREG,
 		(buspirate_vreg == 1) ? ACTION_ENABLE : ACTION_DISABLE);
@@ -368,6 +427,15 @@ static int buspirate_quit(void)
 		free(buspirate_port);
 		buspirate_port = NULL;
 	}
+
+	/* Free memory used by the fragments queue */
+	while (fragment_queue_head != NULL) {
+		struct fragment *frag = fragment_queue_head;
+
+		fragment_dequeue();
+		fragment_free(frag);
+	}
+
 	return ERROR_OK;
 }
 
@@ -638,9 +706,6 @@ static void buspirate_scan(bool ir_scan, enum scan_type type,
 {
 	tap_state_t saved_end_state;
 
-	buspirate_tap_make_space(1, scan_size+8);
-	/* is 8 correct ? (2 moves = 16) */
-
 	saved_end_state = tap_get_end_state();
 
 	buspirate_end_state(ir_scan ? TAP_IRSHIFT : TAP_DRSHIFT);
@@ -667,8 +732,6 @@ static void buspirate_stableclocks(int num_cycles)
 	int i;
 	int tms = (tap_get_state() == TAP_RESET ? 1 : 0);
 
-	buspirate_tap_make_space(0, num_cycles);
-
 	for (i = 0; i < num_cycles; i++)
 		buspirate_tap_append(tms, 0);
 }
@@ -679,181 +742,143 @@ static void buspirate_stableclocks(int num_cycles)
    look for constant 0x2000 in OpenOCD.c . */
 #define BUSPIRATE_BUFFER_SIZE 1024
 
-/* The old value of 32 scans was not enough to achieve near 100% utilisation ratio
-   for the current BUSPIRATE_BUFFER_SIZE value of 1024.
-   With 128 scans I am getting full USB 2.0 high speed packets (512 bytes long) when
-   using the JtagDue firmware on the Arduino Due instead of the Bus Pirate, which
-   amounts approximately to a 10% overall speed gain. Bigger packets should also
-   benefit the Bus Pirate, but the speed difference is much smaller.
-   Unfortunately, each 512-byte packet is followed by a 329-byte one, which is not ideal.
-   However, increasing BUSPIRATE_BUFFER_SIZE for the benefit of the JtagDue would
-   make it incompatible with the Bus Pirate firmware. */
-#define BUSPIRATE_MAX_PENDING_SCANS 128
-
-static uint8_t tms_chain[BUSPIRATE_BUFFER_SIZE]; /* send */
-static uint8_t tdi_chain[BUSPIRATE_BUFFER_SIZE]; /* send */
-static int tap_chain_index;
-
-struct pending_scan_result /* this was stolen from arm-jtag-ew */
-{
-	int first; /* First bit position in tdo_buffer to read */
-	int length; /* Number of bits to read */
-	struct scan_command *command; /* Corresponding scan command */
-	uint8_t *buffer;
-};
-
-static struct pending_scan_result
-tap_pending_scans[BUSPIRATE_MAX_PENDING_SCANS];
-static int tap_pending_scans_num;
-
-static void buspirate_tap_init(void)
-{
-	tap_chain_index = 0;
-	tap_pending_scans_num = 0;
-}
-
 static int buspirate_tap_execute(void)
 {
-	static const int CMD_TAP_SHIFT_HEADER_LEN = 3;
+	size_t ret;
+	const int CMD_TAP_SHIFT_HEADER_LEN = 3;
+	uint8_t bp_buffer[CMD_TAP_SHIFT_HEADER_LEN + 2 * BUSPIRATE_BUFFER_SIZE];
 
-	uint8_t tmp[4096];
-	uint8_t *in_buf;
-	int i;
-	int fill_index = 0;
-	int ret;
-	int bytes_to_send;
-
-	if (tap_chain_index <= 0)
-		return ERROR_OK;
-
-	LOG_DEBUG("executing tap num bits = %i scans = %i",
-			tap_chain_index, tap_pending_scans_num);
-
-	bytes_to_send = DIV_ROUND_UP(tap_chain_index, 8);
-
-	tmp[0] = CMD_TAP_SHIFT; /* this command expects number of bits */
-	tmp[1] = tap_chain_index >> 8;  /* high */
-	tmp[2] = tap_chain_index;  /* low */
-
-	fill_index = CMD_TAP_SHIFT_HEADER_LEN;
-	for (i = 0; i < bytes_to_send; i++) {
-		tmp[fill_index] = tdi_chain[i];
-		fill_index++;
-		tmp[fill_index] = tms_chain[i];
-		fill_index++;
+	/* Update the lengths to match the actual written lengths of
+	   the fragments and reset the write positions. From now on
+	   frag->noof_bits will reflect the number of written bits
+	   instead of the capacity */
+	for (struct fragment *frag = fragment_queue_head;
+	     frag != NULL; frag = frag->next) {
+		frag->noof_bits = frag->write_pos;
+		frag->write_pos = 0;
 	}
 
-	/* jlink.c calls the routine below, which may be useful for debugging purposes.
-	   For example, enabling this allows you to compare the log outputs from jlink.c
-	   and from this module for JTAG development or troubleshooting purposes. */
-	if (false) {
-		last_tap_state = jtag_debug_state_machine(tms_chain, tdi_chain,
-												  tap_chain_index, last_tap_state);
-	}
+	/* Now loop until the queue is empty */
+	while (fragment_queue_head != NULL) {
+		/* Traverse the fragments and copy the bits into the
+		   bp_buffer, adjusting the fragment's read position
+		   accordingly */
+		unsigned bits_available = BUSPIRATE_BUFFER_SIZE * 8;
+		uint8_t *buffer = &bp_buffer[CMD_TAP_SHIFT_HEADER_LEN];
+		unsigned write_pos = 0;
 
-	ret = buspirate_serial_write(buspirate_fd, tmp, CMD_TAP_SHIFT_HEADER_LEN + bytes_to_send*2);
-	if (ret != bytes_to_send*2+CMD_TAP_SHIFT_HEADER_LEN) {
-		LOG_ERROR("error writing :(");
-		return ERROR_JTAG_DEVICE_ERROR;
-	}
+		memset(bp_buffer, 0, sizeof(bp_buffer));
 
-	ret = buspirate_serial_read(buspirate_fd, tmp, bytes_to_send + CMD_TAP_SHIFT_HEADER_LEN);
-	if (ret != bytes_to_send + CMD_TAP_SHIFT_HEADER_LEN) {
-		LOG_ERROR("error reading");
-		return ERROR_FAIL;
-	}
-	in_buf = (uint8_t *)(&tmp[CMD_TAP_SHIFT_HEADER_LEN]);
+		for (struct fragment *frag = fragment_queue_head;
+		     frag != NULL && bits_available > 0; frag = frag->next) {
+			unsigned remaining = frag->noof_bits - frag->read_pos;
+			unsigned to_write = MIN(remaining, bits_available);
 
-	/* parse the scans */
-	for (i = 0; i < tap_pending_scans_num; i++) {
-		uint8_t *buffer = tap_pending_scans[i].buffer;
-		int length = tap_pending_scans[i].length;
-		int first = tap_pending_scans[i].first;
-		struct scan_command *command = tap_pending_scans[i].command;
-
-		/* copy bits from buffer */
-		buf_set_buf(in_buf, first, buffer, 0, length);
-
-		/* return buffer to higher level */
-		if (jtag_read_buffer(buffer, command) != ERROR_OK) {
-			buspirate_tap_init();
-			return ERROR_JTAG_QUEUE_FAILED;
+			assert(to_write <= bits_available);
+			fragment_interleave_tdi_tms(buffer, write_pos,
+						    frag, to_write);
+			write_pos += to_write;
+			bits_available -= to_write;
 		}
 
-		free(buffer);
+		/* Send the command */
+		bp_buffer[0] = CMD_TAP_SHIFT;
+		bp_buffer[1] = write_pos >> 8;
+		bp_buffer[2] = write_pos;
+
+		size_t bytes_to_write = CMD_TAP_SHIFT_HEADER_LEN
+			+ 2 * DIV_ROUND_UP(write_pos, 8);
+		assert(bytes_to_write <= sizeof(bp_buffer));
+		ret = buspirate_serial_write(buspirate_fd, bp_buffer,
+					     bytes_to_write);
+		if (ret != bytes_to_write) {
+			LOG_ERROR("error writing :(");
+			return ERROR_JTAG_DEVICE_ERROR;
+		}
+
+		/* Read the response */
+		size_t bytes_to_read = CMD_TAP_SHIFT_HEADER_LEN
+			+ DIV_ROUND_UP(write_pos, 8);
+
+		ret = buspirate_serial_read(buspirate_fd, bp_buffer,
+					    bytes_to_read);
+		if (ret != bytes_to_read) {
+			LOG_ERROR("error reading");
+			return ERROR_FAIL;
+		}
+
+		/* Traverse the fragments copying responses into the
+		   buffers when needed, reporting scan results and
+		   freeing the fragments */
+		unsigned read_pos = 0;
+		bits_available = write_pos;
+		while (fragment_queue_head != NULL && bits_available > 0) {
+			struct fragment *frag = fragment_queue_head;
+			unsigned remaining = frag->noof_bits - frag->write_pos;
+			unsigned to_read = MIN(remaining, bits_available);
+
+			assert(to_read <= bits_available);
+
+			if (frag->buffer)
+				buf_set_buf(buffer, read_pos,
+					    frag->buffer, frag->write_pos,
+					    to_read);
+			read_pos += to_read;
+			frag->write_pos += to_read;
+			bits_available -= to_read;
+
+			if (frag->noof_bits - frag->write_pos == 0) {
+				/* This fragment is complete */
+				if (frag->buffer) {
+					/* report buffer to higher level */
+					if (jtag_read_buffer(frag->buffer,
+							     frag->command)
+					    != ERROR_OK) {
+						return ERROR_JTAG_QUEUE_FAILED;
+					}
+					free(frag->buffer);
+				}
+				/* Unlink fragment from queue and free */
+				fragment_dequeue();
+				fragment_free(frag);
+			}
+		}
 	}
-	buspirate_tap_init();
 	return ERROR_OK;
-}
-
-static void buspirate_tap_make_space(int scans, int bits)
-{
-	int have_scans = BUSPIRATE_MAX_PENDING_SCANS - tap_pending_scans_num;
-	int have_bits = BUSPIRATE_BUFFER_SIZE * 8 - tap_chain_index;
-
-	if ((have_scans < scans) || (have_bits < bits))
-		buspirate_tap_execute();
 }
 
 static void buspirate_tap_append(int tms, int tdi)
 {
-	int chain_index;
+	struct fragment *frag = fragment_queue_tail;
 
-	buspirate_tap_make_space(0, 1);
-	chain_index = tap_chain_index / 8;
+	/* Create a new fragment if there is no current fragment or it
+	   is full */
+	if (frag == NULL || frag->write_pos >= frag->noof_bits)
+		frag = fragment_new(8 * BUSPIRATE_BUFFER_SIZE, NULL, NULL);
 
-	if (chain_index < BUSPIRATE_BUFFER_SIZE) {
-		int bit_index = tap_chain_index % 8;
-		uint8_t bit = 1 << bit_index;
+	unsigned index = frag->write_pos >> 3;
+	unsigned bit = frag->write_pos & 0x7;
+	unsigned mask = 1 << bit;
 
-		if (0 == bit_index) {
-			/* Let's say that the TAP shift operation wants to shift 9 bits,
-			   so we will be sending to the Bus Pirate a bit count of 9 but still
-			   full 16 bits (2 bytes) of shift data.
-			   If we don't clear all bits at this point, the last 7 bits will contain
-			   random data from the last buffer contents, which is not pleasant to the eye.
-			   Besides, the Bus Pirate (or some clone) may want to assert in debug builds
-			   that, after consuming all significant data bits, the rest of them are zero.
-			   Therefore, for aesthetic and for assert purposes, we clear all bits below. */
-			tms_chain[chain_index] = 0;
-			tdi_chain[chain_index] = 0;
-		}
-
-		if (tms)
-			tms_chain[chain_index] |= bit;
-		else
-			tms_chain[chain_index] &= ~bit;
-
-		if (tdi)
-			tdi_chain[chain_index] |= bit;
-		else
-			tdi_chain[chain_index] &= ~bit;
-
-		tap_chain_index++;
-	} else {
-		LOG_ERROR("tap_chain overflow, bad things will happen");
-		/* Exit abruptly, like jlink.c does. After a buffer overflow we don't want
-		   to carry on, as data will be corrupt. Another option would be to return
-		   some error code at this point. */
-		exit(-1);
-	}
+	if (tms)
+		frag->tms[index] |= mask;
+	if (tdi)
+		frag->tdi[index] |= mask;
+	frag->write_pos++;
 }
 
 static void buspirate_tap_append_scan(int length, uint8_t *buffer,
-		struct scan_command *command)
+				      struct scan_command *command)
 {
-	int i;
-	tap_pending_scans[tap_pending_scans_num].length = length;
-	tap_pending_scans[tap_pending_scans_num].buffer = buffer;
-	tap_pending_scans[tap_pending_scans_num].command = command;
-	tap_pending_scans[tap_pending_scans_num].first = tap_chain_index;
+	/* We want all scans to be in their own fragment, so create a
+	   new one with just the right amount of space. */
+	fragment_new(length, command, buffer);
 
-	for (i = 0; i < length; i++) {
+	for (int i = 0; i < length; i++) {
 		int tms = (i < length-1 ? 0 : 1);
 		int tdi = (buffer[i/8] >> (i%8)) & 1;
 		buspirate_tap_append(tms, tdi);
 	}
-	tap_pending_scans_num++;
 }
 
 /*************** wrapper functions *********************/
@@ -1532,4 +1557,97 @@ static int buspirate_swd_run_queue(void)
 	return retval;
 }
 
+
+/* As malloc but terminate with an error if allocation fails */
+static void *xmalloc(size_t s)
+{
+	void *r = malloc(s);
+
+	if (r == NULL) {
+		LOG_ERROR("error allocating memory\n");
+		exit(-1);
+	}
+	return r;
+}
+
+/* As xmalloc but will zero the allocated memory */
+static void *zmalloc(size_t s)
+{
+	return memset(xmalloc(s), 0, s);
+}
+
+/*
+ * Allocate a new fragment, add it to the end of the fragment_queue
+ * and return it.
+ */
+static struct fragment *fragment_new(unsigned noof_bits,
+				     struct scan_command *command,
+				     uint8_t *buffer)
+{
+	struct fragment *r = xmalloc(sizeof(*r));
+
+	r->next = NULL;
+	r->noof_bits = noof_bits;
+	r->tms = zmalloc(DIV_ROUND_UP(noof_bits, 8));
+	r->tdi = zmalloc(DIV_ROUND_UP(noof_bits, 8));
+	r->write_pos = 0;
+	r->read_pos = 0;
+	r->command = command;
+	r->buffer = buffer;
+
+	return fragment_enqueue(r);
+}
+
+static void fragment_free(struct fragment *f)
+{
+	free(f->tms);
+	free(f->tdi);
+	free(f);
+}
+
+/* Add fragment to the end of the queue */
+static struct fragment *fragment_enqueue(struct fragment *frag)
+{
+	if (fragment_queue_tail == NULL)
+		fragment_queue_head = frag; /* This is the first element */
+	else
+		fragment_queue_tail->next = frag;
+	fragment_queue_tail = frag;
+
+	return frag;
+}
+
+/* Unlink the head of the queue and return it */
+static void fragment_dequeue(void)
+{
+	struct fragment *frag = fragment_queue_head;
+
+	fragment_queue_head = frag->next;
+	if (fragment_queue_head == NULL)
+		fragment_queue_tail = NULL;
+}
+
+/*
+ * Bytewise interleave the next 'length' tdi and tms bits from the
+ * 'frag' and write them to 'dst'.
+ */
+static void fragment_interleave_tdi_tms(uint8_t *dst, unsigned dst_idx,
+					struct fragment *frag,
+					unsigned length)
+{
+	while (length--) {
+		unsigned src_byte_idx = frag->read_pos >> 3;
+		unsigned src_bit_mask = 1 << (frag->read_pos & 0x7);
+		unsigned byte_idx = dst_idx >> 3;
+		uint8_t bit_mask = 1 << (dst_idx & 0x7);
+
+		if (frag->tdi[src_byte_idx] & src_bit_mask)
+			dst[byte_idx * 2] |= bit_mask;
+		if (frag->tms[src_byte_idx] & src_bit_mask)
+			dst[byte_idx * 2 + 1] |= bit_mask;
+
+		dst_idx++;
+		frag->read_pos++;
+	}
+}
 
