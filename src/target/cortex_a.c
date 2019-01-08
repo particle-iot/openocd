@@ -759,8 +759,18 @@ static int cortex_a_poll(struct target *target)
 					TARGET_EVENT_DEBUG_HALTED);
 			}
 		}
-	} else
-		target->state = TARGET_RUNNING;
+	} else {
+		target->state = (prev_target_state == TARGET_DEBUG_RUNNING) ?
+			TARGET_DEBUG_RUNNING : TARGET_RUNNING;
+
+		if (prev_target_state == TARGET_HALTED) {
+			/* registers are now invalid */
+			register_cache_invalidate(armv7a->arm.core_cache);
+
+			LOG_WARNING("%s: external resume detected", target_name(target));
+			target_call_event_callbacks(target, TARGET_EVENT_RESUMED);
+		}
+	}
 
 	return retval;
 }
