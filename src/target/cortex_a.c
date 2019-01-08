@@ -698,7 +698,7 @@ static int update_halt_gdb(struct target *target)
 static int cortex_a_poll(struct target *target)
 {
 	int retval = ERROR_OK;
-	uint32_t dscr;
+	uint32_t dscr, prsr;
 	struct cortex_a_common *cortex_a = target_to_cortex_a(target);
 	struct armv7a_common *armv7a = &cortex_a->armv7a_common;
 	enum target_state prev_target_state = target->state;
@@ -759,8 +759,24 @@ static int cortex_a_poll(struct target *target)
 					TARGET_EVENT_DEBUG_HALTED);
 			}
 		}
-	} else
-		target->state = TARGET_RUNNING;
+	} else {
+		target->state = (prev_target_state == TARGET_DEBUG_RUNNING) ?
+			TARGET_DEBUG_RUNNING : TARGET_RUNNING;
+
+		/* check on PRSR:SR to know if the core was reset to avoid false external resume */
+		retval = mem_ap_read_atomic_u32(armv7a->debug_ap,
+				armv7a->debug_base + CPUDBG_PRSR, &prsr);
+		if (retval != ERROR_OK)
+			return retval;
+
+		if ((prev_target_state == TARGET_HALTED) & !(prsr & PRSR_STICKY_RESET_STATUS)) {
+			/* registers are now invalid */
+			register_cache_invalidate(armv7a->arm.core_cache);
+
+			LOG_WARNING("%s: external resume detected", target_name(target));
+			target_call_event_callbacks(target, TARGET_EVENT_RESUMED);
+		}
+	}
 
 	return retval;
 }
