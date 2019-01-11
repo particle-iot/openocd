@@ -71,6 +71,9 @@ enum nrf5_ficr_registers {
 	NRF5_FICR_BLE_1MBIT2		= NRF5_FICR_REG(0x0F4),
 	NRF5_FICR_BLE_1MBIT3		= NRF5_FICR_REG(0x0F8),
 	NRF5_FICR_BLE_1MBIT4		= NRF5_FICR_REG(0x0FC),
+	NRF5_FICR_INFO_PART			= NRF5_FICR_REG(0x100),
+	NRF5_FICR_INFO_VARIANT		= NRF5_FICR_REG(0x104),
+	NRF5_FICR_INFO_PACKAGE		= NRF5_FICR_REG(0x108),
 };
 
 enum nrf5_uicr_registers {
@@ -1037,6 +1040,9 @@ static int nrf5_info(struct flash_bank *bank, char *buf, int buf_size)
 		{ .address = NRF5_FICR_BLE_1MBIT2	},
 		{ .address = NRF5_FICR_BLE_1MBIT3	},
 		{ .address = NRF5_FICR_BLE_1MBIT4	},
+		{ .address = NRF5_FICR_INFO_PART	},
+		{ .address = NRF5_FICR_INFO_VARIANT	},
+		{ .address = NRF5_FICR_INFO_PACKAGE	},
 	}, uicr[] = {
 		{ .address = NRF5_UICR_CLENR0,		},
 		{ .address = NRF5_UICR_RBPCONF		},
@@ -1082,6 +1088,9 @@ static int nrf5_info(struct flash_bank *bank, char *buf, int buf_size)
 		 "override enable: %"PRIx32"\n"
 		 "NRF_1MBIT values: %"PRIx32" %"PRIx32" %"PRIx32" %"PRIx32" %"PRIx32"\n"
 		 "BLE_1MBIT values: %"PRIx32" %"PRIx32" %"PRIx32" %"PRIx32" %"PRIx32"\n"
+		 "part code: 0x%" PRIx32 "\n"
+		 "part variant: 0x%" PRIx32 "\n"
+		 "package option: 0x%" PRIx32 "\n"
 		 "\n[user information control block]\n\n"
 		 "code region 0 size: %"PRIu32"kB\n"
 		 "read back protection configuration: %"PRIx32"\n"
@@ -1105,6 +1114,9 @@ static int nrf5_info(struct flash_bank *bank, char *buf, int buf_size)
 		 ficr[23].value,
 		 ficr[24].value, ficr[25].value, ficr[26].value, ficr[27].value, ficr[28].value,
 		 ficr[29].value, ficr[30].value, ficr[31].value, ficr[32].value, ficr[33].value,
+		 ficr[34].value,
+		 ficr[35].value,
+		 ficr[36].value,
 		 (uicr[0].value == 0xFFFFFFFF) ? 0 : uicr[0].value / 1024,
 		 uicr[1].value & 0xFFFF,
 		 uicr[2].value & 0xFF,
