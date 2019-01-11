@@ -141,7 +141,9 @@ struct nrf5_device_spec {
  * Compatibility Matrix" document, which can be found by searching for
  * ATTN-51 on the Nordic Semi website:
  *
- * http://www.nordicsemi.com/eng/content/search?SearchText=ATTN-51
+ * http://www.nordicsemi.com/eng/content/search?SearchText=ATTN-51 // 404
+ * http://infocenter.nordicsemi.com/topic/com.nordic.infocenter.nrf51/dita/nrf51/pdflinks/nrf51_comp_matrix.html
+ * http://infocenter.nordicsemi.com/topic/com.nordic.infocenter.nrf52/dita/nrf52/nrf52_comp_matrix.html
  *
  * Up to date with Matrix v2.0, plus some additional HWIDs.
  *
