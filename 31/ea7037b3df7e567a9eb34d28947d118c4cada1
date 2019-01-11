@@ -1,0 +1,8 @@
+Verified+1: jenkins
+Code-Review+1: Philipp Guehring <pg@futureware.at>
+Code-Review+2: Tomas Vanek <vanekt@fbl.cz>
+Submitted-by: Tomas Vanek <vanekt@fbl.cz>
+Submitted-at: Fri, 11 Jan 2019 19:50:09 +0000
+Reviewed-on: http://openocd.zylin.com/4656
+Project: openocd
+Branch: refs/heads/master
