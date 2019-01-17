@@ -1371,6 +1371,53 @@ static int dap_rom_display(struct command_context *cmd_ctx,
 	return ERROR_OK;
 }
 
+static int dap_jtag_ap_display(struct command_context *cmd_ctx, struct adiv5_ap *ap)
+{
+	uint32_t value, backup_psel;
+	int retval;
+
+	/* backup existing PSEL so that we can later restore it */
+	retval = dap_queue_ap_read(ap, JTAG_AP_REG_PSEL, &backup_psel);
+
+	if (ERROR_OK == retval)
+		retval = dap_run(ap->dap);
+
+	if (ERROR_OK != retval)
+		return retval;
+
+	/* for each of the eight ports, see if something is connected */
+	for (int port = 0; port < 8; port++) {
+		retval = dap_queue_ap_write(ap, JTAG_AP_REG_PSEL, 1UL << port);
+
+		if (ERROR_OK == retval)
+			retval = dap_run(ap->dap);
+
+		if (ERROR_OK != retval)
+			return retval;
+
+		retval = dap_queue_ap_read(ap, JTAG_AP_REG_CSW, &value);
+
+		if (ERROR_OK == retval)
+			retval = dap_run(ap->dap);
+
+		if (ERROR_OK != retval)
+			return retval;
+
+		if (value & (CSW_PORTCONNECTED_MASK | CSW_SRSTCONNECTED_MASK))
+			command_print(cmd_ctx, "\t\tPort %d:%s%s", port,
+				(value & CSW_PORTCONNECTED_MASK) ? " PORTCONNECTED" : "",
+				(value & CSW_SRSTCONNECTED_MASK) ? " SRSTCONNECTED" : "");
+	}
+
+	/* restore PSEL to its previous state */
+	retval = dap_queue_ap_write(ap, JTAG_AP_REG_PSEL, backup_psel);
+
+	if (ERROR_OK == retval)
+		retval = dap_run(ap->dap);
+
+	return retval;
+}
+
 int dap_info_command(struct command_context *cmd_ctx,
 		struct adiv5_ap *ap)
 {
@@ -1424,6 +1471,10 @@ int dap_info_command(struct command_context *cmd_ctx,
 
 			dap_rom_display(cmd_ctx, ap, dbgbase & 0xFFFFF000, 0);
 		}
+	}
+
+	if (AP_TYPE_JTAG_AP == (apid & IDR_CLASS)) {
+		dap_jtag_ap_display(cmd_ctx, ap);
 	}
 
 	return ERROR_OK;
