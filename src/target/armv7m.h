@@ -141,6 +141,9 @@ enum {
 
 #define ARMV7M_COMMON_MAGIC 0x2A452A45
 
+#define ARMV7M_EPSR_MASK	0x0700fe00
+#define ARMV7M_EPSR_T_MASK	(1 << 24)
+
 struct armv7m_common {
 	struct arm	arm;
 
