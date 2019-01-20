@@ -141,6 +141,13 @@ enum {
 
 #define ARMV7M_COMMON_MAGIC 0x2A452A45
 
+#define ARMV7M_EPSR_MASK	0x0700fe00
+#define ARMV7M_EPSR_T_MASK	(1 << 24)
+#define ARMV7M_EPSR_IT0_MASK (1 << 25)
+#define ARMV7M_EPSR_IT1_MASK (1 << 26)
+#define ARMV7M_EPSR_IT2_MASK (1 << 10)
+#define ARMV7M_EPSR_IT3_MASK (1 << 11)
+
 struct armv7m_common {
 	struct arm	arm;
 
@@ -152,6 +159,9 @@ struct armv7m_common {
 
 	int fp_feature;
 	uint32_t demcr;
+
+	/* used to check if CPU continues execution or we should clear IT bits */
+	uint32_t pc_at_debug_entry;
 
 	/* stlink is a high level adapter, does not support all functions */
 	bool stlink;

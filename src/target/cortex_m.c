@@ -426,12 +426,8 @@ static int cortex_m_debug_entry(struct target *target)
 
 	r = arm->cpsr;
 	xPSR = buf_get_u32(r->value, 0, 32);
-
-	/* For IT instructions xPSR must be reloaded on resume and clear on debug exec */
-	if (xPSR & 0xf00) {
-		r->dirty = r->valid;
-		cortex_m_store_core_reg_u32(target, 16, xPSR & ~0xff);
-	}
+	if ((xPSR & ARMV7M_EPSR_T_MASK) == 0)
+		LOG_WARNING("EPSR bit T=0?!! Check reset vector");
 
 	/* Are we in an exception handler */
 	if (xPSR & 0x1FF) {
@@ -460,9 +456,10 @@ static int cortex_m_debug_entry(struct target *target)
 	if (armv7m->exception_number)
 		cortex_m_examine_exception_reason(target);
 
+	armv7m->pc_at_debug_entry = buf_get_u32(arm->pc->value, 0, 32);
 	LOG_DEBUG("entered debug state in core mode: %s at PC 0x%" PRIx32 ", target->state: %s",
 		arm_mode_name(arm->core_mode),
-		buf_get_u32(arm->pc->value, 0, 32),
+		armv7m->pc_at_debug_entry,
 		target_state_name(target));
 
 	if (armv7m->post_debug_entry) {
@@ -688,6 +685,23 @@ void cortex_m_enable_breakpoints(struct target *target)
 	}
 }
 
+static uint32_t cortex_m_it_block_size(uint32_t xpsr)
+{
+	if (xpsr & ARMV7M_EPSR_IT0_MASK)
+		return 4;
+
+	if (xpsr & ARMV7M_EPSR_IT1_MASK)
+		return 3;
+
+	if (xpsr & ARMV7M_EPSR_IT2_MASK)
+		return 2;
+
+	if (xpsr & ARMV7M_EPSR_IT3_MASK)
+		return 1;
+
+	return 0;
+}
+
 static int cortex_m_resume(struct target *target, int current,
 	target_addr_t address, int handle_breakpoints, int debug_execution)
 {
@@ -707,48 +721,60 @@ static int cortex_m_resume(struct target *target, int current,
 		cortex_m_enable_watchpoints(target);
 	}
 
-	if (debug_execution) {
-		r = armv7m->arm.core_cache->reg_list + ARMV7M_PRIMASK;
-
-		/* Disable interrupts */
-		/* We disable interrupts in the PRIMASK register instead of
-		 * masking with C_MASKINTS.  This is probably the same issue
-		 * as Cortex-M3 Erratum 377493 (fixed in r1p0):  C_MASKINTS
-		 * in parallel with disabled interrupts can cause local faults
-		 * to not be taken.
-		 *
-		 * REVISIT this clearly breaks non-debug execution, since the
-		 * PRIMASK register state isn't saved/restored...  workaround
-		 * by never resuming app code after debug execution.
-		 */
-		buf_set_u32(r->value, 0, 1, 1);
-		r->dirty = true;
-		r->valid = true;
-
-		/* Make sure we are in Thumb mode */
-		r = armv7m->arm.cpsr;
-		buf_set_u32(r->value, 24, 1, 1);
+	/* current = 1: continue on current pc, otherwise continue at <address> */
+	r = armv7m->arm.pc;
+	if (current) {
+		resume_pc = buf_get_u32(r->value, 0, 32);
+	} else {
+		/* filter out non implemented bit 0 of pc */
+		resume_pc = (uint32_t)address & ~1;
+		buf_set_u32(r->value, 0, 32, resume_pc);
 		r->dirty = true;
 		r->valid = true;
 	}
 
-	/* current = 1: continue on current pc, otherwise continue at <address> */
-	r = armv7m->arm.pc;
-	if (!current) {
-		buf_set_u32(r->value, 0, 32, address);
-		r->dirty = true;
-		r->valid = true;
+	/* The execution addres might have been changed by setting PC register.
+	 * Use saved PC from debug entry to see if we continue execution or not */
+	if (resume_pc != armv7m->pc_at_debug_entry) {
+		r = armv7m->arm.cpsr;
+		uint32_t xpsr = buf_get_u32(r->value, 0, 32);
+		if ((xpsr & ARMV7M_EPSR_MASK) != ARMV7M_EPSR_T_MASK) {
+			/*
+			 * Ensure xPSR.T is set to avoid trying to run things in arm
+			 * (non-thumb) mode, which armv7m does not support.
+			 *
+			 * Because xPSR.T is populated on reset from the vector table,
+			 * it might be 0 if the vector table has "bad" data in it.
+			 */
+			if ((xpsr & ARMV7M_EPSR_T_MASK) == 0)
+				LOG_WARNING("Setting EPSR bit T=1. Check reset vector.");
+
+			/*
+			 * To be exact we need to check the lengths of instructions
+			 * in the IT block. To simplify the code, assume the longest
+			 * Thumb instructions (4 bytes) and tolerate the warning
+			 * is sometimes a false alarm.
+			 */
+			uint32_t it_block_max_bytes = 4 * cortex_m_it_block_size(xpsr);
+			if (resume_pc > armv7m->pc_at_debug_entry
+					&& resume_pc < armv7m->pc_at_debug_entry + it_block_max_bytes)
+				LOG_WARNING("The new execution address might be inside of IT block. If so the rest of IT block will execute unconditionally!");
+
+			/* As we do not continue execution, clear IT/ICI bits and set T */
+			xpsr = (xpsr & ~ARMV7M_EPSR_MASK) | ARMV7M_EPSR_T_MASK;
+			buf_set_u32(r->value, 0, 32, xpsr);
+			r->dirty = true;
+			r->valid = true;
+		}
 	}
 
 	/* if we halted last time due to a bkpt instruction
 	 * then we have to manually step over it, otherwise
 	 * the core will break again */
 
-	if (!breakpoint_find(target, buf_get_u32(r->value, 0, 32))
+	if (!breakpoint_find(target, resume_pc)
 		&& !debug_execution)
 		armv7m_maybe_skip_bkpt_inst(target, NULL);
-
-	resume_pc = buf_get_u32(r->value, 0, 32);
 
 	armv7m_restore_context(target);
 
