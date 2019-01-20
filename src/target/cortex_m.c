@@ -426,12 +426,11 @@ static int cortex_m_debug_entry(struct target *target)
 
 	r = arm->cpsr;
 	xPSR = buf_get_u32(r->value, 0, 32);
+	if ((xPSR & ARMV7M_EPSR_T_MASK) == 0)
+		LOG_WARNING("EPSR bit T=0?!! Check reset vector");
 
-	/* For IT instructions xPSR must be reloaded on resume and clear on debug exec */
-	if (xPSR & 0xf00) {
-		r->dirty = r->valid;
-		cortex_m_store_core_reg_u32(target, 16, xPSR & ~0xff);
-	}
+	if (xPSR & ARMV7M_EPSR_MASK & ~ARMV7M_EPSR_T_MASK)
+		LOG_WARNING("ESPR IT/ICI bits are non zero. We should not see this!");
 
 	/* Are we in an exception handler */
 	if (xPSR & 0x1FF) {
@@ -702,31 +701,6 @@ static int cortex_m_resume(struct target *target, int current,
 		target_free_all_working_areas(target);
 		cortex_m_enable_breakpoints(target);
 		cortex_m_enable_watchpoints(target);
-	}
-
-	if (debug_execution) {
-		r = armv7m->arm.core_cache->reg_list + ARMV7M_PRIMASK;
-
-		/* Disable interrupts */
-		/* We disable interrupts in the PRIMASK register instead of
-		 * masking with C_MASKINTS.  This is probably the same issue
-		 * as Cortex-M3 Erratum 377493 (fixed in r1p0):  C_MASKINTS
-		 * in parallel with disabled interrupts can cause local faults
-		 * to not be taken.
-		 *
-		 * REVISIT this clearly breaks non-debug execution, since the
-		 * PRIMASK register state isn't saved/restored...  workaround
-		 * by never resuming app code after debug execution.
-		 */
-		buf_set_u32(r->value, 0, 1, 1);
-		r->dirty = true;
-		r->valid = true;
-
-		/* Make sure we are in Thumb mode */
-		r = armv7m->arm.cpsr;
-		buf_set_u32(r->value, 24, 1, 1);
-		r->dirty = true;
-		r->valid = true;
 	}
 
 	/* current = 1: continue on current pc, otherwise continue at <address> */

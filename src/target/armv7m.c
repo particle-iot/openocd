@@ -443,6 +443,26 @@ int armv7m_start_algorithm(struct target *target,
 	/* save previous core mode */
 	armv7m_algorithm_info->core_mode = core_mode;
 
+	/* Disable interrupts */
+	/* We disable interrupts in the PRIMASK register instead of
+	 * masking with C_MASKINTS.  This is probably the same issue
+	 * as Cortex-M3 Erratum 377493 (fixed in r1p0):  C_MASKINTS
+	 * in parallel with disabled interrupts can cause local faults
+	 * to not be taken.
+	 */
+	struct reg *reg = &armv7m->arm.core_cache->reg_list[ARMV7M_PRIMASK];
+	buf_set_u32(reg->value, 0, 1, 1);
+	reg->dirty = true;
+	reg->valid = true;
+
+	/* Make sure we start in Thumb mode and reset ICI/IT bits.
+	 * Clear all xPSR bits but T as it makes no harm.
+	 */
+	reg = armv7m->arm.cpsr;
+	buf_set_u32(reg->value, 0, 32, ARMV7M_EPSR_T_MASK);
+	reg->dirty = true;
+	reg->valid = true;
+
 	retval = target_resume(target, 0, entry_point, 1, 1);
 
 	return retval;
