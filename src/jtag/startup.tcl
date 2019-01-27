@@ -160,4 +160,18 @@ proc stlink args {
 	eval hla $args
 }
 
+proc hla {{subcommand ""} args} {
+	if {$subcommand eq "newtap"} {
+		if {[ transport select ] eq "stlink_swim"} {
+			echo "DEPRECATED! use 'swim newtap' not 'hla newtap'"
+			eval swim newtap $args
+		} else {
+			echo "DEPRECATED! use 'swj_newdap' not 'hla newtap'"
+			eval swj_newdap $args
+		}
+	} else {
+		return -code error "Unknown command 'hla $subcommand $args'"
+	}
+}
+
 # END MIGRATION AIDS

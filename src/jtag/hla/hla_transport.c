@@ -46,6 +46,17 @@ COMMAND_HANDLER(hl_transport_reset_command)
 }
 
 static const struct command_registration
+hl_swd_transport_subcommand_handlers[] = {
+	{
+	 .name = "newdap",
+	 .mode = COMMAND_CONFIG,
+	 .jim_handler = jim_hl_newtap,
+	 .help = "declare a new SWD DAP",
+	 },
+	COMMAND_REGISTRATION_DONE
+};
+
+static const struct command_registration
 hl_transport_stlink_subcommand_handlers[] = {
 	{
 	 .name = "newtap",
@@ -120,18 +131,22 @@ hl_transport_jtag_subcommand_handlers[] = {
 	COMMAND_REGISTRATION_DONE
 };
 
-static const struct command_registration stlink_transport_command_handlers[] = {
-
+static const struct command_registration hl_swd_transport_command_handlers[] = {
 	{
-	 .name = "hla",
+	 .name = "swd",
 	 .mode = COMMAND_ANY,
-	 .help = "perform hl adapter actions",
+	 .help = "SWD command group",
 	 .usage = "",
-	 .chain = hl_transport_stlink_subcommand_handlers,
+	 .chain = hl_swd_transport_subcommand_handlers,
 	 },
+	COMMAND_REGISTRATION_DONE
+};
+
+static const struct command_registration hl_jtag_transport_command_handlers[] = {
 	{
 	 .name = "jtag",
 	 .mode = COMMAND_ANY,
+	 .help = "perform jtag tap actions",
 	 .usage = "",
 	 .chain = hl_transport_jtag_subcommand_handlers,
 	 },
@@ -144,11 +159,16 @@ static const struct command_registration stlink_transport_command_handlers[] = {
 	COMMAND_REGISTRATION_DONE
 };
 
-static int hl_transport_register_commands(struct command_context *cmd_ctx)
-{
-	return register_commands(cmd_ctx, NULL,
-				 stlink_transport_command_handlers);
-}
+static const struct command_registration hl_swim_transport_command_handlers[] = {
+	{
+	 .name = "swim",
+	 .mode = COMMAND_ANY,
+	 .help = "SWIM command group",
+	 .usage = "",
+	 .chain = hl_transport_stlink_subcommand_handlers,
+	 },
+	COMMAND_REGISTRATION_DONE
+};
 
 static int hl_transport_init(struct command_context *cmd_ctx)
 {
@@ -189,41 +209,49 @@ static int hl_transport_init(struct command_context *cmd_ctx)
 	return hl_interface_init_target(t);
 }
 
-static int hl_transport_select(struct command_context *ctx)
+static int hl_swd_transport_select(struct command_context *cmd_ctx)
 {
-	LOG_DEBUG("hl_transport_select");
-
-	int retval;
+	LOG_DEBUG("hl_swd_transport_select");
 
 	/* NOTE:  interface init must already have been done.
 	 * That works with only C code ... no Tcl glue required.
 	 */
 
-	retval = hl_transport_register_commands(ctx);
+	return register_commands(cmd_ctx, NULL,
+				hl_swd_transport_command_handlers);
+}
 
-	if (retval != ERROR_OK)
-		return retval;
+static int hl_jtag_transport_select(struct command_context *cmd_ctx)
+{
+	LOG_DEBUG("hl_jtag_transport_select");
+	return register_commands(cmd_ctx, NULL,
+				hl_jtag_transport_command_handlers);
+}
 
-	return ERROR_OK;
+static int hl_swim_transport_select(struct command_context *cmd_ctx)
+{
+	LOG_DEBUG("hl_swim_transport_select");
+	return register_commands(cmd_ctx, NULL,
+				hl_swim_transport_command_handlers);
 }
 
 static struct transport hl_swd_transport = {
 	.name = "hla_swd",
-	.select = hl_transport_select,
+	.select = hl_swd_transport_select,
 	.init = hl_transport_init,
 	.override_target = hl_interface_override_target,
 };
 
 static struct transport hl_jtag_transport = {
 	.name = "hla_jtag",
-	.select = hl_transport_select,
+	.select = hl_jtag_transport_select,
 	.init = hl_transport_init,
 	.override_target = hl_interface_override_target,
 };
 
 static struct transport stlink_swim_transport = {
 	.name = "stlink_swim",
-	.select = hl_transport_select,
+	.select = hl_swim_transport_select,
 	.init = hl_transport_init,
 };
 
