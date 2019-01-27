@@ -617,6 +617,9 @@ produced, PDF schematics are easily found and it is easy to make.
 @* A JTAG driver acting as a client for the JTAG VPI server interface.
 @* Link: @url{http://github.com/fjullien/jtag_vpi}
 
+@item @b{jtag_ap}
+@* A JTAG driver that maps into a single JTAG-AP port
+
 @end itemize
 
 @node About Jim-Tcl
@@ -3130,6 +3133,10 @@ pinout.
 
 @end deffn
 
+@deffn {Interface Driver} {jtag_ap}
+JTAG-AP is a mechanism to allow legacy JTAG devices to be implemented
+within a CoreSight(tm) systen.
+@end deffn
 
 @deffn {Interface Driver} {openjtag}
 OpenJTAG compatible USB adapter.
