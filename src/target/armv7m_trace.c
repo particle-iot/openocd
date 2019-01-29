@@ -166,6 +166,7 @@ COMMAND_HANDLER(handle_tpiu_config_command)
 	struct armv7m_common *armv7m = target_to_armv7m(target);
 
 	unsigned int cmd_idx = 0;
+	int fd;
 
 	if (CMD_ARGC == cmd_idx)
 		return ERROR_COMMAND_SYNTAX_ERROR;
@@ -192,7 +193,8 @@ COMMAND_HANDLER(handle_tpiu_config_command)
 			armv7m->trace_config.config_type = TRACE_CONFIG_TYPE_INTERNAL;
 
 			if (strcmp(CMD_ARGV[cmd_idx], "-") != 0) {
-				armv7m->trace_config.trace_file = fopen(CMD_ARGV[cmd_idx], "ab");
+				fd = open(CMD_ARGV[cmd_idx], O_CREAT | O_RDWR, 0664);
+				armv7m->trace_config.trace_file = fdopen(fd, "ab");
 				if (!armv7m->trace_config.trace_file) {
 					LOG_ERROR("Can't open trace destination file");
 					return ERROR_FAIL;
