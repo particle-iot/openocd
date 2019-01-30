@@ -275,6 +275,7 @@ static const struct samd_part samc21_parts[] = {
 	{ 0x0B, "SAMC21E17A", 128, 16 },
 	{ 0x0C, "SAMC21E16A", 64, 8 },
 	{ 0x0D, "SAMC21E15A", 32, 4 },
+	{ 0x20, "SAMC21N18A", 256, 32 },
 };
 
 /* Each family of parts contains a parts table in the DEVSEL field of DID.  The
