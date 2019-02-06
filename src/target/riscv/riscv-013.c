@@ -1319,6 +1319,7 @@ int wait_for_authbusy(struct target *target, uint32_t *dmstatus)
 static void deinit_target(struct target *target)
 {
 	LOG_DEBUG("riscv_deinit_target()");
+	riscv_free_registers(target);
 	riscv_info_t *info = (riscv_info_t *) target->arch_info;
 	free(info->version_specific);
 	info->version_specific = NULL;

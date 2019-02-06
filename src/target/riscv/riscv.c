@@ -2510,3 +2510,17 @@ int riscv_init_registers(struct target *target)
 
 	return ERROR_OK;
 }
+
+void riscv_free_registers(struct target *target)
+{
+	riscv_info_t *info = (riscv_info_t *) target->arch_info;
+
+	if (target->reg_cache) {
+		if (target->reg_cache->reg_list)
+			free(target->reg_cache->reg_list);
+		free(target->reg_cache);
+	}
+
+	if (info->reg_names)
+		free(info->reg_names);
+}
