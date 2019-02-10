@@ -106,6 +106,10 @@ proc ocd_process_reset_inner { MODE } {
 	# assert/deassert) to happen.  Ideally it takes effect without
 	# first executing any instructions.
 	if { $halt } {
+		# Wait up to 1 second for targets to halt.
+		# Why 1sec? Cause the JTAG tap reset signal might be hooked to a slow
+		# resistor/capacitor circuit - and it might take a while to charge
+		set expire_time_ms [expr [clock milliseconds] + 1000]
 		foreach t $targets {
 			if {[using_jtag] && ![jtag tapisenabled [$t cget -chain-position]]} {
 				continue
@@ -117,19 +121,17 @@ proc ocd_process_reset_inner { MODE } {
 				continue
 			}
 
-			# Wait upto 1 second for target to halt.  Why 1sec? Cause
-			# the JTAG tap reset signal might be hooked to a slow
-			# resistor/capacitor circuit - and it might take a while
-			# to charge
+			# Timeout for arp_waitstate. Negative value is ok, no check required
+			set timeout_ms [expr $expire_time_ms - [clock milliseconds]]
 
 			# Catch, but ignore any errors.
-			catch { $t arp_waitstate halted 1000 }
+			catch { $t arp_waitstate halted $timeout_ms }
 
 			# Did we succeed?
 			set s [$t curstate]
 
 			if { 0 != [string compare $s "halted" ] } {
-				return -code error [format "TARGET: %s - Not halted" $t]
+				echo [format "TARGET: %s - Not halted" $t]
 			}
 		}
 	}
