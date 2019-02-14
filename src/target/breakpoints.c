@@ -41,7 +41,7 @@ static const char * const watchpoint_rw_strings[] = {
 /* monotonic counter/id-number for breakpoints and watch points */
 static int bpwp_unique_id;
 
-int breakpoint_add_internal(struct target *target,
+static int breakpoint_add_internal(struct target *target,
 	target_addr_t address,
 	uint32_t length,
 	enum breakpoint_type type)
@@ -106,7 +106,7 @@ fail:
 	return ERROR_OK;
 }
 
-int context_breakpoint_add_internal(struct target *target,
+static int context_breakpoint_add_internal(struct target *target,
 	uint32_t asid,
 	uint32_t length,
 	enum breakpoint_type type)
@@ -158,7 +158,7 @@ int context_breakpoint_add_internal(struct target *target,
 	return ERROR_OK;
 }
 
-int hybrid_breakpoint_add_internal(struct target *target,
+static int hybrid_breakpoint_add_internal(struct target *target,
 	target_addr_t address,
 	uint32_t asid,
 	uint32_t length,
@@ -310,7 +310,7 @@ static void breakpoint_free(struct target *target, struct breakpoint *breakpoint
 	free(breakpoint);
 }
 
-int breakpoint_remove_internal(struct target *target, target_addr_t address)
+static int breakpoint_remove_internal(struct target *target, target_addr_t address)
 {
 	struct breakpoint *breakpoint = target->breakpoints;
 
@@ -348,7 +348,7 @@ void breakpoint_remove(struct target *target, target_addr_t address)
 		breakpoint_remove_internal(target, address);
 }
 
-void breakpoint_clear_target_internal(struct target *target)
+static void breakpoint_clear_target_internal(struct target *target)
 {
 	LOG_DEBUG("Delete all breakpoints for target: %s",
 		target_name(target));
