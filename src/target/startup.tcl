@@ -224,8 +224,8 @@ proc cortex_a8 args {
 
 # deprecated adapter cmds
 proc adapter_khz args {
-	echo "DEPRECATED! use 'adapter khz' not 'adapter_khz'"
-	eval adapter khz $args
+	echo "DEPRECATED! use 'adapter speed' not 'adapter_khz'"
+	eval adapter speed $args
 }
 
 proc adapter_name args {
