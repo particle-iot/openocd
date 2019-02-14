@@ -330,6 +330,18 @@ static int breakpoint_remove_internal(struct target *target, target_addr_t addre
 		return 0;
 	}
 }
+
+static void breakpoint_remove_all_internal(struct target *target)
+{
+	struct breakpoint *breakpoint = target->breakpoints;
+
+	while (breakpoint) {
+		struct breakpoint *tmp = breakpoint;
+		breakpoint = breakpoint->next;
+		breakpoint_free(target, tmp);
+	}
+}
+
 void breakpoint_remove(struct target *target, target_addr_t address)
 {
 	int found = 0;
@@ -346,6 +358,22 @@ void breakpoint_remove(struct target *target, target_addr_t address)
 			LOG_ERROR("no breakpoint at address " TARGET_ADDR_FMT " found", address);
 	} else
 		breakpoint_remove_internal(target, address);
+}
+
+void breakpoint_remove_all(struct target *target)
+{
+	if (target->smp) {
+		struct target_list *head;
+		struct target *curr;
+		head = target->head;
+		while (head != (struct target_list *)NULL) {
+			curr = head->target;
+			breakpoint_remove_all_internal(curr);
+			head = head->next;
+		}
+	} else {
+		breakpoint_remove_all_internal(target);
+	}
 }
 
 static void breakpoint_clear_target_internal(struct target *target)
