@@ -99,7 +99,8 @@ int flash_driver_write(struct flash_bank *bank,
 	retval = bank->driver->write(bank, buffer, offset, count);
 	if (retval != ERROR_OK) {
 		LOG_ERROR(
-			"error writing to flash at address 0x%08" PRIx32 " at offset 0x%8.8" PRIx32,
+			"error writing to flash at address " TARGET_ADDR_FMT
+			" at offset 0x%8.8" PRIx32,
 			bank->base,
 			offset);
 	}
@@ -117,7 +118,8 @@ int flash_driver_read(struct flash_bank *bank,
 	retval = bank->driver->read(bank, buffer, offset, count);
 	if (retval != ERROR_OK) {
 		LOG_ERROR(
-			"error reading to flash at address 0x%08" PRIx32 " at offset 0x%8.8" PRIx32,
+			"error reading to flash at address " TARGET_ADDR_FMT
+			" at offset 0x%8.8" PRIx32,
 			bank->base,
 			offset);
 	}
@@ -268,7 +270,7 @@ int get_flash_bank_by_num(int num, struct flash_bank **bank)
 /* lookup flash bank by address, bank not found is success, but
  * result_bank is set to NULL. */
 int get_flash_bank_by_addr(struct target *target,
-	uint32_t addr,
+	target_addr_t addr,
 	bool check,
 	struct flash_bank **result_bank)
 {
@@ -294,7 +296,7 @@ int get_flash_bank_by_addr(struct target *target,
 	}
 	*result_bank = NULL;
 	if (check) {
-		LOG_ERROR("No flash at address 0x%08" PRIx32, addr);
+		LOG_ERROR("No flash at address " TARGET_ADDR_FMT, addr);
 		return ERROR_FAIL;
 	}
 	return ERROR_OK;
@@ -414,13 +416,12 @@ int default_flash_blank_check(struct flash_bank *bank)
  * warning about those additions.
  */
 static int flash_iterate_address_range_inner(struct target *target,
-	char *pad_reason, uint32_t addr, uint32_t length,
+	char *pad_reason, target_addr_t addr, uint32_t length,
 	bool iterate_protect_blocks,
 	int (*callback)(struct flash_bank *bank, int first, int last))
 {
 	struct flash_bank *c;
 	struct flash_sector *block_array;
-	uint32_t last_addr = addr + length;	/* first address AFTER end */
 	int first = -1;
 	int last = -1;
 	int i;
@@ -464,8 +465,8 @@ static int flash_iterate_address_range_inner(struct target *target,
 		num_blocks = c->num_sectors;
 	}
 
-	addr -= c->base;
-	last_addr -= c->base;
+	uint32_t offset = addr - c->base;
+	uint32_t offset_last = offset + length;
 
 	for (i = 0; i < num_blocks; i++) {
 		struct flash_sector *f = &block_array[i];
@@ -474,11 +475,11 @@ static int flash_iterate_address_range_inner(struct target *target,
 		/* start only on a sector boundary */
 		if (first < 0) {
 			/* scanned past the first sector? */
-			if (addr < f->offset)
+			if (offset < f->offset)
 				break;
 
 			/* is this the first sector? */
-			if (addr == f->offset)
+			if (offset == f->offset)
 				first = i;
 
 			/* Does this need head-padding?  If so, pad and warn;
@@ -488,20 +489,20 @@ static int flash_iterate_address_range_inner(struct target *target,
 			 * ever know if that data was in use.  The warning
 			 * should help users sort out messes later.
 			 */
-			else if (addr < end && pad_reason) {
+			else if (offset < end && pad_reason) {
 				/* FIXME say how many bytes (e.g. 80 KB) */
 				LOG_WARNING("Adding extra %s range, "
 					"%#8.8x to %#8.8x",
 					pad_reason,
 					(unsigned) f->offset,
-					(unsigned) addr - 1);
+					offset - 1);
 				first = i;
 			} else
 				continue;
 		}
 
 		/* is this (also?) the last sector? */
-		if (last_addr == end) {
+		if (offset_last == end) {
 			last = i;
 			break;
 		}
@@ -509,28 +510,28 @@ static int flash_iterate_address_range_inner(struct target *target,
 		/* Does this need tail-padding?  If so, pad and warn;
 		 * or else force an error.
 		 */
-		if (last_addr < end && pad_reason) {
+		if (offset_last < end && pad_reason) {
 			/* FIXME say how many bytes (e.g. 80 KB) */
 			LOG_WARNING("Adding extra %s range, "
 				"%#8.8x to %#8.8x",
 				pad_reason,
-				(unsigned) last_addr,
+				offset_last,
 				(unsigned) end - 1);
 			last = i;
 			break;
 		}
 
 		/* MUST finish on a sector boundary */
-		if (last_addr <= f->offset)
+		if (offset_last <= f->offset)
 			break;
 	}
 
 	/* invalid start or end address? */
 	if (first == -1 || last == -1) {
-		LOG_ERROR("address range 0x%8.8x .. 0x%8.8x "
-			"is not sector-aligned",
-			(unsigned) (c->base + addr),
-			(unsigned) (c->base + last_addr - 1));
+		LOG_ERROR("address range " TARGET_ADDR_FMT " .. " TARGET_ADDR_FMT
+			" is not sector-aligned",
+			c->base + offset,
+			c->base + offset_last - 1);
 		return ERROR_FLASH_DST_BREAKS_ALIGNMENT;
 	}
 
@@ -545,7 +546,7 @@ static int flash_iterate_address_range_inner(struct target *target,
  * multiple chips.
  */
 static int flash_iterate_address_range(struct target *target,
-	char *pad_reason, uint32_t addr, uint32_t length,
+	char *pad_reason, target_addr_t addr, uint32_t length,
 	bool iterate_protect_blocks,
 	int (*callback)(struct flash_bank *bank, int first, int last))
 {
@@ -579,7 +580,7 @@ static int flash_iterate_address_range(struct target *target,
 }
 
 int flash_erase_address_range(struct target *target,
-	bool pad, uint32_t addr, uint32_t length)
+	bool pad, target_addr_t addr, uint32_t length)
 {
 	return flash_iterate_address_range(target, pad ? "erase" : NULL,
 		addr, length, false, &flash_driver_erase);
@@ -590,7 +591,8 @@ static int flash_driver_unprotect(struct flash_bank *bank, int first, int last)
 	return flash_driver_protect(bank, 0, first, last);
 }
 
-int flash_unlock_address_range(struct target *target, uint32_t addr, uint32_t length)
+int flash_unlock_address_range(struct target *target, target_addr_t addr,
+		uint32_t length)
 {
 	/* By default, pad to sector boundaries ... the real issue here
 	 * is that our (only) caller *permanently* removes protection,
