@@ -1460,7 +1460,8 @@ int target_register_trace_callback(int (*callback)(struct target *target,
 	return ERROR_OK;
 }
 
-int target_register_timer_callback(int (*callback)(void *priv), int time_ms, int periodic, void *priv)
+int target_register_timer_callback(int (*callback)(void *priv),
+		unsigned int time_ms, bool periodic, void *priv)
 {
 	struct target_timer_callback **callbacks_p = &target_timer_callbacks;
 

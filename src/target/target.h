@@ -316,8 +316,8 @@ struct target_trace_callback {
 
 struct target_timer_callback {
 	int (*callback)(void *priv);
-	int time_ms;
-	int periodic;
+	unsigned int time_ms;
+	bool periodic;
 	bool removed;
 	struct timeval when;
 	void *priv;
@@ -385,7 +385,7 @@ int target_call_trace_callbacks(struct target *target, size_t len, uint8_t *data
  * or much more rarely than specified
  */
 int target_register_timer_callback(int (*callback)(void *priv),
-		int time_ms, int periodic, void *priv);
+		unsigned int time_ms, bool periodic, void *priv);
 int target_unregister_timer_callback(int (*callback)(void *priv), void *priv);
 int target_call_timer_callbacks(void);
 /**
