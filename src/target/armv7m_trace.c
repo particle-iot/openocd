@@ -116,7 +116,7 @@ int armv7m_trace_tpiu_config(struct target *target)
 		return retval;
 
 	if (trace_config->config_type == TRACE_CONFIG_TYPE_INTERNAL)
-		target_register_timer_callback(armv7m_poll_trace, 1, 1, target);
+		target_register_timer_callback(armv7m_poll_trace, 1, true, target);
 
 	target_call_event_callbacks(target, TARGET_EVENT_TRACE_CONFIG);
 

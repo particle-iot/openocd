@@ -346,7 +346,7 @@ static int adapter_init_arch_info(struct target *target,
 	armv7m->examine_debug_reason = adapter_examine_debug_reason;
 	armv7m->stlink = true;
 
-	target_register_timer_callback(hl_handle_target_request, 1, 1, target);
+	target_register_timer_callback(hl_handle_target_request, 1, true, target);
 
 	return ERROR_OK;
 }
