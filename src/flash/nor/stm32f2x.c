@@ -766,31 +766,39 @@ static int stm32x_write(struct flash_bank *bank, const uint8_t *buffer,
 	return target_write_u32(target, STM32_FLASH_CR, FLASH_LOCK);
 }
 
-static int setup_sector(struct flash_bank *bank, int start, int num, int size)
+static void setup_sector(struct flash_bank *bank, int i, int size)
 {
+	assert(i < bank->num_sectors);
+	bank->sectors[i].offset = bank->size;
+	bank->sectors[i].size = size;
+	bank->size += bank->sectors[i].size;
+	LOG_DEBUG("sector %d: %dkBytes", i, size >> 10);
+}
 
-	for (int i = start; i < (start + num) ; i++) {
-		assert(i < bank->num_sectors);
-		bank->sectors[i].offset = bank->size;
-		bank->sectors[i].size = size;
-		bank->size += bank->sectors[i].size;
-	    LOG_DEBUG("sector %d: %dkBytes", i, size >> 10);
-	}
-
-	return start + num;
+static int sector_size_in_kb(int i, int max_sector_size_in_kb)
+{
+	assert(i >= 0);
+	if (i < 4)
+		return max_sector_size_in_kb / 8;
+	if (i == 4)
+		return max_sector_size_in_kb / 2;
+	return max_sector_size_in_kb;
 }
 
 static void setup_bank(struct flash_bank *bank, int start,
 	uint16_t flash_size_in_kb, uint16_t max_sector_size_in_kb)
 {
-	int remain;
-
-	start = setup_sector(bank, start, 4, (max_sector_size_in_kb / 8) * 1024);
-	start = setup_sector(bank, start, 1, (max_sector_size_in_kb / 2) * 1024);
-
-	/* remaining sectors all of size max_sector_size_in_kb */
-	remain = (flash_size_in_kb / max_sector_size_in_kb) - 1;
-	start = setup_sector(bank, start, remain, max_sector_size_in_kb * 1024);
+	int remaining_flash_size_in_kb = flash_size_in_kb;
+	int sector_index = 0;
+	while (remaining_flash_size_in_kb > 0) {
+		int size_in_kb = sector_size_in_kb(sector_index, max_sector_size_in_kb);
+		setup_sector(bank, sector_index, size_in_kb * 1024);
+		remaining_flash_size_in_kb -= size_in_kb;
+		sector_index++;
+	}
+	if (remaining_flash_size_in_kb != 0) {
+		LOG_DEBUG("bank of size %dkBytes could not be clustered properly", flash_size_in_kb);
+	}
 }
 
 static int stm32x_get_device_id(struct flash_bank *bank, uint32_t *device_id)
