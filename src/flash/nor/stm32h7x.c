@@ -439,7 +439,7 @@ static int stm32x_protect_check(struct flash_bank *bank)
 		return retval;
 	}
 
-	for (int i = 0; i < bank->num_sectors; i++) {
+	for (unsigned int i = 0; i < bank->num_sectors; i++) {
 		if (stm32x_info->flash_base == FLASH_REG_BASE_B0) {
 			if (stm32x_info->option_bytes.protection & (1 << i))
 				bank->sectors[i].is_protected = 0;
@@ -455,7 +455,8 @@ static int stm32x_protect_check(struct flash_bank *bank)
 	return ERROR_OK;
 }
 
-static int stm32x_erase(struct flash_bank *bank, int first, int last)
+static int stm32x_erase(struct flash_bank *bank, unsigned int first,
+		unsigned int last)
 {
 	struct target *target = bank->target;
 	int retval;
@@ -480,7 +481,7 @@ static int stm32x_erase(struct flash_bank *bank, int first, int last)
 	3. Set the STRT bit in the FLASH_CR register
 	4. Wait for the BSY bit to be cleared
 	 */
-	for (int i = first; i <= last; i++) {
+	for (unsigned int i = first; i <= last; i++) {
 		LOG_DEBUG("erase sector %d", i);
 		retval = target_write_u32(target, stm32x_get_flash_reg(bank, FLASH_CR),
 				FLASH_SER | FLASH_SNB(i) | FLASH_PSIZE_64);
@@ -512,7 +513,8 @@ static int stm32x_erase(struct flash_bank *bank, int first, int last)
 	return ERROR_OK;
 }
 
-static int stm32x_protect(struct flash_bank *bank, int set, int first, int last)
+static int stm32x_protect(struct flash_bank *bank, bool set, unsigned int first,
+		unsigned int last)
 {
 	struct target *target = bank->target;
 	struct stm32h7x_flash_bank *stm32x_info = bank->driver_priv;
@@ -528,7 +530,7 @@ static int stm32x_protect(struct flash_bank *bank, int set, int first, int last)
 		return retval;
 	}
 
-	for (int i = first; i <= last; i++) {
+	for (unsigned int i = first; i <= last; i++) {
 		if (stm32x_info->flash_base == FLASH_REG_BASE_B0) {
 			if (set)
 				stm32x_info->option_bytes.protection &= ~(1 << i);
@@ -755,9 +757,10 @@ flash_lock:
 	return retval;
 }
 
-static void setup_sector(struct flash_bank *bank, int start, int num, int size)
+static void setup_sector(struct flash_bank *bank, unsigned int start,
+		unsigned int num, unsigned int size)
 {
-	for (int i = start; i < (start + num) ; i++) {
+	for (unsigned int i = start; i < (start + num) ; i++) {
 		assert(i < bank->num_sectors);
 		bank->sectors[i].offset = bank->size;
 		bank->sectors[i].size = size;
@@ -1066,8 +1069,6 @@ static int stm32x_mass_erase(struct flash_bank *bank)
 
 COMMAND_HANDLER(stm32x_handle_mass_erase_command)
 {
-	int i;
-
 	if (CMD_ARGC < 1) {
 		command_print(CMD_CTX, "stm32h7x mass_erase <bank>");
 		return ERROR_COMMAND_SYNTAX_ERROR;
@@ -1081,7 +1082,7 @@ COMMAND_HANDLER(stm32x_handle_mass_erase_command)
 	retval = stm32x_mass_erase(bank);
 	if (retval == ERROR_OK) {
 		/* set all sectors as erased */
-		for (i = 0; i < bank->num_sectors; i++)
+		for (unsigned int i = 0; i < bank->num_sectors; i++)
 			bank->sectors[i].is_erased = 1;
 
 		command_print(CMD_CTX, "stm32h7x mass erase complete");

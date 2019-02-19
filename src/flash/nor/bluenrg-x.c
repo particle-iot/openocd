@@ -77,11 +77,12 @@ FLASH_BANK_COMMAND_HANDLER(bluenrgx_flash_bank_command)
 	return ERROR_OK;
 }
 
-static int bluenrgx_erase(struct flash_bank *bank, int first, int last)
+static int bluenrgx_erase(struct flash_bank *bank, unsigned int first,
+		unsigned int last)
 {
 	int retval = ERROR_OK;
 	struct bluenrgx_flash_bank *bluenrgx_info = bank->driver_priv;
-	int num_sectors = (last - first + 1);
+	unsigned int num_sectors = (last - first + 1);
 	int mass_erase = (num_sectors == bank->num_sectors);
 	struct target *target = bank->target;
 	uint32_t address, command;
@@ -134,7 +135,7 @@ static int bluenrgx_erase(struct flash_bank *bank, int first, int last)
 
 	} else {
 		command = FLASH_CMD_ERASE_PAGE;
-		for (int i = first; i <= last; i++) {
+		for (unsigned int i = first; i <= last; i++) {
 			address = bank->base+i*FLASH_PAGE_SIZE;
 
 			if (target_write_u32(target, FLASH_REG_IRQRAW, 0x3f) != ERROR_OK) {
@@ -152,7 +153,7 @@ static int bluenrgx_erase(struct flash_bank *bank, int first, int last)
 				return ERROR_FAIL;
 			}
 
-			for (int j = 0; j < 100; j++) {
+			for (unsigned int j = 0; j < 100; j++) {
 				uint32_t value;
 				if (target_read_u32(target, FLASH_REG_IRQRAW, &value)) {
 					LOG_ERROR("Register write failed");
@@ -172,13 +173,12 @@ static int bluenrgx_erase(struct flash_bank *bank, int first, int last)
 
 }
 
-static int bluenrgx_protect(struct flash_bank *bank, int set, int first, int last)
+static int bluenrgx_protect(struct flash_bank *bank, bool set,
+		unsigned int first, unsigned int last)
 {
 	/* Protection is only handled in software: no hardware write protection
 	   available in BlueNRG-x devices */
-	int sector;
-
-	for (sector = first; sector <= last; sector++)
+	for (unsigned int sector = first; sector <= last; sector++)
 		bank->sectors[sector].is_protected = set;
 	return ERROR_OK;
 }
@@ -470,7 +470,6 @@ static int bluenrgx_probe(struct flash_bank *bank)
 {
 	struct bluenrgx_flash_bank *bluenrgx_info = bank->driver_priv;
 	uint32_t idcode, size_info, die_id;
-	int i;
 	int retval = target_read_u32(bank->target, JTAG_IDCODE_REG, &idcode);
 	if (retval != ERROR_OK)
 		return retval;
@@ -487,7 +486,7 @@ static int bluenrgx_probe(struct flash_bank *bank)
 	bank->num_sectors = bank->size/FLASH_PAGE_SIZE;
 	bank->sectors = realloc(bank->sectors, sizeof(struct flash_sector) * bank->num_sectors);
 
-	for (i = 0; i < bank->num_sectors; i++) {
+	for (unsigned int i = 0; i < bank->num_sectors; i++) {
 		bank->sectors[i].offset = i * FLASH_PAGE_SIZE;
 		bank->sectors[i].size = FLASH_PAGE_SIZE;
 		bank->sectors[i].is_erased = -1;

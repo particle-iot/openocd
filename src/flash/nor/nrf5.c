@@ -396,14 +396,15 @@ static int nrf5_protect_check(struct flash_bank *bank)
 		}
 	}
 
-	for (int i = 0; i < bank->num_sectors; i++)
+	for (unsigned int i = 0; i < bank->num_sectors; i++)
 		bank->sectors[i].is_protected =
 			clenr0 != 0xFFFFFFFF && bank->sectors[i].offset < clenr0;
 
 	return ERROR_OK;
 }
 
-static int nrf5_protect(struct flash_bank *bank, int set, int first, int last)
+static int nrf5_protect(struct flash_bank *bank, bool set, unsigned int first,
+		unsigned int last)
 {
 	int res;
 	uint32_t clenr0, ppfc;
@@ -521,7 +522,7 @@ static int nrf5_probe(struct flash_bank *bank)
 
 		/* Fill out the sector information: all NRF5 sectors are the same size and
 		 * there is always a fixed number of them. */
-		for (int i = 0; i < bank->num_sectors; i++) {
+		for (unsigned int i = 0; i < bank->num_sectors; i++) {
 			bank->sectors[i].size = chip->code_page_size;
 			bank->sectors[i].offset	= i * chip->code_page_size;
 
@@ -761,7 +762,8 @@ error:
 	return res;
 }
 
-static int nrf5_erase(struct flash_bank *bank, int first, int last)
+static int nrf5_erase(struct flash_bank *bank, unsigned int first,
+		unsigned int last)
 {
 	int res;
 	struct nrf5_info *chip;
@@ -771,7 +773,7 @@ static int nrf5_erase(struct flash_bank *bank, int first, int last)
 		return res;
 
 	/* For each sector to be erased */
-	for (int s = first; s <= last && res == ERROR_OK; s++)
+	for (unsigned int s = first; s <= last && res == ERROR_OK; s++)
 		res = nrf5_erase_page(bank, chip, &bank->sectors[s]);
 
 	return res;

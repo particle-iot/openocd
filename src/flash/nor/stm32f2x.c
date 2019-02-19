@@ -522,13 +522,13 @@ static int stm32x_otp_read_protect(struct flash_bank *bank)
 {
 	struct target *target = bank->target;
 	uint32_t lock_base;
-	int i, retval;
+	int retval;
 	uint8_t lock;
 
 	lock_base = stm32x_otp_is_f7(bank) ? STM32F7_OTP_LOCK_BASE
 		  : STM32F2_OTP_LOCK_BASE;
 
-	for (i = 0; i < bank->num_sectors; i++) {
+	for (unsigned int i = 0; i < bank->num_sectors; i++) {
 		retval = target_read_u8(target, lock_base + i, &lock);
 		if (retval != ERROR_OK)
 			return retval;
@@ -538,14 +538,15 @@ static int stm32x_otp_read_protect(struct flash_bank *bank)
 	return ERROR_OK;
 }
 
-static int stm32x_otp_protect(struct flash_bank *bank, int first, int last)
+static int stm32x_otp_protect(struct flash_bank *bank, unsigned int first,
+		unsigned int last)
 {
 	struct target *target = bank->target;
 	uint32_t lock_base;
 	int i, retval;
 	uint8_t lock;
 
-	assert((0 <= first) && (first <= last) && (last < bank->num_sectors));
+	assert((0 == first) && (first <= last) && (last < bank->num_sectors));
 
 	lock_base = stm32x_otp_is_f7(bank) ? STM32F7_OTP_LOCK_BASE
 		  : STM32F2_OTP_LOCK_BASE;
@@ -570,12 +571,13 @@ static int stm32x_protect_check(struct flash_bank *bank)
 {
 	struct stm32x_flash_bank *stm32x_info = bank->driver_priv;
 	struct flash_sector *prot_blocks;
-	int num_prot_blocks;
 	int retval;
 
 	/* if it's the OTP bank, look at the lock bits there */
 	if (stm32x_is_otp(bank))
 		return stm32x_otp_read_protect(bank);
+
+	unsigned int num_prot_blocks;
 
 	/* read write protection settings */
 	retval = stm32x_read_options(bank);
@@ -592,25 +594,25 @@ static int stm32x_protect_check(struct flash_bank *bank)
 		prot_blocks = bank->sectors;
 	}
 
-	for (int i = 0; i < num_prot_blocks; i++)
+	for (unsigned int i = 0; i < num_prot_blocks; i++)
 		prot_blocks[i].is_protected =
 			~(stm32x_info->option_bytes.protection >> i) & 1;
 
 	return ERROR_OK;
 }
 
-static int stm32x_erase(struct flash_bank *bank, int first, int last)
+static int stm32x_erase(struct flash_bank *bank, unsigned int first,
+		unsigned int last)
 {
 	struct stm32x_flash_bank *stm32x_info = bank->driver_priv;
 	struct target *target = bank->target;
-	int i;
 
 	if (stm32x_is_otp(bank)) {
 		LOG_ERROR("Cannot erase OTP memory");
 		return ERROR_FAIL;
 	}
 
-	assert((0 <= first) && (first <= last) && (last < bank->num_sectors));
+	assert((0 == first) && (first <= last) && (last < bank->num_sectors));
 
 	if (bank->target->state != TARGET_HALTED) {
 		LOG_ERROR("Target not halted");
@@ -633,7 +635,7 @@ static int stm32x_erase(struct flash_bank *bank, int first, int last)
 	4. Wait for the BSY bit to be cleared
 	 */
 
-	for (i = first; i <= last; i++) {
+	for (unsigned int i = first; i <= last; i++) {
 		int snb;
 		if (stm32x_info->has_large_mem && i >= 12)
 			snb = (i - 12) | 0x10;
@@ -659,7 +661,8 @@ static int stm32x_erase(struct flash_bank *bank, int first, int last)
 	return ERROR_OK;
 }
 
-static int stm32x_protect(struct flash_bank *bank, int set, int first, int last)
+static int stm32x_protect(struct flash_bank *bank, bool set, unsigned int first,
+		unsigned int last)
 {
 	struct target *target = bank->target;
 	struct stm32x_flash_bank *stm32x_info = bank->driver_priv;
@@ -683,7 +686,7 @@ static int stm32x_protect(struct flash_bank *bank, int set, int first, int last)
 		return retval;
 	}
 
-	for (int i = first; i <= last; i++) {
+	for (unsigned int i = first; i <= last; i++) {
 		if (set)
 			stm32x_info->option_bytes.protection &= ~(1 << i);
 		else
@@ -894,10 +897,11 @@ static int stm32x_write(struct flash_bank *bank, const uint8_t *buffer,
 	return target_write_u32(target, STM32_FLASH_CR, FLASH_LOCK);
 }
 
-static int setup_sector(struct flash_bank *bank, int start, int num, int size)
+static int setup_sector(struct flash_bank *bank, unsigned int start,
+		unsigned int num, unsigned int size)
 {
 
-	for (int i = start; i < (start + num) ; i++) {
+	for (unsigned int i = start; i < (start + num) ; i++) {
 		assert(i < bank->num_sectors);
 		bank->sectors[i].offset = bank->size;
 		bank->sectors[i].size = size;
@@ -1522,8 +1526,6 @@ static int stm32x_mass_erase(struct flash_bank *bank)
 
 COMMAND_HANDLER(stm32x_handle_mass_erase_command)
 {
-	int i;
-
 	if (CMD_ARGC < 1) {
 		command_print(CMD_CTX, "stm32x mass_erase <bank>");
 		return ERROR_COMMAND_SYNTAX_ERROR;
@@ -1537,7 +1539,7 @@ COMMAND_HANDLER(stm32x_handle_mass_erase_command)
 	retval = stm32x_mass_erase(bank);
 	if (retval == ERROR_OK) {
 		/* set all sectors as erased */
-		for (i = 0; i < bank->num_sectors; i++)
+		for (unsigned int i = 0; i < bank->num_sectors; i++)
 			bank->sectors[i].is_erased = 1;
 
 		command_print(CMD_CTX, "stm32x mass erase complete");
