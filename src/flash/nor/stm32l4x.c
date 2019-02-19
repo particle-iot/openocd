@@ -326,7 +326,7 @@ static int stm32l4_protect_check(struct flash_bank *bank)
 	const uint8_t wrp2b_start = wrp2br & 0xFF;
 	const uint8_t wrp2b_end = (wrp2br >> 16) & 0xFF;
 
-	for (int i = 0; i < bank->num_sectors; i++) {
+	for (unsigned int i = 0; i < bank->num_sectors; i++) {
 		if (i < stm32l4_info->bank2_start) {
 			if (((i >= wrp1a_start) &&
 				 (i <= wrp1a_end)) ||
@@ -350,10 +350,10 @@ static int stm32l4_protect_check(struct flash_bank *bank)
 	return ERROR_OK;
 }
 
-static int stm32l4_erase(struct flash_bank *bank, int first, int last)
+static int stm32l4_erase(struct flash_bank *bank, unsigned int first,
+		unsigned int last)
 {
 	struct target *target = bank->target;
-	int i;
 
 	assert(first < bank->num_sectors);
 	assert(last < bank->num_sectors);
@@ -380,7 +380,7 @@ static int stm32l4_erase(struct flash_bank *bank, int first, int last)
 	 */
 	struct stm32l4_flash_bank *stm32l4_info = bank->driver_priv;
 
-	for (i = first; i <= last; i++) {
+	for (unsigned int i = first; i <= last; i++) {
 		uint32_t erase_flags;
 		erase_flags = FLASH_PER | FLASH_STRT;
 
@@ -410,7 +410,8 @@ static int stm32l4_erase(struct flash_bank *bank, int first, int last)
 	return ERROR_OK;
 }
 
-static int stm32l4_protect(struct flash_bank *bank, int set, int first, int last)
+static int stm32l4_protect(struct flash_bank *bank, bool set,
+		unsigned int first, unsigned int last)
 {
 	struct target *target = bank->target;
 	struct stm32l4_flash_bank *stm32l4_info = bank->driver_priv;
@@ -424,7 +425,7 @@ static int stm32l4_protect(struct flash_bank *bank, int set, int first, int last
 	/* Bank 2 */
 	uint32_t reg_value = 0xFF; /* Default to bank un-protected */
 	if (last >= stm32l4_info->bank2_start) {
-		if (set == 1) {
+		if (set) {
 			uint8_t begin = first > stm32l4_info->bank2_start ? first : 0x00;
 			reg_value = ((last & 0xFF) << 16) | begin;
 		}
@@ -820,7 +821,6 @@ static int stm32l4_mass_erase(struct flash_bank *bank, uint32_t action)
 
 COMMAND_HANDLER(stm32l4_handle_mass_erase_command)
 {
-	int i;
 	uint32_t action;
 
 	if (CMD_ARGC < 1) {
@@ -837,7 +837,7 @@ COMMAND_HANDLER(stm32l4_handle_mass_erase_command)
 	retval = stm32l4_mass_erase(bank, action);
 	if (retval == ERROR_OK) {
 		/* set all sectors as erased */
-		for (i = 0; i < bank->num_sectors; i++)
+		for (unsigned int i = 0; i < bank->num_sectors; i++)
 			bank->sectors[i].is_erased = 1;
 
 		command_print(CMD_CTX, "stm32l4x mass erase complete");

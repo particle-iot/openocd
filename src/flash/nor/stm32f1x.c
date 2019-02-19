@@ -373,16 +373,16 @@ static int stm32x_protect_check(struct flash_bank *bank)
 	if (retval != ERROR_OK)
 		return retval;
 
-	for (int i = 0; i < bank->num_prot_blocks; i++)
+	for (unsigned int i = 0; i < bank->num_prot_blocks; i++)
 		bank->prot_blocks[i].is_protected = (protection & (1 << i)) ? 0 : 1;
 
 	return ERROR_OK;
 }
 
-static int stm32x_erase(struct flash_bank *bank, int first, int last)
+static int stm32x_erase(struct flash_bank *bank, unsigned int first,
+		unsigned int last)
 {
 	struct target *target = bank->target;
-	int i;
 
 	if (bank->target->state != TARGET_HALTED) {
 		LOG_ERROR("Target not halted");
@@ -400,7 +400,7 @@ static int stm32x_erase(struct flash_bank *bank, int first, int last)
 	if (retval != ERROR_OK)
 		return retval;
 
-	for (i = first; i <= last; i++) {
+	for (unsigned int i = first; i <= last; i++) {
 		retval = target_write_u32(target, stm32x_get_flash_reg(bank, STM32_FLASH_CR), FLASH_PER);
 		if (retval != ERROR_OK)
 			return retval;
@@ -427,7 +427,8 @@ static int stm32x_erase(struct flash_bank *bank, int first, int last)
 	return ERROR_OK;
 }
 
-static int stm32x_protect(struct flash_bank *bank, int set, int first, int last)
+static int stm32x_protect(struct flash_bank *bank, bool set, unsigned int first,
+		unsigned int last)
 {
 	struct target *target = bank->target;
 	struct stm32x_flash_bank *stm32x_info = bank->driver_priv;
@@ -447,7 +448,7 @@ static int stm32x_protect(struct flash_bank *bank, int set, int first, int last)
 		return retval;
 	}
 
-	for (int i = first; i <= last; i++) {
+	for (unsigned int i = first; i <= last; i++) {
 		if (set)
 			stm32x_info->option_bytes.protection &= ~(1 << i);
 		else
@@ -1488,8 +1489,6 @@ static int stm32x_mass_erase(struct flash_bank *bank)
 
 COMMAND_HANDLER(stm32x_handle_mass_erase_command)
 {
-	int i;
-
 	if (CMD_ARGC < 1)
 		return ERROR_COMMAND_SYNTAX_ERROR;
 
@@ -1501,7 +1500,7 @@ COMMAND_HANDLER(stm32x_handle_mass_erase_command)
 	retval = stm32x_mass_erase(bank);
 	if (retval == ERROR_OK) {
 		/* set all sectors as erased */
-		for (i = 0; i < bank->num_sectors; i++)
+		for (unsigned int i = 0; i < bank->num_sectors; i++)
 			bank->sectors[i].is_erased = 1;
 
 		command_print(CMD_CTX, "stm32x mass erase complete");
