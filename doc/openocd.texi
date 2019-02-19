@@ -8952,6 +8952,14 @@ memory location @var{address}. When dumping the table from @var{address}, print 
 possible (4096) entries are printed.
 @end deffn
 
+@deffn Command {cache_a7_d_dump}
+Dump l1 data cache.
+@end deffn
+
+@deffn Command {cache_a7_i_dump}
+Dump l1 instruction cache.
+@end deffn
+
 @subsection ARMv7-R specific commands
 @cindex Cortex-R
 
