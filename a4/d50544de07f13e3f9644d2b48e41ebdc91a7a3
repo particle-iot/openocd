@@ -1,0 +1,9 @@
+Verified+1: jenkins
+Code-Review+1: Peter Tettelaar <peter@float-iot.nl>
+Code-Review+2: Tomas Vanek <vanekt@fbl.cz>
+Code-Review+1: Mark Schulte <mschulte@lyft.com>
+Submitted-by: Tomas Vanek <vanekt@fbl.cz>
+Submitted-at: Thu, 21 Feb 2019 06:19:55 +0000
+Reviewed-on: http://openocd.zylin.com/4913
+Project: openocd
+Branch: refs/heads/master
