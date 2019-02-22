@@ -550,7 +550,27 @@ static int jim_newtap_cmd(Jim_GetOptInfo *goi)
 		pTap->chip, pTap->tapname, pTap->dotted_name, goi->argc);
 
 	if (!transport_is_jtag()) {
-		/* SWD doesn't require any JTAG tap parameters */
+		while (goi->argc) {
+			e = Jim_GetOpt_Nvp(goi, opts, &n);
+			if (e != JIM_OK) {
+				Jim_GetOpt_NvpUnknown(goi, opts, 0);
+				free(cp);
+				free(pTap);
+				return e;
+			}
+			LOG_DEBUG("Processing option: %s", n->name);
+			switch (n->value) {
+				case NTAP_OPT_EXPECTED_ID:
+					e = jim_newtap_expected_id(n, goi, pTap);
+					if (JIM_OK != e) {
+						free(cp);
+						free(pTap);
+						return e;
+					}
+					break;
+			}	/* switch (n->value) */
+		}	/* while (goi->argc) */
+
 		pTap->enabled = true;
 		jtag_tap_init(pTap);
 		return JIM_OK;

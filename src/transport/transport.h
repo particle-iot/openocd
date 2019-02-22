@@ -95,7 +95,11 @@ int allow_transports(struct command_context *ctx, const char * const *vector);
 bool transports_are_declared(void);
 
 bool transport_is_jtag(void);
+/**
+ * Note this returns true for swd multidrop too
+ */
 bool transport_is_swd(void);
+bool transport_is_multidrop(void);
 
 #if BUILD_HLADAPTER
 bool transport_is_hla(void);

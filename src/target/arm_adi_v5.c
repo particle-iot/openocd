@@ -1522,6 +1522,7 @@ int adiv5_jim_configure(struct target *target, Jim_GetOptInfo *goi)
 	if (pc == NULL) {
 		pc = calloc(1, sizeof(struct adiv5_private_config));
 		pc->ap_num = DP_APSEL_INVALID;
+		pc->swd_target_id = DP_TARGETSEL_INVALID;
 		target->private_config = pc;
 	}
 
@@ -1616,7 +1617,7 @@ int adiv5_jim_configure(struct target *target, Jim_GetOptInfo *goi)
 	return JIM_OK;
 }
 
-int adiv5_verify_config(struct adiv5_private_config *pc)
+int adiv5_verify_config(struct target *target, struct adiv5_private_config *pc)
 {
 	if (pc == NULL)
 		return ERROR_FAIL;
@@ -1624,6 +1625,27 @@ int adiv5_verify_config(struct adiv5_private_config *pc)
 	if (pc->dap == NULL)
 		return ERROR_FAIL;
 
+	/* todo, transport is set by now (at least it is by target_create which calls us today),
+	 *  but we are still band-aiding the fact that we don't have "target" to look up
+	 *  coreid later, or perhaps that we haven't put coreid explicitly on pc via a separate property
+	 */
+	if (target->dap_configured && transport_is_multidrop()) {
+		/* Allow for setting of this upstream, though we don't yet */
+		if (pc->swd_target_id == DP_TARGETSEL_INVALID) {
+			/* todo, we should probably force another explicit set of this value on the dap */
+			if (pc->dap->tap->expected_ids_cnt != 1) {
+				LOG_ERROR("Multidrop currently requires a single expected-id!");
+				return ERROR_FAIL;
+			}
+			if (target->coreid < 0 || target->coreid > 15) {
+				LOG_ERROR("Multidrop currently requires a 4 bit coreid!");
+				return ERROR_FAIL;
+			}
+			pc->swd_target_id = (target->coreid << DP_TARGETSEL_INSTANCEID_SHIFT) | pc->dap->tap->expected_ids[0];
+		}
+	}
+
+	pc->dap->swd_target_id = pc->swd_target_id;
 	return ERROR_OK;
 }
 
