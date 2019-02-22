@@ -1080,7 +1080,7 @@ static void ftdi_swd_swdio_en(bool enable)
 		if (oe->data_mask)
 			ftdi_set_signal(oe, enable ? '1' : '0');
 		else {
-			/* Sets TDI/DO pin (pin 1) to input during rx when both pins are connected
+			/* Sets TDI/DO pin to input during rx when both pins are connected
 			   to SWDIO */
 			if (enable)
 				direction |= jtag_direction_init & 0x0002U;
