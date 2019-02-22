@@ -37,6 +37,7 @@ extern struct rtos_type embKernel_rtos;
 extern struct rtos_type mqx_rtos;
 extern struct rtos_type uCOS_III_rtos;
 extern struct rtos_type nuttx_rtos;
+extern struct rtos_type metal_rtos;
 
 static struct rtos_type *rtos_types[] = {
 	&ThreadX_rtos,
@@ -49,6 +50,7 @@ static struct rtos_type *rtos_types[] = {
 	&mqx_rtos,
 	&uCOS_III_rtos,
 	&nuttx_rtos,
+	&metal_rtos,
 	NULL
 };
 
@@ -61,13 +63,18 @@ int rtos_smp_init(struct target *target)
 	return ERROR_TARGET_INIT_FAILED;
 }
 
-static int rtos_target_for_threadid(struct connection *connection, int64_t threadid, struct target **t)
+static int rtos_target_for_threadid(struct connection *connection, int64_t threadid,
+									bool make_thread_current, struct target **t)
 {
 	struct target *curr = get_target_from_connection(connection);
 	if (t)
 		*t = curr;
 
-	return ERROR_OK;
+	if (!make_thread_current || threadid == curr->rtos->current_thread)
+		return ERROR_OK;
+
+	/* unable to make thread current */
+	return ERROR_FAIL;
 }
 
 static int os_alloc(struct target *target, struct rtos_type *ostype)
@@ -510,6 +517,7 @@ int rtos_get_gdb_reg_list(struct connection *connection)
 		struct rtos_reg *reg_list;
 		int num_regs;
 
+		LOG_DEBUG("RTOS: target core %d", target->coreid);
 		LOG_DEBUG("RTOS: getting register list for thread 0x%" PRIx64
 				  ", target->rtos->current_thread=0x%" PRIx64 "\r\n",
 										current_threadid,

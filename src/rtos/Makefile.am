@@ -15,6 +15,7 @@ noinst_LTLIBRARIES += %D%/librtos.la
 	%D%/chromium-ec.c \
 	%D%/embKernel.c \
 	%D%/mqx.c \
+	%D%/metal.c \
 	%D%/uCOS-III.c \
 	%D%/nuttx.c \
 	%D%/rtos.h \

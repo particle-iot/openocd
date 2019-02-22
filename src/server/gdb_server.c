@@ -770,7 +770,7 @@ static void gdb_signal_reply(struct target *target, struct connection *connectio
 			snprintf(current_thread, sizeof(current_thread), "thread:%016" PRIx64 ";",
 					target->rtos->current_thread);
 			target->rtos->current_threadid = target->rtos->current_thread;
-			target->rtos->gdb_target_for_threadid(connection, target->rtos->current_threadid, &ct);
+			target->rtos->gdb_target_for_threadid(connection, target->rtos->current_threadid, false, &ct);
 			if (!gdb_connection->ctrl_c)
 				signal_var = gdb_last_signal(ct);
 		}
@@ -890,11 +890,20 @@ static void gdb_frontend_halted(struct target *target, struct connection *connec
 		/* stop forwarding log packets! */
 		log_remove_callback(gdb_log_callback, connection);
 
+		struct target *ct = target;
+
+		/* try to determine the correct thread, and correct target */
+		if (target->rtos != NULL) {
+			rtos_update_threads(target);
+			target->rtos->current_threadid = target->rtos->current_thread;
+			target->rtos->gdb_target_for_threadid(connection, target->rtos->current_threadid, false, &ct);
+		}
+
 		/* check fileio first */
 		if (target_get_gdb_fileio_info(target, target->fileio_info) == ERROR_OK)
-			gdb_fileio_reply(target, connection);
+			gdb_fileio_reply(ct, connection);
 		else
-			gdb_signal_reply(target, connection);
+			gdb_signal_reply(ct, connection);
 	}
 }
 
@@ -2774,10 +2783,13 @@ static bool gdb_handle_vcont_packet(struct connection *connection, const char *p
 				/* FIXME: why is this necessary? rtos state should be up-to-date here already! */
 				rtos_update_threads(target);
 
-				target->rtos->gdb_target_for_threadid(connection, thread_id, &ct);
+				/**
+				 * Find the correct target, and attempt to make the thread current (some rtos can)
+				 */
+				target->rtos->gdb_target_for_threadid(connection, thread_id, true, &ct);
 
 				/*
-				 * check if the thread to be stepped is the current rtos thread
+				 * check if the thread to be stepped is now the current rtos thread
 				 * if not, we must fake the step
 				 */
 				if (target->rtos->current_thread != thread_id)
@@ -3348,7 +3360,7 @@ static int gdb_input_inner(struct connection *connection)
 			if (target->state == TARGET_RUNNING) {
 				struct target *t = target;
 				if (target->rtos)
-					target->rtos->gdb_target_for_threadid(connection, target->rtos->current_threadid, &t);
+					target->rtos->gdb_target_for_threadid(connection, target->rtos->current_threadid, false, &t);
 				retval = target_halt(t);
 				if (retval == ERROR_OK)
 					retval = target_poll(t);
