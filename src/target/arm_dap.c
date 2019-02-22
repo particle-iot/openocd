@@ -29,10 +29,12 @@
 #include "helper/command.h"
 #include "transport/transport.h"
 #include "jtag/interface.h"
+#include "jtag/swd.h"
 
 static LIST_HEAD(all_dap);
 
 extern const struct dap_ops swd_dap_ops;
+extern const struct dap_ops swd_multidrop_dap_ops;
 extern const struct dap_ops jtag_dp_ops;
 extern struct jtag_interface *jtag_interface;
 
@@ -41,7 +43,8 @@ struct arm_dap_object {
 	struct list_head lh;
 	struct adiv5_dap dap;
 	char *name;
-	const struct swd_driver *swd;
+	const struct swd_driver *driver;
+	void *transport_private;
 };
 
 static void dap_instance_init(struct adiv5_dap *dap)
@@ -70,13 +73,20 @@ const char *adiv5_dap_name(struct adiv5_dap *self)
 const struct swd_driver *adiv5_dap_swd_driver(struct adiv5_dap *self)
 {
 	struct arm_dap_object *obj = container_of(self, struct arm_dap_object, dap);
-	return obj->swd;
+	return obj->driver;
+}
+
+void *adiv5_dap_swd_transport_private(struct adiv5_dap *self)
+{
+	struct arm_dap_object *obj = container_of(self, struct arm_dap_object, dap);
+	return obj->transport_private;
 }
 
 struct adiv5_dap *adiv5_get_dap(struct arm_dap_object *obj)
 {
 	return &obj->dap;
 }
+
 struct adiv5_dap *dap_instance_by_jim_obj(Jim_Interp *interp, Jim_Obj *o)
 {
 	struct arm_dap_object *obj = NULL;
@@ -104,6 +114,8 @@ static int dap_init_all(void)
 
 	LOG_DEBUG("Initializing all DAPs ...");
 
+	bool had_multidrop = false;
+	bool had_non_multidrop = false;
 	list_for_each_entry(obj, &all_dap, lh) {
 		struct adiv5_dap *dap = &obj->dap;
 
@@ -116,8 +128,19 @@ static int dap_init_all(void)
 			continue;
 
 		if (transport_is_swd()) {
-			dap->ops = &swd_dap_ops;
-			obj->swd = jtag_interface->swd;
+			if (dap->tap->multidrop_targetsel == DP_TARGETSEL_INVALID)
+				had_non_multidrop = true;
+			else
+				had_multidrop = true;
+
+			if (had_multidrop && had_non_multidrop) {
+				LOG_ERROR("Mixture of SWD multidrop DAPs and non multidrop DAPs is not currently supported");
+				return ERROR_FAIL;
+			}
+		    retval = swd_create_transport_session(dap, &dap->ops, &obj->transport_private);
+			if (retval != ERROR_OK)
+				return retval;
+			obj->driver = jtag_interface->swd;
 		} else
 			dap->ops = &jtag_dp_ops;
 
@@ -303,7 +326,12 @@ static int jim_dap_names(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
 
 COMMAND_HANDLER(handle_dap_init)
 {
-	return dap_init_all();
+	int retval;
+	retval = dap_init_all();
+	if (retval != ERROR_OK)
+		LOG_INFO("DAP init failed");
+
+	return retval;
 }
 
 COMMAND_HANDLER(handle_dap_info_command)

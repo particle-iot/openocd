@@ -2397,7 +2397,7 @@ static int aarch64_target_create(struct target *target, Jim_Interp *interp)
 	struct aarch64_private_config *pc = target->private_config;
 	struct aarch64_common *aarch64;
 
-	if (adiv5_verify_config(&pc->adiv5_config) != ERROR_OK)
+	if (adiv5_verify_config(target, &pc->adiv5_config) != ERROR_OK)
 		return ERROR_FAIL;
 
 	aarch64 = calloc(1, sizeof(struct aarch64_common));

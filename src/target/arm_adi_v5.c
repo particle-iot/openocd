@@ -1616,7 +1616,7 @@ int adiv5_jim_configure(struct target *target, Jim_GetOptInfo *goi)
 	return JIM_OK;
 }
 
-int adiv5_verify_config(struct adiv5_private_config *pc)
+int adiv5_verify_config(struct target *target, struct adiv5_private_config *pc)
 {
 	if (pc == NULL)
 		return ERROR_FAIL;

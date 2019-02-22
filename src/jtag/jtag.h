@@ -152,6 +152,8 @@ struct jtag_tap {
 
 	struct jtag_tap_event_action *event_action;
 
+	uint32_t multidrop_targetsel;
+
 	struct jtag_tap *next_tap;
 	/* private pointer to support none-jtag specific functions */
 	void *priv;
