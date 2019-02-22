@@ -2279,7 +2279,7 @@ static int cortex_m_target_create(struct target *target, Jim_Interp *interp)
 	struct adiv5_private_config *pc;
 
 	pc = (struct adiv5_private_config *)target->private_config;
-	if (adiv5_verify_config(pc) != ERROR_OK)
+	if (adiv5_verify_config(target, pc) != ERROR_OK)
 		return ERROR_FAIL;
 
 	struct cortex_m_common *cortex_m = calloc(1, sizeof(struct cortex_m_common));
