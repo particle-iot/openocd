@@ -31,4 +31,7 @@ int gdb_read_smp_packet(struct connection *connection,
 int gdb_write_smp_packet(struct connection *connection,
 		char const *packet, int packet_size);
 
+#define foreach_smp_target(pos, head) \
+	for (pos = head; (pos != NULL); pos = pos->next)
+
 #endif /* OPENOCD_TARGET_SMP_H */
