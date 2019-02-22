@@ -64,9 +64,6 @@ static int aarch64_virt2phys(struct target *target,
 static int aarch64_read_cpu_memory(struct target *target,
 	uint64_t address, uint32_t size, uint32_t count, uint8_t *buffer);
 
-#define foreach_smp_target(pos, head) \
-	for (pos = head; (pos != NULL); pos = pos->next)
-
 static int aarch64_restore_system_control_reg(struct target *target)
 {
 	enum arm_mode target_mode = ARM_MODE_ANY;
