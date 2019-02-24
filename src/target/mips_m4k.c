@@ -1340,11 +1340,11 @@ COMMAND_HANDLER(mips_m4k_handle_smp_off_command)
 	struct target_list *head;
 	struct target *curr;
 	head = target->head;
-	target->smp = 0;
+	target->smp = false;
 	if (head != (struct target_list *)NULL) {
 		while (head != (struct target_list *)NULL) {
 			curr = head->target;
-			curr->smp = 0;
+			curr->smp = false;
 			head = head->next;
 		}
 		/*  fixes the target display to the debugger */
@@ -1360,10 +1360,10 @@ COMMAND_HANDLER(mips_m4k_handle_smp_on_command)
 	struct target *curr;
 	head = target->head;
 	if (head != (struct target_list *)NULL) {
-		target->smp = 1;
+		target->smp = true;
 		while (head != (struct target_list *)NULL) {
 			curr = head->target;
-			curr->smp = 1;
+			curr->smp = true;
 			head = head->next;
 		}
 	}

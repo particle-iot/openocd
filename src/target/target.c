@@ -2003,11 +2003,11 @@ static void target_destroy(struct target *target)
 		struct target_list *head = target->head;
 		while (head != NULL) {
 			struct target_list *pos = head->next;
-			head->target->smp = 0;
+			head->target->smp = false;
 			free(head);
 			head = pos;
 		}
-		target->smp = 0;
+		target->smp = false;
 	}
 
 	free(target->gdb_port_override);
@@ -5842,7 +5842,7 @@ static int jim_target_smp(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
 
 	while (curr != (struct target_list *)NULL) {
 		target = curr->target;
-		target->smp = 1;
+		target->smp = true;
 		target->head = head;
 		curr = curr->next;
 	}
