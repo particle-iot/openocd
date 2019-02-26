@@ -4532,8 +4532,12 @@ void target_handle_event(struct target *target, enum target_event e)
 			struct command_context *cmd_ctx = current_command_context(teap->interp);
 			struct target *saved_target_override = cmd_ctx->current_target_override;
 			cmd_ctx->current_target_override = target;
+			int retval = Jim_EvalObj(teap->interp, teap->body);
 
-			if (Jim_EvalObj(teap->interp, teap->body) != JIM_OK) {
+			if (retval == JIM_RETURN)
+				retval = teap->interp->returnCode;
+
+			if (retval != JIM_OK) {
 				Jim_MakeErrorMessage(teap->interp);
 				command_print(NULL, "%s\n", Jim_GetString(Jim_GetResult(teap->interp), NULL));
 			}
