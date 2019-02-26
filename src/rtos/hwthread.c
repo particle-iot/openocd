@@ -91,6 +91,8 @@ static int hwthread_update_threads(struct rtos *rtos)
 
 	target = rtos->target;
 
+	int64_t saved_current_threadid = rtos->current_threadid;
+
 	/* wipe out previous thread details if any */
 	rtos_free_threadlist(rtos);
 
@@ -106,6 +108,9 @@ static int hwthread_update_threads(struct rtos *rtos)
 		}
 	} else
 		thread_list_size = 1;
+
+	if (saved_current_threadid >= 1 && saved_current_threadid <= thread_list_size)
+		rtos->current_threadid = saved_current_threadid;
 
 	/* create space for new thread details */
 	rtos->thread_details = malloc(sizeof(struct thread_detail) * thread_list_size);
@@ -198,6 +203,16 @@ static int hwthread_update_threads(struct rtos *rtos)
 
 static int hwthread_smp_init(struct target *target)
 {
+	struct target_list *head;
+	for (head = target->head; head != NULL; head = head->next)
+	{
+		if (head->target->rtos != target->rtos) {
+			/*  remap smp target on rtos  */
+			free(head->target->rtos);
+			head->target->rtos = target->rtos;
+		}
+	}
+
 	return hwthread_update_threads(target->rtos);
 }
 
@@ -323,7 +338,7 @@ static int hwthread_thread_packet(struct connection *connection, const char *pac
 			target->rtos->current_thread = current_threadid;
 		} else
 		if (current_threadid == 0 || current_threadid == -1)
-			target->rtos->current_thread = threadid_from_target(target);
+			target->rtos->current_thread = current_threadid = threadid_from_target(target);
 
 		target->rtos->current_threadid = current_threadid;
 
