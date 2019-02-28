@@ -3097,6 +3097,11 @@ This is a driver that supports STMicroelectronics adapters ST-LINK/V2
 (from firmware V2J24) and STLINK-V3, thanks to a new API that provides
 directly access the arm ADIv5 DAP.
 
+The new API provide access to multiple AP on the same DAP, but the
+maximum number of the AP port is limited by the specific firmware version
+(e.g. firmware V2J29 has 3 as maximum AP number, while V2J32 has 8).
+An error is returned for any AP number above the maximum allowed value.
+
 @emph{Note:} Either these same adapters and their older versions are
 also supported by @ref{hla_interface, the hla interface driver}.
 
