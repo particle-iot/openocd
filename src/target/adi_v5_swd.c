@@ -166,22 +166,22 @@ static int swd_queue_ap_abort(struct adiv5_dap *dap, uint8_t *ack)
 }
 
 /** Select the DP register bank matching bits 7:4 of reg. */
-static void swd_queue_dp_bankselect(struct adiv5_dap *dap, unsigned reg)
+static int swd_queue_dp_bankselect(struct adiv5_dap *dap, unsigned reg)
 {
 	/* Only register address 4 is banked. */
 	if ((reg & 0xf) != 4)
-		return;
+		return ERROR_OK;
 
 	uint32_t select_dp_bank = (reg & 0x000000F0) >> 4;
 	uint32_t sel = select_dp_bank
 			| (dap->select & (DP_SELECT_APSEL | DP_SELECT_APBANK));
 
 	if (sel == dap->select)
-		return;
+		return ERROR_OK;
 
 	dap->select = sel;
 
-	swd_queue_dp_write(dap, DP_SELECT, sel);
+	return swd_queue_dp_write(dap, DP_SELECT, sel);
 }
 
 static int swd_queue_dp_read(struct adiv5_dap *dap, unsigned reg,
@@ -194,7 +194,10 @@ static int swd_queue_dp_read(struct adiv5_dap *dap, unsigned reg,
 	if (retval != ERROR_OK)
 		return retval;
 
-	swd_queue_dp_bankselect(dap, reg);
+	retval = swd_queue_dp_bankselect(dap, reg);
+	if (retval != ERROR_OK)
+		return retval;
+
 	swd->read_reg(swd_cmd(true,  false, reg), data, 0);
 
 	return check_sync(dap);
@@ -211,17 +214,21 @@ static int swd_queue_dp_write(struct adiv5_dap *dap, unsigned reg,
 		return retval;
 
 	swd_finish_read(dap);
-	if (reg == DP_SELECT)
+	if (reg == DP_SELECT) {
 		dap->select = data & (DP_SELECT_APSEL | DP_SELECT_APBANK | DP_SELECT_DPBANK);
-	else
-		swd_queue_dp_bankselect(dap, reg);
+	} else {
+		retval = swd_queue_dp_bankselect(dap, reg);
+		if (retval != ERROR_OK)
+			return retval;
+	}
+
 	swd->write_reg(swd_cmd(false,  false, reg), data, 0);
 
 	return check_sync(dap);
 }
 
 /** Select the AP register bank matching bits 7:4 of reg. */
-static void swd_queue_ap_bankselect(struct adiv5_ap *ap, unsigned reg)
+static int swd_queue_ap_bankselect(struct adiv5_ap *ap, unsigned reg)
 {
 	struct adiv5_dap *dap = ap->dap;
 	uint32_t sel = ((uint32_t)ap->ap_num << 24)
@@ -229,11 +236,11 @@ static void swd_queue_ap_bankselect(struct adiv5_ap *ap, unsigned reg)
 			| (dap->select & DP_SELECT_DPBANK);
 
 	if (sel == dap->select)
-		return;
+		return ERROR_OK;
 
 	dap->select = sel;
 
-	swd_queue_dp_write(dap, DP_SELECT, sel);
+	return swd_queue_dp_write(dap, DP_SELECT, sel);
 }
 
 static int swd_queue_ap_read(struct adiv5_ap *ap, unsigned reg,
@@ -247,7 +254,10 @@ static int swd_queue_ap_read(struct adiv5_ap *ap, unsigned reg,
 	if (retval != ERROR_OK)
 		return retval;
 
-	swd_queue_ap_bankselect(ap, reg);
+	retval = swd_queue_ap_bankselect(ap, reg);
+	if (retval != ERROR_OK)
+		return retval;
+
 	swd->read_reg(swd_cmd(true,  true, reg), dap->last_read, ap->memaccess_tck);
 	dap->last_read = data;
 
@@ -266,7 +276,10 @@ static int swd_queue_ap_write(struct adiv5_ap *ap, unsigned reg,
 		return retval;
 
 	swd_finish_read(dap);
-	swd_queue_ap_bankselect(ap, reg);
+	retval = swd_queue_ap_bankselect(ap, reg);
+	if (retval != ERROR_OK)
+		return retval;
+
 	swd->write_reg(swd_cmd(false,  true, reg), data, ap->memaccess_tck);
 
 	return check_sync(dap);
