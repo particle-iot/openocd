@@ -50,6 +50,7 @@
 #include "target_request.h"
 #include "breakpoints.h"
 #include "register.h"
+#include "smp.h"
 #include "trace.h"
 #include "image.h"
 #include "rtos/rtos.h"
@@ -5817,7 +5818,7 @@ static int jim_target_smp(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
 	retval = 0;
 	LOG_DEBUG("%d", argc);
 	/* argv[1] = target to associate in smp
-	 * argv[2] = target to assoicate in smp
+	 * argv[2] = target to associate in smp
 	 * argv[3] ...
 	 */
 
@@ -5839,14 +5840,11 @@ static int jim_target_smp(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
 			}
 		}
 	}
-	/*  now parse the list of cpu and put the target in smp mode*/
-	curr = head;
-
-	while (curr != (struct target_list *)NULL) {
+	/* now parse the list of cpu and put the target in smp mode */
+	foreach_smp_target(curr, head) {
 		target = curr->target;
 		target->smp = 1;
 		target->head = head;
-		curr = curr->next;
 	}
 
 	if (target && target->rtos)

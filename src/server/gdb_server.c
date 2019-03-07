@@ -3406,12 +3406,11 @@ static int gdb_target_start(struct target *target, const char *port)
 	{
 		struct target_list *head;
 		struct target *curr;
-		head = target->head;
-		while (head != (struct target_list *)NULL) {
+
+		foreach_smp_target(head, target->head) {
 			curr = head->target;
 			if (curr != target)
 				curr->gdb_service = gdb_service;
-			head = head->next;
 		}
 	}
 	return ret;

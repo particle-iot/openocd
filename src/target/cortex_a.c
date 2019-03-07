@@ -620,12 +620,10 @@ static struct target *get_cortex_a(struct target *target, int32_t coreid)
 	struct target_list *head;
 	struct target *curr;
 
-	head = target->head;
-	while (head != (struct target_list *)NULL) {
+	foreach_smp_target(head, target->head) {
 		curr = head->target;
 		if ((curr->coreid == coreid) && (curr->state == TARGET_HALTED))
 			return curr;
-		head = head->next;
 	}
 	return target;
 }
@@ -636,13 +634,12 @@ static int cortex_a_halt_smp(struct target *target)
 	int retval = 0;
 	struct target_list *head;
 	struct target *curr;
-	head = target->head;
-	while (head != (struct target_list *)NULL) {
+
+	foreach_smp_target(head, target->head) {
 		curr = head->target;
 		if ((curr != target) && (curr->state != TARGET_HALTED)
 			&& target_was_examined(curr))
 			retval += cortex_a_halt(curr);
-		head = head->next;
 	}
 	return retval;
 }
@@ -944,18 +941,16 @@ static int cortex_a_restore_smp(struct target *target, int handle_breakpoints)
 	struct target_list *head;
 	struct target *curr;
 	target_addr_t address;
-	head = target->head;
-	while (head != (struct target_list *)NULL) {
+
+	foreach_smp_target(head, target->head) {
 		curr = head->target;
 		if ((curr != target) && (curr->state != TARGET_RUNNING)
 			&& target_was_examined(curr)) {
-			/*  resume current address , not in step mode */
+			/* resume current address , not in step mode */
 			retval += cortex_a_internal_restore(curr, 1, &address,
 					handle_breakpoints, 0);
 			retval += cortex_a_internal_restart(curr);
 		}
-		head = head->next;
-
 	}
 	return retval;
 }

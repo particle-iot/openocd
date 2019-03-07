@@ -23,6 +23,7 @@
 
 #include <helper/time_support.h>
 #include <jtag/jtag.h>
+#include "target/smp.h"
 #include "target/target.h"
 #include "target/target_type.h"
 #include "helper/log.h"
@@ -191,17 +192,15 @@ static int linux_os_thread_reg_list(struct rtos *rtos,
 	/*  search target to perfom the access  */
 	struct reg **gdb_reg_list;
 	struct target_list *head;
-	head = target->head;
-	found = 0;
-	do {
-		if (head->target->coreid == next->core_id) {
 
+	found = 0;
+	foreach_smp_target(head, target->head) {
+		if (head->target->coreid == next->core_id) {
 			target = head->target;
 			found = 1;
-		} else
-			head = head->next;
-
-	} while ((head != (struct target_list *)NULL) && (found == 0));
+			break;
+		}
+	}
 
 	if (found == 0) {
 		LOG_ERROR
@@ -398,7 +397,6 @@ int get_name(struct target *target, struct threads *t)
 int get_current(struct target *target, int create)
 {
 	struct target_list *head;
-	head = target->head;
 	uint8_t *buf;
 	uint32_t val;
 	uint32_t ti_addr;
@@ -414,7 +412,7 @@ int get_current(struct target *target, int create)
 		ctt = ctt->next;
 	}
 
-	while (head != (struct target_list *)NULL) {
+	foreach_smp_target(head, target->head) {
 		struct reg **reg_list;
 		int reg_list_size;
 		int retval;
@@ -475,7 +473,6 @@ int get_current(struct target *target, int create)
 		}
 
 		free(reg_list);
-		head = head->next;
 	}
 
 	free(buffer);
@@ -1403,9 +1400,8 @@ static int linux_os_smp_init(struct target *target)
 	struct linux_os *os_linux =
 		(struct linux_os *)rtos->rtos_specific_params;
 	struct current_thread *ct;
-	head = target->head;
 
-	while (head != (struct target_list *)NULL) {
+	foreach_smp_target(head, target->head) {
 		if (head->target->rtos != rtos) {
 			struct linux_os *smp_os_linux =
 				(struct linux_os *)head->target->rtos->
@@ -1423,8 +1419,6 @@ static int linux_os_smp_init(struct target *target)
 			os_linux->nr_cpus++;
 			free(smp_os_linux);
 		}
-
-		head = head->next;
 	}
 
 	return ERROR_OK;
