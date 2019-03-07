@@ -25,6 +25,7 @@
 #include "armv7a.h"
 #include "armv7a_cache.h"
 #include <helper/time_support.h>
+#include "smp.h"
 #include "target.h"
 #include "target_type.h"
 
@@ -194,7 +195,7 @@ static int arm7a_handle_l2x_cache_info_command(struct command_context *cmd_ctx,
 static int armv7a_l2x_cache_init(struct target *target, uint32_t base, uint32_t way)
 {
 	struct armv7a_l2x_cache *l2x_cache;
-	struct target_list *head = target->head;
+	struct target_list *head;
 	struct target *curr;
 
 	struct armv7a_common *armv7a = target_to_armv7a(target);
@@ -210,7 +211,7 @@ static int armv7a_l2x_cache_init(struct target *target, uint32_t base, uint32_t 
 
 	/*  initialize all targets in this cluster (smp target)
 	 *  l2 cache must be configured after smp declaration */
-	while (head != (struct target_list *)NULL) {
+	foreach_smp_target(head, target->head) {
 		curr = head->target;
 		if (curr != target) {
 			armv7a = target_to_armv7a(curr);
@@ -220,7 +221,6 @@ static int armv7a_l2x_cache_init(struct target *target, uint32_t base, uint32_t 
 			}
 			armv7a->armv7a_mmu.armv7a_cache.outer_cache = l2x_cache;
 		}
-		head = head->next;
 	}
 	return ERROR_OK;
 }

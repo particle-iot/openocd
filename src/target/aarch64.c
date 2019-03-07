@@ -316,15 +316,14 @@ static int aarch64_wait_halt_one(struct target *target)
 static int aarch64_prepare_halt_smp(struct target *target, bool exc_target, struct target **p_first)
 {
 	int retval = ERROR_OK;
-	struct target_list *head = target->head;
+	struct target_list *head;
 	struct target *first = NULL;
 
 	LOG_DEBUG("target %s exc %i", target_name(target), exc_target);
 
-	while (head != NULL) {
+	foreach_smp_target(head, target->head) {
 		struct target *curr = head->target;
 		struct armv8_common *armv8 = target_to_armv8(curr);
-		head = head->next;
 
 		if (exc_target && curr == target)
 			continue;

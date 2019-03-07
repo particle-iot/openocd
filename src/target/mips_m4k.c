@@ -130,12 +130,10 @@ static struct target *get_mips_m4k(struct target *target, int32_t coreid)
 	struct target_list *head;
 	struct target *curr;
 
-	head = target->head;
-	while (head != (struct target_list *)NULL) {
+	foreach_smp_target(head, target->head) {
 		curr = head->target;
 		if ((curr->coreid == coreid) && (curr->state == TARGET_HALTED))
 			return curr;
-		head = head->next;
 	}
 	return target;
 }
@@ -145,8 +143,8 @@ static int mips_m4k_halt_smp(struct target *target)
 	int retval = ERROR_OK;
 	struct target_list *head;
 	struct target *curr;
-	head = target->head;
-	while (head != (struct target_list *)NULL) {
+
+	foreach_smp_target(head, target->head) {
 		int ret = ERROR_OK;
 		curr = head->target;
 		if ((curr != target) && (curr->state != TARGET_HALTED))
@@ -156,7 +154,6 @@ static int mips_m4k_halt_smp(struct target *target)
 			LOG_ERROR("halt failed target->coreid: %" PRId32, curr->coreid);
 			retval = ret;
 		}
-		head = head->next;
 	}
 	return retval;
 }
@@ -416,8 +413,7 @@ static int mips_m4k_restore_smp(struct target *target, uint32_t address, int han
 	struct target_list *head;
 	struct target *curr;
 
-	head = target->head;
-	while (head != (struct target_list *)NULL) {
+	foreach_smp_target(head, target->head) {
 		int ret = ERROR_OK;
 		curr = head->target;
 		if ((curr != target) && (curr->state != TARGET_RUNNING)) {
@@ -431,7 +427,6 @@ static int mips_m4k_restore_smp(struct target *target, uint32_t address, int han
 				retval = ret;
 			}
 		}
-		head = head->next;
 	}
 	return retval;
 }
