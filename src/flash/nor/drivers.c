@@ -83,6 +83,7 @@ extern struct flash_driver w600_flash;
 extern struct flash_driver xcf_flash;
 extern struct flash_driver xmc1xxx_flash;
 extern struct flash_driver xmc4xxx_flash;
+extern struct flash_driver uwp5661_flash;
 
 /**
  * The list of built-in flash drivers.
@@ -152,6 +153,7 @@ static struct flash_driver *flash_drivers[] = {
 	&xmc1xxx_flash,
 	&xmc4xxx_flash,
 	&w600_flash,
+	&uwp5661_flash,
 	NULL,
 };
 
