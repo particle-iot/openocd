@@ -38,6 +38,9 @@
 #define ITM_LAR_KEY	0xC5ACCE55
 
 #define CPUID		0xE000ED00
+
+#define ARMV8M_PARTNO_MASK	0xD000
+
 /* Debug Control Block */
 #define DCB_DHCSR	0xE000EDF0
 #define DCB_DCRSR	0xE000EDF4

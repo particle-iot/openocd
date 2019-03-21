@@ -1324,17 +1324,7 @@ int cortex_m_remove_breakpoint(struct target *target, struct breakpoint *breakpo
 int cortex_m_set_watchpoint(struct target *target, struct watchpoint *watchpoint)
 {
 	int dwt_num = 0;
-	uint32_t mask, temp;
 	struct cortex_m_common *cortex_m = target_to_cm(target);
-
-	/* watchpoint params were validated earlier */
-	mask = 0;
-	temp = watchpoint->length;
-	while (temp) {
-		temp >>= 1;
-		mask++;
-	}
-	mask--;
 
 	/* REVISIT Don't fully trust these "not used" records ... users
 	 * may set up breakpoints by hand, e.g. dual-address data value
@@ -1358,11 +1348,23 @@ int cortex_m_set_watchpoint(struct target *target, struct watchpoint *watchpoint
 	target_write_u32(target, comparator->dwt_comparator_address + 0,
 		comparator->comp);
 
-	comparator->mask = mask;
-	target_write_u32(target, comparator->dwt_comparator_address + 4,
-		comparator->mask);
+	struct armv7m_common *armv7m = target_to_armv7m(target);
+	if (!armv7m->arm.is_armv8m) {
+		uint32_t mask = 0, temp;
 
-	switch (watchpoint->rw) {
+		/* watchpoint params were validated earlier */
+		temp = watchpoint->length;
+		while (temp) {
+			temp >>= 1;
+			mask++;
+		}
+		mask--;
+
+		comparator->mask = mask;
+		target_write_u32(target, comparator->dwt_comparator_address + 4,
+			comparator->mask);
+
+		switch (watchpoint->rw) {
 		case WPT_READ:
 			comparator->function = 5;
 			break;
@@ -1372,7 +1374,26 @@ int cortex_m_set_watchpoint(struct target *target, struct watchpoint *watchpoint
 		case WPT_ACCESS:
 			comparator->function = 7;
 			break;
+		}
+	} else {
+		uint32_t data_size = watchpoint->length >> 1;
+		comparator->mask = (watchpoint->length >> 1) | 1;
+
+		switch (watchpoint->rw) {
+		case WPT_ACCESS:
+			comparator->function = 4;
+			break;
+		case WPT_WRITE:
+			comparator->function = 5;
+			break;
+		case WPT_READ:
+			comparator->function = 6;
+			break;
+		}
+		comparator->function = comparator->function | (1 << 4) |
+				(data_size << 10);
 	}
+
 	target_write_u32(target, comparator->dwt_comparator_address + 8,
 		comparator->function);
 
@@ -2045,6 +2066,15 @@ int cortex_m_examine(struct target *target)
 		/* Get CPU Type */
 		i = (cpuid >> 4) & 0xf;
 
+		/* Check for Armv8m CPU */
+		if ((cpuid & 0xf000) == ARMV8M_PARTNO_MASK) {
+			armv7m->arm.is_armv8m = true;
+			if (i == 0)
+				i = 23;
+			else if (i == 1)
+				i = 33;
+		}
+
 		LOG_DEBUG("Cortex-M%d r%" PRId8 "p%" PRId8 " processor detected",
 				i, (uint8_t)((cpuid >> 20) & 0xf), (uint8_t)((cpuid >> 0) & 0xf));
 		if (i == 7) {
@@ -2068,7 +2098,7 @@ int cortex_m_examine(struct target *target)
 				LOG_DEBUG("Cortex-M%d floating point feature FPv4_SP found", i);
 				armv7m->fp_feature = FPv4_SP;
 			}
-		} else if (i == 7) {
+		} else if (i == 7 || i == 33) {
 			target_read_u32(target, MVFR0, &mvfr0);
 			target_read_u32(target, MVFR1, &mvfr1);
 
