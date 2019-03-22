@@ -4370,6 +4370,8 @@ The current implementation supports eSi-32xx cores.
 @item @code{mips_m4k} -- a MIPS core
 @item @code{xscale} -- this is actually an architecture,
 not a CPU type. It is based on the ARMv5 architecture.
+@item @code{xtensa} -- this is an Xtensa LX106 core.
+The current implementation provides limited support for ESP8266, ESP8285 cores.
 @item @code{openrisc} -- this is an OpenRISC 1000 core.
 The current implementation supports three JTAG TAP cores:
 @item @code{ls1_sap} -- this is the SAP on NXP LS102x CPUs,
@@ -9534,6 +9536,23 @@ dmi_read}.
 
 @deffn Command {riscv dmi_write} address value
 Perform a 32-bit DMI write of value at address.
+@end deffn
+
+@section Xtensa Architecture
+
+The Tensilica Xtensa processor architecture is a configurable,
+extensible, and synthesizable 32-bit RISC processor core.
+OpenOCD supports JTAG debug of ESP8266 based on Xtensa LX106 core.
+
+@subsection Xtensa Debug Configuration Commands
+
+@deffn Command {xtensa_no_interrupts_during_steps} enable|disable
+Specifies whether the INTENABLE register will be set to 0 during single-stepping,
+temporarily disabling interrupts.
+@end deffn
+
+@deffn Command {esp8266_autofeed_watchdog} enable|disable
+Specifies whether OpenOCD will feed the ESP8266 software watchdog while the target is halted.
 @end deffn
 
 @anchor{softwaredebugmessagesandtracing}
