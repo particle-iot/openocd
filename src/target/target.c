@@ -110,6 +110,7 @@ extern struct target_type stm8_target;
 extern struct target_type riscv_target;
 extern struct target_type mem_ap_target;
 extern struct target_type esirisc_target;
+extern struct target_type xtensa_target;
 
 static struct target_type *target_types[] = {
 	&arm7tdmi_target,
@@ -148,6 +149,7 @@ static struct target_type *target_types[] = {
 #if BUILD_TARGET64
 	&aarch64_target,
 #endif
+	&xtensa_target,
 	NULL,
 };
 
@@ -2572,6 +2574,51 @@ int target_write_phys_u8(struct target *target, target_addr_t address, uint8_t v
 			  address, value);
 
 	retval = target_write_phys_memory(target, address, 1, 1, &value);
+	if (retval != ERROR_OK)
+		LOG_DEBUG("failed: %i", retval);
+
+	return retval;
+}
+
+int target_read_u64_bf(struct target *target, target_addr_t address, uint64_t *value)
+{
+	uint8_t value_buf[8];
+	if (!target_was_examined(target)) {
+		LOG_ERROR("Target not examined yet");
+		return ERROR_FAIL;
+	}
+
+	int retval = target_read_buffer(target, address, 8, value_buf);
+
+	if (retval == ERROR_OK) {
+		*value = target_buffer_get_u64(target, value_buf);
+		LOG_DEBUG("address: " TARGET_ADDR_FMT ", value: 0x%16.16" PRIx64 "",
+				  address,
+				  *value);
+	} else {
+		*value = 0x0;
+		LOG_DEBUG("address: " TARGET_ADDR_FMT " failed",
+				  address);
+	}
+
+	return retval;
+}
+
+int target_write_u64_bf(struct target *target, target_addr_t address, uint64_t value)
+{
+	int retval;
+	uint8_t value_buf[8];
+	if (!target_was_examined(target)) {
+		LOG_ERROR("Target not examined yet");
+		return ERROR_FAIL;
+	}
+
+	LOG_DEBUG("address: " TARGET_ADDR_FMT ", value: 0x%16.16" PRIx64 "",
+			  address,
+			  value);
+
+	target_buffer_set_u64(target, value_buf, value);
+	retval = target_write_buffer(target, address, 8, value_buf);
 	if (retval != ERROR_OK)
 		LOG_DEBUG("failed: %i", retval);
 
