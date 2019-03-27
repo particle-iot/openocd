@@ -188,6 +188,7 @@ COMMAND_HANDLER(handle_reset_config_command)
 {
 	int new_cfg = 0;
 	int mask = 0;
+	bool display_array = false;
 
 	/* Original versions cared about the order of these tokens:
 	 *   reset_config signals [combination [trst_type [srst_type]]]
@@ -199,6 +200,12 @@ COMMAND_HANDLER(handle_reset_config_command)
 	for (; CMD_ARGC; CMD_ARGC--, CMD_ARGV++) {
 		int tmp = 0;
 		int m;
+
+		/* display configuration in array mode */
+		if (strcmp(*CMD_ARGV, "-array") == 0) {
+			display_array = true;
+			continue;
+		}
 
 		/* gating */
 		m = RESET_SRST_NO_GATING;
@@ -329,6 +336,40 @@ next:
 	/*
 	 * Display the (now-)current reset mode
 	 */
+	if (display_array) {
+		int tmp;
+
+		tmp = new_cfg & (RESET_HAS_TRST | RESET_HAS_SRST);
+		command_print(CMD_CTX, "none %d", tmp == 0);
+		command_print(CMD_CTX, "srst_only %d", tmp == RESET_HAS_SRST);
+		command_print(CMD_CTX, "trst_only %d", tmp == RESET_HAS_TRST);
+		command_print(CMD_CTX, "trst_and_srst %d", tmp == (RESET_HAS_TRST | RESET_HAS_SRST));
+
+		tmp = new_cfg & (RESET_SRST_PULLS_TRST | RESET_TRST_PULLS_SRST);
+		command_print(CMD_CTX, "separate %d", tmp == 0);
+		command_print(CMD_CTX, "srst_pulls_trst %d", tmp == RESET_SRST_PULLS_TRST);
+		command_print(CMD_CTX, "trst_pulls_srst %d", tmp == RESET_TRST_PULLS_SRST);
+		command_print(CMD_CTX, "combined %d", tmp == (RESET_SRST_PULLS_TRST | RESET_TRST_PULLS_SRST));
+
+		tmp = new_cfg & (RESET_HAS_TRST | RESET_TRST_OPEN_DRAIN);
+		command_print(CMD_CTX, "trst_push_pull %d", tmp == RESET_HAS_TRST);
+		command_print(CMD_CTX, "trst_open_drain %d", tmp == (RESET_HAS_TRST | RESET_TRST_OPEN_DRAIN));
+
+		tmp = new_cfg & (RESET_HAS_SRST | RESET_SRST_NO_GATING);
+		command_print(CMD_CTX, "srst_gates_jtag %d", tmp == RESET_HAS_SRST);
+		command_print(CMD_CTX, "srst_nogate %d", tmp == (RESET_HAS_SRST | RESET_SRST_NO_GATING));
+
+		tmp = new_cfg & (RESET_HAS_SRST | RESET_SRST_PUSH_PULL);
+		command_print(CMD_CTX, "srst_open_drain %d", tmp == RESET_HAS_SRST);
+		command_print(CMD_CTX, "srst_push_pull %d", tmp == (RESET_HAS_SRST | RESET_SRST_PUSH_PULL));
+
+		tmp = new_cfg & (RESET_HAS_SRST | RESET_CNCT_UNDER_SRST);
+		command_print(CMD_CTX, "connect_deassert_srst %d", tmp == RESET_HAS_SRST);
+		command_print(CMD_CTX, "connect_assert_srst %d", tmp == (RESET_HAS_SRST | RESET_CNCT_UNDER_SRST));
+
+		return ERROR_OK;
+	}
+
 	char *modes[6];
 
 	/* minimal JTAG has neither SRST nor TRST (so that's the default) */
@@ -561,7 +602,8 @@ static const struct command_registration interface_command_handlers[] = {
 		.handler = handle_reset_config_command,
 		.mode = COMMAND_ANY,
 		.help = "configure adapter reset behavior",
-		.usage = "[none|trst_only|srst_only|trst_and_srst] "
+		.usage = "[-array] "
+			"[none|trst_only|srst_only|trst_and_srst] "
 			"[srst_pulls_trst|trst_pulls_srst|combined|separate] "
 			"[srst_gates_jtag|srst_nogate] "
 			"[trst_push_pull|trst_open_drain] "

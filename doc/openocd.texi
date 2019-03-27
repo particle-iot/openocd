@@ -3480,10 +3480,18 @@ nTRST (active-low JTAG TAP reset) before starting new JTAG operations.
 @end deffn
 
 @anchor {reset_config}
-@deffn {Command} reset_config mode_flag ...
+@deffn {Command} reset_config [-array] [mode_flag ...]
 This command displays or modifies the reset configuration
 of your combination of JTAG board and target in target
 configuration scripts.
+By default the displayed output is the list of @var{mode_flag} enabled.
+With the option @var{-array} the output is suitable to be loaded in a
+TCL associative array, e.g. using the command
+@code{array set r [ocd_reset_config -array]}
+then the array can be indexed by the @var{mode_flag} of the command
+and has value 0 or 1, depending if the @var{mode_flag} is disabled or
+enabled, e.g.
+@code{echo $r(srst_push_pull)} .
 
 Information earlier in this section describes the kind of problems
 the command is intended to address (@pxref{srstandtrstissues,,SRST and TRST Issues}).
