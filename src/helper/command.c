@@ -812,8 +812,6 @@ static COMMAND_HELPER(command_help_find, struct command *head,
 	if (0 == CMD_ARGC)
 		return ERROR_COMMAND_SYNTAX_ERROR;
 	*out = command_find(head, CMD_ARGV[0]);
-	if (NULL == *out && strncmp(CMD_ARGV[0], "ocd_", 4) == 0)
-		*out = command_find(head, CMD_ARGV[0] + 4);
 	if (NULL == *out)
 		return ERROR_COMMAND_SYNTAX_ERROR;
 	if (--CMD_ARGC == 0)
@@ -973,8 +971,6 @@ static int command_unknown_find(unsigned argc, Jim_Obj *const *argv,
 		return argc;
 	const char *cmd_name = Jim_GetString(argv[0], NULL);
 	struct command *c = command_find(head, cmd_name);
-	if (NULL == c && top_level && strncmp(cmd_name, "ocd_", 4) == 0)
-		c = command_find(head, cmd_name + 4);
 	if (NULL == c)
 		return argc;
 	*out = c;
