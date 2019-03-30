@@ -2577,6 +2577,185 @@ COMMAND_HANDLER(aarch64_mask_interrupts_command)
 	return ERROR_OK;
 }
 
+/* convert bitlen bits of v to string b
+   assuming b is at least bitlen+1 size */
+static void tobin(char *b, uint32_t v, uint8_t bitlen)
+{
+	size_t j = 0;
+	for (int i = bitlen - 1; i >= 0; i--) {
+		if (v & (1 << i))
+			b[j] = '1';
+		else
+			b[j] = '0';
+		j++;
+	}
+	b[j] = 0;
+}
+
+COMMAND_HANDLER(aarch64_handle_msr_command)
+{
+	struct target *target = get_current_target(CMD_CTX);
+	struct arm *arm = target_to_arm(target);
+	struct arm_dpm *dpm = arm->dpm;
+	int retval;
+
+	/* armv8_dpm needs some changes for this to support other Rts */
+	uint8_t rt = 0;
+	uint8_t op0;
+	uint8_t op1;
+	uint8_t crN;
+	uint8_t crM;
+	uint8_t op2;
+	uint64_t value;
+
+	switch (CMD_ARGC) {
+		case 6:
+			COMMAND_PARSE_NUMBER(u64, CMD_ARGV[5], value);
+			COMMAND_PARSE_NUMBER(u8, CMD_ARGV[4], op2);
+			COMMAND_PARSE_NUMBER(u8, CMD_ARGV[3], crM);
+			COMMAND_PARSE_NUMBER(u8, CMD_ARGV[2], crN);
+			COMMAND_PARSE_NUMBER(u8, CMD_ARGV[1], op1);
+			COMMAND_PARSE_NUMBER(u8, CMD_ARGV[0], op0);
+			break;
+		default:
+			return ERROR_COMMAND_SYNTAX_ERROR;
+	}
+
+	if (rt > 31) {
+			command_print(CMD_CTX, "Rt should be <= 32");
+			return ERROR_COMMAND_SYNTAX_ERROR;
+	}
+	if (op0 > 3) {
+			command_print(CMD_CTX, "op0 should be <= 3");
+			return ERROR_COMMAND_SYNTAX_ERROR;
+	}
+	if (op1 > 7) {
+			command_print(CMD_CTX, "op1 should be <= 7");
+			return ERROR_COMMAND_SYNTAX_ERROR;
+	}
+	if (crN > 15) {
+			command_print(CMD_CTX, "CRn should be <= 15");
+			return ERROR_COMMAND_SYNTAX_ERROR;
+	}
+	if (crM > 15) {
+			command_print(CMD_CTX, "CRm should be <= 15");
+			return ERROR_COMMAND_SYNTAX_ERROR;
+	}
+	if (op2 > 7) {
+			command_print(CMD_CTX, "op2 should be <= 7");
+			return ERROR_COMMAND_SYNTAX_ERROR;
+	}
+
+	uint32_t systemreg = (op0 << 14) | (op1 << 11) | (crN << 7) | (crM << 3) | op2;
+
+	retval = dpm->prepare(dpm);
+
+	if (retval != ERROR_OK)
+		return retval;
+
+	retval = dpm->instr_write_data_r0_64(
+			dpm,
+			ARMV8_MRS(systemreg, rt),
+			value);
+
+	/* (void) */ dpm->finish(dpm);
+	return retval;
+
+}
+
+COMMAND_HANDLER(aarch64_handle_mrs_command)
+{
+	struct target *target = get_current_target(CMD_CTX);
+	struct arm *arm = target_to_arm(target);
+	struct arm_dpm *dpm = arm->dpm;
+	int retval;
+
+	/* armv8_dpm needs some changes for this to support other Rts */
+	uint8_t rt = 0;
+	uint8_t op0;
+	uint8_t op1;
+	uint8_t crN;
+	uint8_t crM;
+	uint8_t op2;
+
+	switch (CMD_ARGC) {
+		case 5:
+			COMMAND_PARSE_NUMBER(u8, CMD_ARGV[4], op2);
+			COMMAND_PARSE_NUMBER(u8, CMD_ARGV[3], crM);
+			COMMAND_PARSE_NUMBER(u8, CMD_ARGV[2], crN);
+			COMMAND_PARSE_NUMBER(u8, CMD_ARGV[1], op1);
+			COMMAND_PARSE_NUMBER(u8, CMD_ARGV[0], op0);
+			break;
+		default:
+			return ERROR_COMMAND_SYNTAX_ERROR;
+	}
+
+	if (rt > 31) {
+			command_print(CMD_CTX, "Rt should be <= 32");
+			return ERROR_COMMAND_SYNTAX_ERROR;
+	}
+	if (op0 > 3) {
+			command_print(CMD_CTX, "op0 should be <= 3");
+			return ERROR_COMMAND_SYNTAX_ERROR;
+	}
+	if (op1 > 7) {
+			command_print(CMD_CTX, "op1 should be <= 7");
+			return ERROR_COMMAND_SYNTAX_ERROR;
+	}
+	if (crN > 15) {
+			command_print(CMD_CTX, "CRn should be <= 15");
+			return ERROR_COMMAND_SYNTAX_ERROR;
+	}
+	if (crM > 15) {
+			command_print(CMD_CTX, "CRm should be <= 15");
+			return ERROR_COMMAND_SYNTAX_ERROR;
+	}
+	if (op2 > 7) {
+			command_print(CMD_CTX, "op2 should be <= 7");
+			return ERROR_COMMAND_SYNTAX_ERROR;
+	}
+
+	uint32_t systemreg = (op0 << 14) | (op1 << 11) | (crN << 7) | (crM << 3) | op2;
+
+	retval = dpm->prepare(dpm);
+
+	if (retval != ERROR_OK)
+		return retval;
+
+	uint64_t value;
+
+	retval = dpm->instr_read_data_r0_64(
+			dpm,
+			ARMV8_MRS(systemreg, rt),
+			&value);
+
+	if (retval == ERROR_OK) {
+
+		char op0v[3];
+		tobin(op0v, systemreg >> 14, 2);
+		char op1v[4];
+		tobin(op1v, systemreg >> 11, 3);
+		char crNv[5];
+		tobin(crNv, systemreg >> 7, 4);
+		char crMv[5];
+		tobin(crMv, systemreg >> 3, 4);
+		char op2v[4];
+		tobin(op2v, systemreg, 3);
+
+		command_print(CMD_CTX, "S%s_%s_%s_%s_%s: 0x%016" PRIx64,
+				op0v,
+				op1v,
+				crNv,
+				crMv,
+				op2v,
+				value);
+
+	}
+
+	/* (void) */ dpm->finish(dpm);
+	return retval;
+}
+
 static int jim_mcrmrc(Jim_Interp *interp, int argc, Jim_Obj * const *argv)
 {
 	struct command_context *context;
@@ -2749,6 +2928,20 @@ static const struct command_registration aarch64_exec_command_handlers[] = {
 		.jim_handler = jim_mcrmrc,
 		.help = "read coprocessor register",
 		.usage = "cpnum op1 CRn CRm op2",
+	},
+	{
+		.name = "msr",
+		.handler = aarch64_handle_msr_command,
+		.mode = COMMAND_EXEC,
+		.help = "write to system register",
+		.usage = "op0 op1 CRn CRm op2 value",
+	},
+	{
+		.name = "mrs",
+		.handler = aarch64_handle_mrs_command,
+		.mode = COMMAND_EXEC,
+		.help = "read from system register",
+		.usage = "op0 op1 CRn CRm op2",
 	},
 	{
 		.chain = smp_command_handlers,

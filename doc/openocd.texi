@@ -9165,6 +9165,20 @@ Selects whether interrupts will be processed when single stepping. The default c
 @option{on}.
 @end deffn
 
+@deffn Command {aarch64 mrs} op0 op1 CRn CRm op2
+Read the system register encoded with
+@var{op0}, @var{op1}, @var{CRn}, @var{CRm}, @var{op2}
+using the MSR instruction.
+(Uses x0 register)
+@end deffn
+
+@deffn Command {aarch64 msr} op0 op1 CRn CRm op2 value
+Write @var{value} to the system register encoded with
+@var{op0}, @var{op1}, @var{CRn}, @var{CRm}, @var{op2}
+using the MSR instruction.
+(Uses x0 register)
+@end deffn
+
 @section EnSilica eSi-RISC Architecture
 
 eSi-RISC is a highly configurable microprocessor architecture for embedded systems
