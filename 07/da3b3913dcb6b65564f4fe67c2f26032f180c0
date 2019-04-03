@@ -1,0 +1,8 @@
+Verified+1: jenkins
+Code-Review+2: Tomas Vanek <vanekt@fbl.cz>
+Code-Review+1: Christopher Head <chead@zaber.com>
+Submitted-by: Tomas Vanek <vanekt@fbl.cz>
+Submitted-at: Wed, 03 Apr 2019 21:58:07 +0100
+Reviewed-on: http://openocd.zylin.com/4768
+Project: openocd
+Branch: refs/heads/master
