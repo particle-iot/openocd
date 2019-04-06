@@ -30,3 +30,7 @@ add_usage_text script "<file>"
 
 #########
 
+proc ocd_wrapper_deprecated {name args} {
+	echo "DEPRECATED! use '$name' not 'ocd_$name'"
+	eval $name $args
+}
