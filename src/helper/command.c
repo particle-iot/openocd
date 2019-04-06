@@ -356,6 +356,18 @@ static int register_command_handler(struct command_context *cmd_ctx,
 
 	Jim_CmdProc *func = c->handler ? &script_command : &command_unknown;
 	int retval = Jim_CreateCommand(interp, c->name, func, c, NULL);
+	if (retval != JIM_OK)
+		return retval;
+
+	/* FIXME: this should be removed sometime in the future */
+	/* old commands "ocd_%s" are now deprecated */
+	char *deprecated_proc = alloc_printf(
+		"proc ocd_%s {args} {eval ocd_wrapper_deprecated %s $args}",
+		c->name, c->name);
+	if (!deprecated_proc)
+		return JIM_ERR;
+	retval = Jim_Eval_Named(interp, deprecated_proc, 0, 0);
+	free(deprecated_proc);
 
 	return retval;
 }
