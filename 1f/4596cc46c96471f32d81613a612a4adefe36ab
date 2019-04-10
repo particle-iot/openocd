@@ -1,0 +1,8 @@
+Verified+1: jenkins
+Code-Review+1: Tim Newsome <tim@sifive.com>
+Code-Review+2: Matthias Welwarsky <matthias@welwarsky.de>
+Submitted-by: Matthias Welwarsky <matthias@welwarsky.de>
+Submitted-at: Wed, 10 Apr 2019 10:10:15 +0100
+Reviewed-on: http://openocd.zylin.com/5035
+Project: openocd
+Branch: refs/heads/master
