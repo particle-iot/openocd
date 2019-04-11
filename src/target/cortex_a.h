@@ -48,6 +48,14 @@
 #define CPUDBG_LOCKSTATUS 0xFB4
 #define CPUDBG_OSLAR_LK_MASK (1 << 1)
 
+/* LAR (Lock Access Register) bits */
+#define LAR_KEY			(0xC5ACCE55)
+
+/* LSR (Lock Status Register) bits */
+#define LSR_LOCK_IMPLEMENTED	(1 << 0)
+#define LSR_LOCKED		(1 << 1)
+
+
 #define BRP_NORMAL 0
 #define BRP_CONTEXT 1
 
