@@ -203,13 +203,6 @@ static int cortex_a_init_debug_access(struct target *target)
 	uint32_t dscr;
 	int retval;
 
-	/* lock memory-mapped access to debug registers to prevent
-	 * software interference */
-	retval = mem_ap_write_u32(armv7a->debug_ap,
-			armv7a->debug_base + CPUDBG_LOCKACCESS, 0);
-	if (retval != ERROR_OK)
-		return retval;
-
 	/* Disable cacheline fills and force cache write-through in debug state */
 	retval = mem_ap_write_u32(armv7a->debug_ap,
 			armv7a->debug_base + CPUDBG_DSCCR, 0);
@@ -2641,7 +2634,7 @@ static int cortex_a_examine_first(struct target *target)
 
 	int i;
 	int retval = ERROR_OK;
-	uint32_t didr, cpuid, dbg_osreg;
+	uint32_t didr, cpuid, dbg_osreg, dbg_lsr;
 
 	/* Search for the APB-AP - it is needed for access to debug registers */
 	retval = dap_find_ap(swjdp, AP_TYPE_APB_AP, &armv7a->debug_ap);
@@ -2739,6 +2732,37 @@ static int cortex_a_examine_first(struct target *target)
 			/* if we fail to access the register or cannot reset the OSLK bit, bail out */
 			if (retval != ERROR_OK || (dbg_osreg & OSLSR_OSLK) != 0) {
 				LOG_ERROR("target->coreid %" PRId32 " OSLock sticky, core not powered?",
+						target->coreid);
+				target->state = TARGET_UNKNOWN; /* TARGET_NO_POWER? */
+				return ERROR_TARGET_INIT_FAILED;
+			}
+		}
+	}
+
+	/* Read DBGLSR and check if Debug Lock is implemented */
+	/* See Cortex-R5 Tech Ref Manual section 12.3.8 */
+	retval = mem_ap_read_atomic_u32(armv7a->debug_ap,
+				armv7a->debug_base + CPUDBG_LOCKSTATUS, &dbg_lsr);
+	if (retval != ERROR_OK)
+		return retval;
+	LOG_DEBUG("target->coreid %" PRId32 " DBGLSR 0x%" PRIx32, target->coreid, dbg_lsr);
+
+	/* check if Debug Lock is implemented */
+	if ((dbg_lsr & LSR_LOCK_IMPLEMENTED) == LSR_LOCK_IMPLEMENTED) {
+		/* check if Lock is set */
+		if (dbg_lsr & LSR_LOCKED) {
+			LOG_DEBUG("target->coreid %" PRId32 " Debug Lock set! Trying to unlock", target->coreid);
+
+			retval = mem_ap_write_atomic_u32(armv7a->debug_ap,
+							armv7a->debug_base + CPUDBG_LOCKACCESS,
+							LAR_KEY);
+			if (retval == ERROR_OK)
+				retval = mem_ap_read_atomic_u32(armv7a->debug_ap,
+							armv7a->debug_base + CPUDBG_LOCKSTATUS, &dbg_lsr);
+
+			/* if we fail to access the register or cannot reset the LOCKED bit, bail out */
+			if (retval != ERROR_OK || (dbg_lsr & LSR_LOCKED) != 0) {
+				LOG_ERROR("target->coreid %" PRId32 " Debug LOCKED sticky, core not powered?",
 						target->coreid);
 				target->state = TARGET_UNKNOWN; /* TARGET_NO_POWER? */
 				return ERROR_TARGET_INIT_FAILED;

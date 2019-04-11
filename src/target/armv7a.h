@@ -108,6 +108,8 @@ struct armv7a_common {
 	struct adiv5_ap *debug_ap;
 	/* mdir */
 	uint8_t multi_processor_system;
+	uint8_t multi_threading_processor;
+	uint8_t level2_id;
 	uint8_t cluster_id;
 	uint8_t cpu_id;
 	bool is_armv7r;
