@@ -1201,14 +1201,18 @@ static int cortex_a_step(struct target *target, int current, target_addr_t addre
 	if (retval != ERROR_OK)
 		return retval;
 
-	int64_t then = timeval_ms();
-	while (target->state != TARGET_HALTED) {
-		retval = cortex_a_poll(target);
-		if (retval != ERROR_OK)
-			return retval;
-		if (timeval_ms() > then + 1000) {
-			LOG_ERROR("timeout waiting for target halt");
-			return ERROR_FAIL;
+	if (target->state != TARGET_HALTED) {
+		int64_t then = timeval_ms() + 1000;
+		while (1) {
+			retval = cortex_a_poll(target);
+			if (retval != ERROR_OK)
+				return retval;
+			if (target->state == TARGET_HALTED)
+				break;
+			if (timeval_ms() > then) {
+				LOG_ERROR("timeout waiting for target halt");
+				return ERROR_FAIL;
+			}
 		}
 	}
 
