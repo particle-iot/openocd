@@ -741,7 +741,7 @@ int dap_dp_init(struct adiv5_dap *dap)
 int mem_ap_init(struct adiv5_ap *ap)
 {
 	/* check that we support packed transfers */
-	uint32_t csw, cfg;
+	uint32_t csw, cfg, idr;
 	int retval;
 	struct adiv5_dap *dap = ap->dap;
 
@@ -759,9 +759,44 @@ int mem_ap_init(struct adiv5_ap *ap)
 	if (retval != ERROR_OK)
 		return retval;
 
+	retval = dap_queue_ap_read(ap, AP_REG_IDR, &idr);
+	if (retval != ERROR_OK)
+		return retval;
+
 	retval = dap_run(dap);
 	if (retval != ERROR_OK)
 		return retval;
+
+	LOG_DEBUG("MEM_AP %d: IDR=0x%08" PRIX32 " CFG=0x%08" PRIX32,
+			ap->ap_num, idr, cfg);
+
+	/* Initialize mem_ap csw_default based on bus type. */
+	if ((idr & IDR_CLASS) == AP_CLASS_MEM_AP) {
+		if ((idr & IDR_JEP106) == IDR_JEP106_ARM &&
+				(idr & IDR_TYPE) == AP_TYPE_AHB_AP) {
+			LOG_DEBUG("MEM_AP %d recognized as AHB", ap->ap_num);
+			ap->csw_reset_default = CSW_AHB_DEFAULT;
+		} else if ((idr & IDR_JEP106) == IDR_JEP106_ARM &&
+				(idr & IDR_TYPE) == AP_TYPE_AXI_AP) {
+			LOG_DEBUG("MEM_AP %d recognized as AXI", ap->ap_num);
+			ap->csw_reset_default = CSW_AXI_DEFAULT;
+		} else if ((idr & IDR_JEP106) == IDR_JEP106_ARM &&
+				(idr & IDR_TYPE) == AP_TYPE_APB_AP) {
+			LOG_DEBUG("MEM_AP %d recognized as APB", ap->ap_num);
+			ap->csw_reset_default = CSW_APB_DEFAULT;
+		} else {
+			/* CSW.Prot and CSW.Type must reset to a valid access
+			 * type and ARM strongly recommends that these bits are
+			 * reset to a useful access type
+			 */
+			ap->csw_reset_default = csw & 0xFFFFF000;
+			LOG_WARNING("MEM_AP %d unrecognized, use reset CSW from hardware",
+					ap->ap_num);
+		}
+		ap->csw_default = ap->csw_reset_default;
+		LOG_DEBUG("MEM_AP %d initialized default reset CSW 0x%08" PRIX32,
+				ap->ap_num, ap->csw_default);
+	}
 
 	if (csw & CSW_ADDRINC_PACKED)
 		ap->packed_transfers = true;
@@ -1745,7 +1780,7 @@ COMMAND_HANDLER(dap_apcsw_command)
 		return ERROR_OK;
 	case 1:
 		if (strcmp(CMD_ARGV[0], "default") == 0)
-			csw_val = CSW_AHB_DEFAULT;
+			csw_val = dap->ap[dap->apsel].csw_reset_default;
 		else
 			COMMAND_PARSE_NUMBER(u32, CMD_ARGV[0], csw_val);
 

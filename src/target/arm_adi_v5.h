@@ -179,6 +179,12 @@ struct adiv5_ap {
 	uint32_t csw_default;
 
 	/**
+	 * Default reset value for (MEM-AP) AP_REG_CSW register.
+         * Based on IDR or value read from HW
+	 */
+	uint32_t csw_reset_default;
+
+	/**
 	 * Cache for (MEM-AP) AP_REG_CSW register value.  This is written to
 	 * configure an access mode, such as autoincrementing AP_REG_TAR during
 	 * word access.  "-1" indicates no cached value.
