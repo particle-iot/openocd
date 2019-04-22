@@ -77,19 +77,43 @@ static bool string_descriptor_equal(libusb_device_handle *device, uint8_t str_in
 	int retval;
 	bool matched;
 	char desc_string[256+1]; /* Max size of string descriptor */
+	uint8_t tbuf[255];
+	uint16_t langid;
 
 	if (str_index == 0)
 		return false;
 
-	retval = libusb_get_string_descriptor_ascii(device, str_index,
-			(unsigned char *)desc_string, sizeof(desc_string)-1);
-	if (retval < 0) {
-		LOG_ERROR("libusb_get_string_descriptor_ascii() failed with %d", retval);
+
+	/* This replaces the old call to libusb_get_string_descriptor_ascii(), which would
+	 * mangle the reply to 7-bit ASCII, causing trouble on some (i.e. ST-Link) devices.
+	 * First, get the language codes the device has, then just use the first one.
+	 */
+	retval = libusb_get_string_descriptor(device, 0, 0, tbuf, sizeof(tbuf));
+	if (retval < 4) {
+		LOG_ERROR("Could not read language code descriptors from device");
 		return false;
 	}
+	langid = (uint16_t)(tbuf[2] | tbuf[3]<<8);
+	retval = libusb_get_string_descriptor(device, str_index, langid,
+		(unsigned char *)desc_string, sizeof(desc_string));
+	if (retval < 0) {
+		LOG_ERROR("libusb_get_string_descriptor() failed with %d", retval);
+		return false;
+	}
+	/* desc_string is now of the form: <size_in_bytes>, 3, 16-bit unicode characters...
+	 * Mangle this into a 8-bit character string, replacing any unicode character > 255
+	 * with '?'. This is how libusb_get_string_descriptor_ascii() did it.
+	 */
+	int desclen = desc_string[0];
+	int oi = 0; /* Output index */
+	for (int i = 2; i < desclen; i += 2)
+		if (desc_string[i+1])
+			desc_string[oi++] = '?';
+		else
+			desc_string[oi++] = desc_string[i];
 
 	/* Null terminate descriptor string in case it needs to be logged. */
-	desc_string[sizeof(desc_string)-1] = '\0';
+	desc_string[oi] = '\0';
 
 	matched = strncmp(string, desc_string, sizeof(desc_string)) == 0;
 	if (!matched)
