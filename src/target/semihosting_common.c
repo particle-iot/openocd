@@ -1389,8 +1389,12 @@ static int semihosting_common_fileio_end(struct target *target, int result,
 			break;
 
 		case SEMIHOSTING_SYS_READ:	/* 0x06 */
-			if (result == (int)fileio_info->param_3)
-				semihosting->result = 0;
+		        /* 
+			 * translate fileio result == read bytes 
+			 * to semihosting result == unread bytes 
+			 */ 
+			if (result > 0)
+				semihosting->result = (int)fileio_info->param_3 - result;
 			if (result <= 0)
 				semihosting->result = fileio_info->param_3;
 			break;
