@@ -1393,6 +1393,8 @@ static int semihosting_common_fileio_end(struct target *target, int result,
 				semihosting->result = 0;
 			if (result <= 0)
 				semihosting->result = fileio_info->param_3;
+                        if (result > 0)
+                                semihosting->result = fileio_info->param_3 - result;
 			break;
 
 		case SEMIHOSTING_SYS_SEEK:	/* 0x0a */
