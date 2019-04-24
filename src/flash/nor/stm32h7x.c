@@ -353,8 +353,16 @@ static int stm32x_write_options(struct flash_bank *bank)
 	if (retval != ERROR_OK)
 		return retval;
 
+	/* read option register */
+	retval = target_read_u32(target, FLASH_REG_BASE_B0 + FLASH_OPTCUR, &optiondata);
+	if (retval != ERROR_OK)
+		return retval;
+
+	/* keep reserved bits 1 and 26-28 which are masked out from user values */
+	optiondata &= 0x1c000002;
+
 	/* rebuild option data */
-	optiondata = stm32x_info->option_bytes.user_options;
+	optiondata |= stm32x_info->option_bytes.user_options;
 	optiondata |= (stm32x_info->option_bytes.RDP << 8);
 	optiondata |= (stm32x_info->option_bytes.user2_options & 0xff) << 16;
 	optiondata |= (stm32x_info->option_bytes.user3_options & 0xa3) << 24;
