@@ -1099,6 +1099,86 @@ COMMAND_HANDLER(stm32x_handle_mass_erase_command)
 	return retval;
 }
 
+COMMAND_HANDLER(stm32x_handle_options_read_command)
+{
+	int retval;
+	struct flash_bank *bank;
+	struct stm32h7x_flash_bank *info;
+
+	if (CMD_ARGC != 1) {
+		command_print(CMD_CTX, "stm32h7x options_read <bank>");
+		return ERROR_COMMAND_SYNTAX_ERROR;
+	}
+
+	retval = CALL_COMMAND_HANDLER(flash_command_get_bank, 0, &bank);
+	if (retval != ERROR_OK)
+		return retval;
+
+	retval = stm32x_read_options(bank);
+	if (retval != ERROR_OK)
+		return retval;
+
+	info = bank->driver_priv;
+	command_print(CMD_CTX, "stm32h7x user_options 0x%02" PRIX8
+			" user2_options 0x%02" PRIX8
+			" user3_options 0x%02" PRIX8
+			" boot_cm7_add0 0x%04" PRIX32
+			" boot_cm7_add1 0x%04" PRIX32,
+			info->option_bytes.user_options,
+			info->option_bytes.user2_options,
+			info->option_bytes.user3_options,
+			info->option_bytes.boot_addr & 0xffff,
+			info->option_bytes.boot_addr >> 16);
+
+	return ERROR_OK;
+}
+
+COMMAND_HANDLER(stm32x_handle_options_write_command)
+{
+	int retval;
+	struct flash_bank *bank;
+	struct stm32h7x_flash_bank *info;
+
+	if (CMD_ARGC < 1) {
+		command_print(CMD_CTX, "stm32h7x options_write <bank> ...");
+		return ERROR_COMMAND_SYNTAX_ERROR;
+	}
+
+	retval = CALL_COMMAND_HANDLER(flash_command_get_bank, 0, &bank);
+	if (retval != ERROR_OK)
+		return retval;
+	info = bank->driver_priv;
+
+	retval = stm32x_read_options(bank);
+	if (retval != ERROR_OK)
+		return retval;
+
+	if (CMD_ARGC != 4 && CMD_ARGC != 6) {
+		command_print(CMD_CTX,
+				"stm32h7x options_write <bank> <user_options> <user2_options> <user3_options> [ <boot_cm7_add0> <boot_cm7_add1> ]");
+		return ERROR_COMMAND_SYNTAX_ERROR;
+	}
+	COMMAND_PARSE_NUMBER(u8, CMD_ARGV[1], info->option_bytes.user_options);
+	if (info->option_bytes.user_options & 0x03) {
+		command_print(CMD_CTX, "stm32h7x invalid user_options: bits 0 and 1 cannot be set");
+		return ERROR_COMMAND_ARGUMENT_INVALID;
+	}
+	COMMAND_PARSE_NUMBER(u8, CMD_ARGV[2], info->option_bytes.user2_options);
+	COMMAND_PARSE_NUMBER(u8, CMD_ARGV[3], info->option_bytes.user3_options);
+	if (info->option_bytes.user3_options & 0x5c) {
+		command_print(CMD_CTX, "stm32h7x invalid user3_options: bits 2, 3, 4, and 6 cannot be set");
+		return ERROR_COMMAND_ARGUMENT_INVALID;
+	}
+	if (CMD_ARGC == 6) {
+		uint16_t boot_cm7_addr0, boot_cm7_addr1;
+		COMMAND_PARSE_NUMBER(u16, CMD_ARGV[4], boot_cm7_addr0);
+		COMMAND_PARSE_NUMBER(u16, CMD_ARGV[5], boot_cm7_addr1);
+		info->option_bytes.boot_addr = boot_cm7_addr0 | (((uint32_t) boot_cm7_addr1) << 16);
+	}
+
+	return stm32x_write_options(bank);
+}
+
 static const struct command_registration stm32x_exec_command_handlers[] = {
 	{
 		.name = "lock",
@@ -1120,6 +1200,20 @@ static const struct command_registration stm32x_exec_command_handlers[] = {
 		.mode = COMMAND_EXEC,
 		.usage = "bank_id",
 		.help = "Erase entire flash device.",
+	},
+	{
+		.name = "options_read",
+		.handler = stm32x_handle_options_read_command,
+		.mode = COMMAND_EXEC,
+		.usage = "bank_id",
+		.help = "Read and display device option bytes.",
+	},
+	{
+		.name = "options_write",
+		.handler = stm32x_handle_options_write_command,
+		.mode = COMMAND_EXEC,
+		.usage = "bank_id user_options user2_options user3_options [ boot_cm7_add0 boot_cm7_add1 ]",
+		.help = "Write option bytes.",
 	},
 	COMMAND_REGISTRATION_DONE
 };
