@@ -6740,6 +6740,24 @@ The @var{num} parameter is a value shown by @command{flash banks}.
 Mass erases the entire stm32h7x device.
 The @var{num} parameter is a value shown by @command{flash banks}.
 @end deffn
+
+@deffn Command {stm32h7x options_read} num
+Reads and displays device option bytes.
+The @var{num} parameter is a value shown by @command{flash banks}.
+In the output, @var{user_options} is bits 0 through 7 of @code{OPTSR} with bits
+0 and 1 masked out, @var{user_options2} is bits 16 through 23, and
+@var{user_options3} is bits 24 through 31 with bits 26, 27, 28, and 30 masked
+out. @var{boot_add0} and @var{boot_add1} are the upper 16 bits of the boot
+addresses used when the @code{BOOT} pin is low or high respectively.
+@end deffn
+
+@deffn Command {stm32h7x options_write} num user_options user2_options user3_options [boot_add0 boot_add1]
+Writes option bytes.
+The @var{num} parameter is a value shown by @command{flash banks}. The other
+parameters are the values to write, with the same meanings as the values
+printed by @command{stm32h7x options_read}. If @code{boot_add0} and
+@code{boot_add1} are omitted, they are unchanged.
+@end deffn
 @end deffn
 
 @deffn {Flash Driver} stm32lx
