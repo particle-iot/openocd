@@ -43,6 +43,8 @@
 #define FLASH_OPTCCR    0x24
 #define FLASH_WPSNCUR   0x38
 #define FLASH_WPSNPRG   0x3C
+#define FLASH_BOOTCUR   0x40
+#define FLASH_BOOTPRG   0x44
 
 
 /* FLASH_CR register bits */
@@ -106,6 +108,7 @@ struct stm32x_options {
 	uint8_t user_options;
 	uint8_t user2_options;
 	uint8_t user3_options;
+	uint32_t boot_addr;
 };
 
 struct stm32h7x_part_info {
@@ -338,6 +341,11 @@ static int stm32x_read_options(struct flash_bank *bank)
 		return retval;
 	stm32x_info->option_bytes.protection2 = optiondata & 0xff;
 
+	/* read boot addresses */
+	retval = target_read_u32(target, FLASH_REG_BASE_B0 + FLASH_BOOTCUR, &stm32x_info->option_bytes.boot_addr);
+	if (retval != ERROR_OK)
+		return retval;
+
 	return ERROR_OK;
 }
 
@@ -381,6 +389,11 @@ static int stm32x_write_options(struct flash_bank *bank)
 	optiondata = stm32x_info->option_bytes.protection2 & 0xff;
 	/* Program protection WPSNPRG2 */
 	retval = target_write_u32(target, FLASH_REG_BASE_B1 + FLASH_WPSNPRG, optiondata);
+	if (retval != ERROR_OK)
+		return retval;
+
+	/* Program boot addresses */
+	retval = target_write_u32(target, FLASH_REG_BASE_B0 + FLASH_BOOTPRG, stm32x_info->option_bytes.boot_addr);
 	if (retval != ERROR_OK)
 		return retval;
 
