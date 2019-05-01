@@ -104,13 +104,13 @@ static bool string_descriptor_equal(libusb_device_handle *device, uint8_t str_in
 	 * Mangle this into a 8-bit character string, replacing any unicode character > 255
 	 * with '?'. This is how libusb_get_string_descriptor_ascii() did it.
 	 */
-	int desclen=desc_string[0];
-	int oi=0; /* Output index */
-	for(int i=2; i<desclen; i+=2)
-		if( desc_string[i+1] )
-			desc_string[oi++]='?';
+	int desclen = desc_string[0];
+	int oi = 0; /* Output index */
+	for (int i = 2; i < desclen; i += 2)
+		if (desc_string[i+1])
+			desc_string[oi++] = '?';
 		else
-			desc_string[oi++]=desc_string[i];
+			desc_string[oi++] = desc_string[i];
 
 	/* Null terminate descriptor string in case it needs to be logged. */
 	desc_string[oi] = '\0';
