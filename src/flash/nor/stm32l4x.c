@@ -268,7 +268,7 @@ static int stm32l4_unlock_option_reg(struct target *target)
 	return ERROR_OK;
 }
 
-static int stm32l4_read_option(struct flash_bank *bank, uint32_t address, uint32_t* value)
+static int stm32l4_read_option(struct flash_bank *bank, uint32_t address, uint32_t *value)
 {
 	struct target *target = bank->target;
 	return target_read_u32(target, address, value);
