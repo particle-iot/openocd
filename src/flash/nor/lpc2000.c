@@ -15,6 +15,9 @@
  *   LPC8N04/HNS31xx support Copyright (C) 2018                            *
  *   by Jean-Christian de Rivaz jcdr [at] innodelec [dot] ch               *
  *                                                                         *
+ *   LPC804 support Copyright (C) 2019                                     *
+ *   by Jerry Evans g40 [at] novadsp [dot] com                             *
+ *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
  *   the Free Software Foundation; either version 2 of the License, or     *
@@ -265,6 +268,13 @@
 #define LPC824_201     0x00008241
 #define LPC824_201_1   0x00008242
 
+/* UM11065 section 4.5.12 Table 20 */
+#define LPC804_101_64 0x00008040
+#define LPC804_101_20 0x00008041
+#define LPC804_101_24 0x00008042
+#define LPC804_111_24 0x00008043
+#define LPC804_101_33 0x00008044
+
 #define LPC8N04        0x00008A04
 #define NHS3100        0x4e310020
 #define NHS3152        0x4e315220
@@ -282,6 +292,8 @@
 #define IAP_CODE_LEN 0x34
 
 #define LPC11xx_REG_SECTORS	24
+/* UM11065 PP31 */
+#define LPC800_IAP_ENTRY 0x0F001FF1
 
 typedef enum {
 	lpc2000_v1,
@@ -289,6 +301,7 @@ typedef enum {
 	lpc1700,
 	lpc4300,
 	lpc800,
+	lpc804,
 	lpc1100,
 	lpc1500,
 	lpc54100,
@@ -306,6 +319,20 @@ struct lpc2000_flash_bank {
 	uint32_t lpc4300_bank;
 	uint32_t iap_entry_alternative;
 	bool probed;
+};
+
+enum lpc2000_op_codes {
+	IAP_INIT = 49,
+	IAP_PREPARE = 50,
+	IAP_COPY_RAM2FLASH,
+	IAP_ERASE_SECTOR,
+	IAP_CHECK_SECTOR_BLANK,
+	IAP_READ_PART_ID,
+	IAP_READ_BOOT_VERSION,
+	IAP_COMPARE,
+	IAP_REINVOKE_ISP,
+	IAP_READ_UID,
+	IAP_ERASE_PAGE
 };
 
 enum lpc2000_status_codes {
@@ -565,6 +592,23 @@ static int lpc2000_build_sector_list(struct flash_bank *bank)
 				LOG_ERROR("BUG: unknown bank->size encountered");
 				exit(-1);
 		}
+	} else if (lpc2000_info->variant == lpc804) {
+		lpc2000_info->cmd51_dst_boundary = 64;
+		lpc2000_info->checksum_vector = 7;
+		/* NXP forum answer implies 48 but had problems with that */
+		lpc2000_info->iap_max_stack = 208;
+		/* LPC804 has 8 kB of SRAM */
+		lpc2000_info->cmd51_max_buffer = 256;
+
+		switch (bank->size) {
+			case 32 * 1024:
+				lpc2000_info->cmd51_max_buffer = 1024;
+				bank->num_sectors = 32;
+				break;
+			default:
+				LOG_ERROR("BUG: unknown bank->size encountered");
+				exit(-1);
+		}
 
 		bank->sectors = malloc(sizeof(struct flash_sector) * bank->num_sectors);
 
@@ -698,6 +742,7 @@ static int lpc2000_iap_working_area_init(struct flash_bank *bank, struct working
 	/* write IAP code to working area */
 	switch (lpc2000_info->variant) {
 		case lpc800:
+		case lpc804:
 		case lpc1100:
 		case lpc1500:
 		case lpc1700:
@@ -719,7 +764,7 @@ static int lpc2000_iap_working_area_init(struct flash_bank *bank, struct working
 
 	int retval = target_write_memory(target, (*iap_working_area)->address, 4, 2, jump_gate);
 	if (retval != ERROR_OK) {
-		LOG_ERROR("Write memory at address " TARGET_ADDR_FMT " failed (check work_area definition)",
+		LOG_ERROR("Write memory at address 0x%8.8" TARGET_PRIxADDR " failed (check work_area definition)",
 				(*iap_working_area)->address);
 		target_free_working_area(target, *iap_working_area);
 	}
@@ -740,6 +785,11 @@ static int lpc2000_iap_call(struct flash_bank *bank, struct working_area *iap_wo
 	uint32_t iap_entry_point = 0;	/* to make compiler happier */
 
 	switch (lpc2000_info->variant) {
+		case lpc804:
+			armv7m_info.common_magic = ARMV7M_COMMON_MAGIC;
+			armv7m_info.core_mode = ARM_MODE_THREAD;
+			iap_entry_point = LPC800_IAP_ENTRY;
+			break;
 		case lpc800:
 		case lpc1100:
 		case lpc1700:
@@ -803,6 +853,7 @@ static int lpc2000_iap_call(struct flash_bank *bank, struct working_area *iap_wo
 
 	switch (lpc2000_info->variant) {
 		case lpc800:
+		case lpc804:
 		case lpc1100:
 		case lpc1500:
 		case lpc1700:
@@ -884,7 +935,7 @@ static int lpc2000_iap_blank_check(struct flash_bank *bank, int first, int last)
 	for (int i = first; i <= last && retval == ERROR_OK; i++) {
 		/* check single sector */
 		param_table[0] = param_table[1] = i;
-		int status_code = lpc2000_iap_call(bank, iap_working_area, 53, param_table, result_table);
+		int status_code = lpc2000_iap_call(bank, iap_working_area, IAP_CHECK_SECTOR_BLANK, param_table, result_table);
 
 		switch (status_code) {
 			case ERROR_FLASH_OPERATION_FAILED:
@@ -937,6 +988,8 @@ FLASH_BANK_COMMAND_HANDLER(lpc2000_flash_bank_command)
 		lpc2000_info->variant = lpc4300;
 	} else if (strcmp(CMD_ARGV[6], "lpc800") == 0) {
 		lpc2000_info->variant = lpc800;
+	} else if (strcmp(CMD_ARGV[6], "lpc804") == 0) {
+		lpc2000_info->variant = lpc804;
 	} else if (strcmp(CMD_ARGV[6], "lpc1100") == 0) {
 		lpc2000_info->variant = lpc1100;
 	} else if (strcmp(CMD_ARGV[6], "lpc1500") == 0) {
@@ -993,6 +1046,8 @@ static int lpc2000_erase(struct flash_bank *bank, int first, int last)
 
 	if (lpc2000_info->variant == lpc4300)
 		param_table[2] = lpc2000_info->lpc4300_bank;
+	else if (lpc2000_info->variant == lpc804)
+		param_table[2] = 0;
 	else
 		param_table[2] = lpc2000_info->cclk;
 
@@ -1006,10 +1061,10 @@ static int lpc2000_erase(struct flash_bank *bank, int first, int last)
 
 	if (lpc2000_info->variant == lpc4300)
 		/* Init IAP Anyway */
-		lpc2000_iap_call(bank, iap_working_area, 49, param_table, result_table);
+		lpc2000_iap_call(bank, iap_working_area, IAP_INIT, param_table, result_table);
 
 	/* Prepare sectors */
-	int status_code = lpc2000_iap_call(bank, iap_working_area, 50, param_table, result_table);
+	int status_code = lpc2000_iap_call(bank, iap_working_area, IAP_PREPARE, param_table, result_table);
 	switch (status_code) {
 		case ERROR_FLASH_OPERATION_FAILED:
 			retval = ERROR_FLASH_OPERATION_FAILED;
@@ -1030,8 +1085,10 @@ static int lpc2000_erase(struct flash_bank *bank, int first, int last)
 		param_table[2] = lpc2000_info->cclk;
 		if (lpc2000_info->variant == lpc4300)
 			param_table[3] = lpc2000_info->lpc4300_bank;
+		else if (lpc2000_info->variant == lpc804)
+			param_table[2] = 0;
 
-		status_code = lpc2000_iap_call(bank, iap_working_area, 52, param_table, result_table);
+		status_code = lpc2000_iap_call(bank, iap_working_area, IAP_ERASE_SECTOR, param_table, result_table);
 		switch (status_code) {
 			case ERROR_FLASH_OPERATION_FAILED:
 				retval = ERROR_FLASH_OPERATION_FAILED;
@@ -1134,7 +1191,7 @@ static int lpc2000_write(struct flash_bank *bank, const uint8_t *buffer, uint32_
 
 	if (lpc2000_info->variant == lpc4300)
 		/* Init IAP Anyway */
-		lpc2000_iap_call(bank, iap_working_area, 49, param_table, result_table);
+		lpc2000_iap_call(bank, iap_working_area, IAP_INIT, param_table, result_table);
 
 	while (bytes_remaining > 0) {
 		uint32_t thisrun_bytes;
@@ -1149,10 +1206,12 @@ static int lpc2000_write(struct flash_bank *bank, const uint8_t *buffer, uint32_
 
 		if (lpc2000_info->variant == lpc4300)
 			param_table[2] = lpc2000_info->lpc4300_bank;
+		else if (lpc2000_info->variant == lpc804)
+			param_table[2] = 0;
 		else
 			param_table[2] = lpc2000_info->cclk;
 
-		int status_code = lpc2000_iap_call(bank, iap_working_area, 50, param_table, result_table);
+		int status_code = lpc2000_iap_call(bank, iap_working_area, IAP_PREPARE, param_table, result_table);
 		switch (status_code) {
 			case ERROR_FLASH_OPERATION_FAILED:
 				retval = ERROR_FLASH_OPERATION_FAILED;
@@ -1186,15 +1245,18 @@ static int lpc2000_write(struct flash_bank *bank, const uint8_t *buffer, uint32_
 			free(last_buffer);
 		}
 
-		LOG_DEBUG("writing 0x%" PRIx32 " bytes to address " TARGET_ADDR_FMT,
-				thisrun_bytes, bank->base + offset + bytes_written);
+		LOG_DEBUG("writing 0x%" PRIx32 " bytes to address 0x%" PRIx32, thisrun_bytes,
+				(unsigned int) bank->base + offset + bytes_written);
 
 		/* Write data */
 		param_table[0] = bank->base + offset + bytes_written;
 		param_table[1] = download_area->address;
 		param_table[2] = thisrun_bytes;
 		param_table[3] = lpc2000_info->cclk;
-		status_code = lpc2000_iap_call(bank, iap_working_area, 51, param_table, result_table);
+		if (lpc2000_info->variant == lpc804)
+			param_table[3] = 0;
+
+		status_code = lpc2000_iap_call(bank, iap_working_area, IAP_COPY_RAM2FLASH, param_table, result_table);
 		switch (status_code) {
 			case ERROR_FLASH_OPERATION_FAILED:
 				retval = ERROR_FLASH_OPERATION_FAILED;
@@ -1245,7 +1307,7 @@ static int get_lpc2000_part_id(struct flash_bank *bank, uint32_t *part_id)
 
 	/* The status seems to be bogus with the part ID command on some IAP
 	   firmwares, so ignore it. */
-	lpc2000_iap_call(bank, iap_working_area, 54, param_table, result_table);
+	lpc2000_iap_call(bank, iap_working_area, IAP_READ_PART_ID, param_table, result_table);
 
 	struct target *target = bank->target;
 	target_free_working_area(target, iap_working_area);
@@ -1480,6 +1542,15 @@ static int lpc2000_auto_probe_flash(struct flash_bank *bank)
 		case LPC822_101_1:
 			lpc2000_info->variant = lpc800;
 			bank->size = 16 * 1024;
+			break;
+
+		case LPC804_101_64:
+		case LPC804_101_20:
+		case LPC804_101_24:
+		case LPC804_111_24:
+		case LPC804_101_33:
+			lpc2000_info->variant = lpc804;
+			bank->size = 32 * 1024;
 			break;
 
 		case LPC824_201:
