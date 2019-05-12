@@ -585,4 +585,3 @@ int cti_register_commands(struct command_context *cmd_ctx)
 {
 	return register_commands(cmd_ctx, NULL, cti_command_handlers);
 }
-

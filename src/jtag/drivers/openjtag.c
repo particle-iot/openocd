@@ -903,5 +903,3 @@ struct jtag_interface openjtag_interface = {
 	.init = openjtag_init,
 	.quit = openjtag_quit,
 };
-
-

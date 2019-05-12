@@ -688,4 +688,3 @@ static int sysfsgpio_quit(void)
 	cleanup_all_fds();
 	return ERROR_OK;
 }
-

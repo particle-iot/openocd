@@ -1532,5 +1532,3 @@ static int buspirate_swd_run_queue(void)
 	LOG_DEBUG("SWD queue return value: %02x", retval);
 	return retval;
 }
-
-
