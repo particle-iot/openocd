@@ -980,6 +980,38 @@ static int command_unknown_find(unsigned argc, Jim_Obj *const *argv,
 	return command_unknown_find(--argc, ++argv, (*out)->children, out);
 }
 
+static int run_usage(Jim_Interp *interp, int argc, Jim_Obj * const *argv)
+{
+	struct command_context *cmd_ctx = current_command_context(interp);
+	char *prev, *command;
+	int retval, i;
+
+	assert(argc >= 1);
+
+	command = strdup(Jim_GetString(argv[0], NULL));
+	if (!command) {
+		LOG_ERROR("Out of memory");
+		return JIM_ERR;
+	}
+
+	for (i = 1; i < argc; ++i) {
+		prev = command;
+		command = alloc_printf("%s %s", command, Jim_GetString(argv[i], NULL));
+		free(prev);
+		if (!command) {
+			LOG_ERROR("Out of memory");
+			return JIM_ERR;
+		}
+	}
+
+	retval = command_run_linef(cmd_ctx, "usage %s", command);
+
+	LOG_ERROR("%s: command requires more arguments", command);
+
+	free(command);
+	return retval;
+}
+
 static int command_unknown(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
 {
 	const char *cmd_name = Jim_GetString(argv[0], NULL);
@@ -1008,13 +1040,10 @@ static int command_unknown(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
 		count = remaining + 1;
 		start = argv + (argc - remaining - 1);
 	} else {
-		c = command_find(cmd_ctx->commands, "usage");
-		if (NULL == c) {
-			LOG_ERROR("unknown command, but usage is missing too");
-			return JIM_ERR;
-		}
 		count = argc - remaining;
 		start = argv;
+		run_usage(interp, count, start);
+		return JIM_ERR;
 	}
 	/* pass the command through to the intended handler */
 	if (c->jim_handler) {
