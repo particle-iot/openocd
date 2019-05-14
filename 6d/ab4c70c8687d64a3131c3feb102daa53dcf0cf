@@ -1,0 +1,9 @@
+Verified+1: jenkins
+Code-Review+1: Jan Matyas <matyas@codasip.com>
+Code-Review+1: Franck Jullien <franck.jullien@gmail.com>
+Code-Review+2: Tomas Vanek <vanekt@fbl.cz>
+Submitted-by: Tomas Vanek <vanekt@fbl.cz>
+Submitted-at: Tue, 14 May 2019 20:50:03 +0100
+Reviewed-on: http://openocd.zylin.com/3635
+Project: openocd
+Branch: refs/heads/master
