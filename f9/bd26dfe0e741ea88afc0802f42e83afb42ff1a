@@ -1,0 +1,9 @@
+Verified+1: jenkins
+Code-Review+1: Jonathan McDowell <noodles-openocd@earth.li>
+Code-Review+1: Antonio Borneo <borneo.antonio@gmail.com>
+Code-Review+2: Tomas Vanek <vanekt@fbl.cz>
+Submitted-by: Tomas Vanek <vanekt@fbl.cz>
+Submitted-at: Thu, 23 May 2019 22:14:22 +0100
+Reviewed-on: http://openocd.zylin.com/5162
+Project: openocd
+Branch: refs/heads/master
