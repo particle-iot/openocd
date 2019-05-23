@@ -347,21 +347,24 @@ next:
 			break;
 	}
 
-	/* normally SRST and TRST are decoupled; but bugs happen ... */
-	switch (new_cfg & (RESET_SRST_PULLS_TRST | RESET_TRST_PULLS_SRST)) {
-		case RESET_SRST_PULLS_TRST:
-			modes[1] = "srst_pulls_trst";
-			break;
-		case RESET_TRST_PULLS_SRST:
-			modes[1] = "trst_pulls_srst";
-			break;
-		case RESET_SRST_PULLS_TRST | RESET_TRST_PULLS_SRST:
-			modes[1] = "combined";
-			break;
-		default:
-			modes[1] = "separate";
-			break;
-	}
+	if ((new_cfg & RESET_HAS_TRST) && (new_cfg & RESET_HAS_SRST)) {
+		/* normally SRST and TRST are decoupled; but bugs happen ... */
+		switch (new_cfg & (RESET_SRST_PULLS_TRST | RESET_TRST_PULLS_SRST)) {
+			case RESET_SRST_PULLS_TRST:
+				modes[1] = " srst_pulls_trst";
+				break;
+			case RESET_TRST_PULLS_SRST:
+				modes[1] = " trst_pulls_srst";
+				break;
+			case RESET_SRST_PULLS_TRST | RESET_TRST_PULLS_SRST:
+				modes[1] = " combined";
+				break;
+			default:
+				modes[1] = " separate";
+				break;
+		}
+	} else
+		modes[1] = "";
 
 	/* TRST-less connectors include Altera, Xilinx, and minimal JTAG */
 	if (new_cfg & RESET_HAS_TRST) {
@@ -394,9 +397,8 @@ next:
 		modes[5] = "";
 	}
 
-	command_print(CMD, "%s %s%s%s%s%s",
-			modes[0], modes[1],
-			modes[2], modes[3], modes[4], modes[5]);
+	command_print(CMD, "%s%s%s%s%s%s", modes[0], modes[1], modes[2], modes[3],
+				  modes[4], modes[5]);
 
 	return ERROR_OK;
 }
