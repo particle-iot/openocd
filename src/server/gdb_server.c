@@ -1019,6 +1019,13 @@ static int gdb_new_connection(struct connection *connection)
 			target_name(target),
 			target_state_name(target));
 
+	if (target->state != TARGET_HALTED) {
+		LOG_ERROR("Target %s not halted, refuse gdb connection %d!",
+				  target_name(target), gdb_actual_connections);
+		gdb_actual_connections--;
+		return ERROR_FAIL;
+	}
+
 	/* DANGER! If we fail subsequently, we must remove this handler,
 	 * otherwise we occasionally see crashes as the timer can invoke the
 	 * callback fn.
