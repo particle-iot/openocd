@@ -628,6 +628,9 @@ static int run_command(struct command_context *context,
 			char *full_name = command_name(c, ' ');
 			LOG_DEBUG("Command '%s' failed with error code %d",
 						full_name ? full_name : c->name, retval);
+			if (Jim_Length(cmd.output) == 0)
+				command_print(&cmd, "Command '%s' failed with error code %d",
+							  full_name ? full_name : c->name, retval);
 			free(full_name);
 		}
 		/* Use the command output as the Tcl result */
