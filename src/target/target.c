@@ -3344,7 +3344,10 @@ COMMAND_HANDLER(handle_mw_command)
 			return ERROR_COMMAND_SYNTAX_ERROR;
 	}
 
-	return target_fill_mem(target, address, fn, wordsize, value, count);
+	int retval = target_fill_mem(target, address, fn, wordsize, value, count);
+	if (retval != ERROR_OK)
+		command_print(CMD, "Error writing memory at 0x%" TARGET_PRIxADDR, address);
+	return retval;
 }
 
 static COMMAND_HELPER(parse_load_image_command_CMD_ARGV, struct image *image,
