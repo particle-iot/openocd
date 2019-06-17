@@ -145,9 +145,7 @@ static struct target_type *target_types[] = {
 	&riscv_target,
 	&mem_ap_target,
 	&esirisc_target,
-#if BUILD_TARGET64
 	&aarch64_target,
-#endif
 	NULL,
 };
 
