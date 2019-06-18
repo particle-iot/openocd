@@ -1605,6 +1605,7 @@ static int dsp563xx_read_memory(struct target *target,
 {
 	int err;
 	uint32_t i, i1;
+	uint32_t l_size;
 	uint8_t *buffer_y, *buffer_x;
 
 	/* if size equals zero we are called from target read memory
@@ -1618,6 +1619,18 @@ static int dsp563xx_read_memory(struct target *target,
 		count = (count - size) / 4;
 		size = 4;
 	}
+	if ((size >= 4) && (count == 0)) {
+		/* it can be that size and count are not properly defined.
+		 * try to fix this by calculating count. */
+		l_size = size % 4;
+
+		if (l_size)
+			LOG_DEBUG("size is not aligned to 4 byte");
+
+		count = (size - l_size) / 4;
+		size = 4;
+	}
+
 
 	/* we only support 4 byte aligned data */
 	if ((size != 4) || (!count))
@@ -1779,6 +1792,7 @@ static int dsp563xx_write_memory(struct target *target,
 {
 	int err;
 	uint32_t i, i1;
+	uint32_t l_size;
 	uint8_t *buffer_y, *buffer_x;
 
 	/* if size equals zero we are called from target write memory
@@ -1790,6 +1804,19 @@ static int dsp563xx_write_memory(struct target *target,
 			LOG_DEBUG("size is not aligned to 4 byte");
 
 		count = (count - size) / 4;
+		size = 4;
+	}
+
+	if ((size >= 4) && (count == 0)) {
+		/* it can be that size and count are not properly defined.
+		 * try to fix this by calculating count. */
+
+		l_size = size % 4;
+
+		if (l_size)
+			LOG_DEBUG("size is not aligned to 4 byte");
+
+		count = (size - l_size) / 4;
 		size = 4;
 	}
 
