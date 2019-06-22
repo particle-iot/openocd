@@ -1682,7 +1682,7 @@ static int dsp563xx_read_buffer_default(struct target *target,
 	uint8_t *buffer)
 {
 
-	return dsp563xx_read_memory(target, dsp563xx_get_default_memory(), address, size, 0,
+	return dsp563xx_read_memory(target, dsp563xx_get_default_memory(), address, 0, size,
 			buffer);
 }
 
@@ -1854,7 +1854,7 @@ static int dsp563xx_write_buffer_default(struct target *target,
 	uint32_t size,
 	const uint8_t *buffer)
 {
-	return dsp563xx_write_memory(target, dsp563xx_get_default_memory(), address, size, 0,
+	return dsp563xx_write_memory(target, dsp563xx_get_default_memory(), address, 0, size,
 			buffer);
 }
 
