@@ -659,6 +659,9 @@ static int stm32x_get_device_id(struct flash_bank *bank, uint32_t *device_id)
 	} else if (((cpuid >> 4) & 0xFFF) == 0xC24) {
 		/* 0xC24 is M4 devices */
 		device_id_register = 0xE0042000;
+	} else if (((cpuid >> 4) & 0xFFF) == 0xD20) {
+		/* 0xD20 is M23 devices, which is the GD32E23x line */
+		device_id_register = 0x40015800;
 	} else {
 		LOG_ERROR("Cannot identify target as a stm32x");
 		return ERROR_FAIL;
@@ -690,6 +693,9 @@ static int stm32x_get_flash_size(struct flash_bank *bank, uint16_t *flash_size_i
 	} else if (((cpuid >> 4) & 0xFFF) == 0xC24) {
 		/* 0xC24 is M4 devices */
 		flash_size_reg = 0x1FFFF7CC;
+	} else if (((cpuid >> 4) & 0xFFF) == 0xD20) {
+		/* 0xD20 is M23 devices, which is the GD32E23x line */
+		flash_size_reg = 0x1FFFF7E0;
 	} else {
 		LOG_ERROR("Cannot identify target as a stm32x");
 		return ERROR_FAIL;
