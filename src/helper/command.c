@@ -762,12 +762,12 @@ static int jim_find(Jim_Interp *interp, int argc, Jim_Obj *const *argv)
 COMMAND_HANDLER(jim_echo)
 {
 	if (CMD_ARGC == 2 && !strcmp(CMD_ARGV[0], "-n")) {
-		LOG_USER_N("%s", CMD_ARGV[1]);
+		command_print_sameline(CMD, "%s", CMD_ARGV[1]);
 		return JIM_OK;
 	}
 	if (CMD_ARGC != 1)
 		return JIM_ERR;
-	LOG_USER("%s", CMD_ARGV[0]);
+	command_print(CMD, "%s", CMD_ARGV[0]);
 	return JIM_OK;
 }
 
