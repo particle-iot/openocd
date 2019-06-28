@@ -517,7 +517,7 @@ static int samd_check_error(struct target *target)
 	}
 
 	/* Clear the error conditions by writing a one to them */
-	ret2 = target_write_u16(target,
+	ret2 = target_write_u32(target,
 			SAMD_NVMCTRL + SAMD_NVMCTRL_STATUS, status);
 	if (ret2 != ERROR_OK)
 		LOG_ERROR("Can't clear NVM error conditions");
@@ -535,7 +535,7 @@ static int samd_issue_nvmctrl_command(struct target *target, uint16_t cmd)
 	}
 
 	/* Issue the NVM command */
-	res = target_write_u16(target,
+	res = target_write_u32(target,
 			SAMD_NVMCTRL + SAMD_NVMCTRL_CTRLA, SAMD_NVM_CMD(cmd));
 	if (res != ERROR_OK)
 		return res;
