@@ -135,9 +135,9 @@ static const struct threadx_params threadx_params_list[] = {
 	40,							/* thread_name_offset; */
 	48,							/* thread_state_offset; */
 	136,						/* thread_next_offset */
-	&rtos_standard_cortex_m3_stacking,	/* stacking_info */
+	NULL,	          /* stacking_info */
 	1,							/* stacking_info_nb */
-	NULL,						/* fn_get_stacking_info */
+	rtos_standard_cortex_m_stacking_get,	/* fn_get_stacking_info */
 	NULL,						/* fn_is_thread_id_valid */
 	},
 	{
@@ -171,9 +171,9 @@ static const struct threadx_params threadx_params_list[] = {
 	40,							/* thread_name_offset; */
 	48,							/* thread_state_offset; */
 	136,						/* thread_next_offset */
-	&rtos_standard_cortex_m3_stacking,	/* stacking_info */
+	NULL,           /* stacking_info */
 	1,							/* stacking_info_nb */
-	NULL,						/* fn_get_stacking_info */
+	&rtos_standard_cortex_m_stacking_get,	/* fn_get_stacking_info */
 	NULL,						/* fn_is_thread_id_valid */
 	},
 };
