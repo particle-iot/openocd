@@ -235,7 +235,7 @@ const struct rtos_register_stacking rtos_standard_cortex_m3_stacking = {
 	.register_offsets = rtos_standard_cortex_m3_stack_offsets
 };
 
-static const struct rtos_register_stacking rtos_standard_cortex_m4f_stacking = {
+const struct rtos_register_stacking rtos_standard_cortex_m4f_stacking = {
 	.stack_registers_size = 0x44,
 	.stack_growth_direction = -1,
 	.num_output_registers = ARMV7M_NUM_CORE_REGS,
@@ -243,7 +243,7 @@ static const struct rtos_register_stacking rtos_standard_cortex_m4f_stacking = {
 	.register_offsets = rtos_standard_cortex_m4f_stack_offsets
 };
 
-static const struct rtos_register_stacking rtos_standard_cortex_m4f_fpu_stacking = {
+const struct rtos_register_stacking rtos_standard_cortex_m4f_fpu_stacking = {
 	.stack_registers_size = 0xcc,
 	.stack_growth_direction = -1,
 	.num_output_registers = ARMV7M_NUM_CORE_REGS,
@@ -265,14 +265,6 @@ const struct rtos_register_stacking rtos_standard_cortex_r4_stacking = {
 	.num_output_registers = 26,
 	.calculate_process_stack = rtos_generic_stack_align8,
 	.register_offsets = rtos_standard_cortex_r4_stack_offsets
-};
-
-static const struct rtos_register_stacking rtos_standard_nds32_n1068_stacking = {
-	.stack_registers_size = 0x90,
-	.stack_growth_direction = -1,
-	.num_output_registers = 32,
-	.calculate_process_stack = rtos_generic_stack_align8,
-	.register_offsets = rtos_standard_nds32_n1068_stack_offsets
 };
 
 const struct rtos_register_stacking *
@@ -321,10 +313,4 @@ const struct rtos_register_stacking *
 	} else {
 		return &rtos_standard_cortex_m3_stacking;
 	}
-}
-
-const struct rtos_register_stacking *
-	rtos_standard_nds32_stacking_get(const struct rtos *rtos, int64_t stack_ptr)
-{
-	return &rtos_standard_nds32_n1068_stacking;
 }
