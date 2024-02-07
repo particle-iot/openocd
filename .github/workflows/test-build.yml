@@ -7,6 +7,19 @@ on:
     branches: [ "particle" ]
 
 jobs:
+
+  build-mac:
+    runs-on: macos-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+      - name: Install Dependencies
+        run: |
+          brew update
+      - name: build-openocd
+        run: |
+          ./build-openocd.sh
+
   build-linux:
     runs-on: ubuntu-latest
     steps:
@@ -30,7 +43,7 @@ jobs:
         with:
           msystem: UCRT64
           update: true
-          install: git autotools cmake mingw-w64-ucrt-x86_64-gcc
+          install: git autotools mingw-w64-x86_64-cmake mingw-w64-ucrt-x86_64-gcc
       - name: build-openocd
         run: |
           echo 'Running in MSYS2!'
