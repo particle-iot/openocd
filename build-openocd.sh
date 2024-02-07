@@ -31,10 +31,12 @@ LIBFTDI_GIT_TAG=v1.5
 
 # Environment-specific settings
 cmake_generator="Unix Makefiles"
+cmake_command=cmake
 if [[ $OSTYPE == darwin* ]]; then
   export MACOSX_DEPLOYMENT_TARGET=10.7
 elif [[ $OSTYPE == msys ]]; then
   cmake_generator="MSYS Makefiles"
+  cmake_command=/mingw64/bin/cmake
 fi
 
 # This script's directory
@@ -86,7 +88,7 @@ git checkout $LIBFTDI_GIT_TAG
 git submodule update --init --recursive
 
 mkdir .build && cd .build
-cmake .. -G "$cmake_generator" -DCMAKE_INSTALL_PREFIX:PATH=$local_dir -DFTDI_EEPROM=OFF -DEXAMPLES=OFF
+$cmake_command .. -G "$cmake_generator" -DCMAKE_INSTALL_PREFIX:PATH=$local_dir -DFTDI_EEPROM=OFF -DEXAMPLES=OFF
 make && make install
 
 echo "Building openocd"
