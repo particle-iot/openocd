@@ -20,6 +20,12 @@ jobs:
       - name: build-openocd
         run: |
           ./build-openocd.sh
+      - name: Publish OpenOCD packaged for mac
+        uses: actions/upload-artifact@v3
+        with:
+          name: artifact-mac-release
+          path: ./openocd
+          if-no-files-found: error
 
   build-linux:
     runs-on: ubuntu-latest
@@ -32,6 +38,12 @@ jobs:
     - name: build-openocd
       run: |
         ./build-openocd.sh
+    - name: Publish OpenOCD packaged for linux
+      uses: actions/upload-artifact@v3
+      with:
+        name: artifact-linux-release
+        path: ./openocd
+        if-no-files-found: error
 
   build-windows:
     runs-on: windows-latest
@@ -47,5 +59,10 @@ jobs:
           install: git autotools mingw-w64-x86_64-cmake mingw-w64-ucrt-x86_64-gcc
       - name: build-openocd
         run: |
-          echo 'Running in MSYS2!'
           ./build-openocd.sh
+      - name: Publish OpenOCD packaged for windows
+        uses: actions/upload-artifact@v3
+        with:
+          name: artifact-windows-release
+          path: ./openocd
+          if-no-files-found: error
