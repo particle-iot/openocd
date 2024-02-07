@@ -1,0 +1,70 @@
+name: build-all-platforms
+
+on:
+  push:
+    branches: [ "particle" ]
+  pull_request:
+    branches: [ "particle" ]
+
+jobs:
+
+  build-mac:
+    runs-on: macos-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+      - name: Install Dependencies
+        run: |
+          brew update
+          brew install automake
+          brew install texinfo
+          export PATH=/usr/local/opt/texinfo/bin:$PATH
+      - name: build-openocd
+        run: |
+          ./build-openocd.sh
+      - name: Publish OpenOCD packaged for mac
+        uses: actions/upload-artifact@v3
+        with:
+          name: artifact-mac-release
+          path: ./openocd
+          if-no-files-found: error
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install libudev-dev
+    - name: build-openocd
+      run: |
+        ./build-openocd.sh
+    - name: Publish OpenOCD packaged for linux
+      uses: actions/upload-artifact@v3
+      with:
+        name: artifact-linux-release
+        path: ./openocd
+        if-no-files-found: error
+
+  build-windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: git autotools mingw-w64-x86_64-cmake mingw-w64-ucrt-x86_64-gcc
+      - name: build-openocd
+        run: |
+          ./build-openocd.sh
+      - name: Publish OpenOCD packaged for windows
+        uses: actions/upload-artifact@v3
+        with:
+          name: artifact-windows-release
+          path: ./openocd
+          if-no-files-found: error

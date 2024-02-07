@@ -1,0 +1,136 @@
+#!/bin/bash
+
+# Dependencies:
+#
+# git
+# gcc
+# cmake
+# autotools
+# pkg-config
+#
+# Linux: libudev-dev
+# macOS: Homebrew (https://brew.sh)
+# Windows: MSYS2 (https://www.msys2.org)
+#
+# MSYS2 installation notes:
+# https://github.com/orlp/dev-on-windows/wiki/Installing-GCC--&-MSYS2
+
+set -e
+
+OPENOCD_GIT_URL=https://github.com/particle-iot/openocd
+OPENOCD_GIT_TAG=97f0660b972c80441ad11a4b91b30213f79bf466
+
+LIBUSB_GIT_URL=https://github.com/libusb/libusb.git
+LIBUSB_GIT_TAG=v1.0.24
+
+HIDAPI_GIT_URL=https://github.com/libusb/hidapi.git
+HIDAPI_GIT_TAG=hidapi-0.14.0
+
+LIBFTDI_GIT_URL=git://developer.intra2net.com/libftdi
+LIBFTDI_GIT_TAG=v1.5
+
+# Environment-specific settings
+cmake_generator="Unix Makefiles"
+cmake_command=cmake
+if [[ $OSTYPE == darwin* ]]; then
+  export MACOSX_DEPLOYMENT_TARGET=10.7
+elif [[ $OSTYPE == msys ]]; then
+  cmake_generator="MSYS Makefiles"
+  cmake_command=/mingw64/bin/cmake
+fi
+
+# This script's directory
+script_dir=$(cd $(dirname $0) && pwd)
+cd $script_dir
+
+# Build directory
+build_dir=$script_dir/.build
+rm -rf $build_dir && mkdir -p $build_dir
+
+# Temporary installation directory for dependencies
+local_dir=$script_dir/.local
+rm -rf $local_dir && mkdir -p $local_dir
+
+# Destination directory for OpenOCD files
+target_dir=$script_dir/openocd
+rm -rf $target_dir && mkdir -p $target_dir
+
+# Path to local pkg-config files
+export PKG_CONFIG_PATH=$local_dir/lib/pkgconfig
+
+echo "Building libusb"
+
+cd $build_dir
+git clone $LIBUSB_GIT_URL libusb && cd libusb
+git checkout $LIBUSB_GIT_TAG
+git submodule update --init --recursive
+
+./bootstrap.sh
+./configure --prefix=$local_dir
+make && make install
+
+echo "Building hidapi"
+
+cd $build_dir
+git clone $HIDAPI_GIT_URL hidapi && cd hidapi
+git checkout $HIDAPI_GIT_TAG
+git submodule update --init --recursive
+
+./bootstrap
+./configure --prefix=$local_dir
+make && make install
+
+echo "Building libftdi"
+
+cd $build_dir
+git clone $LIBFTDI_GIT_URL libftdi && cd libftdi
+git checkout $LIBFTDI_GIT_TAG
+git submodule update --init --recursive
+
+mkdir .build && cd .build
+$cmake_command .. -G "$cmake_generator" -DCMAKE_INSTALL_PREFIX:PATH=$local_dir -DFTDI_EEPROM=OFF -DEXAMPLES=OFF
+make && make install
+
+echo "Building openocd"
+
+cd $build_dir
+git clone $OPENOCD_GIT_URL openocd && cd openocd
+git checkout $OPENOCD_GIT_TAG
+git submodule update --init --recursive
+
+./bootstrap
+# J-Link module generates compiler warnings and seems to ignore --disable-werror. Disabling it for now
+./configure --prefix=$target_dir --disable-jlink --disable-werror
+make && make install
+
+# Copy dependencies
+if [[ $OSTYPE == linux-gnu ]]; then
+  mkdir -p $target_dir/lib
+  cp -P $local_dir/lib/*.so $local_dir/lib/*.so.* $target_dir/lib
+elif [[ $OSTYPE == darwin* ]]; then
+  mkdir -p $target_dir/lib
+  cp -P -R $local_dir/lib/*.dylib $target_dir/lib
+elif [[ $OSTYPE == msys ]]; then
+  cp $local_dir/bin/*.dll $target_dir/bin
+  # MinGW runtime libraries
+  mingw_dir=$(dirname $(which gcc))
+  cp $mingw_dir/libwinpthread-1.dll $target_dir/bin
+  # This library seems to be available only on 32-bit platforms
+  cp $mingw_dir/libgcc_s_dw2-1.dll $target_dir/bin || true
+fi
+
+# Generate the launcher script
+cat << 'EOF' > $target_dir/openocd
+#!/bin/bash
+
+openocd_dir=$(cd $(dirname $0) && pwd)
+
+if [[ $OSTYPE == linux-gnu ]]; then
+  export LD_LIBRARY_PATH=$openocd_dir/lib
+elif [[ $OSTYPE == darwin* ]]; then
+  export DYLD_LIBRARY_PATH=$openocd_dir/lib
+fi
+
+$openocd_dir/bin/openocd "$@"
+EOF
+chmod +x $target_dir/openocd
