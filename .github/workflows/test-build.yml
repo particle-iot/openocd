@@ -7,17 +7,15 @@ on:
     branches: [ "particle" ]
 
 jobs:
-  build:
-
+  build-linux:
     runs-on: ubuntu-latest
-
     steps:
     - uses: actions/checkout@v3
     - name: make
-      run: make
+      run: |
+        ./build-openocd.sh
 
-
-  msys2-ucrt64:
+  build-windows:
     runs-on: windows-latest
     defaults:
       run:
@@ -28,10 +26,8 @@ jobs:
         with:
           msystem: UCRT64
           update: true
-          install: git mingw-w64-ucrt-x86_64-gcc
-      - name: CI-Build
+          install: git autotools mingw-w64-ucrt-x86_64-gcc
+      - name: build-openocd
         run: |
           echo 'Running in MSYS2!'
-      - name: build-windows
-        run: |
           ./build-openocd.sh
