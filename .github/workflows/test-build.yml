@@ -11,7 +11,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
-    - name: make
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install libudev-dev
+    - name: build-openocd
       run: |
         ./build-openocd.sh
 
@@ -26,7 +30,7 @@ jobs:
         with:
           msystem: UCRT64
           update: true
-          install: git autotools mingw-w64-ucrt-x86_64-gcc
+          install: git autotools cmake mingw-w64-ucrt-x86_64-gcc
       - name: build-openocd
         run: |
           echo 'Running in MSYS2!'
