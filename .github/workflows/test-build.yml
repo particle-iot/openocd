@@ -1,10 +1,10 @@
-name: C/C++ CI
+name: build-all-platforms
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "particle" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "particle" ]
 
 jobs:
   build:
@@ -32,3 +32,6 @@ jobs:
       - name: CI-Build
         run: |
           echo 'Running in MSYS2!'
+      - name: build-windows
+        run: |
+          ./build-openocd.sh
