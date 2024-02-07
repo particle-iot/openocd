@@ -17,6 +17,8 @@ jobs:
         run: |
           brew update
           brew install automake
+          brew install texinfo
+          export PATH=/usr/local/opt/texinfo/bin:$PATH
       - name: build-openocd
         run: |
           ./build-openocd.sh
