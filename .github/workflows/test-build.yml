@@ -5,6 +5,7 @@ on:
     branches: [ "particle" ]
   pull_request:
     branches: [ "particle" ]
+  workflow_dispatch:
 
 jobs:
 
@@ -12,18 +13,19 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Check out repository code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Install Dependencies
         run: |
           brew update
           brew install automake
           brew install texinfo
+          brew install libtool
           export PATH=/usr/local/opt/texinfo/bin:$PATH
       - name: build-openocd
         run: |
           ./build-openocd.sh
       - name: Publish OpenOCD packaged for mac
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: artifact-mac-release
           path: ./openocd
@@ -32,16 +34,18 @@ jobs:
   build-linux:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Install Dependencies
       run: |
         sudo apt-get update
         sudo apt-get install libudev-dev
+        sudo apt-get install libtool
+        sudo apt-get install autoconf
     - name: build-openocd
       run: |
         ./build-openocd.sh
     - name: Publish OpenOCD packaged for linux
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: artifact-linux-release
         path: ./openocd
@@ -53,7 +57,7 @@ jobs:
       run:
         shell: msys2 {0}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: msys2/setup-msys2@v2
         with:
           msystem: UCRT64
@@ -63,7 +67,7 @@ jobs:
         run: |
           ./build-openocd.sh
       - name: Publish OpenOCD packaged for windows
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: artifact-windows-release
           path: ./openocd

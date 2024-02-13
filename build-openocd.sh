@@ -29,6 +29,10 @@ HIDAPI_GIT_TAG=hidapi-0.14.0
 LIBFTDI_GIT_URL=git://developer.intra2net.com/libftdi
 LIBFTDI_GIT_TAG=v1.5
 
+CAPSTONE_GIT_URL=https://github.com/capstone-engine/capstone.git
+CAPSTONE_GIT_TAG=5.0.1
+CAPSTONE_CONFIG="CAPSTONE_BUILD_CORE_ONLY=yes CAPSTONE_STATIC=yes CAPSTONE_SHARED=no"
+
 # Environment-specific settings
 cmake_generator="Unix Makefiles"
 cmake_command=cmake
@@ -57,6 +61,18 @@ rm -rf $target_dir && mkdir -p $target_dir
 
 # Path to local pkg-config files
 export PKG_CONFIG_PATH=$local_dir/lib/pkgconfig
+
+echo "Building capstone"
+echo $target_dir
+cd $build_dir
+git clone $CAPSTONE_GIT_URL capstone && cd capstone
+git checkout $CAPSTONE_GIT_TAG
+git submodule update --init --recursive
+#make install DESTDIR=$target_dir PREFIX=$target_dir $CAPSTONE_CONFIG
+#$CAPSTONE_CONFIG # TODO: Make sure openocd builds with capstone
+./make.sh 
+
+#exit
 
 echo "Building libusb"
 
@@ -100,7 +116,7 @@ git submodule update --init --recursive
 
 ./bootstrap
 # J-Link module generates compiler warnings and seems to ignore --disable-werror. Disabling it for now
-./configure --prefix=$target_dir --disable-jlink --disable-werror
+./configure --prefix=$target_dir --disable-werror
 make && make install
 
 # Copy dependencies
