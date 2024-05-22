@@ -18,7 +18,7 @@
 set -e
 
 OPENOCD_GIT_URL=https://github.com/particle-iot/openocd
-OPENOCD_GIT_TAG=97f0660b972c80441ad11a4b91b30213f79bf466
+OPENOCD_GIT_TAG=0b88dcc59c51e3999d56dfa90eec945cff54c9d8
 
 LIBUSB_GIT_URL=https://github.com/libusb/libusb.git
 LIBUSB_GIT_TAG=v1.0.24
