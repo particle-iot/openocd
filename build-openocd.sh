@@ -105,13 +105,12 @@ make && make install
 
 echo "Building openocd"
 
-cd $build_dir
+cd $script_dir
 # git clone $OPENOCD_GIT_URL openocd && cd openocd
 # git checkout $OPENOCD_GIT_TAG
 git submodule update --init --recursive
 
 ./bootstrap
-# J-Link module generates compiler warnings and seems to ignore --disable-werror. Disabling it for now
 ./configure --prefix=$target_dir --disable-werror
 make && make install
 
