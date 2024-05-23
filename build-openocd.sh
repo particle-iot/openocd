@@ -17,8 +17,8 @@
 
 set -e
 
-OPENOCD_GIT_URL=https://github.com/particle-iot/openocd
-OPENOCD_GIT_TAG=0b88dcc59c51e3999d56dfa90eec945cff54c9d8
+# OPENOCD_GIT_URL=https://github.com/particle-iot/openocd
+# OPENOCD_GIT_TAG=0b88dcc59c51e3999d56dfa90eec945cff54c9d8
 
 LIBUSB_GIT_URL=https://github.com/libusb/libusb.git
 LIBUSB_GIT_TAG=v1.0.24
@@ -106,8 +106,8 @@ make && make install
 echo "Building openocd"
 
 cd $build_dir
-git clone $OPENOCD_GIT_URL openocd && cd openocd
-git checkout $OPENOCD_GIT_TAG
+# git clone $OPENOCD_GIT_URL openocd && cd openocd
+# git checkout $OPENOCD_GIT_TAG
 git submodule update --init --recursive
 
 ./bootstrap
