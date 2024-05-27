@@ -8,108 +8,12 @@ on:
   workflow_dispatch:
 
 jobs:
-
-  build-mac-14-arm:
-    runs-on: macos-latest
-    steps:
-      - name: Check out repository code
-        uses: actions/checkout@v4
-      - name: Install Dependencies
-        run: |
-          brew update
-          brew install automake
-          brew install texinfo
-          brew install libtool
-          export PATH=/usr/local/opt/texinfo/bin:$PATH
-      - name: build-openocd
-        run: |
-          ./build-openocd.sh
-      - name: Publish OpenOCD packaged for mac
-        uses: actions/upload-artifact@v4
-        with:
-          name: artifact-mac-14-arm-release
-          path: ./openocd
-          if-no-files-found: error
-
-  build-mac-12:
-    runs-on: macos-12
-    steps:
-      - name: Check out repository code
-        uses: actions/checkout@v4
-      - name: Install Dependencies
-        run: |
-          brew update
-          brew install automake
-          brew install texinfo
-          export PATH=/usr/local/opt/texinfo/bin:$PATH
-      - name: build-openocd
-        run: |
-          ./build-openocd.sh
-      - name: Publish OpenOCD packaged for mac
-        uses: actions/upload-artifact@v4
-        with:
-          name: artifact-mac-12-release
-          path: ./openocd
-          if-no-files-found: error
-
-  build-linux-22-04:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-    - name: Install Dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install libudev-dev
-        sudo apt-get install libtool
-        sudo apt-get install autoconf
-    - name: build-openocd
-      run: |
-        ./build-openocd.sh
-    - name: Publish OpenOCD packaged for linux
-      uses: actions/upload-artifact@v4
-      with:
-        name: artifact-linux-22-04-release
-        path: ./openocd
-        if-no-files-found: error
-
-  build-linux-20-04:
-    runs-on: ubuntu-20.04
-    steps:
-    - uses: actions/checkout@v4
-    - name: Install Dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install libudev-dev
-        sudo apt-get install libtool
-        sudo apt-get install autoconf
-    - name: build-openocd
-      run: |
-        ./build-openocd.sh
-    - name: Publish OpenOCD packaged for linux
-      uses: actions/upload-artifact@v4
-      with:
-        name: artifact-linux-20-04-release
-        path: ./openocd
-        if-no-files-found: error
-
-  build-windows:
-    runs-on: windows-latest
-    defaults:
-      run:
-        shell: msys2 {0}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: msys2/setup-msys2@v2
-        with:
-          msystem: UCRT64
-          update: true
-          install: git autotools mingw-w64-x86_64-cmake mingw-w64-ucrt-x86_64-gcc
-      - name: build-openocd
-        run: |
-          ./build-openocd.sh
-      - name: Publish OpenOCD packaged for windows
-        uses: actions/upload-artifact@v4
-        with:
-          name: artifact-windows-release
-          path: ./openocd
-          if-no-files-found: error
+  call-build:
+    uses: ./.github/workflows/reusable-build.yml
+    secrets: inherit
+  call-publish:
+    uses: ./.github/workflows/reusable-publish.yml
+    secrets: inherit
+    needs: call-build
+    with:
+      build_run_id: ${{ github.run_id }}

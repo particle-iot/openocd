@@ -1,0 +1,20 @@
+name: Publish
+on:
+  workflow_call:
+    inputs:
+      build_run_id:
+        description: 'The run id of the build job'
+        required: true
+        type: string
+
+jobs:
+  download-artifacts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: dawidd6/action-download-artifact@v3.1.4
+        with:
+          run_id: ${{ inputs.build_run_id }}
+          path: build/
+      - name: ls build
+        run: ls build
