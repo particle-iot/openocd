@@ -46,26 +46,6 @@ jobs:
           path: ./openocd
           if-no-files-found: error
 
-  build-linux-22-04:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install libudev-dev
-          sudo apt-get install libtool
-          sudo apt-get install autoconf
-      - name: build-openocd
-        run: |
-          ./build-openocd.sh
-      - name: Publish OpenOCD packaged for linux
-        uses: actions/upload-artifact@v4
-        with:
-          name: artifact-linux-22-04-release
-          path: ./openocd
-          if-no-files-found: error
-
   build-linux-20-04:
     runs-on: ubuntu-20.04
     steps:
