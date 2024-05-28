@@ -16,6 +16,8 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
       - name: Download all artifacts
         uses: dawidd6/action-download-artifact@v3.1.4
         with:
