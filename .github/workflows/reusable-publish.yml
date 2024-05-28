@@ -35,6 +35,9 @@ jobs:
     needs: download-artifacts
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
+    permissions:
+      id-token: write
+      contents: read
     strategy:
       matrix:
         platform-arch:
