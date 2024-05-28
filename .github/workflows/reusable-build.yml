@@ -3,28 +3,6 @@ on: [workflow_call]
 
 jobs:
 
-  build-mac-14-arm:
-    runs-on: macos-latest
-    steps:
-      - name: Check out repository code
-        uses: actions/checkout@v4
-      - name: Install Dependencies
-        run: |
-          brew update
-          brew install automake
-          brew install texinfo
-          brew install libtool
-          export PATH=/usr/local/opt/texinfo/bin:$PATH
-      - name: build-openocd
-        run: |
-          ./build-openocd.sh
-      - name: Publish OpenOCD packaged for mac
-        uses: actions/upload-artifact@v4
-        with:
-          name: artifact-mac-14-arm-release
-          path: ./openocd
-          if-no-files-found: error
-
   build-mac-12:
     runs-on: macos-12
     steps:
@@ -66,24 +44,3 @@ jobs:
           path: ./openocd
           if-no-files-found: error
 
-  build-windows:
-    runs-on: windows-latest
-    defaults:
-      run:
-        shell: msys2 {0}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: msys2/setup-msys2@v2
-        with:
-          msystem: UCRT64
-          update: true
-          install: git autotools mingw-w64-x86_64-cmake mingw-w64-ucrt-x86_64-gcc
-      - name: build-openocd
-        run: |
-          ./build-openocd.sh
-      - name: Publish OpenOCD packaged for windows
-        uses: actions/upload-artifact@v4
-        with:
-          name: artifact-windows-release
-          path: ./openocd
-          if-no-files-found: error
