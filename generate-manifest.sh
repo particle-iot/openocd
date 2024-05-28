@@ -4,6 +4,7 @@
 version=$(cat version)
 # Directory containing the files
 dir_path=${1:-"./build"}
+url_prefix=${2:-"https://binaries.particle.io/openocd"}
 
 # Function to generate manifest.json content
 generate_manifest() {
@@ -20,7 +21,7 @@ echo "platform: $platform"
   "name": "${name}",
   "version": "${version}",
   "main": "./bin",
-  "url": "https://binaries.particle.io/openocd/${platform}/${arch}/${version}.tar.gz",
+  "url": "${url_prefix}/${platform}/${arch}/${version}.tar.gz",
   "sha256": "${sha256}"
 }
 EOL
@@ -30,7 +31,6 @@ EOL
 for file in "$dir_path"/*.tar.gz; do
   filename=$(basename -- "$file")
   # Extract platform and arch from the filename
-  echo "doing something"
    platform=$(echo $filename | awk -F '-' '{print $2}')
     arch=$(echo $filename | awk -F '-' '{print $3}')
 
@@ -44,11 +44,9 @@ for file in "$dir_path"/*.tar.gz; do
 
   # Generate the new file name without the extension
   new_file_name="${name}-${version}"
-  new_path="${name}-${platform}-${arch}"
+  new_path="release/${name}-${platform}-${arch}"
   # Create a directory for the current file to store the manifest.json
   echo "creating directory ${dir_path}/${new_path}"
-  echo ${new_file_name}
-  echo ${new_path}
   mkdir -p "${dir_path}/${new_path}"
 
 
