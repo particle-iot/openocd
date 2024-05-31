@@ -1,7 +1,7 @@
  #!/bin/bash
 
  # Set the base S3 bucket path
-  S3_BUCKET_PATH=${1}/openocd
+  S3_BUCKET_PATH=s3://${1}/openocd
 
   # Function to upload files to S3
   upload_to_s3() {
@@ -10,7 +10,8 @@
      local dir_path="build/release/openocd-${platform}-${arch}"
 
      if [ -d "$dir_path" ]; then
-         aws s3 cp "$dir_path" "${S3_BUCKET_PATH}/${platform}/${arch}" --recursive
+         aws s3 cp "$dir_path" "${S3_BUCKET_PATH}/${platform}/${arch}/" --recursive \
+         --cache-control "public, max-age=0"
      else
          echo "Directory $dir_path does not exist"
      fi
