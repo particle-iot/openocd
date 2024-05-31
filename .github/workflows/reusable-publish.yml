@@ -12,7 +12,7 @@ on:
         type: string
 
 jobs:
-  download-artifacts:
+  publish-binaries:
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     steps:
@@ -31,28 +31,12 @@ jobs:
       - name: generate manifest
         run: |
           ./generate-manifest.sh ./build ${{ secrets.BINARIES_BASE_URL }}
-  upload-binaries:
-    needs: download-artifacts
-    runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}
-    permissions:
-      id-token: write
-      contents: read
-    strategy:
-      matrix:
-        platform-arch:
-          - { platform: "darwin", arch: "x64" }
-          - { platform: "darwin", arch: "arm64" }
-          - { platform: "linux", arch: "x64" }
-          - { platform: "windows", arch: "x64" }
-    steps:
       - name: Aws Assume Role
         uses: aws-actions/configure-aws-credentials@v4.0.2
         with:
-            role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-            role-session-name: 'openocd-upload-session'
-            aws-region: ${{ secrets.AWS_S3_REGION }}
-      - name: Upload to darwin x64
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-session-name: 'openocd-upload-session'
+          aws-region: ${{ secrets.AWS_S3_REGION }}
+      - name: Upload files
         run: |
-          aws s3 cp ./build/release/openocd-{platform}-${arch} s3://${{ secrets.BINARIES_BUCKET }}/openocd/${platform}/${arch} --recursive
-          
+         ./upload-files.sh ${{ secrets.AWS_S3_BUCKET }}
