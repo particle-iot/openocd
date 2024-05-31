@@ -10,7 +10,7 @@
      local dir_path="build/release/openocd-${platform}-${arch}"
 
      if [ -d "$dir_path" ]; then
-         echo "aws s3 cp "$dir_path" "${S3_BUCKET_PATH}/${platform}/${arch}" --recursive"
+         aws s3 cp "$dir_path" "${S3_BUCKET_PATH}/${platform}/${arch}" --recursive
      else
          echo "Directory $dir_path does not exist"
      fi
