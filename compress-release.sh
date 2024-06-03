@@ -43,11 +43,23 @@ for folder in "$dir_path"/artifact-*; do
       continue
     fi
 
+     # Create a new directory named with the version inside the artifact folder
+      new_dir="${folder}/${version}"
+      mkdir -p "$new_dir"
+
+      # Move the contents of the artifact folder into the new version directory
+      for item in "$folder"/*; do
+        item_name=$(basename "$item")
+        if [[ "$item_name" != "$version" ]]; then
+          mv "$item" "$new_dir"
+        fi
+      done
+
     # Generate the new file name
     new_file_name="openocd-${platform}-${arch}-${version}.tar.gz"
 
     # Create the tar.gz archive
-    tar -czf "${dir_path}/${new_file_name}" -C "$dir_path" "$folder_name"
+    tar -czf "${dir_path}/${new_file_name}" -C "$dir_path/${folder_name}" "$version"
     echo "Created archive: ${dir_path}/${new_file_name}"
   else
     echo "Skipping non-directory: $folder"

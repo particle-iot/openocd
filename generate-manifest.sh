@@ -31,8 +31,8 @@ EOL
 for file in "$dir_path"/*.tar.gz; do
   filename=$(basename -- "$file")
   # Extract platform and arch from the filename
-   platform=$(echo $filename | awk -F '-' '{print $2}')
-    arch=$(echo $filename | awk -F '-' '{print $3}')
+  platform=$(echo $filename | awk -F '-' '{print $2}')
+  arch=$(echo $filename | awk -F '-' '{print $3}')
 
   if [[ -z $platform || -z $arch ]]; then
     echo "Unknown file pattern: $filename"
