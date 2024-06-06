@@ -54,7 +54,14 @@ for folder in "$dir_path"/artifact-*; do
           mv "$item" "$new_dir"
         fi
       done
-
+      # Add permissions to the executables depending on the platform
+      if [[ "$platform" == "windows" ]]; then
+        chmod +x "$new_dir/bin/openocd.exe"
+      else
+        chmod +x "$new_dir/bin/openocd"
+      fi
+      # Add permissions to shortcut
+      chmod +x "$new_dir/openocd"
     # Generate the new file name
     new_file_name="openocd-${platform}-${arch}-${version}.tar.gz"
 
