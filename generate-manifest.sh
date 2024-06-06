@@ -43,7 +43,7 @@ for file in "$dir_path"/*.tar.gz; do
   name="openocd"
 
   # Generate the new file name without the extension
-  new_file_name="${name}-${version}"
+  new_file_name="${version}"
   new_path="release/${name}-${platform}-${arch}"
   # Create a directory for the current file to store the manifest.json
   echo "creating directory ${dir_path}/${new_path}"

@@ -59,7 +59,7 @@ for folder in "$dir_path"/artifact-*; do
     new_file_name="openocd-${platform}-${arch}-${version}.tar.gz"
 
     # Create the tar.gz archive
-    tar -czf "${dir_path}/${new_file_name}" -C "$dir_path/${folder_name}" "$version"
+    tar -czf "${dir_path}/${new_file_name}" -C "$dir_path/${folder_name}/${version}" .
     echo "Created archive: ${dir_path}/${new_file_name}"
   else
     echo "Skipping non-directory: $folder"
