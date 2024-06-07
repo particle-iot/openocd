@@ -17,7 +17,10 @@ nobase_dist_pkgdata_DATA = \
 	contrib/libdcc/dcc_stdio.h \
 	contrib/libdcc/example.c \
 	contrib/libdcc/README \
-	contrib/60-openocd.rules
+	contrib/60-openocd.rules \
+	contrib/svd/Cortex-M33.svd \
+	contrib/svd/nrf52840.svd \
+	contrib/svd/STM32F215.svd
 
 SUBDIRS =
 DIST_SUBDIRS =
