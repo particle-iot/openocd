@@ -112,7 +112,7 @@ git submodule update --init --recursive
 
 ./bootstrap
 
-./configure --prefix=$target_dir --disable-werror
+./configure --prefix=$target_dir --disable-werror --without-capstone
 
 make && make install
 
