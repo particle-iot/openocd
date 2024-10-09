@@ -111,23 +111,23 @@ cd $script_dir
 git submodule update --init --recursive
 
 ./bootstrap
-if [[ $OSTYPE == linux-gnu ]]; then
-LDFLAGS="-Wl,-rpath=$(pwd)/libexec"
-elif [[ $OSTYPE == darwin* ]]; then
-LDFLAGS="-Wl,-rpath,@loader_path/../libexec"
-fi
 
-./configure --prefix=$target_dir --disable-werror LDFLAGS="${LDFLAGS}"
+./configure --prefix=$target_dir --disable-werror
 
 make && make install
 
-# Copy dependencies
+# Copy dependencies to libexec for Mac and Linux, and set the Runtime Library Search Path
+# For Windows, copy the dlls to the bin directory since Windows will search for them there
 if [[ $OSTYPE == linux-gnu ]]; then
   mkdir -p $target_dir/libexec
   cp -P $local_dir/lib/*.so $local_dir/lib/*.so.* $target_dir/libexec
+  # Set the Runtime Library Search Path for Linux to load dependencies from libexec
+  patchelf --set-rpath '$ORIGIN/../libexec' openocd/bin/openocd
 elif [[ $OSTYPE == darwin* ]]; then
   mkdir -p $target_dir/libexec
   cp -P -R $local_dir/lib/*.dylib $target_dir/libexec
+  # Set the Runtime Library Search Path for Mac to load dependencies from libexec
+  install_name_tool -add_rpath '@loader_path/../libexec' openocd/bin/openocd
 elif [[ $OSTYPE == msys ]]; then
   cp $local_dir/bin/*.dll $target_dir/bin
   # MinGW runtime libraries

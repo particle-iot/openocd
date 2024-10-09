@@ -52,9 +52,7 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install libudev-dev
-          sudo apt-get install libtool
-          sudo apt-get install autoconf
+          sudo apt-get install libudev-dev libtool autoconf patchelf
       - name: build-openocd
         run: |
           ./build-openocd.sh
