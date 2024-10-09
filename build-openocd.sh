@@ -111,16 +111,23 @@ cd $script_dir
 git submodule update --init --recursive
 
 ./bootstrap
-./configure --prefix=$target_dir --disable-werror
+if [[ $OSTYPE == linux-gnu ]]; then
+LDFLAGS="-Wl,-rpath,$(pwd)/libexec"
+elif [[ $OSTYPE == darwin* ]]; then
+LDFLAGS="-Wl,-rpath,@loader_path/../libexec"
+fi
+
+./configure --prefix=$target_dir --disable-werror LDFLAGS=${LDFLAGS}
+
 make && make install
 
 # Copy dependencies
 if [[ $OSTYPE == linux-gnu ]]; then
-  mkdir -p $target_dir/lib
-  cp -P $local_dir/lib/*.so $local_dir/lib/*.so.* $target_dir/lib
+  mkdir -p $target_dir/libexec
+  cp -P $local_dir/lib/*.so $local_dir/lib/*.so.* $target_dir/libexec
 elif [[ $OSTYPE == darwin* ]]; then
-  mkdir -p $target_dir/lib
-  cp -P -R $local_dir/lib/*.dylib $target_dir/lib
+  mkdir -p $target_dir/libexec
+  cp -P -R $local_dir/lib/*.dylib $target_dir/libexec
 elif [[ $OSTYPE == msys ]]; then
   cp $local_dir/bin/*.dll $target_dir/bin
   # MinGW runtime libraries
@@ -129,19 +136,3 @@ elif [[ $OSTYPE == msys ]]; then
   # This library seems to be available only on 32-bit platforms
   cp $mingw_dir/libgcc_s_dw2-1.dll $target_dir/bin || true
 fi
-
-# Generate the launcher script
-cat << 'EOF' > $target_dir/openocd
-#!/bin/bash
-
-openocd_dir=$(cd $(dirname $0) && pwd)
-
-if [[ $OSTYPE == linux-gnu ]]; then
-  export LD_LIBRARY_PATH=$openocd_dir/lib
-elif [[ $OSTYPE == darwin* ]]; then
-  export DYLD_LIBRARY_PATH=$openocd_dir/lib
-fi
-
-$openocd_dir/bin/openocd "$@"
-EOF
-chmod +x $target_dir/openocd
