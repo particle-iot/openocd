@@ -15,7 +15,7 @@
 # MSYS2 installation notes:
 # https://github.com/orlp/dev-on-windows/wiki/Installing-GCC--&-MSYS2
 
-set -e
+set -ex
 
 # OPENOCD_GIT_URL=https://github.com/particle-iot/openocd
 # OPENOCD_GIT_TAG=0b88dcc59c51e3999d56dfa90eec945cff54c9d8
@@ -111,16 +111,23 @@ cd $script_dir
 git submodule update --init --recursive
 
 ./bootstrap
-./configure --prefix=$target_dir --disable-werror
+
+./configure --prefix=$target_dir --disable-werror --without-capstone
+
 make && make install
 
-# Copy dependencies
+# Copy dependencies to libexec for Mac and Linux, and set the Runtime Library Search Path
+# For Windows, copy the dlls to the bin directory since Windows will search for them there
 if [[ $OSTYPE == linux-gnu ]]; then
-  mkdir -p $target_dir/lib
-  cp -P $local_dir/lib/*.so $local_dir/lib/*.so.* $target_dir/lib
+  mkdir -p $target_dir/libexec
+  cp -P $local_dir/lib/*.so $local_dir/lib/*.so.* $target_dir/libexec
+  # Set the Runtime Library Search Path for Linux to load dependencies from libexec
+  patchelf --set-rpath '$ORIGIN/../libexec' $target_dir/bin/openocd
 elif [[ $OSTYPE == darwin* ]]; then
-  mkdir -p $target_dir/lib
-  cp -P -R $local_dir/lib/*.dylib $target_dir/lib
+  mkdir -p $target_dir/libexec
+  cp -P -R $local_dir/lib/*.dylib $target_dir/libexec
+  # Set the Runtime Library Search Path for Mac to load dependencies from libexec
+  install_name_tool -add_rpath '@loader_path/../libexec' $target_dir/bin/openocd
 elif [[ $OSTYPE == msys ]]; then
   cp $local_dir/bin/*.dll $target_dir/bin
   # MinGW runtime libraries
@@ -129,19 +136,3 @@ elif [[ $OSTYPE == msys ]]; then
   # This library seems to be available only on 32-bit platforms
   cp $mingw_dir/libgcc_s_dw2-1.dll $target_dir/bin || true
 fi
-
-# Generate the launcher script
-cat << 'EOF' > $target_dir/openocd
-#!/bin/bash
-
-openocd_dir=$(cd $(dirname $0) && pwd)
-
-if [[ $OSTYPE == linux-gnu ]]; then
-  export LD_LIBRARY_PATH=$openocd_dir/lib
-elif [[ $OSTYPE == darwin* ]]; then
-  export DYLD_LIBRARY_PATH=$openocd_dir/lib
-fi
-
-$openocd_dir/bin/openocd "$@"
-EOF
-chmod +x $target_dir/openocd
