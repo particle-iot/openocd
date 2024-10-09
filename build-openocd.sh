@@ -112,12 +112,12 @@ git submodule update --init --recursive
 
 ./bootstrap
 if [[ $OSTYPE == linux-gnu ]]; then
-LDFLAGS="-Wl,-rpath,$(pwd)/libexec"
+LDFLAGS="-Wl,-rpath=$(pwd)/libexec"
 elif [[ $OSTYPE == darwin* ]]; then
 LDFLAGS="-Wl,-rpath,@loader_path/../libexec"
 fi
 
-./configure --prefix=$target_dir --disable-werror LDFLAGS=${LDFLAGS}
+./configure --prefix=$target_dir --disable-werror LDFLAGS="${LDFLAGS}"
 
 make && make install
 
