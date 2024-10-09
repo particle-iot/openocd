@@ -19,7 +19,7 @@ jobs:
         run: |
           ./build-openocd.sh
       - name: Publish OpenOCD packaged for mac
-        uses: actions/upload-artifact@robherley/v4.4.2
+        uses: actions/upload-artifact@v4.4.0
         with:
           name: artifact-mac-14-arm-release
           path: ./openocd
@@ -39,7 +39,7 @@ jobs:
         run: |
           ./build-openocd.sh
       - name: Publish OpenOCD packaged for mac
-        uses: actions/upload-artifact@robherley/v4.4.2
+        uses: actions/upload-artifact@v4.4.0
         with:
           name: artifact-mac-12-release
           path: ./openocd
@@ -57,7 +57,7 @@ jobs:
         run: |
           ./build-openocd.sh
       - name: Publish OpenOCD packaged for linux
-        uses: actions/upload-artifact@robherley/v4.4.2
+        uses: actions/upload-artifact@v4.4.0
         with:
           name: artifact-linux-20-04-release
           path: ./openocd
@@ -78,7 +78,7 @@ jobs:
         run: |
           ./build-openocd.sh
       - name: Publish OpenOCD packaged for windows
-        uses: actions/upload-artifact@robherley/v4.4.2
+        uses: actions/upload-artifact@v4.4.0
         with:
           name: artifact-windows-release
           path: ./openocd
