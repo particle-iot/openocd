@@ -15,7 +15,7 @@
 # MSYS2 installation notes:
 # https://github.com/orlp/dev-on-windows/wiki/Installing-GCC--&-MSYS2
 
-set -e
+set -ex
 
 # OPENOCD_GIT_URL=https://github.com/particle-iot/openocd
 # OPENOCD_GIT_TAG=0b88dcc59c51e3999d56dfa90eec945cff54c9d8
@@ -122,12 +122,12 @@ if [[ $OSTYPE == linux-gnu ]]; then
   mkdir -p $target_dir/libexec
   cp -P $local_dir/lib/*.so $local_dir/lib/*.so.* $target_dir/libexec
   # Set the Runtime Library Search Path for Linux to load dependencies from libexec
-  patchelf --set-rpath '$ORIGIN/../libexec' openocd/bin/openocd
+  patchelf --set-rpath '$ORIGIN/../libexec' $target_dir/bin/openocd
 elif [[ $OSTYPE == darwin* ]]; then
   mkdir -p $target_dir/libexec
   cp -P -R $local_dir/lib/*.dylib $target_dir/libexec
   # Set the Runtime Library Search Path for Mac to load dependencies from libexec
-  install_name_tool -add_rpath '@loader_path/../libexec' openocd/bin/openocd
+  install_name_tool -add_rpath '@loader_path/../libexec' $target_dir/bin/openocd
 elif [[ $OSTYPE == msys ]]; then
   cp $local_dir/bin/*.dll $target_dir/bin
   # MinGW runtime libraries
