@@ -62,13 +62,16 @@ rm -rf $target_dir && mkdir -p $target_dir
 # Path to local pkg-config files
 export PKG_CONFIG_PATH=$local_dir/lib/pkgconfig
 
+# Do this just for MacOS
+if [[ $OSTYPE == darwin* ]]; then
 echo "Building capstone"
 echo $target_dir
 cd $build_dir
 git clone $CAPSTONE_GIT_URL capstone && cd capstone
 git checkout $CAPSTONE_GIT_TAG
 git submodule update --init --recursive
-make install DESTDIR=$target_dir PREFIX=$target_dir $CAPSTONE_CONFIG
+make install PREFIX=$local_dir $CAPSTONE_CONFIG
+fi
 
 echo "Building libusb"
 
