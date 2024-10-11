@@ -131,6 +131,14 @@ elif [[ $OSTYPE == darwin* ]]; then
   cp -P -R $local_dir/lib/*.dylib $target_dir/libexec
   # Set the Runtime Library Search Path for Mac to load dependencies from libexec
   install_name_tool -add_rpath '@loader_path/../libexec' $target_dir/bin/openocd
+  install_name_tool -add_rpath @loader_path/libexec $target_dir/bin/openocd
+  install_name_tool -add_rpath @executable_path/../libexec $target_dir/bin/openocd
+  # Re-link libraries
+  install_name_tool -change libftdi1.2.dylib @rpath/libftdi1.2.dylib $target_dir/bin/openocd
+  install_name_tool -change /Users/runner/work/openocd/openocd/.local/lib/libusb-1.0.0.dylib @rpath/libusb-1.0.0.dylib $target_dir/bin/openocd
+  install_name_tool -change /Users/runner/work/openocd/openocd/.local/lib/libhidapi.0.dylib @rpath/libhidapi.0.dylib $target_dir/bin/openocd
+  # link libusb-1.0.0.dylib to libftdi1.2.dylib
+  install_name_tool -change /usr/local/opt/libusb/lib/libusb-1.0.0.dylib @rpath/libusb-1.0.0.dylib $target_dir/libexec/libftdi1.2.dylib
 elif [[ $OSTYPE == msys ]]; then
   cp $local_dir/bin/*.dll $target_dir/bin
   # MinGW runtime libraries
