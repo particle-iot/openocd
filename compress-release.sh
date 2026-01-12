@@ -12,7 +12,7 @@ map_artifact() {
     artifact-linux-20-04-release)
       echo "linux-x64"
       ;;
-    artifact-mac-12-release)
+    artifact-mac-13-release)
       echo "darwin-x64"
       ;;
     artifact-mac-14-arm-release)

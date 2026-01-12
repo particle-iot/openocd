@@ -1,0 +1,12 @@
+name: build-all-platforms
+
+on:
+  push:
+    branches:
+      - '**'
+      - '!particle'
+
+jobs:
+  call-build:
+    uses: ./.github/workflows/reusable-build.yml
+    secrets: inherit
